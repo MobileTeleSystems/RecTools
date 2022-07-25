@@ -1,0 +1,3 @@
+-r requirements.txt
+numpy==1.19.5
+pandas==0.25.3
