@@ -1,0 +1,64 @@
+ame: Test
+
+on:
+  push:
+    branches:
+    - '**'
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  jobs:
+    lint:
+      runs-on: ubuntu-latest
+
+      steps:
+        - uses: actions/checkout@v2
+
+        - name: Set up Python
+          uses: actions/setup-python@v2
+          with:
+            python-version: 3.7
+
+        - name: Install dependencies
+          run: make install
+
+        - name: Static analysis
+          run: make lint
+
+    test:
+      runs-on: ubuntu-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          python-version: [ '3.7', '3.8', '3.9' ]
+          include:
+            - python-version: '3.7'
+            - python-version: '3.7'
+              old-deps: 'true'
+
+      steps:
+        - uses: actions/checkout@v2
+
+        - name: Set up Python
+          uses: actions/setup-python@v2
+          with:
+            python-version: ${{ matrix.python-version }}
+
+        - name: Install dependencies
+            run: make install
+
+        - name: Install old dependencies
+            if: matrix.old-deps == 'true'
+            run: .venv/bin/pip install -r requirements-test-old-versions.txt
+
+        - name: Run tests
+          run: make test
+
+        - name: Combine coverage
+          if: matrix.python-version == '3.7' && matrix.old-deps == 'true'
+          run: make coverage
+
+        - name: Upload coverage
+          uses: codecov/codecov-action@v3

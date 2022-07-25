@@ -22,8 +22,6 @@ BANDIT=${BIN}/bandit
 PYTEST=${BIN}/pytest
 COVERAGE=${BIN}/coverage
 
-COVERAGE_PATH = .coverage_report
-
 BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
@@ -131,7 +129,7 @@ coverage: .venv reports
 	@echo "Running coverage..."
 	${COVERAGE} run --source ${SOURCES} --module pytest
 	${COVERAGE} report
-	${COVERAGE} html -d ${COVERAGE_PATH}/html --fail-under=100
+	${COVERAGE} html -d ${REPORTS}/coverage_html
 	${COVERAGE} xml -o ${REPORTS}/coverage.xml -i
 
 # Generalization
