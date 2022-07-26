@@ -36,8 +36,6 @@ class ImplicitALSWrapperModel(VectorModel):
     with possibility to use explicit features and GPU support.
 
     See https://implicit.readthedocs.io/en/latest/als.html for details of base model.
-    Documentation on feature usage:
-    https://gitlab.services.mts.ru/strategic/esaul/mars/-/wikis/mars.recommenders/ALS/Features.
 
     Parameters
     ----------
@@ -116,7 +114,6 @@ def fit_als_with_features_separately(
 ) -> tp.Tuple[np.ndarray, np.ndarray]:
     """
     Fit ALS model with explicit features, explicit features fit separately from latent.
-    See details at https://gitlab.services.mts.ru/strategic/esaul/mars/-/wikis/mars.recommenders/ALS/Features.
 
     Parameters
     ----------
@@ -224,7 +221,6 @@ def fit_als_with_features_together(
 ) -> tp.Tuple[np.ndarray, np.ndarray]:
     """
     Fit ALS model with explicit features, explicit features fit together with latent.
-    See details at https://gitlab.services.mts.ru/strategic/esaul/mars/-/wikis/mars.recommenders/ALS/Features.
 
     Parameters
     ----------
