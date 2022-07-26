@@ -6,21 +6,18 @@ else
 	BIN=${VENV}/bin
 endif
 
+export PATH := $(BIN):$(PATH)
 
-PIP=${BIN}/pip
-PYTHON=${BIN}/python
-
-FLAKE=${BIN}/flake8
-MYPY=${BIN}/mypy
-PYLINT=${BIN}/pylint
-ISORT=${BIN}/isort
-AUTOPEP8=${BIN}/autopep8
-BLACK=${BIN}/black
-CODESPELL=${BIN}/codespell
-BANDIT=${BIN}/bandit
-
-PYTEST=${BIN}/pytest
-COVERAGE=${BIN}/coverage
+FLAKE=flake8
+MYPY=mypy
+PYLINT=pylint
+ISORT=isort
+AUTOPEP8=autopep8
+BLACK=black
+CODESPELL=codespell
+BANDIT=bandit
+PYTEST=pytest
+COVERAGE=coverage
 
 BENCHMARK=benchmark
 SOURCES=rectools
@@ -34,24 +31,10 @@ reports:
 
 .venv:
 	@echo "Creating virtualenv...\t\t"
-	@virtualenv -q -p python3 ${VENV}
-
-	@echo "Setting pip config..."
-	@${PIP} config --site set global.index-url http://rep.msk.mts.ru/artifactory/api/pypi/pypi/simple
-	@${PIP} config --site set global.trusted-host rep.msk.mts.ru
-
-	@echo "Upgrading pip...\t"
-	@${PIP} install -q pip==21.3
-
-	@echo "Installing requirements...\t"
-	@${PIP} install -r requirements-dev.txt
-
-	@echo "Installing benchmark requirements...\t"
-	@${PIP} install -r benchmark/requirements.txt
-
+	poetry install -E all --no-root
 	@echo "[Installed]"
 
-install: .venv
+install: .venv reports
 
 
 # Linters
@@ -115,11 +98,7 @@ install: .venv
 
 .pytest:
 	@echo "Running pytest checks...\t"
-	@PYTHONPATH=. ${PYTEST} ${TESTS}/
-
-.test_metrics:
-	@echo "Testing whether models are correct...\t"
-	@PYTHONPATH=. ${PYTEST} benchmark/check_metrics/check_model_correctness.py
+	@PYTHONPATH=. ${PYTEST} ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
 	@echo "Running doctest checks...\t"
@@ -151,6 +130,7 @@ test_metrics: .venv .test_metrics
 clean:
 	@rm -rf build dist .eggs *.egg-info
 	@rm -rf ${VENV}
+	@rm -rf ${REPORTS}
 	@find . -type d -name '.mypy_cache' -exec rm -rf {} +
 	@find . -type d -name '*pytest_cache*' -exec rm -rf {} +
 
