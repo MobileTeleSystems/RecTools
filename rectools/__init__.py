@@ -22,8 +22,6 @@ realisations and optimizations. It also provides tools
 for metrics computation, easy data conversion, and preparing
 models for production-ready systems.
 
-See https://strategic.pages.mts.ru/esaul/mars for complete documentation.
-
 Subpackages
 -----------
     dataset - Data and  identifiers conversion
