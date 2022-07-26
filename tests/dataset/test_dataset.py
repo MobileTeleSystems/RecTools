@@ -72,10 +72,12 @@ class TestDataset:
         if expected_user_features is None:
             assert actual.user_features is None
         else:
+            assert actual.user_features is not None
             assert_feature_set_equal(actual.user_features, expected_user_features)
         if expected_item_features is None:
             assert actual.item_features is None
         else:
+            assert actual.item_features is not None
             assert_feature_set_equal(actual.item_features, expected_item_features)
 
     def test_construct_without_features(self) -> None:
