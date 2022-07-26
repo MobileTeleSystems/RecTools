@@ -52,9 +52,9 @@ jobs:
       - name: Install dependencies
         run: make install
 
-      - name: Install old dependencies
+      - name: Install old dependencies versions
         if: matrix.old-deps == 'true'
-        run: poetry run pip install -r requirements-test-old-versions.txt
+        run: poetry run pip install -r requirements-old-versions.txt
 
       - name: Run tests
         run: make test
