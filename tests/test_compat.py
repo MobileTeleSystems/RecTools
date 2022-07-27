@@ -16,17 +16,12 @@ import typing as tp
 
 import pytest
 
-from rectools.compat import DSSMModel, SpotlightFactorizationWrapperModel
+from rectools.compat import DSSMModel
 
 
 @pytest.mark.parametrize(
     "model",
-    (
-        (
-            DSSMModel,
-            SpotlightFactorizationWrapperModel,
-        )
-    ),
+    (DSSMModel,),
 )
 def test_raise_when_model_not_available(
     model: tp.Any,
