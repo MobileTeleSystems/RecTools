@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rectools"
-version = "0.0.1"
+version = "0.0.2"
 repository = "https://github.com/MobileTeleSystems/RecTools"
 readme = "README.md"
 description = "An easy-to-use Python library for building recommendation systems"
