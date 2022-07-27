@@ -47,11 +47,10 @@ Markdown = "~3.2"
 
 torch = {version = "^1.6", optional = true}
 pytorch-lightning = {version = "^1.6", optional = true}
-spotlight = {git = "https://github.com/maciejkula/spotlight.git", rev = "v0.1.6", optional = true}
 
 [tool.poetry.extras]
-nn = ["torch", "pytorch-lightning", "spotlight"]
-all = ["torch", "pytorch-lightning", "spotlight"]
+nn = ["torch", "pytorch-lightning"]
+all = ["torch", "pytorch-lightning"]
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"

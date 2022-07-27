@@ -29,10 +29,3 @@ class NNModelUnavailable:
 
 class DSSMModel(NNModelUnavailable):
     """Dummy class the instance of which is returned in case DSSMModel lacks any libraries required"""
-
-
-class SpotlightFactorizationWrapperModel(NNModelUnavailable):
-    """
-    Dummy class the instance of which is returned in case SpotlightFactorizationWrapperModel lacks
-    any libraries required
-    """
