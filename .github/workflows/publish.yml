@@ -15,7 +15,7 @@ jobs:
         run: echo "$GITHUB_CONTEXT"
 
       - uses: actions/checkout@v2
-        -
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -31,4 +31,4 @@ jobs:
         run: poetry build
 
       - name: Publish
-        run: poetry publish -u __token__ -p "${{ secrets.PYPI_TOKEN }}"
+        run: poetry publish -u __token__ -p ${{ secrets.PYPI_TOKEN }}
