@@ -12,7 +12,7 @@ maintainers = [
     "Daniil Potapov <mars-team@mts.ru>",
 ]
 classifiers = [
-    "Development Status :: 3 - Alfa",
+    "Development Status :: 3 - Alpha",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
