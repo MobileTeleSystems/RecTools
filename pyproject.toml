@@ -1,0 +1,80 @@
+[tool.poetry]
+name = "rectools"
+version = "0.0.1"
+repository = "https://github.com/MobileTeleSystems/RecTools"
+readme = "README.md"
+description = "An easy-to-use Python library for building recommendation systems"
+license = "Apache-2.0"
+authors = [
+    "Daniil Potapov <mars-team@mts.ru>",
+]
+maintainers = [
+    "Daniil Potapov <mars-team@mts.ru>",
+]
+classifiers = [
+    "Development Status :: 3 - Alfa",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+]
+packages = [
+    { include = "rectools", from = "." },
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.7.1, <3.10.0"
+numpy = ">=1.19.5, <2.0.0"
+pandas = ">=0.25.3, <2.0.0"
+scipy = "^1.5.4"
+tqdm = "^4.27.0"
+implicit = "0.4.4"
+nmslib = "^2.0.4"
+attrs = ">=19.1.0,<22.0.0"
+typeguard = "^2.0.1"
+lightfm = "^1.16"
+
+# To avoid problems with resolving dependencies
+Markdown = "~3.2"
+
+torch = {version = "^1.6", optional = true}
+pytorch-lightning = {version = "^1.6", optional = true}
+spotlight = {git = "https://github.com/maciejkula/spotlight.git", rev = "v0.1.6", optional = true}
+
+[tool.poetry.extras]
+nn = ["torch", "pytorch-lightning", "spotlight"]
+all = ["torch", "pytorch-lightning", "spotlight"]
+
+[tool.poetry.dev-dependencies]
+black = "22.3.0"
+isort = "5.10.1"
+pylint = "2.6.0"
+mypy = "0.931"
+flake8 = "4.0.1"
+bandit = "1.7.4"
+pytest = "7.1.2"
+radon = "5.1.0"
+coverage = "6.4.2"
+autopep8 = "1.6.0"
+codespell = "2.1.0"
+pytest-subtests = "0.8.0"
+flake8-docstrings = "1.6.0"
+pep8-naming = "0.12.1"
+pytest-cov = "2.12.1"
+
+
+[tool.black]
+line-length = 120
+target-version = ["py37", "py38", "py39"]
+
+[build-system]
+requires = ["poetry>=1.0.5"]
+build-backend = "poetry.masonry.api"
