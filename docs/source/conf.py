@@ -14,6 +14,7 @@ import os
 import sys
 from sphinx.ext.autosummary import Autosummary
 from sphinx.application import Sphinx
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.abspath('../..'))
 
@@ -39,8 +40,24 @@ limitations under the License.
 author = 'MTS Big Data'
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.0'
+# release = '0.2.0'
 
+# -- mock out modules
+MOCK_MODULES = [
+    'numpy',
+    'pandas',
+    'scipy',
+    'tqdm',
+    'implicit',
+    'nmslib',
+    'attrs',
+    'typeguard',
+    'lightfm',
+    'torch',
+    'pytorch-lightning',
+]
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = Mock()
 
 # -- General configuration ---------------------------------------------------
 
