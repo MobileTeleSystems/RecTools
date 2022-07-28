@@ -50,6 +50,7 @@ MOCK_MODULES = [
     'pandas.core.dtypes',
     'pandas.core.dtypes.common',
     'scipy',
+    'scipy.sparse',
     'tqdm',
     'implicit',
     'implicit.als',
