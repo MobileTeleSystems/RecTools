@@ -43,15 +43,10 @@ try:
     from .dssm import DSSMModel
 except ImportError:  # pragma: no cover
     from ..compat import DSSMModel  # type: ignore
-try:
-    from .spotlight import SpotlightFactorizationWrapperModel
-except ImportError:  # pragma: no cover
-    from ..compat import SpotlightFactorizationWrapperModel  # type: ignore
 
 __all__ = (
     "ImplicitALSWrapperModel",
     "ImplicitItemKNNWrapperModel",
-    "SpotlightFactorizationWrapperModel",
     "LightFMWrapperModel",
     "PopularModel",
     "PopularInCategoryModel",
