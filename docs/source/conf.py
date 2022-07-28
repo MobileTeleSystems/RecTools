@@ -47,6 +47,8 @@ MOCK_MODULES = [
     'numpy',
     'pandas',
     'pandas.core',
+    'pandas.core.dtypes',
+    'pandas.core.dtypes.common',
     'scipy',
     'tqdm',
     'implicit',
@@ -59,7 +61,6 @@ MOCK_MODULES = [
 ]
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
-
 
 # -- General configuration ---------------------------------------------------
 
