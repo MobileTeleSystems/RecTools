@@ -52,11 +52,13 @@ MOCK_MODULES = [
     'scipy',
     'tqdm',
     'implicit',
+    'implicit.als',
     'nmslib',
     'attrs',
     'typeguard',
     'lightfm',
     'torch',
+    'torch.utils',
     'pytorch-lightning',
 ]
 for mod_name in MOCK_MODULES:
