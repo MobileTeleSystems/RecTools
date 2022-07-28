@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rectools"
-version = "0.0.1"
+version = "0.0.2"
 repository = "https://github.com/MobileTeleSystems/RecTools"
 readme = "README.md"
 description = "An easy-to-use Python library for building recommendation systems"
@@ -12,7 +12,7 @@ maintainers = [
     "Daniil Potapov <mars-team@mts.ru>",
 ]
 classifiers = [
-    "Development Status :: 3 - Alfa",
+    "Development Status :: 3 - Alpha",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
@@ -47,11 +47,10 @@ Markdown = "~3.2"
 
 torch = {version = "^1.6", optional = true}
 pytorch-lightning = {version = "^1.6", optional = true}
-spotlight = {git = "https://github.com/maciejkula/spotlight.git", rev = "v0.1.6", optional = true}
 
 [tool.poetry.extras]
-nn = ["torch", "pytorch-lightning", "spotlight"]
-all = ["torch", "pytorch-lightning", "spotlight"]
+nn = ["torch", "pytorch-lightning"]
+all = ["torch", "pytorch-lightning"]
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"

@@ -3,7 +3,7 @@ name: Test
 on:
   push:
     branches:
-      - '**'
+      - "**"
 
 
 jobs:
@@ -32,11 +32,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ '3.7', '3.8', '3.9' ]
+        python-version: [ "3.7", "3.8", "3.9" ]
+        old-deps: [ "false" ]
         include:
-          - python-version: '3.7'
-          - python-version: '3.7'
-            old-deps: 'true'
+          - python-version: "3.7"
+            old-deps: "true"
 
     steps:
       - uses: actions/checkout@v2
