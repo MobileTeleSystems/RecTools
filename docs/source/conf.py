@@ -46,6 +46,7 @@ author = 'MTS Big Data'
 MOCK_MODULES = [
     'numpy',
     'pandas',
+    'pandas.core',
     'scipy',
     'tqdm',
     'implicit',
