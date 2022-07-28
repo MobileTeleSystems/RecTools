@@ -49,6 +49,7 @@ target/
 
 # Sphinx documentation
 docs/build/
+docs/source/api/
 
 # Jupyter checkpoints
 .ipynb_checkpoints
