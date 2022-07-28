@@ -53,6 +53,7 @@ MOCK_MODULES = [
     'tqdm',
     'implicit',
     'implicit.als',
+    'implicit.nearest_neighbours',
     'implicit.utils',
     'nmslib',
     'attrs',
