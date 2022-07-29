@@ -28,6 +28,7 @@ jobs:
         run: make lint
 
   test:
+    name: test (${{ matrix.python-version }}, old-deps - ${{ matrix.old-deps }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

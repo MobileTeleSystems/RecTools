@@ -1,15 +1,33 @@
 [tool.poetry]
-name = "rectools"
+name = "RecTools"
 version = "0.0.3"
-repository = "https://github.com/MobileTeleSystems/RecTools"
-readme = "README.md"
 description = "An easy-to-use Python library for building recommendation systems"
 license = "Apache-2.0"
 authors = [
-    "Daniil Potapov <mars-team@mts.ru>",
+    "Daniil Potapov <sharth23@gmail.com>",
+    "Ildar Safilo <irsafilo@gmail.com>",
+    "Emiliy Feldman <feldlime@yandex.ru",
+    "Alexander Butenko <a.butenko.o@gmail.com>",
+    "Julia Karamnova <juliakaramnova@yandex.ru>",
+    "Artem Senin <artemseninhse@gmail.com>",
+    "Mikhail Khasykov <mkhasykov@gmail.com>",
+    "Daria Tikhonovich <daria.m.tikhonovich@gmail.com>",
 ]
 maintainers = [
-    "Daniil Potapov <mars-team@mts.ru>",
+    "Daniil Potapov <sharth23@gmail.com>",
+    "Ildar Safilo <irsafilo@gmail.com>",
+    "Emiliy Feldman <feldlime@yandex.ru",
+]
+readme = "README.md"
+homepage = "https://github.com/MobileTeleSystems/RecTools"
+repository = "https://github.com/MobileTeleSystems/RecTools"
+documentation = "https://rectools.readthedocs.io"
+keywords = [
+    "recsys",
+    "recommendation systems",
+    "machine learning",
+    "AI",
+    "personalization",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
