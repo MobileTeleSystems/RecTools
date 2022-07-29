@@ -1,6 +1,8 @@
 Tutorials
 =========
 
+See tutorials here: https://github.com/MobileTeleSystems/RecTools/tree/main/examples
+
 .. toctree::
    :maxdepth: 4
    :glob:
