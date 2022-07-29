@@ -99,7 +99,8 @@ class ScoreCalculator:
         elif self.distance == Distance.EUCLIDEAN:
             subject_dot = self.subjects_dots[subject_id]
             dot = self.objects_factors @ subject_factors
-            scores = np.sqrt(self.objects_dots + subject_dot - 2 * dot)
+            d2 = self.objects_dots + subject_dot - 2 * dot
+            scores = np.sqrt(np.maximum(d2, 0))  # Theoretically d2 >= 0, but can be <0 because of rounding errors
         elif self.distance == Distance.COSINE:
             subject_norm = self.subjects_norms[subject_id]
             if subject_norm == 0:
