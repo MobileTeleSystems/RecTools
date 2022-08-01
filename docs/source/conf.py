@@ -74,12 +74,6 @@ MOCK_MODULES = [
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
 
-
-# -- Add examples ---------------
-EXAMPLES_DIR = ROOT_DIR / "examples"
-DOCS_EXAMPLES_DIR = CURRENT_DIR / "examples"
-shutil.copytree(EXAMPLES_DIR, DOCS_EXAMPLES_DIR, dirs_exist_ok=True)
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
