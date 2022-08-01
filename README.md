@@ -13,15 +13,15 @@
 
 RecTools is an easy-to-use Python library which makes the process of building recommendation systems easier, 
 faster and more structured than ever before.
-It includes building in toolkits for data processing and metrics calculation, 
+It includes built-in in toolkits for data processing and metrics calculation, 
 a variety of recommender models, some wrappers for already existing implementations of popular algorithms 
 and model selection framework.
 The aim is collecting ready-to-use solutions and best practices in one place to make processes 
 of creating your first MVP and deploying model to production as fast and easy as possible.
 
-RecTools allows to work with dense and sparse features easilier.
+RecTools allows to work with dense and sparse features easily.
 There are a lot of useful features such as basic model which based on random suggestions or popularity, and more advanced, e.g. LightFM.
-Also It contains a wide variety of metrics to choose from to better suit recommender system to your needs.
+Also it contains a wide variety of metrics to choose from to better suit recommender system to your needs.
 
 For more details, see the [Documentation](https://rectools.readthedocs.io/) 
 and [Tutorials](https://github.com/MobileTeleSystems/RecTools/tree/main/examples).
