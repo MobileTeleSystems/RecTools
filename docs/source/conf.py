@@ -68,6 +68,7 @@ MOCK_MODULES = [
     "lightfm",
     "torch",
     "torch.nn",
+    "torch.nn.functional",
     "torch.utils",
     "torch.utils.data",
     "pytorch-lightning",
