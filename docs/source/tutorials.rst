@@ -11,4 +11,4 @@ See tutorials here: https://github.com/MobileTeleSystems/RecTools/tree/main/exam
    examples/2_cross_validation
    examples/3_metrics
    examples/4_features
-   examples/5_recsys_competition_
+   examples/5_recsys_competition
