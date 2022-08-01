@@ -67,6 +67,7 @@ MOCK_MODULES = [
     "typeguard",
     "lightfm",
     "torch",
+    "torch.nn",
     "torch.utils",
     "torch.utils.data",
     "pytorch-lightning",
