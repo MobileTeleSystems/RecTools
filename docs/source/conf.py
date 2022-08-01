@@ -48,36 +48,36 @@ author = "MTS Big Data"
 # release = "0.2.0"
 
 # -- mock out modules
-MOCK_MODULES = [
-    "numpy",
-    "pandas",
-    "pandas.core",
-    "pandas.core.dtypes",
-    "pandas.core.dtypes.common",
-    "scipy",
-    "scipy.sparse",
-    "scipy.sparse.linalg",
-    "tqdm",
-    "implicit",
-    "implicit.als",
-    "implicit.nearest_neighbours",
-    "implicit.utils",
-    "nmslib",
-    "attrs",
-    "typeguard",
-    "lightfm",
-    "torch",
-    "torch.nn",
-    "torch.nn.functional",
-    "torch.utils",
-    "torch.utils.data",
-    "pytorch_lightning",
-    "pytorch_lightning.callbacks",
-    "pytorch_lightning.callbacks.base",
-    "pytorch_lightning.loggers",
-]
-for mod_name in MOCK_MODULES:
-    sys.modules[mod_name] = Mock()
+# MOCK_MODULES = [
+#     "numpy",
+#     "pandas",
+#     "pandas.core",
+#     "pandas.core.dtypes",
+#     "pandas.core.dtypes.common",
+#     "scipy",
+#     "scipy.sparse",
+#     "scipy.sparse.linalg",
+#     "tqdm",
+#     "implicit",
+#     "implicit.als",
+#     "implicit.nearest_neighbours",
+#     "implicit.utils",
+#     "nmslib",
+#     "attrs",
+#     "typeguard",
+#     "lightfm",
+#     "torch",
+#     "torch.nn",
+#     "torch.nn.functional",
+#     "torch.utils",
+#     "torch.utils.data",
+#     "pytorch_lightning",
+#     "pytorch_lightning.callbacks",
+#     "pytorch_lightning.callbacks.base",
+#     "pytorch_lightning.loggers",
+# ]
+# for mod_name in MOCK_MODULES:
+#     sys.modules[mod_name] = Mock()
 
 # -- General configuration ---------------------------------------------------
 
