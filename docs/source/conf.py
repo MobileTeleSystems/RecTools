@@ -71,7 +71,7 @@ MOCK_MODULES = [
     "torch.nn.functional",
     "torch.utils",
     "torch.utils.data",
-    "pytorch-lightning",
+    "pytorch_lightning",
 ]
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
