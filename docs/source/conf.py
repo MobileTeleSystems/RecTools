@@ -11,18 +11,23 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+from pathlib import Path
+import shutil
 import sys
-from sphinx.ext.autosummary import Autosummary
-from sphinx.application import Sphinx
 from unittest.mock import Mock
 
-sys.path.insert(0, os.path.abspath('../..'))
+from sphinx.ext.autosummary import Autosummary
+from sphinx.application import Sphinx
+
+CURRENT_DIR = Path(__file__).parent.absolute()
+ROOT_DIR = CURRENT_DIR.parents[1]
+sys.path.insert(0, str(ROOT_DIR))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'RecTools'
-copyright = '''
+project = "RecTools"
+copyright = """
 2022 MTS (Mobile Telesystems)
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,52 +41,58 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
-author = 'MTS Big Data'
+"""
+author = "MTS Big Data"
 
 # The full version, including alpha/beta/rc tags
-# release = '0.2.0'
+# release = "0.2.0"
 
 # -- mock out modules
 MOCK_MODULES = [
-    'numpy',
-    'pandas',
-    'pandas.core',
-    'pandas.core.dtypes',
-    'pandas.core.dtypes.common',
-    'scipy',
-    'scipy.sparse',
-    'scipy.sparse.linalg',
-    'tqdm',
-    'implicit',
-    'implicit.als',
-    'implicit.nearest_neighbours',
-    'implicit.utils',
-    'nmslib',
-    'attrs',
-    'typeguard',
-    'lightfm',
-    'torch',
-    'torch.utils',
-    'torch.utils.data',
-    'pytorch-lightning',
+    "numpy",
+    "pandas",
+    "pandas.core",
+    "pandas.core.dtypes",
+    "pandas.core.dtypes.common",
+    "scipy",
+    "scipy.sparse",
+    "scipy.sparse.linalg",
+    "tqdm",
+    "implicit",
+    "implicit.als",
+    "implicit.nearest_neighbours",
+    "implicit.utils",
+    "nmslib",
+    "attrs",
+    "typeguard",
+    "lightfm",
+    "torch",
+    "torch.utils",
+    "torch.utils.data",
+    "pytorch-lightning",
 ]
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
 
+
+# -- Add examples ---------------
+EXAMPLES_DIR = ROOT_DIR / "examples"
+DOCS_EXAMPLES_DIR = CURRENT_DIR / "examples"
+shutil.copy(EXAMPLES_DIR, DOCS_EXAMPLES_DIR)
+
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
-# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+# extensions coming with Sphinx (named "sphinx.ext.*") or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.mathjax',
-    'nbsphinx'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
+    "nbsphinx"
 ]
 
 autodoc_typehints = "both"
@@ -98,7 +109,7 @@ def skip(app, what, name, obj, skip, options):
     """
     if name == "__init__":
         return True
-    if name.startswith('_') and what in ('function', 'method'):
+    if name.startswith("_") and what in ("function", "method"):
         return True
     return skip
 
@@ -107,7 +118,7 @@ def get_by_name(string: str):
     """
     Import by name and return imported module/function/class
     Args:
-        string (str): module/function/class to import, e.g. 'pandas.read_csv' will return read_csv function as
+        string (str): module/function/class to import, e.g. "pandas.read_csv" will return read_csv function as
         defined by pandas
     Returns:
         imported object
@@ -148,12 +159,12 @@ def setup(app: Sphinx):
 autosummary_generate = True
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', '_templates']
+exclude_patterns = ["_build", "_templates"]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -161,24 +172,24 @@ exclude_patterns = ['_build', '_templates']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 
 html_theme_options = {
-    'collapse_navigation': False,
-    'display_version': True,
-    'logo_only': True,
+    "collapse_navigation": False,
+    "display_version": True,
+    "logo_only": True,
 }
 
 # html_context = {
-#     'css_files': [
-#         '_static/theme.css'
+#     "css_files": [
+#         "_static/theme.css"
 #     ],
 # }
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-# html_logo = '_static/logo.jpeg'
+# html_logo = "_static/logo.jpeg"
 
 # The name of an image file (relative to this directory) to use as a favicon of
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -188,5 +199,5 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
