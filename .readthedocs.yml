@@ -24,7 +24,3 @@ python:
 
 formats:
   - pdf
-
-submodules:
-  include: all
-  recursive: true
