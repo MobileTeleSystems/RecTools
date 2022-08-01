@@ -78,7 +78,7 @@ for mod_name in MOCK_MODULES:
 # -- Add examples ---------------
 EXAMPLES_DIR = ROOT_DIR / "examples"
 DOCS_EXAMPLES_DIR = CURRENT_DIR / "examples"
-shutil.copy(EXAMPLES_DIR, DOCS_EXAMPLES_DIR)
+shutil.copytree(EXAMPLES_DIR, DOCS_EXAMPLES_DIR, dirs_exist_ok=True)
 
 # -- General configuration ---------------------------------------------------
 
