@@ -6,7 +6,7 @@ Models
 .. currentmodule:: rectools
 
 Details of RecTools Models
--------------------------
+--------------------------
 
 See the API documentation for further details on Models:
 

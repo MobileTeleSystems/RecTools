@@ -6,7 +6,7 @@ Dataset
 .. currentmodule:: rectools
 
 Details of RecTools Dataset
--------------------------
+---------------------------
 
 See the API documentation for further details on Dataset:
 
