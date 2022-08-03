@@ -98,8 +98,8 @@ class Dataset:
         make_dense_user_features, make_dense_item_features : bool, default ``False``
             Create user (item) features as dense or sparse.
             Used only if `user_features_df` (`item_features_df`) is not ``None``.
-                - if ``False``, `SparseFeatures.from_flatten` method will be used;
-                - if ``True``,  `DenseFeatures.from_dataframe` method will be used.
+            - if ``False``, `SparseFeatures.from_flatten` method will be used;
+            - if ``True``,  `DenseFeatures.from_dataframe` method will be used.
 
         Returns
         -------

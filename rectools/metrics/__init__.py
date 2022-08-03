@@ -14,12 +14,11 @@
 
 """
 Metrics calculation tools (:mod:`rectools.metrics`).
-================================================
+===============================================================
 
 Tools for fast and convenient calculation of
 different recommendation metrics.
 
-============================
 Metrics
 -------
 `metrics.Precision`
@@ -30,18 +29,13 @@ Metrics
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.Serendipity`
-============================
 
-
-=============================================================
 Tools
 -----
 `metrics.calc_metrics` - calculate a set of metrics efficiently
 `metrics.PairwiseDistanceCalculator`
 `metrics.PairwiseHammingDistanceCalculator`
 `metrics.SparsePairwiseHammingDistanceCalculator`
-===============================================================
-
 """
 
 from .classification import Accuracy, Precision, Recall

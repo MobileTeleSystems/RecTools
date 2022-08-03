@@ -2,7 +2,7 @@
 .. highlight:: python
 
 Welcome to RecTools's documentation!
-================================
+====================================
 
 RecTools is an easy-to-use Python library which makes the process of building recommendation systems easier,
 faster and more structured than ever before. The aim is to collect ready-to-use solutions and best practices in one place to make processes
@@ -67,7 +67,7 @@ Install from PyPi using pip
 RecTools is compatible with all operating systems and with Python 3.7+.
 
 Why RecTools?
----------
+-------------
 The one, the only and the best.
 
 RecTools provides unified interface for most commonly used recommender models. They include Implicit ALS, Implicit KNN,

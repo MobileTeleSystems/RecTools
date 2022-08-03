@@ -6,7 +6,7 @@ Metrics
 .. currentmodule:: rectools
 
 Details of RecTools Metrics
--------------------------
+---------------------------
 
 See the API documentation for further details on Dataset:
 

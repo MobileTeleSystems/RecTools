@@ -48,10 +48,10 @@ class PopularModel(ModelBase):
     popularity : {"n_users", "n_interactions", "mean_weight", "sum_weight"}, default `"n_users"`
         Method of calculating item popularity.
         To evaluate `popularity score` the following methods are available:
-            - `n_users` - number of unique users that interacted with item;
-            - `n_interactions` - number of interactions with item;
-            - `mean_weight` - mean item interactions weight;
-            - `sum_weight` - total item interactions weight.
+        - `n_users` - number of unique users that interacted with item;
+        - `n_interactions` - number of interactions with item;
+        - `mean_weight` - mean item interactions weight;
+        - `sum_weight` - total item interactions weight.
     period : timedelta, optional, default ``None``
         Period before last interaction to consider interactions for popularity calculation.
         Either `period` or `begin_from` can be set at once.
