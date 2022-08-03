@@ -37,6 +37,7 @@ from rectools.utils import fast_isin, fast_isin_for_sorted_test_elements, get_el
         (np.array([2, 6, 4]), np.array([]), np.array([False, False, False])),
     ),
 )
+@pytest.mark.filterwarnings("ignore:elementwise comparison failed")
 def test_fast_isin(elements: np.ndarray, test_elements: np.ndarray, expected: np.ndarray) -> None:
     actual = fast_isin(elements, test_elements)
     np.testing.assert_array_equal(actual, expected)

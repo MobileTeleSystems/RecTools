@@ -29,6 +29,7 @@ from rectools.models.utils import recommend_from_scores
 from .data import DATASET
 
 
+@pytest.mark.filterwarnings("ignore:Converting sparse features to dense")
 @pytest.mark.parametrize("use_gpu", (False, True) if HAS_CUDA else (False,))
 class TestImplicitALSWrapperModel:
     @staticmethod
