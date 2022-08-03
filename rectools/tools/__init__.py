@@ -14,16 +14,15 @@
 
 """
 Tools (:mod:`rectools.tools`)
-===================================
+=============================
 
 Various useful instruments to make recommendations better.
 
-===============================
+
 Tools
 -----
 `tools.ItemToItemAnnRecommender`
 `tools.UserToItemAnnRecommender`
-===============================
 """
 
 from .ann import ItemToItemAnnRecommender, UserToItemAnnRecommender

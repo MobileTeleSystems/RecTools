@@ -26,7 +26,7 @@ ExternalItemId = tp.Union[str, int]
 Catalog = tp.Collection[ExternalItemId]
 
 
-@attr.s
+@attr.s(auto_attribs=True)
 class MetricAtK:
     """
     Base class of metrics that depends on `k` -
@@ -41,7 +41,7 @@ class MetricAtK:
         Number of items at the top of recommendations list that will be used to calculate metric.
     """
 
-    k: int = attr.ib()
+    k: int
 
     @classmethod
     def _check(

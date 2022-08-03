@@ -158,10 +158,12 @@ class DSSM(LightningModule):
         return anchor, pos, neg
 
     def configure_optimizers(self) -> torch.optim.Adam:
+        """Choose what optimizers and learning-rate schedulers to use in optimization"""
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         return optimizer
 
     def training_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore
+        """Compute and return the training loss"""
         user_features, interactions, pos, neg = batch
         anchor, positive, negative = self(pos, neg, user_features, interactions)
         loss = F.triplet_margin_loss(anchor, positive, negative, margin=self.triplet_loss_margin)

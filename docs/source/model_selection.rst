@@ -6,7 +6,7 @@ Model selection
 .. currentmodule:: rectools
 
 Details of RecTools Model selection
--------------------------------
+-----------------------------------
 
 See the API documentation for further details on Model selection:
 

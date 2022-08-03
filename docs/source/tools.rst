@@ -6,7 +6,7 @@ Tools
 .. currentmodule:: rectools
 
 Details of RecTools Tools
----------------------
+-------------------------
 
 See the API documentation for further details on Tools:
 

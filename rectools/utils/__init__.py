@@ -14,11 +14,11 @@
 
 """
 Utils (:mod:`rectools.utils`)
-===================================
+=============================
 
 Inner helpers.
 
-===============================
+
 Tools
 -----
 `utils.fast_isin`
@@ -29,7 +29,6 @@ Tools
 `utils.log_at_base`
 `utils.is_instance`
 `utils.select_by_type`
-===============================
 """
 
 from .indexing import fast_isin, fast_isin_for_sorted_test_elements, get_element_ids, get_from_series_by_index
