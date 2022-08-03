@@ -19,7 +19,7 @@ import numpy as np
 from implicit.als import AlternatingLeastSquares
 from implicit.utils import check_random_state
 from scipy import sparse
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
