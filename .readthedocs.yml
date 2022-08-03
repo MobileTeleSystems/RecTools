@@ -8,10 +8,9 @@ build:
     pre_build:
       - cp -r examples docs/source/
     post_install:
-#      - pip install poetry
-#      - poetry config virtualenvs.create false
-#      - poetry install -E all --no-dev
-      - pip install rectools[all]
+      - pip install --no-cache-dir poetry
+      - poetry export -f requirements.txt -o requirements.txt -E all --without-hashes
+      - pip install --no-cache-dir -r requirements.txt
 
 sphinx:
   builder: html
