@@ -57,9 +57,9 @@ class PopularInCategoryModel(PopularModel):
         Method of mixing recommendations from different categories. The following methods are
         available:
         - `rotate` - items from different categories take turns in final recommendations,
-            starting from the most popular category
+        starting from the most popular category
         - `group` - items from each category are grouped together. Categories are sorted
-            by popularity
+        by popularity
     ratio_strategy: {"equal", "proportional"}, default `"proportional"`
         Method of defining ratios for categories. The following methods are available:
         - `equal` - all categories gain equal ratios in recommendations. Exceeding places
@@ -67,7 +67,6 @@ class PopularInCategoryModel(PopularModel):
         - `proportional` - categories gain ratios in recommendations based on their popularity.
         Each category gains at least one item in recommendations
         if number of categories doesn't exceed number of recs.
-
     popularity : {"n_users", "n_interactions", "mean_weight", "sum_weight"}, default `"n_users"`
         Method of calculating item popularity.
         To evaluate `popularity score` the following methods are available:

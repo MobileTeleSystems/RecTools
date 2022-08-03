@@ -306,7 +306,7 @@ class NDCG(_RankingMetric):
     The closer it is to the top the more weight it assigns to relevant items.
     Here:
     - `rel(i)` is an indicator function, it equals to ``1``
-      if an item at rank `i` is relevant, ``0`` otherwise;
+    if an item at rank `i` is relevant, ``0`` otherwise;
     - `log` - logarithm at any given base, usually ``2``.
 
     and :math:`IDCG@k = \sum_{i=1}^{k+1} (1 / log(i + 1))` -
