@@ -5,8 +5,8 @@ build:
   tools:
     python: "3.8"
   jobs:
-#    pre_build:
-#      - cp -r examples docs/source/
+    pre_build:
+      - cp -r examples docs/source/
     post_install:
 #      - pip install poetry
 #      - poetry config virtualenvs.create false
