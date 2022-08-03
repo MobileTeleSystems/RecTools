@@ -17,7 +17,7 @@ import typing as tp
 import numpy as np
 from implicit.nearest_neighbours import ItemItemRecommender
 from scipy import sparse
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
