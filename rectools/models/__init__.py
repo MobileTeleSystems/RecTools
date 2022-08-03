@@ -16,19 +16,23 @@
 
 """
 Recommendation models (:mod:`rectools.models`)
-===========================================
+==============================================
 
 Convenient wrappers for popular recommendation
 algorithms (ItemKNN, ALS, LightFM), also some custom
 implementations.
 
-=============================
+
 Models
 ------
-`models.ImplicitALSModel`
-`models.ImplicitItemKNNModel`
+`models.DSSMModel`
+`models.ImplicitALSWrapperModel`
+`models.ImplicitItemKNNWrapperModel`
+`models.LightFMWrapperModel`
+`models.PopularModel`
+`models.PopularInCategoryModel`
+`models.PureSVDModel`
 `models.RandomModel`
-=============================
 """
 
 from .implicit_als import ImplicitALSWrapperModel
