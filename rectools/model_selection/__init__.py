@@ -14,15 +14,14 @@
 
 """
 Model selection tools (:mod:`rectools.model_selection`)
-===================================
+=======================================================
 
 Instruments to validate and compare models.
 
-=============================================================
+
 Splitters
 ---------
 `model_selection.TimeRangeSplit` - split interactions by time
-=============================================================
 """
 
 from .time_split import TimeRangeSplit

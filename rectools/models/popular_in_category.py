@@ -56,25 +56,25 @@ class PopularInCategoryModel(PopularModel):
     mixing_strategy: {"rotate", "group"}, default `"rotate"`
         Method of mixing recommendations from different categories. The following methods are
         available:
-            - `rotate` - items from different categories take turns in final recommendations,
-                starting from the most popular category
-            - `group` - items from each category are grouped together. Categories are sorted
-                by popularity
+        - `rotate` - items from different categories take turns in final recommendations,
+            starting from the most popular category
+        - `group` - items from each category are grouped together. Categories are sorted
+            by popularity
     ratio_strategy: {"equal", "proportional"}, default `"proportional"`
         Method of defining ratios for categories. The following methods are available:
-            - `equal` - all categories gain equal ratios in recommendations. Exceeding places
-            for items are given to most popular categories
-            - `proportional` - categories gain ratios in recommendations based on their popularity.
-            Each category gains at least one item
-                in recommendations if number of categories doesn't exceed number of recs.
+        - `equal` - all categories gain equal ratios in recommendations. Exceeding places
+        for items are given to most popular categories
+        - `proportional` - categories gain ratios in recommendations based on their popularity.
+        Each category gains at least one item in recommendations
+        if number of categories doesn't exceed number of recs.
 
     popularity : {"n_users", "n_interactions", "mean_weight", "sum_weight"}, default `"n_users"`
         Method of calculating item popularity.
         To evaluate `popularity score` the following methods are available:
-            - `n_users` - number of unique users that interacted with item;
-            - `n_interactions` - number of interactions with item;
-            - `mean_weight` - mean item interactions weight;
-            - `sum_weight` - total item interactions weight.
+        - `n_users` - number of unique users that interacted with item;
+        - `n_interactions` - number of interactions with item;
+        - `mean_weight` - mean item interactions weight;
+        - `sum_weight` - total item interactions weight.
     period : timedelta, optional, default ``None``
         Period before last interaction to consider interactions for popularity calculation.
         Either `period` or `begin_from` can be set at once.

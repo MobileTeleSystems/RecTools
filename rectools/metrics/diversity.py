@@ -37,7 +37,7 @@ class ILDFitted:
     ----------
     recommended_items_paired : pd.DataFrame
         Table with recommended item pairs,
-        with columns ``item_0``, ``item_1``, ``rank_0``, ``rank_1``,
+        with columns ``item_0``, ``item_1``, ``rank_0``, ``rank_1``.
     users : np.ndarray
         Array of user ids.
     """
@@ -58,8 +58,8 @@ class IntraListDiversity(MetricAtK):
         ILD@k = (\sum_{i=1}^{k+1} \sum_{j=1}^{k+1} d(i, j)) / (k * (k-1))
 
     where
-        - ``d(i, j)`` is distance between
-        recommended items with rank ``i`` and rank ``j``.
+    - ``d(i, j)`` is distance between
+    recommended items with rank ``i`` and rank ``j``.
 
     Parameters
     ----------

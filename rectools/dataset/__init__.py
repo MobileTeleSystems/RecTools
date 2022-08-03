@@ -14,12 +14,12 @@
 
 """
 Data conversion tools (:mod:`rectools.dataset`).
-============================================
+==========================================================
 
 Data and identifiers conversion tools for future working with
 models.
 
-==========================================================
+
 Data Containers
 ---------------
 `dataset.IdMap` - Mapping between external and internal identifiers.
@@ -27,7 +27,7 @@ Data Containers
 `dataset.SparseFeatures` - Container for sparse features.
 `dataset.Interactions` - Container for interactions.
 `dataset.Dataset` - Container for all data.
-==========================================================
+
 """
 
 
