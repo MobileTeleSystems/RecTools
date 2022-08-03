@@ -29,7 +29,11 @@ from rectools.models.vector import ScoreCalculator
 
 from .data import INTERACTIONS
 
+# from pytorch_lightning.utilities.warnings import PossibleUserWarning
 
+
+@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+@pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     @pytest.fixture
     def dataset(self) -> Dataset:

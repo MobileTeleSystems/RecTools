@@ -24,6 +24,8 @@ from rectools.models.vector import Distance, Factors, ScoreCalculator, VectorMod
 
 T = tp.TypeVar("T")
 
+pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in true_divide")
+
 
 @pytest.mark.parametrize(
     "distance,expected",

@@ -193,7 +193,9 @@ class TestSparseFeatures:
 
     def test_get_dense(self) -> None:
         features = SparseFeatures(self.values, self.names)
-        np.testing.assert_equal(features.get_dense(), self.values.toarray())
+        with pytest.warns(UserWarning, match="Converting sparse features to dense"):
+            dense = features.get_dense()
+        np.testing.assert_equal(dense, self.values.toarray())
 
     def test_get_sparse(self) -> None:
         features = SparseFeatures(self.values, self.names)

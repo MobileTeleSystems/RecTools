@@ -63,7 +63,7 @@ class TestMAP:
     @pytest.mark.parametrize("metric", (MAP(k=3), MAP(k=3, divide_by_k=True)))
     def test_when_no_interactions(self, metric: MAP) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
-        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int))
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
 
@@ -111,7 +111,7 @@ class TestNDCG:
 
     def test_when_no_interactions(self) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
-        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int))
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         metric = NDCG(k=3)
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))

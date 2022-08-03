@@ -67,7 +67,8 @@ class TestImplicitItemKNNWrapperModel:
             k=2,
             filter_viewed=filter_viewed,
         )
-        pd.testing.assert_frame_equal(actual, expected, check_less_precise=3)
+        tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
+        pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -106,7 +107,8 @@ class TestImplicitItemKNNWrapperModel:
             filter_viewed=filter_viewed,
             items_to_recommend=np.array([11, 15, 17]),
         )
-        pd.testing.assert_frame_equal(actual, expected, check_less_precise=3)
+        tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
+        pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)
 
     @pytest.mark.parametrize("filter_viewed", (True, False))
     def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool) -> None:

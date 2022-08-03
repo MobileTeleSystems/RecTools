@@ -24,6 +24,7 @@ from rectools.dataset import Dataset
 from rectools.models import PopularInCategoryModel
 
 
+@pytest.mark.filterwarnings("ignore")
 class TestPopularInCategoryModel:
     @pytest.fixture
     def interactions_df(self) -> pd.DataFrame:
