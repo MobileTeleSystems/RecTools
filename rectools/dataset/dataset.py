@@ -22,7 +22,7 @@ from scipy import sparse
 
 from rectools import Columns
 
-from .features import DenseFeatures, Features, SparseFeatures
+from .features import DenseFeatures, Features, SparseFeatures, UnknownIdError, AbsentIdError
 from .identifiers import IdMap
 from .interactions import Interactions
 
@@ -118,6 +118,7 @@ class Dataset:
             make_dense_user_features,
             user_id_map,
             Columns.User,
+            "user",
         )
         item_features = cls._make_features(
             item_features_df,
@@ -125,6 +126,7 @@ class Dataset:
             make_dense_item_features,
             item_id_map,
             Columns.Item,
+            "item",
         )
         return cls(user_id_map, item_id_map, interactions, user_features, item_features)
 
@@ -134,7 +136,8 @@ class Dataset:
         cat_features: tp.Iterable[str],
         make_dense: bool,
         id_map: IdMap,
-        possible_id_col: str = "id",
+        possible_id_col: str,
+        feature_type: str,
     ) -> tp.Optional[Features]:
         if df is None:
             return None
@@ -142,9 +145,23 @@ class Dataset:
         id_col = possible_id_col if possible_id_col in df else "id"
 
         if make_dense:
-            return DenseFeatures.from_dataframe(df, id_map, id_col=id_col)
-
-        return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col)
+            try:
+                return DenseFeatures.from_dataframe(df, id_map, id_col=id_col)
+            except UnknownIdError:
+                raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
+            except AbsentIdError:
+                raise ValueError(
+                    f"An error has occurred while constructing {feature_type} features: "
+                    "When using dense features all ids from interactions must present in features table"
+                )
+            except Exception as e:
+                raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
+        try:
+            return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col)
+        except UnknownIdError:
+            raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
+        except Exception as e:
+            raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
     def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
         """
