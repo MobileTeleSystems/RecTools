@@ -42,25 +42,31 @@ def test_get_viewed_item_ids(user_items: tp.List[tp.List[int]], user_id: int, ex
     np.testing.assert_equal(expected, actual)
 
 
-@pytest.mark.parametrize(
-    "blacklist,whitelist,all_expected_ids",
-    (
-        (None, None, np.array([6, 0, 2, 4, 1, 3, 5])),
-        (np.array([0, 1, 5, 6]), None, np.array([2, 4, 3])),
-        (None, np.array([0, 2, 5, 6]), np.array([6, 0, 2, 5])),
-        (np.array([0, 1, 5, 6]), np.array([0, 2, 5, 6]), np.array([2])),
-        (np.array([0, 1, 2, 3]), np.array([1, 2, 3]), np.array([], dtype=int)),
-    ),
-)
-@pytest.mark.parametrize("ascending", (True, False))
-def test_recommend_from_scores(
-    blacklist: np.ndarray, whitelist: np.ndarray, all_expected_ids: np.ndarray, ascending: bool
-) -> None:
-    if ascending:
-        all_expected_ids = all_expected_ids[::-1]
-    expected_ids = all_expected_ids[:5]
-    input_scores = np.array([10.5, 2, 7, 0, 5, -3, 100])
-    actual_ids, actual_scores = recommend_from_scores(input_scores, 5, blacklist, whitelist, ascending)
-    np.testing.assert_equal(actual_ids, expected_ids)
-    expected_scores = input_scores[expected_ids]
-    np.testing.assert_equal(actual_scores, expected_scores)
+class TestRecommendFromScores:
+    @pytest.mark.parametrize(
+        "blacklist,whitelist,all_expected_ids",
+        (
+            (None, None, np.array([6, 0, 2, 4, 1, 3, 5])),
+            (np.array([0, 1, 5, 6]), None, np.array([2, 4, 3])),
+            (None, np.array([0, 2, 5, 6]), np.array([6, 0, 2, 5])),
+            (np.array([0, 1, 5, 6]), np.array([0, 2, 5, 6]), np.array([2])),
+            (np.array([0, 1, 2, 3]), np.array([1, 2, 3]), np.array([], dtype=int)),
+        ),
+    )
+    @pytest.mark.parametrize("ascending", (True, False))
+    def test_valid_cases(
+        self, blacklist: np.ndarray, whitelist: np.ndarray, all_expected_ids: np.ndarray, ascending: bool
+    ) -> None:
+        if ascending:
+            all_expected_ids = all_expected_ids[::-1]
+        expected_ids = all_expected_ids[:5]
+        input_scores = np.array([10.5, 2, 7, 0, 5, -3, 100])
+        actual_ids, actual_scores = recommend_from_scores(input_scores, 5, blacklist, whitelist, ascending)
+        np.testing.assert_equal(actual_ids, expected_ids)
+        expected_scores = input_scores[expected_ids]
+        np.testing.assert_equal(actual_scores, expected_scores)
+
+    @pytest.mark.parametrize("k", (-5, 0))
+    def test_raises_when_k_is_not_positive(self, k: int):
+        with pytest.raises(ValueError):
+            recommend_from_scores(np.array([1, 2, 3]), k=k)
