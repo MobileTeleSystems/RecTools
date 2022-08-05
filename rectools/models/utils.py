@@ -79,6 +79,9 @@ def recommend_from_scores(
     np.ndarray
         Array of recommended items, sorted by score descending.
     """
+    if k <= 0:
+        raise ValueError("`k` must be positive")
+
     items_to_recommend = None
 
     if sorted_blacklist is not None:

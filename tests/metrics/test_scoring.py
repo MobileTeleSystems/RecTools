@@ -78,7 +78,8 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": Serendipity(k=3),
             "custom": MetricAtK(k=1),
         }
-        actual = calc_metrics(metrics, self.reco, self.interactions, self.prev_interactions, self.catalog)
+        with pytest.warns(UserWarning, match="Custom metrics are not supported"):
+            actual = calc_metrics(metrics, self.reco, self.interactions, self.prev_interactions, self.catalog)
         expected = {
             "prec@1": 0.25,
             "prec@2": 0.375,

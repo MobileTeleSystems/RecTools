@@ -63,3 +63,28 @@ def test_raise_when_recommend_for_nonexistent_item() -> None:
             dataset=DATASET,
             k=5,
         )
+
+
+@pytest.mark.parametrize("k", (-4, 0))
+def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
+    model = ModelBase()
+    model.is_fitted = True
+    with pytest.raises(ValueError):
+        model.recommend(
+            users=np.array([10, 20]),
+            dataset=DATASET,
+            k=k,
+            filter_viewed=True,
+        )
+
+
+@pytest.mark.parametrize("k", (-4, 0))
+def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
+    model = ModelBase()
+    model.is_fitted = True
+    with pytest.raises(ValueError):
+        model.recommend_to_items(
+            target_items=np.array([11, 12]),
+            dataset=DATASET,
+            k=k,
+        )

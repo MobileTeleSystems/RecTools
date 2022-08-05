@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import typing as tp
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -257,11 +258,13 @@ class DSSMModel(VectorModel):
         verbose: int = 0,
     ) -> None:
         super().__init__(verbose=verbose)
-        self.model = model
+        self.model: tp.Optional[DSSM]
+        self._model = model
         self.max_epochs = max_epochs
         self.batch_size = batch_size
         cb = list(callbacks) if callbacks is not None else callbacks
-        self.trainer = Trainer(
+        self.trainer: Trainer
+        self._trainer = Trainer(
             devices=trainer_devices,
             accelerator=trainer_accelerator,
             max_epochs=self.max_epochs,
@@ -273,6 +276,9 @@ class DSSMModel(VectorModel):
         self.dataset_type = dataset_type
 
     def _fit(self, dataset: Dataset, dataset_valid: tp.Optional[Dataset] = None) -> None:  # type: ignore
+        self.trainer = deepcopy(self._trainer)
+        self.model = deepcopy(self._model)
+
         if self.model is None:
             self.model = DSSM(
                 n_factors_user=128,

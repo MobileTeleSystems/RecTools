@@ -42,10 +42,14 @@ class TestPairwiseHammingDistanceCalculator:
         distance_calculator = PairwiseHammingDistanceCalculator(features_df)
 
         expected = np.array([0, 1, 2, np.nan, np.nan])
-        actual = distance_calculator[["i1", "i1", "i1", "i1", "i1"], ["i1", "i2", "i3", "i4", "i5"]]
+
+        with pytest.warns(UserWarning, match="Some items has absent feature values"):
+            actual = distance_calculator[["i1", "i1", "i1", "i1", "i1"], ["i1", "i2", "i3", "i4", "i5"]]
         assert np.array_equal(actual, expected, equal_nan=True)
 
 
+@pytest.mark.filterwarnings("ignore:Some items absent in mapper")
+@pytest.mark.filterwarnings("ignore:Some items has absent feature values")
 class TestSparsePairwiseHammingDistanceCalculator:
     @pytest.mark.parametrize(
         "left,right,expected",

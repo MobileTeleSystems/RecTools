@@ -27,6 +27,14 @@ from .identifiers import IdMap
 DIRECT_FEATURE_VALUE = "__is_direct_feature"
 
 
+class UnknownIdError(KeyError):
+    """The error is raised when there are some ids in the dataframe that are not present in the id map"""
+
+
+class AbsentIdError(ValueError):
+    """The error is raised when there are some ids in the id map that are not present in the dataframe"""
+
+
 @attr.s(slots=True, frozen=True)
 class DenseFeatures:
     """
@@ -102,8 +110,16 @@ class DenseFeatures:
         DenseFeatures
         """
         extern_ids = df[id_col]
-        if set(df[id_col].values) != set(id_map.external_ids):
-            raise ValueError("In dataframe must be present all ids from id_map")
+        df_ids = set(df[id_col].values)
+        if len(df_ids) != len(df):
+            raise ValueError("Ids in dataframe must be unique")
+
+        map_ids = set(id_map.external_ids)
+        if df_ids - map_ids:
+            raise UnknownIdError("All ids in `df` must be present in `id_map`")
+
+        if map_ids - df_ids:
+            raise AbsentIdError("In `df` must be present all ids from `id_map`")
 
         features = df.drop(columns=id_col)
         values = features.values
@@ -308,7 +324,7 @@ class SparseFeatures:
         try:
             ids = id_map.convert_to_internal(df[id_col])
         except KeyError:
-            raise KeyError("All ids in `df` must be present in `id_map`")
+            raise UnknownIdError("All ids in `df` must be present in `id_map`")
         try:
             weights = df[weight_col].values.astype(float) if weight_col in df else 1
         except ValueError:
