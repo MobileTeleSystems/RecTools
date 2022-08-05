@@ -7,7 +7,7 @@ new submissions, or contributing code that can be incorporated into the
 project.
 
 Please, don't use the issue tracker for support questions. Instead use:
-`email <mars-team@mts.ru>`__.
+`email <rectools-team@mts.ru>`__.
 
 Feature Requests
 ----------------
