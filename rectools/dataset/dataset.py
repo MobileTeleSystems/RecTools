@@ -22,7 +22,7 @@ from scipy import sparse
 
 from rectools import Columns
 
-from .features import DenseFeatures, Features, SparseFeatures, UnknownIdError, AbsentIdError
+from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures, UnknownIdError
 from .identifiers import IdMap
 from .interactions import Interactions
 

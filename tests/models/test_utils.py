@@ -67,6 +67,6 @@ class TestRecommendFromScores:
         np.testing.assert_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize("k", (-5, 0))
-    def test_raises_when_k_is_not_positive(self, k: int):
+    def test_raises_when_k_is_not_positive(self, k: int) -> None:
         with pytest.raises(ValueError):
             recommend_from_scores(np.array([1, 2, 3]), k=k)
