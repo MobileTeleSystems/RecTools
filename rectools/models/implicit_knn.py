@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from copy import deepcopy
 
 import numpy as np
 from implicit.nearest_neighbours import ItemItemRecommender
@@ -43,9 +44,11 @@ class ImplicitItemKNNWrapperModel(ModelBase):
 
     def __init__(self, model: ItemItemRecommender, verbose: int = 0):
         super().__init__(verbose=verbose)
-        self.model = model
+        self.model: ItemItemRecommender
+        self._model = model
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
+        self.model = deepcopy(self._model)
         iu_csr = dataset.get_user_item_matrix(include_weights=True).T.tocsr(copy=False)
         self.model.fit(iu_csr, show_progress=self.verbose > 0)
 

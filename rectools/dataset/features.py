@@ -28,11 +28,11 @@ DIRECT_FEATURE_VALUE = "__is_direct_feature"
 
 
 class UnknownIdError(KeyError):
-    pass
+    """The error is raised when there are some ids in the dataframe that are not present in the id map"""
 
 
 class AbsentIdError(ValueError):
-    pass
+    """The error is raised when there are some ids in the id map that are not present in the dataframe"""
 
 
 @attr.s(slots=True, frozen=True)

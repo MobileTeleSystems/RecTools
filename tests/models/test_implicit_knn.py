@@ -24,6 +24,7 @@ from rectools.dataset import Dataset
 from rectools.models import ImplicitItemKNNWrapperModel
 
 from .data import DATASET
+from .utils import assert_second_fit_refits_model
 
 
 class TestImplicitItemKNNWrapperModel:
@@ -177,3 +178,8 @@ class TestImplicitItemKNNWrapperModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        base_model = TFIDFRecommender(K=5, num_threads=2)
+        model = ImplicitItemKNNWrapperModel(model=base_model)
+        assert_second_fit_refits_model(model, dataset)

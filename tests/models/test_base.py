@@ -88,4 +88,3 @@ def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
             dataset=DATASET,
             k=k,
         )
-

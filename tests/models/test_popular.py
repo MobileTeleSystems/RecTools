@@ -22,6 +22,7 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import PopularModel
+from tests.models.utils import assert_second_fit_refits_model
 
 
 class TestPopularModel:
@@ -207,3 +208,7 @@ class TestPopularModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        model = PopularModel()
+        assert_second_fit_refits_model(model, dataset)

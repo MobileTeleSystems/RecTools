@@ -25,6 +25,7 @@ from rectools.models.pure_svd import PureSVDModel
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET
+from .utils import assert_second_fit_refits_model
 
 
 class TestPureSVDModel:
@@ -203,3 +204,7 @@ class TestPureSVDModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        model = PureSVDModel(factors=3)
+        assert_second_fit_refits_model(model, dataset)
