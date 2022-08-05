@@ -154,13 +154,13 @@ class Dataset:
                     f"An error has occurred while constructing {feature_type} features: "
                     "When using dense features all ids from interactions must present in features table"
                 )
-            except Exception as e:
+            except Exception as e:  # pragma: no cover
                 raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
         try:
             return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col)
         except UnknownIdError:
             raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
     def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
