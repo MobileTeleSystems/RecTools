@@ -50,6 +50,7 @@ class TestIntraListDiversity:
             (3, pd.Series(index=["u1", "u2", "u3"], data=[4 / 3, np.nan, 0])),
         ),
     )
+    @pytest.mark.filterwarnings("ignore:Some items has absent feature values")
     def test_correct_ild_values(
         self,
         distance_calculator: PairwiseHammingDistanceCalculator,

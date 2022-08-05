@@ -19,7 +19,7 @@ from enum import Enum
 
 import attr
 import numpy as np
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset

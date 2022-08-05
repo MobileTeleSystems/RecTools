@@ -23,6 +23,7 @@ from rectools.dataset import Dataset
 from rectools.models import RandomModel
 
 from .data import DATASET, INTERACTIONS
+from .utils import assert_second_fit_refits_model
 
 
 class TestRandomModel:
@@ -124,3 +125,7 @@ class TestRandomModel:
         assert actual[Columns.Rank].tolist() == list(range(1, len(expected_reco_set) + 1))
         assert set(actual[Columns.Score]) <= set(np.arange(dataset.item_id_map.external_ids.size) + 1)
         assert set(actual[Columns.Item]) == expected_reco_set
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        model = RandomModel(random_state=1)
+        assert_second_fit_refits_model(model, dataset)
