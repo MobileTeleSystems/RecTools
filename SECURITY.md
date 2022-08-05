@@ -20,5 +20,5 @@ https://en.wikipedia.org/wiki/Common_Vulnerability_Scoring_System
 
 **Vulnerability reports**
 
-Please, use email mars-team@mts.ru for reporting security issues or anything that can cause any 
+Please, use email rectools-team@mts.ru for reporting security issues or anything that can cause any 
 consequences for security. Please avoid any public disclosure (including registering issues) at least until it is fixed. Thank you in advance for understanding.
