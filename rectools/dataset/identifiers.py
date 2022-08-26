@@ -32,7 +32,7 @@ class IdMap:
 
     Usually you do not need to create this object directly, use `from_values` class method instead.
 
-    When creating directly you must pass unique external ids.
+    When creating directly you have to pass unique external ids.
 
     Parameters
     ----------
@@ -79,8 +79,11 @@ class IdMap:
         internal_ids = np.array([mapping[e] for e in external_ids])
         order = np.argsort(internal_ids)
         internal_ids_sorted = internal_ids[order]
-        if (internal_ids_sorted != np.arange(internal_ids_sorted.size)).any():
+
+        internals_incorrect = internal_ids_sorted != np.arange(internal_ids_sorted.size)
+        if internals_incorrect is True or internals_incorrect.any():
             raise ValueError("Internal ids must be integers from 0 to n_objects-1")
+
         res = np.array(external_ids)[order]
         return cls(res)
 
@@ -165,7 +168,7 @@ class IdMap:
 
     def add_ids(self, values: ExternalIds, raise_if_already_present: bool = False) -> "IdMap":
         """
-        Add new external ids to current IdMap.
+        Add new external ids to current IdMap and return new IdMap.
         Mapping for old ids does not change.
         New ids are added to the end of list of external ids.
 
@@ -179,7 +182,7 @@ class IdMap:
 
         Returns
         -------
-        self
+        IdMap
 
         Raises
         ------
@@ -190,6 +193,6 @@ class IdMap:
         new_ids = unq[fast_isin(unq, self.external_ids, invert=True)]
         if raise_if_already_present and new_ids.size < unq.size:
             raise ValueError("Some of new ids are already present in map")
-        self.external_ids = np.concatenate((self.external_ids, new_ids))
-        return self
+        full_external_ids = np.concatenate((self.external_ids, new_ids))
+        return self.__class__(full_external_ids)
 
