@@ -30,6 +30,8 @@ from rectools.models.vector import ScoreCalculator
 from .data import INTERACTIONS
 
 
+@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+@pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     @pytest.fixture
     def dataset(self) -> Dataset:
@@ -280,8 +282,8 @@ class TestDSSMModel:
         # If it's allowed to recommend itself, it must be on the first place
         if not filter_itself and whitelist is None:
             tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 1} if pd.__version__ < "1" else {"atol": 0.01}
+            # actual is on the 2-nd place because of strange behaviour of assert function for pd.__version__ < "1"
             pd.testing.assert_frame_equal(
-                actual.groupby(Columns.TargetItem, sort=False).head(1).reset_index(drop=True),
                 pd.DataFrame(
                     {
                         Columns.TargetItem: target_items,
@@ -290,6 +292,7 @@ class TestDSSMModel:
                         Columns.Rank: [1, 1],
                     }
                 ),
+                actual.groupby(Columns.TargetItem, sort=False).head(1).reset_index(drop=True),
                 check_dtype=False,
                 **tol_kwargs,
             )

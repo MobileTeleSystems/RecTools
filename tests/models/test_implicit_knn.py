@@ -24,6 +24,7 @@ from rectools.dataset import Dataset
 from rectools.models import ImplicitItemKNNWrapperModel
 
 from .data import DATASET
+from .utils import assert_second_fit_refits_model
 
 
 class TestImplicitItemKNNWrapperModel:
@@ -67,7 +68,8 @@ class TestImplicitItemKNNWrapperModel:
             k=2,
             filter_viewed=filter_viewed,
         )
-        pd.testing.assert_frame_equal(actual, expected, check_less_precise=3)
+        tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
+        pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -106,7 +108,8 @@ class TestImplicitItemKNNWrapperModel:
             filter_viewed=filter_viewed,
             items_to_recommend=np.array([11, 15, 17]),
         )
-        pd.testing.assert_frame_equal(actual, expected, check_less_precise=3)
+        tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
+        pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)
 
     @pytest.mark.parametrize("filter_viewed", (True, False))
     def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool) -> None:
@@ -175,3 +178,8 @@ class TestImplicitItemKNNWrapperModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        base_model = TFIDFRecommender(K=5, num_threads=2)
+        model = ImplicitItemKNNWrapperModel(model=base_model)
+        assert_second_fit_refits_model(model, dataset)
