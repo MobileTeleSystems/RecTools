@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from rectools import ExternalId, ExternalIds, InternalId, InternalIds
-from rectools.utils import get_from_series_by_index, fast_isin
+from rectools.utils import fast_isin, get_from_series_by_index
 
 
 @attr.s(frozen=True, slots=True)
@@ -89,6 +89,7 @@ class IdMap:
 
     @property
     def size(self) -> int:
+        """Return number of ids in map."""
         return self.external_ids.size
 
     @property
@@ -195,4 +196,3 @@ class IdMap:
             raise ValueError("Some of new ids are already present in map")
         full_external_ids = np.concatenate((self.external_ids, new_ids))
         return self.__class__(full_external_ids)
-
