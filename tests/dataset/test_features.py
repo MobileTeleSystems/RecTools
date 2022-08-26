@@ -22,7 +22,7 @@ import pytest
 from scipy import sparse
 
 from rectools.dataset import DenseFeatures, IdMap, SparseFeatures
-from rectools.dataset.features import DIRECT_FEATURE_VALUE
+from rectools.dataset.features import DIRECT_FEATURE_VALUE, AbsentIdError, UnknownIdError
 from tests.testing_utils import assert_sparse_matrix_equal
 
 
@@ -54,16 +54,22 @@ class TestDenseFeatures:
         np.testing.assert_equal(features.values, self.values)
         assert features.names == self.names
 
+    def test_raises_when_duplicate_ids_in_dataframe(self) -> None:
+        df = pd.DataFrame({"o": [10, 10, 30], "f1": [1, 2, 3]})
+        id_map = IdMap.from_values([10, 30])
+        with pytest.raises(ValueError, match="Ids in dataframe must be unique"):
+            DenseFeatures.from_dataframe(df, id_col="o", id_map=id_map)
+
     def test_raises_when_in_dataframe_id_that_is_not_in_id_map(self) -> None:
         df = pd.DataFrame({"o": [10, 20, 30], "f1": [1, 2, 3]})
         id_map = IdMap.from_values([10, 30])
-        with pytest.raises(ValueError):
+        with pytest.raises(UnknownIdError, match="All ids in `df` must be present in `id_map`"):
             DenseFeatures.from_dataframe(df, id_col="o", id_map=id_map)
 
     def test_raises_when_in_id_map_id_that_is_not_in_dataframe(self) -> None:
         df = pd.DataFrame({"o": [10, 30], "f1": [1, 2]})
         id_map = IdMap.from_values([10, 20, 30])
-        with pytest.raises(ValueError):
+        with pytest.raises(AbsentIdError, match="In `df` must be present all ids from `id_map`"):
             DenseFeatures.from_dataframe(df, id_col="o", id_map=id_map)
 
     def test_get_dense(self) -> None:
@@ -193,7 +199,9 @@ class TestSparseFeatures:
 
     def test_get_dense(self) -> None:
         features = SparseFeatures(self.values, self.names)
-        np.testing.assert_equal(features.get_dense(), self.values.toarray())
+        with pytest.warns(UserWarning, match="Converting sparse features to dense"):
+            dense = features.get_dense()
+        np.testing.assert_equal(dense, self.values.toarray())
 
     def test_get_sparse(self) -> None:
         features = SparseFeatures(self.values, self.names)

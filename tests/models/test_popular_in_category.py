@@ -22,8 +22,10 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import PopularInCategoryModel
+from tests.models.utils import assert_second_fit_refits_model
 
 
+@pytest.mark.filterwarnings("ignore")
 class TestPopularInCategoryModel:
     @pytest.fixture
     def interactions_df(self) -> pd.DataFrame:
@@ -422,3 +424,12 @@ class TestPopularInCategoryModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        model = PopularInCategoryModel(
+            category_feature="f2",
+            popularity="mean_weight",
+            mixing_strategy="group",
+            ratio_strategy="proportional",
+        )
+        assert_second_fit_refits_model(model, dataset)

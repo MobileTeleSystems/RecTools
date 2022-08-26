@@ -14,12 +14,13 @@
 
 import typing as tp
 import warnings
+from copy import deepcopy
 
 import numpy as np
 from implicit.als import AlternatingLeastSquares
 from implicit.utils import check_random_state
 from scipy import sparse
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
@@ -57,11 +58,13 @@ class ImplicitALSWrapperModel(VectorModel):
 
         if model.use_gpu and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
             raise ValueError(f"When using GPU max number of factors is {MAX_GPU_FACTORS}")
-        self.model = model
+        self.model: AlternatingLeastSquares
+        self._model = model  # for refit; TODO: try to do it better
 
         self.fit_features_together = fit_features_together
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
+        self.model = deepcopy(self._model)
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
 
         if self.fit_features_together:

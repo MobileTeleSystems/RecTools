@@ -38,6 +38,7 @@ from rectools.utils import fast_isin, fast_isin_for_sorted_test_elements, get_el
     ),
 )
 @pytest.mark.parametrize("invert", (True, False))
+@pytest.mark.filterwarnings("ignore:elementwise comparison failed")
 def test_fast_isin(elements: np.ndarray, test_elements: np.ndarray, expected: np.ndarray, invert: bool) -> None:
     actual = fast_isin(elements, test_elements, invert=invert)
     if invert:
