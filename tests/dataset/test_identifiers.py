@@ -73,20 +73,20 @@ class TestIdMap:
         actual = self.id_map.get_external_sorted_by_internal()
         np.testing.assert_equal(actual, self.external_ids)
 
-    def test_convert_to_internal(self):
+    def test_convert_to_internal(self) -> None:
         with pytest.raises(KeyError):
             self.id_map.convert_to_internal(["b", "a", "e", "a"])
 
-    def test_convert_to_internal_not_strict(self):
+    def test_convert_to_internal_not_strict(self) -> None:
         actual = self.id_map.convert_to_internal(["b", "a", "e", "a"], strict=False)
         expected = np.array([0, 2, 2])
         np.testing.assert_equal(actual, expected)
 
-    def test_convert_to_external(self):
+    def test_convert_to_external(self) -> None:
         with pytest.raises(KeyError):
             self.id_map.convert_to_external([0, 2, 4, 2])
 
-    def test_convert_to_external_not_strict(self):
+    def test_convert_to_external_not_strict(self) -> None:
         actual = self.id_map.convert_to_external([0, 2, 4, 2], strict=False)
         expected = np.array(["b", "a", "a"])
         np.testing.assert_equal(actual, expected)
