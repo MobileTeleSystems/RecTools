@@ -14,66 +14,9 @@
 
 import numpy as np
 import pandas as pd
-from pandas.core.dtypes.common import is_object_dtype
 
 from rectools import AnySequence
-
-
-def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
-    """
-    Effective version of `np.isin` that works well even if arrays have `object` types.
-
-    Parameters
-    ----------
-    elements : np.ndarray
-        Array of elements that you want to check.
-    test_elements : np.ndarray
-        The values against which to test each value of `elements`.
-
-    Returns
-    -------
-    np.ndarray
-        Boolean array with same shape as `elements`.
-    """
-    if is_object_dtype(elements) or is_object_dtype(test_elements):
-        res = pd.Series(elements.astype("O")).isin(test_elements.astype("O")).values
-    else:
-        res = np.isin(elements, test_elements)
-    return res
-
-
-def fast_isin_for_sorted_test_elements(
-    elements: np.ndarray,
-    sorted_test_elements: np.ndarray,
-    invert: bool = False,
-) -> np.ndarray:
-    """
-    Effective version of `np.isin` for case when array with test elements is sorted.
-
-    Works only with 1d arrays.
-
-    Parameters
-    ----------
-    elements : np.ndarray
-        Array of elements that you want to check.
-    sorted_test_elements : np.ndarray
-        The values against which to test each value of `elements`.
-        Must be sorted (in other cases result will be incorrect, no error will be raised).
-    invert : bool, default False
-        If True, the values in the returned array are inverted,
-        as if calculating *`element` not in `test_elements`*.
-        Faster than using negation after getting result.
-
-    Returns
-    -------
-    np.ndarray
-        Boolean array with same shape as `elements`.
-    """
-    ss_result_left = np.searchsorted(sorted_test_elements, elements, side="left")
-    ss_result_right = np.searchsorted(sorted_test_elements, elements, side="right")
-    if invert:
-        return ss_result_right != ss_result_left + 1
-    return ss_result_right == ss_result_left + 1
+from rectools.utils import fast_isin
 
 
 def get_element_ids(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
