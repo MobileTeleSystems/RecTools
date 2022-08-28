@@ -31,10 +31,12 @@ Tools
 `utils.select_by_type`
 """
 
-from .indexing import fast_isin, fast_isin_for_sorted_test_elements, get_element_ids, get_from_series_by_index
+from .indexing import get_element_ids, get_from_series_by_index
+from .array_set_ops import fast_isin, fast_isin_for_sorted_test_elements, fast_2d_int_unique
 from .misc import is_instance, log_at_base, pairwise, select_by_type
 
 __all__ = (
+    "fast_2d_int_unique",
     "fast_isin",
     "fast_isin_for_sorted_test_elements",
     "get_element_ids",
