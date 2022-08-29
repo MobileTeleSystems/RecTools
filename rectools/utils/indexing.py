@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from rectools import AnySequence
-from rectools.utils import fast_isin
+from .array_set_ops import fast_isin
 
 
 def get_element_ids(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
