@@ -1,27 +1,78 @@
 import numpy as np
 import pytest
+import typing as tp
 
-from rectools.utils import fast_isin, fast_isin_for_sorted_test_elements
-from rectools.utils.array_set_ops import fast_2d_int_unique
+from rectools.utils.array_set_ops import fast_2d_int_unique, fast_2d_2col_int_unique, fast_isin, fast_isin_for_sorted_test_elements
 
 
-@pytest.mark.parametrize(
-    "arr",
-    (
-        np.array([], dtype=int).reshape((0, 2)),
-        np.array([[1, 10]]),
-        np.array([[1, 10], [2, 20]]),
-        np.array([[1, 10], [1, 10]]),
-        np.array([[1, 10], [2, 20], [1, 10], [2, 20]]),
-        np.array([[1], [2], [1]]),
-        np.array([[1, 2, 3], [1, 2, 3], [10, 20, 30]]),
+class TestFast2dIntUnique:
+    @pytest.mark.parametrize(
+        "arr",
+        (
+            np.array([], dtype=int).reshape((0, 2)),
+            np.array([[1, 10]]),
+            np.array([[1, 10], [2, 20]]),
+            np.array([[1, 10], [1, 10]]),
+            np.array([[1, 10], [2, 20], [1, 10], [2, 20]]),
+            np.array([[1], [2], [1]]),
+            np.array([[1, 2, 3], [1, 2, 3], [10, 20, 30]]),
+        )
     )
-)
-def test_fast_2d_int_unique(arr: np.ndarray) -> None:
-    actual_unq, actual_inv = fast_2d_int_unique(arr)
-    expected_unq, expected_inv = np.unique(arr, axis=0, return_inverse=True)
-    np.testing.assert_equal(actual_unq, expected_unq)
-    np.testing.assert_equal(actual_inv, expected_inv)
+    def test_fast_2d_int_unique(self, arr: np.ndarray) -> None:
+        actual_unq, actual_inv = fast_2d_int_unique(arr)
+        expected_unq, expected_inv = np.unique(arr, axis=0, return_inverse=True)
+        np.testing.assert_equal(actual_unq, expected_unq)
+        np.testing.assert_equal(actual_inv, expected_inv)
+
+    @pytest.mark.parametrize(
+        "arr,expected_error_type,expected_error_text",
+        (
+            (np.array([[1.0, 10.0], [1, 10]]), TypeError, "integer"),
+            (np.array([[[1, 10], [1, 10]]]), ValueError, "2d"),
+        )
+    )
+    def test_with_incorrect_array(
+        self,
+        arr: np.ndarray,
+        expected_error_type: tp.Type[Exception],
+        expected_error_text: str,
+    ) -> None:
+        with pytest.raises(expected_error_type, match=expected_error_text):
+            fast_2d_int_unique(arr)
+
+
+class TestFast2d2colIntUnique:
+    @pytest.mark.parametrize(
+        "arr",
+        (
+            np.array([], dtype=int).reshape((0, 2)),
+            np.array([[1, 10]]),
+            np.array([[1, 10], [2, 20]]),
+            np.array([[1, 10], [1, 10]]),
+            np.array([[1, 10], [2, 20], [1, 10], [2, 20]]),
+        )
+    )
+    def test_correct(self, arr: np.ndarray) -> None:
+        actual = fast_2d_2col_int_unique(arr)
+        expected = np.unique(arr, axis=0)
+        np.testing.assert_equal(actual, expected)
+
+    @pytest.mark.parametrize(
+        "arr,expected_error_type,expected_error_text",
+        (
+            (np.array([[1.0, 10.0], [1, 10]]), TypeError, "integer"),
+            (np.array([[[1, 10], [1, 10]]]), ValueError, "2d"),
+            (np.array([[1, 10, 100], [1, 10, 10]]), ValueError, "2 columns"),
+        )
+    )
+    def test_with_incorrect_array(
+        self,
+        arr: np.ndarray,
+        expected_error_type: tp.Type[Exception],
+        expected_error_text: str,
+    ) -> None:
+        with pytest.raises(expected_error_type, match=expected_error_text):
+            fast_2d_2col_int_unique(arr)
 
 
 @pytest.mark.parametrize(
