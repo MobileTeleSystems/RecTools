@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.model_selection import TimeRangeSplit
+from rectools.model_selection import TimeRangeSplitter
 from rectools.model_selection.time_split import DateRange
 
 T = tp.TypeVar("T")
@@ -85,7 +85,7 @@ class TestTimeRangeSplit:
         filter_already_seen: bool,
         date_range: pd.Series,
     ) -> None:
-        trs = TimeRangeSplit(
+        trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=filter_cold_users,
             filter_cold_items=filter_cold_items,
@@ -96,7 +96,7 @@ class TestTimeRangeSplit:
 
     def test_without_filtering(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
         interactions_copy = interactions.copy()
-        trs = TimeRangeSplit(date_range, False, False, False)
+        trs = TimeRangeSplitter(date_range, False, False, False)
         assert trs.get_n_splits(interactions) == 2
         actual = list(trs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions, interactions_copy)
@@ -119,7 +119,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][1]) == norm([8, 9])
 
     def test_filter_cold_users(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
-        trs = TimeRangeSplit(
+        trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=True,
             filter_cold_items=False,
@@ -135,7 +135,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][1]) == norm([8])
 
     def test_filter_cold_items(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
-        trs = TimeRangeSplit(
+        trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=False,
             filter_cold_items=True,
@@ -151,7 +151,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][1]) == norm([8, 9])
 
     def test_filter_already_seen(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
-        trs = TimeRangeSplit(
+        trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=False,
             filter_cold_items=False,
@@ -167,7 +167,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][1]) == norm([8, 9])
 
     def test_filter_all(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
-        trs = TimeRangeSplit(date_range)
+        trs = TimeRangeSplitter(date_range)
         assert trs.get_n_splits(interactions) == 2
         actual = list(trs.split(interactions))
         assert len(actual) == 2
@@ -179,7 +179,7 @@ class TestTimeRangeSplit:
 
     @pytest.mark.parametrize("column", (Columns.User, Columns.Item, Columns.Datetime))
     def test_raises_when_column_absent(self, interactions: pd.DataFrame, date_range: DateRange, column: str) -> None:
-        trs = TimeRangeSplit(date_range)
+        trs = TimeRangeSplitter(date_range)
         with pytest.raises(KeyError) as e:
             next(iter(trs.split(interactions.drop(columns=column))))
         err_text = e.value.args[0]

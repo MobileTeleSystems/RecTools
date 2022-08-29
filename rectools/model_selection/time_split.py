@@ -28,7 +28,7 @@ from rectools.utils import pairwise
 DateRange = tp.Sequence[tp.Union[date, datetime]]
 
 
-class TimeRangeSplit:
+class TimeRangeSplitter:
     def __init__(
         self,
         date_range: DateRange,
