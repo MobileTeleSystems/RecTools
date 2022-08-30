@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 import typing as tp
 
-from rectools.utils.array_set_ops import fast_2d_int_unique, fast_2d_2col_int_unique, fast_isin, fast_isin_for_sorted_test_elements
+from rectools.utils.array_set_ops import fast_2d_int_unique, fast_2d_2col_int_unique, fast_isin, \
+    fast_isin_for_sorted_test_elements, isin_2d_int
 
 
 class TestFast2dIntUnique:
@@ -118,3 +119,60 @@ class TestFastIsinForSortedTestElements:
     def test_output_for_empty_test_elements(self) -> None:
         actual = fast_isin_for_sorted_test_elements(np.array([10, 6]), np.array([]))
         np.testing.assert_array_equal(actual, np.array([False, False]))
+
+
+class TestIsin2dInt:
+    @pytest.mark.parametrize(
+        "ar1,ar2,expected",
+        (
+            (np.array([], dtype=int).reshape(0, 2), np.array([], dtype=int).reshape(0, 2), np.array([], dtype=bool)),
+            (np.array([[1, 10]]), np.array([], dtype=int).reshape(0, 2), np.array([False])),
+            (np.array([], dtype=int).reshape(0, 2), np.array([[1, 10]]), np.array([], dtype=bool)),
+            (np.array([[2, 20]]), np.array([[1, 10]]), np.array([False])),
+            (np.array([[1, 10]]), np.array([[1, 10]]), np.array([True])),
+            (
+                np.array([[1, 10], [3, 30], [2, 20], [1, 10], [3, 30], [4, 40]]),
+                np.array([[2, 10], [2, 20], [1, 10], [2, 20], [3, 10], [5, 50]]),
+                np.array([True, False, True, True, False, False])
+            ),
+            (np.array([[1], [2]]), np.array([[1], [3]]), np.array([True, False])),
+            (np.array([[1, 10, 100], [2, 20, 200]]), np.array([[1, 10, 100], [3, 30, 300]]), np.array([True, False])),
+        ),
+    )
+    @pytest.mark.parametrize("invert", (True, False))
+    @pytest.mark.parametrize("assume_unique", (True, False))
+    def test_correct(
+        self,
+        ar1: np.ndarray,
+        ar2: np.ndarray,
+        invert: bool,
+        assume_unique: bool,
+        expected: np.ndarray,
+    ) -> None:
+        if assume_unique:
+            ar1, unq_idx = np.unique(ar1, axis=0, return_index=True)
+            expected = expected[unq_idx]
+            ar2 = np.unique(ar2, axis=0)
+        actual = isin_2d_int(ar1, ar2, invert=invert, assume_unique=assume_unique)
+        if invert:
+            expected = ~expected
+        np.testing.assert_equal(actual, expected)
+
+    @pytest.mark.parametrize(
+        "elements,test_elements,expected_error_type,expected_error_text",
+        (
+            (np.array([[1, 10]]), np.array([[1.0, 10.0]]), TypeError, "same types"),
+            (np.array([[1., 10.]]), np.array([[1.0, 10.0]]), TypeError, "integer"),
+            (np.array([[[1, 10]]]), np.array([[[1, 10]]]), ValueError, "2d"),
+            (np.array([[1, 10, 100]]), np.array([[1, 10]]), ValueError, "same columns number"),
+        )
+    )
+    def test_with_incorrect_arrays(
+        self,
+        elements: np.ndarray,
+        test_elements: np.ndarray,
+        expected_error_type: tp.Type[Exception],
+        expected_error_text: str,
+    ) -> None:
+        with pytest.raises(expected_error_type, match=expected_error_text):
+            isin_2d_int(elements, test_elements)

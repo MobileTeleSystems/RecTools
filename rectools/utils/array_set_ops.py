@@ -6,6 +6,12 @@ from pandas.core.dtypes.common import is_object_dtype
 from scipy import sparse
 
 
+def _consolidate_2d_int_array(arr: np.ndarray) -> np.ndarray:
+    dtype = np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+    consolidated = np.ascontiguousarray(arr).view(dtype).ravel()
+    return consolidated
+
+
 def fast_2d_int_unique(arr: np.ndarray) -> tp.Tuple[np.ndarray, np.ndarray]:
     """
     Return unique rows of 2d numpy array and inverse indices.
@@ -15,7 +21,7 @@ def fast_2d_int_unique(arr: np.ndarray) -> tp.Tuple[np.ndarray, np.ndarray]:
     Parameters
     ----------
     arr : np.ndarray
-        Array of integers with shape (n, m).
+        Array of integers with 2 dimensions.
 
     Returns
     -------
@@ -32,8 +38,7 @@ def fast_2d_int_unique(arr: np.ndarray) -> tp.Tuple[np.ndarray, np.ndarray]:
         raise ValueError("Only 2d array is allowed")
 
     arr_dtype, arr_shape = arr.dtype, arr.shape
-    dtype = np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
-    consolidated = np.ascontiguousarray(arr).view(dtype)
+    consolidated = _consolidate_2d_int_array(arr)
     unq_consolidated, inv_ids = np.unique(consolidated, return_inverse=True)
     del consolidated
     unq_arr = unq_consolidated.view(arr_dtype).reshape(len(unq_consolidated), arr_shape[1])
@@ -135,3 +140,47 @@ def fast_isin_for_sorted_test_elements(
     if invert:
         return ss_result_right != ss_result_left + 1
     return ss_result_right == ss_result_left + 1
+
+
+def isin_2d_int(
+    elements: np.ndarray,
+    test_elements: np.ndarray,
+    invert: bool = False,
+    assume_unique: bool = False,
+) -> np.ndarray:
+    """
+    Check for every row of `elements` array if it presents in `test_elements`.
+    Version of `np.isin` that works with 2d integer arrays.
+
+    Parameters
+    ----------
+    elements : np.ndarray
+        Elements to check. Arrays of integers with 2 dimensions.
+    test_elements : np.ndarray
+        The values against which to test each value of `element`.
+        Arrays of integers with 2 dimensions with same type and same number of columns as `elements`.
+    assume_unique : bool, optional
+        If True, the input arrays are both assumed to be unique, which
+        can speed up the calculation.  Default is False.
+    invert : bool, optional
+        If True, the values in the returned array are inverted, as if
+        calculating `element not in test_elements`. Default is False.
+
+    Returns
+    -------
+    np.ndarray
+        Array with shape (n_rows_in_elements,).
+    """
+    if elements.dtype != test_elements.dtype:
+        raise TypeError("Arrays must be of the same types")
+    if not np.issubdtype(elements.dtype, np.integer):
+        raise TypeError("Only integer arrays is allowed")
+    if elements.ndim != 2 or test_elements.ndim != 2:
+        raise ValueError("Only 2d arrays are allowed")
+    if elements.shape[1] != test_elements.shape[1]:
+        raise ValueError("Arrays must have same columns number")
+
+    consolidated_elements = _consolidate_2d_int_array(elements)
+    consolidated_test_elements = _consolidate_2d_int_array(test_elements)
+    res = np.isin(consolidated_elements, consolidated_test_elements, invert=invert, assume_unique=assume_unique)
+    return res
