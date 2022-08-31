@@ -4,7 +4,6 @@
 This is an official repository of the Kion Movies Recommendation Dataset. 
 The data was gathered from the users of [MTS Kion](https://kion.ru/home) video streaming platform from 13.03.2021 to 22.08.2022.
 
-
 The public part of the  dataset includes 5,476,251 interactions of 962,179 users with 15,706 items. The dataset includes user-item interactions; users demographics and rich items meta-data. 
 
 *Private* part of the dataset contains movies that the users watched within one week following the period covered by the publict dataset. It is not released to general public, however there is a public sandbox, where the researchers can measure MAP@10 metric on the private part of the data. Sandbox is accessible by the address https://ods.ai/competitions/competition-recsys-21/leaderboard/public_sandbox. 
