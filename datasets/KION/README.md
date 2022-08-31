@@ -4,11 +4,11 @@
 This is an official repository of the Kion Movies Recommendation Dataset. 
 The data was gathered from the users of [MTS Kion](https://kion.ru/home) video streaming platform from 13.03.2021 to 22.08.2022.
 
-The public part of the  dataset includes 5,476,251 interactions of 962,179 users with 15,706 items. The dataset includes user-item interactions; users demographics and rich items meta-data. 
+The public part of the  dataset includes 5,476,251 interactions of 962,179 users with 15,706 items. The dataset includes user_item interactions and their characteristics (such as temporal information, watch duration and watch percentage), as well as user demographics and rich movies meta-information.
 
-*Private* part of the dataset contains movies that the users watched within one week following the period covered by the publict dataset. It is not released to general public, however there is a public sandbox, where the researchers can measure MAP@10 metric on the private part of the data. Sandbox is accessible by the address https://ods.ai/competitions/competition-recsys-21/leaderboard/public_sandbox. 
+*Private* part of the dataset contains movies that the users watched within one week following the period covered by the public dataset. It is not released to general public, however there is a public the sandbox, where the researchers can measure MAP@10 metric on the private part of the data. Sandbox is accessible by the address https://ods.ai/competitions/competition-recsys-21/leaderboard/public_sandbox. 
 
-To make a submission, you needsto use the [sample_submission.csv](https://github.com/irsafilo/KION_DATASET/blob/main/sample_submission.csv) file, and replace the sample item ids with the ids of the recommended items according to your recommendation model.
+To make a submission, you need to use the [sample_submission.csv](https://github.com/irsafilo/KION_DATASET/blob/main/sample_submission.csv) file, and replace the sample item ids with the ids of the recommended items according to your recommendation model.
 
 
 ### The dataset consists of three parts: 
@@ -29,7 +29,7 @@ To make a submission, you needsto use the [sample_submission.csv](https://github
 | Users                        | 480,189     | 162,541          | 962,179            |
 | Items                        | 17,770      | 59,047           | 15,706             |
 | Interactions                 | 100,480,507 | 25,000,095       | 5,476,251          |
-| Avg. Session Length          | 209.25      | 153.80           | 5.69               |
+| Avg. Sequence Length         | 209.25      | 153.80           | 5.69               |
 | Sparsity                     | 98.82%      | 99.73%           | 99.9%              |
 
 
