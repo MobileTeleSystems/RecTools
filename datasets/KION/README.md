@@ -70,6 +70,7 @@ If you use this dataset in your research, please cite our work:
 @article{petrov2022mts,
   title={MTS Kion Implicit Contextualised Sequential Dataset for Movie Recommendation},
   author={Aleksandr Petrov,  Ildar Safilo, Daria Tikhonovich and Dmitry Ignatov},
-  year={2022}
+  year={2022},
+  booktitle={Proceedings of the ACM RecSys CARS Workshop 2022, September 23d, 2022 Seattle, WA, USA }
 }
 ```
