@@ -1,0 +1,3 @@
+[submodule "datasets/KION/data"]
+	path = datasets/KION/data
+	url = https://github.com/irsafilo/KION_DATASET
