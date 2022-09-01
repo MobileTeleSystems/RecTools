@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from copy import deepcopy
 
 import numpy as np
 from lightfm import LightFM
@@ -58,11 +59,14 @@ class LightFMWrapperModel(VectorModel):
     ):
         super().__init__(verbose=verbose)
 
-        self.model = model
+        self.model: LightFM
+        self._model = model
         self.n_epochs = epochs
         self.n_threads = num_threads
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
+        self.model = deepcopy(self._model)
+
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
         user_features = self._prepare_features(dataset.user_features)
         item_features = self._prepare_features(dataset.item_features)

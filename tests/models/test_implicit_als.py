@@ -27,8 +27,10 @@ from rectools.models import ImplicitALSWrapperModel
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET
+from .utils import assert_second_fit_refits_model
 
 
+@pytest.mark.filterwarnings("ignore:Converting sparse features to dense")
 @pytest.mark.parametrize("use_gpu", (False, True) if HAS_CUDA else (False,))
 class TestImplicitALSWrapperModel:
     @staticmethod
@@ -287,3 +289,8 @@ class TestImplicitALSWrapperModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, use_gpu: bool, dataset: Dataset) -> None:
+        base_model = AlternatingLeastSquares(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        model = ImplicitALSWrapperModel(model=base_model)
+        assert_second_fit_refits_model(model, dataset)

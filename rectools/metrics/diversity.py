@@ -84,6 +84,7 @@ class IntraListDiversity(MetricAtK):
     ...         [1, 0, 0],
     ...         [2, 0, 1],
     ...         [3, 1, 1],
+    ...         [4, 0, 0],
     ...     ],
     ...     columns=[Columns.Item, "feature_1", "feature_2"]
     ... ).set_index(Columns.Item)
@@ -91,9 +92,9 @@ class IntraListDiversity(MetricAtK):
     >>> IntraListDiversity(k=1, distance_calculator=calculator).calc_per_user(reco).values
     array([0, 0])
     >>> IntraListDiversity(k=2, distance_calculator=calculator).calc_per_user(reco).values
-    array([ 1., nan])
+    array([1., 0.])
     >>> IntraListDiversity(k=3, distance_calculator=calculator).calc_per_user(reco).values
-    array([1.33333333,        nan])
+    array([1.33333333, 0.        ])
     """
 
     distance_calculator: PairwiseDistanceCalculator = attr.ib()

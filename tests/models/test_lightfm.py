@@ -24,6 +24,7 @@ from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
 from rectools.models import LightFMWrapperModel
 from rectools.models.utils import recommend_from_scores
+from tests.models.utils import assert_second_fit_refits_model
 
 
 # pylint: disable=attribute-defined-outside-init
@@ -303,3 +304,8 @@ class TestLightFMWrapperModel:
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        base_model = LightFM(no_components=2, loss="logistic", random_state=1)
+        model = LightFMWrapperModel(model=base_model, epochs=5, num_threads=1)
+        assert_second_fit_refits_model(model, dataset)

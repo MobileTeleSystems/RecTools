@@ -119,7 +119,7 @@ class PopularInCategoryModel(PopularModel):
         self.category_feature = category_feature
         self.category_columns: tp.List[int] = []
         self.category_interactions: tp.Dict[int, pd.DataFrame] = {}
-        self.category_scores = pd.Series()
+        self.category_scores: pd.Series
         self.models: tp.Dict[int, PopularModel] = {}
         self.n_effective_categories: int
 
