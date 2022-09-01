@@ -21,7 +21,7 @@ import pytest
 
 from rectools import Columns
 from rectools.model_selection import TimeRangeSplitter
-from rectools.model_selection.time_split import DateRange
+from rectools.model_selection.time_split import DateRange, get_not_seen_mask
 
 T = tp.TypeVar("T")
 Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
@@ -184,3 +184,48 @@ class TestTimeRangeSplit:
             next(iter(trs.split(interactions.drop(columns=column))))
         err_text = e.value.args[0]
         assert column in err_text
+
+
+class TestGetNotSeenMask:
+
+    @pytest.mark.parametrize(
+        "train_users,train_items,test_users,test_items,expected",
+        (
+            ([], [], [], [], []),
+            ([1, 2], [10, 20], [], [], []),
+            ([], [], [1, 2], [10, 20], [True, True]),
+            (
+                [1, 2, 3, 4, 2, 3], [10, 20, 30, 40, 22, 30],
+                [1, 2, 3, 2], [10, 20, 33, 20],
+                [False, False, True, False]
+            ),
+        ),
+    )
+    def test_correct(
+        self,
+        train_users: tp.List[int],
+        train_items: tp.List[int],
+        test_users: tp.List[int],
+        test_items: tp.List[int],
+        expected: tp.List[bool],
+    ) -> None:
+        actual = get_not_seen_mask(*(np.array(a) for a in (train_users, train_items, test_users, test_items)))
+        np.testing.assert_equal(actual, expected)
+
+    @pytest.mark.parametrize(
+        "train_users,train_items,test_users,test_items,expected_error_type",
+        (
+            ([1], [10, 20], [1], [10], ValueError),
+            ([1], [10], [1, 2], [10], ValueError),
+        )
+    )
+    def test_with_incorrect_arrays(
+        self,
+        train_users: tp.List[int],
+        train_items: tp.List[int],
+        test_users: tp.List[int],
+        test_items: tp.List[int],
+        expected_error_type: tp.Type[Exception],
+    ) -> None:
+        with pytest.raises(expected_error_type):
+            get_not_seen_mask(*(np.array(a) for a in (train_users, train_items, test_users, test_items)))
