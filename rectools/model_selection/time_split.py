@@ -66,18 +66,18 @@ class TimeRangeSplitter:
     ...         [4, 2, 1, "2021-09-05"],  # 7
     ...         [4, 2, 1, "2021-09-06"],  # 8
     ...     ],
-    ...     columns=[Columns.User, Columns.Item, Columns.Datetime],
+    ...     columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
-    >>>interactions = Interactions(df)
+    >>> interactions = Interactions(df)
     >>> date_range = pd.date_range(date(2021, 9, 4), date(2021, 9, 6))
     >>>
-    >>> trs = TimeRangeSplit(date_range, False, False, False)
+    >>> trs = TimeRangeSplitter(date_range, False, False, False)
     >>> for train_ids, test_ids, _ in trs.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4 5]
     [0 1 2 3 4 5] [6 7]
     >>>
-    >>> trs = TimeRangeSplit(date_range, True, True, True)
+    >>> trs = TimeRangeSplitter(date_range, True, True, True)
     >>> for train_ids, test_ids, _ in trs.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4]
