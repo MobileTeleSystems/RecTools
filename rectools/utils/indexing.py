@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from rectools import AnySequence
+
 from .array_set_ops import fast_isin
 
 

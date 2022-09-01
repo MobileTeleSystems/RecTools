@@ -46,25 +46,22 @@ class TestTimeRangeSplit:
 
     @pytest.fixture
     def interactions(self, shuffle_arr: np.ndarray) -> Interactions:
-        df = (
-            pd.DataFrame(
-                [
-                    [1, 1, 1, "2021-09-01"],
-                    [1, 2, 1, "2021-09-02"],
-                    [2, 1, 1, "2021-09-02"],
-                    [2, 2, 1, "2021-09-03"],
-                    [3, 2, 1, "2021-09-03"],
-                    [3, 3, 1, "2021-09-03"],
-                    [3, 4, 1, "2021-09-04"],
-                    [1, 2, 1, "2021-09-04"],
-                    [3, 1, 1, "2021-09-05"],
-                    [4, 2, 1, "2021-09-05"],
-                    [3, 3, 1, "2021-09-06"],
-                ],
-                columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-            )
-            .astype({Columns.Datetime: "datetime64[ns]"})
-        )
+        df = pd.DataFrame(
+            [
+                [1, 1, 1, "2021-09-01"],
+                [1, 2, 1, "2021-09-02"],
+                [2, 1, 1, "2021-09-02"],
+                [2, 2, 1, "2021-09-03"],
+                [3, 2, 1, "2021-09-03"],
+                [3, 3, 1, "2021-09-03"],
+                [3, 4, 1, "2021-09-04"],
+                [1, 2, 1, "2021-09-04"],
+                [3, 1, 1, "2021-09-05"],
+                [4, 2, 1, "2021-09-05"],
+                [3, 3, 1, "2021-09-06"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        ).astype({Columns.Datetime: "datetime64[ns]"})
         return Interactions(df.iloc[shuffle_arr])
 
     @pytest.fixture
@@ -180,18 +177,13 @@ class TestTimeRangeSplit:
 
 
 class TestGetNotSeenMask:
-
     @pytest.mark.parametrize(
         "train_users,train_items,test_users,test_items,expected",
         (
             ([], [], [], [], []),
             ([1, 2], [10, 20], [], [], []),
             ([], [], [1, 2], [10, 20], [True, True]),
-            (
-                [1, 2, 3, 4, 2, 3], [10, 20, 30, 40, 22, 30],
-                [1, 2, 3, 2], [10, 20, 33, 20],
-                [False, False, True, False]
-            ),
+            ([1, 2, 3, 4, 2, 3], [10, 20, 30, 40, 22, 30], [1, 2, 3, 2], [10, 20, 33, 20], [False, False, True, False]),
         ),
     )
     def test_correct(
@@ -210,7 +202,7 @@ class TestGetNotSeenMask:
         (
             ([1], [10, 20], [1], [10], ValueError),
             ([1], [10], [1, 2], [10], ValueError),
-        )
+        ),
     )
     def test_with_incorrect_arrays(
         self,

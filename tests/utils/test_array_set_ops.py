@@ -1,9 +1,15 @@
-import numpy as np
-import pytest
 import typing as tp
 
-from rectools.utils.array_set_ops import fast_2d_int_unique, fast_2d_2col_int_unique, fast_isin, \
-    fast_isin_for_sorted_test_elements, isin_2d_int
+import numpy as np
+import pytest
+
+from rectools.utils.array_set_ops import (
+    fast_2d_2col_int_unique,
+    fast_2d_int_unique,
+    fast_isin,
+    fast_isin_for_sorted_test_elements,
+    isin_2d_int,
+)
 
 
 class TestFast2dIntUnique:
@@ -17,7 +23,7 @@ class TestFast2dIntUnique:
             np.array([[1, 10], [2, 20], [1, 10], [2, 20]]),
             np.array([[1], [2], [1]]),
             np.array([[1, 2, 3], [1, 2, 3], [10, 20, 30]]),
-        )
+        ),
     )
     def test_fast_2d_int_unique(self, arr: np.ndarray) -> None:
         actual_unq, actual_inv = fast_2d_int_unique(arr)
@@ -30,7 +36,7 @@ class TestFast2dIntUnique:
         (
             (np.array([[1.0, 10.0], [1, 10]]), TypeError, "integer"),
             (np.array([[[1, 10], [1, 10]]]), ValueError, "2d"),
-        )
+        ),
     )
     def test_with_incorrect_array(
         self,
@@ -51,7 +57,7 @@ class TestFast2d2colIntUnique:
             np.array([[1, 10], [2, 20]]),
             np.array([[1, 10], [1, 10]]),
             np.array([[1, 10], [2, 20], [1, 10], [2, 20]]),
-        )
+        ),
     )
     def test_correct(self, arr: np.ndarray) -> None:
         actual = fast_2d_2col_int_unique(arr)
@@ -64,7 +70,7 @@ class TestFast2d2colIntUnique:
             (np.array([[1.0, 10.0], [1, 10]]), TypeError, "integer"),
             (np.array([[[1, 10], [1, 10]]]), ValueError, "2d"),
             (np.array([[1, 10, 100], [1, 10, 10]]), ValueError, "2 columns"),
-        )
+        ),
     )
     def test_with_incorrect_array(
         self,
@@ -133,7 +139,7 @@ class TestIsin2dInt:
             (
                 np.array([[1, 10], [3, 30], [2, 20], [1, 10], [3, 30], [4, 40]]),
                 np.array([[2, 10], [2, 20], [1, 10], [2, 20], [3, 10], [5, 50]]),
-                np.array([True, False, True, True, False, False])
+                np.array([True, False, True, True, False, False]),
             ),
             (np.array([[1], [2]]), np.array([[1], [3]]), np.array([True, False])),
             (np.array([[1, 10, 100], [2, 20, 200]]), np.array([[1, 10, 100], [3, 30, 300]]), np.array([True, False])),
@@ -162,10 +168,10 @@ class TestIsin2dInt:
         "elements,test_elements,expected_error_type,expected_error_text",
         (
             (np.array([[1, 10]]), np.array([[1.0, 10.0]]), TypeError, "same types"),
-            (np.array([[1., 10.]]), np.array([[1.0, 10.0]]), TypeError, "integer"),
+            (np.array([[1.0, 10.0]]), np.array([[1.0, 10.0]]), TypeError, "integer"),
             (np.array([[[1, 10]]]), np.array([[[1, 10]]]), ValueError, "2d"),
             (np.array([[1, 10, 100]]), np.array([[1, 10]]), ValueError, "same columns number"),
-        )
+        ),
     )
     def test_with_incorrect_arrays(
         self,

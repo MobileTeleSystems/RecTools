@@ -77,7 +77,7 @@ def fast_2d_2col_int_unique(arr: np.ndarray) -> np.ndarray:
             (
                 arr[:, 0],
                 arr[:, 1],
-            )
+            ),
         ),
     )
     coo = csr.tocoo(copy=False)
