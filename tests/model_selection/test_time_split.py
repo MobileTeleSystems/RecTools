@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from copy import deepcopy
 from datetime import date
 
 import numpy as np
@@ -20,6 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
+from rectools.dataset import Interactions
 from rectools.model_selection import TimeRangeSplitter
 from rectools.model_selection.time_split import DateRange, get_not_seen_mask
 
@@ -43,28 +45,27 @@ class TestTimeRangeSplit:
         return _shuffle
 
     @pytest.fixture
-    def interactions(self, shuffle_arr: np.ndarray) -> pd.DataFrame:
+    def interactions(self, shuffle_arr: np.ndarray) -> Interactions:
         df = (
             pd.DataFrame(
                 [
-                    ["i5", 1, 1, "2021-09-01"],
-                    ["i5", 1, 2, "2021-09-02"],
-                    ["i4", 2, 1, "2021-09-02"],
-                    ["i3", 2, 2, "2021-09-03"],
-                    ["i2", 3, 2, "2021-09-03"],
-                    ["i1", 3, 3, "2021-09-03"],
-                    ["i0", 3, 4, "2021-09-04"],
-                    ["i7", 1, 2, "2021-09-04"],
-                    ["i8", 3, 1, "2021-09-05"],
-                    ["i9", 4, 2, "2021-09-05"],
-                    ["i9", 3, 3, "2021-09-06"],
+                    [1, 1, 1, "2021-09-01"],
+                    [1, 2, 1, "2021-09-02"],
+                    [2, 1, 1, "2021-09-02"],
+                    [2, 2, 1, "2021-09-03"],
+                    [3, 2, 1, "2021-09-03"],
+                    [3, 3, 1, "2021-09-03"],
+                    [3, 4, 1, "2021-09-04"],
+                    [1, 2, 1, "2021-09-04"],
+                    [3, 1, 1, "2021-09-05"],
+                    [4, 2, 1, "2021-09-05"],
+                    [3, 3, 1, "2021-09-06"],
                 ],
-                columns=["index", Columns.User, Columns.Item, Columns.Datetime],
+                columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
             )
             .astype({Columns.Datetime: "datetime64[ns]"})
-            .set_index("index")
         )
-        return df.iloc[shuffle_arr]
+        return Interactions(df.iloc[shuffle_arr])
 
     @pytest.fixture
     def date_range(self) -> DateRange:
@@ -79,7 +80,7 @@ class TestTimeRangeSplit:
     )
     def test_works_on_empty_range(
         self,
-        interactions: pd.DataFrame,
+        interactions: Interactions,
         filter_cold_users: bool,
         filter_cold_items: bool,
         filter_already_seen: bool,
@@ -94,12 +95,12 @@ class TestTimeRangeSplit:
         assert trs.get_n_splits(interactions) == 0
         assert list(trs.split(interactions)) == []
 
-    def test_without_filtering(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
-        interactions_copy = interactions.copy()
+    def test_without_filtering(self, interactions: Interactions, date_range: DateRange, norm: Converter) -> None:
+        interactions_copy = deepcopy(interactions)
         trs = TimeRangeSplitter(date_range, False, False, False)
         assert trs.get_n_splits(interactions) == 2
         actual = list(trs.split(interactions, collect_fold_stats=True))
-        pd.testing.assert_frame_equal(interactions, interactions_copy)
+        pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
         assert len(actual) == 2
 
         assert sorted(actual[0][0]) == norm(range(6))
@@ -118,7 +119,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][0]) == norm(range(8))
         assert sorted(actual[1][1]) == norm([8, 9])
 
-    def test_filter_cold_users(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
+    def test_filter_cold_users(self, interactions: Interactions, date_range: DateRange, norm: Converter) -> None:
         trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=True,
@@ -134,7 +135,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][0]) == norm(range(8))
         assert sorted(actual[1][1]) == norm([8])
 
-    def test_filter_cold_items(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
+    def test_filter_cold_items(self, interactions: Interactions, date_range: DateRange, norm: Converter) -> None:
         trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=False,
@@ -150,7 +151,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][0]) == norm(range(8))
         assert sorted(actual[1][1]) == norm([8, 9])
 
-    def test_filter_already_seen(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
+    def test_filter_already_seen(self, interactions: Interactions, date_range: DateRange, norm: Converter) -> None:
         trs = TimeRangeSplitter(
             date_range,
             filter_cold_users=False,
@@ -166,7 +167,7 @@ class TestTimeRangeSplit:
         assert sorted(actual[1][0]) == norm(range(8))
         assert sorted(actual[1][1]) == norm([8, 9])
 
-    def test_filter_all(self, interactions: pd.DataFrame, date_range: DateRange, norm: Converter) -> None:
+    def test_filter_all(self, interactions: Interactions, date_range: DateRange, norm: Converter) -> None:
         trs = TimeRangeSplitter(date_range)
         assert trs.get_n_splits(interactions) == 2
         actual = list(trs.split(interactions))
@@ -176,14 +177,6 @@ class TestTimeRangeSplit:
         assert sorted(actual[0][1]) == []
         assert sorted(actual[1][0]) == norm(range(8))
         assert sorted(actual[1][1]) == norm([8])
-
-    @pytest.mark.parametrize("column", (Columns.User, Columns.Item, Columns.Datetime))
-    def test_raises_when_column_absent(self, interactions: pd.DataFrame, date_range: DateRange, column: str) -> None:
-        trs = TimeRangeSplitter(date_range)
-        with pytest.raises(KeyError) as e:
-            next(iter(trs.split(interactions.drop(columns=column))))
-        err_text = e.value.args[0]
-        assert column in err_text
 
 
 class TestGetNotSeenMask:
