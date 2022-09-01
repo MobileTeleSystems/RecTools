@@ -50,9 +50,8 @@ class TimeRangeSplitter:
         Split interactions into folds.
         Parameters
         ----------
-        df: pd.DataFrame
+        interactions: Interactions
             User-item interactions.
-            Obligatory columns: `Columns.User`, `Columns.Item`, `Columns.Datetime`.
         collect_fold_stats: bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
@@ -63,15 +62,12 @@ class TimeRangeSplitter:
         """
 
         df = interactions.df
-
-        idx_col = "__IDX"
-        #         idx = np.arange(len(df))
         idx = pd.RangeIndex(0, len(df))
 
         series_datetime = df[Columns.Datetime]
         date_range = self._get_real_date_range(series_datetime, self.date_range)
 
-        need_dfs = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
+        need_ui = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
 
         for start, end in pairwise(date_range):
             fold_info = {"Start date": start, "End date": end}
@@ -79,43 +75,56 @@ class TimeRangeSplitter:
             train_mask = series_datetime < start
             test_mask = (series_datetime >= start) & (series_datetime < end)
 
-            if need_dfs:
-                df_train = df.loc[train_mask, Columns.UserItem]
-                df_train[idx_col] = idx[train_mask]
-                df_test = df.loc[test_mask, Columns.UserItem]
-                df_test[idx_col] = idx[test_mask]
-            else:
-                train_idx = idx[train_mask]
-                test_idx = idx[test_mask]
+            train_idx = idx[train_mask].values
+            test_idx = idx[test_mask].values
+
+            if need_ui:
+                train_users = df[Columns.User].values[train_mask]
+                train_items = df[Columns.Item].values[train_mask]
+                test_users = df[Columns.User].values[test_mask]
+                test_items = df[Columns.Item].values[test_mask]
+
+            unq_train_users = None
+            unq_train_items = None
 
             if self.filter_cold_users:
-                new_users = np.setdiff1d(df_test[Columns.User].unique(), df_train[Columns.User].unique())
-                df_test = df_test.loc[~df_test[Columns.User].isin(new_users)]
+                unq_train_users = pd.unique(train_users)
+                mask = np.isin(test_users, unq_train_users)
+                test_users = test_users[mask]
+                test_items = test_items[mask]
+                test_idx = test_idx[mask]
 
             if self.filter_cold_items:
-                new_items = np.setdiff1d(df_test[Columns.Item].unique(), df_train[Columns.Item].unique())
-                df_test = df_test.loc[~df_test[Columns.Item].isin(new_items)]
+                unq_train_items = pd.unique(train_items)
+                mask = np.isin(test_items, unq_train_items)
+                test_users = test_users[mask]
+                test_items = test_items[mask]
+                test_idx = test_idx[mask]
 
             if self.filter_already_seen:
-                not_seen_mask = get_not_seen_mask(df_train, df_test)
-                df_test = df_test.loc[not_seen_mask]
+                mask = get_not_seen_mask(train_users, train_items, test_users, test_items)
+                test_users = test_users[mask]
+                test_items = test_items[mask]
+                test_idx = test_idx[mask]
 
             if collect_fold_stats:
-                fold_info["Train"] = len(df_train)
-                fold_info["Train users"] = df_train[Columns.User].nunique()
-                fold_info["Train items"] = df_train[Columns.Item].nunique()
-                fold_info["Test"] = len(df_test)
-                fold_info["Test users"] = df_test[Columns.User].nunique()
-                fold_info["Test items"] = df_test[Columns.Item].nunique()
+                if unq_train_users is None:
+                    unq_train_users = pd.unique(train_users)
+                if unq_train_items is None:
+                    unq_train_items = pd.unique(train_items)
 
-            if need_dfs:
-                yield df_train[idx_col].values, df_test[idx_col].values, fold_info
-            else:
-                yield train_idx.values, test_idx.values, fold_info
+                fold_info["Train"] = train_users.size
+                fold_info["Train users"] = unq_train_users.size
+                fold_info["Train items"] = unq_train_items.size
+                fold_info["Test"] = test_users.size
+                fold_info["Test users"] = pd.unique(test_users).size
+                fold_info["Test items"] = pd.unique(test_items).size
 
-    def get_n_splits(self, df: pd.DataFrame) -> int:
+            yield train_idx, test_idx, fold_info
+
+    def get_n_splits(self, interactions: Interactions) -> int:
         """Return real number of folds."""
-        date_range = self._get_real_date_range(df[Columns.Datetime], self.date_range)
+        date_range = self._get_real_date_range(interactions.df[Columns.Datetime], self.date_range)
         return max(0, len(date_range) - 1)
 
     @staticmethod
