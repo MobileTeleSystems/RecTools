@@ -23,7 +23,7 @@ from scipy import sparse
 
 from rectools import Columns
 from rectools.dataset import Interactions
-from rectools.utils import pairwise
+from rectools.utils import pairwise, isin_2d_int
 
 DateRange = tp.Sequence[tp.Union[date, datetime]]
 
@@ -123,98 +123,58 @@ class TimeRangeSplitter:
         return date_range[(date_range >= series_datetime.min()) & (date_range <= series_datetime.max())]
 
 
-def fast_sorted_unique(arr: np.ndarray):
+def get_not_seen_mask(
+    train_users: np.ndarray,
+    train_items: np.ndarray,
+    test_users: np.ndarray,
+    test_items: np.ndarray,
+) -> np.ndarray:
     """
-    arr: np.ndarray
-    Array with integer values and shape (n, 2)
+    Return mask for test interactions that is not in train interactions.
 
-    Return
-    ------
-    Array of shape (m, 2) with unique rows from arr, sorted by 1 col, then 2 col
+    Parameters
+    ----------
+    train_users : np.ndarray
+        Integer array of users in train interactions (it's not a unique users!).
+    train_items : np.ndarray
+        Integer array of items in train interactions. Has same length as `train_users`.
+    test_users : np.ndarray
+        Integer array of users in test interactions (it's not a unique users!).
+    test_items : np.ndarray
+        Integer array of items in test interactions. Has same length as `test_users`.
+
+    Returns
+    -------
+    np.ndarray
+     Boolean mask of same length as `test_users` (`test_items`).
+     ``True`` means interaction not present in train.
     """
-    coo = sparse.csr_matrix(
-        (
-            np.ones(len(arr), dtype=bool),
-            (
-                arr[:, 0],
-                arr[:, 1]
-            )
-        ),
-    ).tocoo(copy=False)
-    res = np.array([coo.row, coo.col]).T
-    return res
+    if train_users.size != train_items.size:
+        raise ValueError("Lengths of `train_users` and `train_items` must be the same")
+    if test_users.size != test_items.size:
+        raise ValueError("Lengths of `test_users` and `test_items` must be the same")
 
+    if train_users.size == 0:
+        return np.ones(test_users.size, dtype=bool)
+    if test_users.size == 0:
+        return np.array([], dtype=bool)
 
-def isin_2d_int(ar1: np.ndarray, ar2: np.ndarray, invert: bool = False):
-    # inspired by np.in1d and np.unique
-    #     ar1, rev_idx = np.unique(ar1, return_inverse=True, axis=0)
-
-    ar1_dtype, ar1_shape = ar1.dtype, ar1.shape
-    ar1 = np.ascontiguousarray(ar1).view(
-        np.dtype((np.void, ar1.dtype.itemsize * ar1.shape[1]))
-    )
-    ar1, rev_idx = np.unique(ar1, return_inverse=True)
-    ar1 = ar1.view(ar1_dtype).reshape(-1, ar1_shape[1])
-
-    ar2 = fast_sorted_unique(ar2)
-    ar = np.concatenate((ar1, ar2))
-    del ar1, ar2
-
-    dtype = [('f{i}'.format(i=i), ar.dtype) for i in range(ar.shape[1])]
-    consolidated = ar.view(dtype).flatten()
-
-    order = consolidated.argsort(kind='mergesort')
-    del consolidated
-    sar = ar[order]
-
-    if invert:
-        bool_ar = (sar[1:] != sar[:-1]).any(axis=1)
-    else:
-        bool_ar = (sar[1:] == sar[:-1]).all(axis=1)
-
-    del sar
-
-    flag = np.concatenate((bool_ar, [invert]))
-    del bool_ar
-    ret = np.empty(flag.shape[0], dtype=bool)
-    ret[order] = flag
-    res = ret[rev_idx]
-
-    return res
-
-
-def get_not_seen_mask(df_train, df_test):
-    n_users = max(df_train[Columns.User].max(), df_test[Columns.User].max()) + 1
-    n_items = max(df_train[Columns.Item].max(), df_test[Columns.Item].max()) + 1
+    n_users = max(train_users.max(), test_users.max()) + 1
+    n_items = max(train_items.max(), test_items.max()) + 1
 
     cls = sparse.csr_matrix if n_users < n_items else sparse.csc_matrix
-    train_csr = cls(
-        (
-            np.ones(len(df_train), dtype=bool),
-            (
-                df_train[Columns.User],
-                df_train[Columns.Item],
-            )
-        ),
-        shape=(n_users, n_items)
-    )
-    test_csr = cls(
-        (
-            np.ones(len(df_test), dtype=bool),
-            (
-                df_test[Columns.User],
-                df_test[Columns.Item],
-            )
-        ),
-        shape=(n_users, n_items)
-    )
 
-    already_seen_coo = test_csr.multiply(train_csr).tocoo(copy=False)
-    del train_csr, test_csr
-    already_seen_arr = np.array([already_seen_coo.row, already_seen_coo.col]).T
+    def make_matrix(users: np.ndarray, items: np.ndarray) -> sparse.spmatrix:
+        return cls((np.ones(len(users), dtype=bool), (users, items)), shape=(n_users, n_items))
+
+    train_mat = make_matrix(train_users, train_items)
+    test_mat = make_matrix(test_users, test_items)
+
+    already_seen_coo = test_mat.multiply(train_mat).tocoo(copy=False)
+    del train_mat, test_mat
+    already_seen_arr = np.vstack((already_seen_coo.row, already_seen_coo.col)).T.astype(test_users.dtype)
     del already_seen_coo
 
-    # We could use it for test and train immediately, but usually already_seen_arr is much smaller than test and this way is faster
-    # TODO: use CSR instead of already_seen_arr??
-    not_seen_mask = isin_2d_int(df_test[Columns.UserItem].values, already_seen_arr, invert=True)
+    test_ui = np.vstack((test_users, test_items)).T
+    not_seen_mask = isin_2d_int(test_ui, already_seen_arr, invert=True)
     return not_seen_mask
