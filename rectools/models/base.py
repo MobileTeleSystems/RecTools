@@ -115,6 +115,9 @@ class ModelBase:
         if not self.is_fitted:
             raise NotFittedError(self.__class__.__name__)
 
+        if k <= 0:
+            raise ValueError("`k` must be positive integer")
+
         try:
             user_ids = dataset.user_id_map.convert_to_internal(users)
         except KeyError:
@@ -201,6 +204,9 @@ class ModelBase:
         """
         if not self.is_fitted:
             raise NotFittedError(self.__class__.__name__)
+
+        if k <= 0:
+            raise ValueError("`k` must be positive integer")
 
         try:
             target_ids = dataset.item_id_map.convert_to_internal(target_items)

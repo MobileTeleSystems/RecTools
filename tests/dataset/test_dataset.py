@@ -148,3 +148,50 @@ class TestDataset:
             Dataset.construct(self.interactions_df.drop(columns=column))
         err_text = e.value.args[0]
         assert column in err_text
+
+    def test_raises_when_in_dense_features_absent_some_ids_that_present_in_interactions(self) -> None:
+        user_features_df = pd.DataFrame(
+            [
+                ["u1", 77, 99],
+                ["u2", 33, 55],
+            ],
+            columns=["user_id", "f1", "f2"],
+        )
+        with pytest.raises(ValueError, match=".+user.+all ids from interactions must present in features table"):
+            Dataset.construct(
+                self.interactions_df,
+                user_features_df=user_features_df,
+                make_dense_user_features=True,
+            )
+
+    def test_raises_when_in_dense_features_present_ids_that_not_present_in_interactions(self) -> None:
+        user_features_df = pd.DataFrame(
+            [
+                ["u1", 77, 99],
+                ["u2", 33, 55],
+                ["u6", 33, 55],
+            ],
+            columns=["user_id", "f1", "f2"],
+        )
+        with pytest.raises(ValueError, match="Some ids from user features table not present in interactions"):
+            Dataset.construct(
+                self.interactions_df,
+                user_features_df=user_features_df,
+                make_dense_user_features=True,
+            )
+
+    def test_raises_when_in_sparse_features_present_ids_that_not_present_in_interactions(self) -> None:
+        item_features_df = pd.DataFrame(
+            [
+                ["i2", "f1", 3],
+                ["i2", "f2", 20],
+                ["i6", "f2", 20],  # new item id
+            ],
+            columns=["item_id", "feature", "value"],
+        )
+        with pytest.raises(ValueError, match="Some ids from item features table not present in interactions"):
+            Dataset.construct(
+                self.interactions_df,
+                item_features_df=item_features_df,
+                cat_item_features=["f2"],
+            )

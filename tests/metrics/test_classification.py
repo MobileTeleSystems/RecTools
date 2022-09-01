@@ -53,7 +53,7 @@ class TestPrecision:
         assert self.metric.calc(RECO, INTERACTIONS) == expected_metric_per_user.mean()
 
     def test_when_no_interactions(self) -> None:
-        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int))
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         pd.testing.assert_series_equal(self.metric.calc_per_user(RECO, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(self.metric.calc(RECO, EMPTY_INTERACTIONS))
 
@@ -71,7 +71,7 @@ class TestRecall:
         assert self.metric.calc(RECO, INTERACTIONS) == expected_metric_per_user.mean()
 
     def test_when_no_interactions(self) -> None:
-        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int))
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         pd.testing.assert_series_equal(self.metric.calc_per_user(RECO, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(self.metric.calc(RECO, EMPTY_INTERACTIONS))
 
@@ -89,7 +89,7 @@ class TestAccuracy:
         assert self.metric.calc(RECO, INTERACTIONS, CATALOG) == expected_metric_per_user.mean()
 
     def test_when_no_interactions(self) -> None:
-        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int))
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         pd.testing.assert_series_equal(
             self.metric.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG),
             expected_metric_per_user,

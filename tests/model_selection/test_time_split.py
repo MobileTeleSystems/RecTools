@@ -103,8 +103,8 @@ class TestTimeRangeSplit:
         assert sorted(actual[0][0]) == norm(range(6))
         assert sorted(actual[0][1]) == norm([6, 7])
         assert actual[0][2] == {
-            "Start date": pd.Timestamp("2021-09-04 00:00:00", freq="D"),
-            "End date": pd.Timestamp("2021-09-05 00:00:00", freq="D"),
+            "Start date": pd.Timestamp("2021-09-04 00:00:00"),
+            "End date": pd.Timestamp("2021-09-05 00:00:00"),
             "Train": 6,
             "Train users": 3,
             "Train items": 3,

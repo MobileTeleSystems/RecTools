@@ -112,16 +112,15 @@ class SparsePairwiseHammingDistanceCalculator(PairwiseDistanceCalculator):
     ...         [0, 0],
     ...         [0, 1],
     ...         [1, 1],
-    ...         [1, np.nan],
     ...     ])
     >>> features = SparseFeatures(values=features_matrix, names=["feature_1", "feature_2"])
     >>> mapper = IdMap.from_values(["i1", "i2", "i3", "i4", "i5"])
     >>> calculator = SparsePairwiseHammingDistanceCalculator(features, mapper)
     >>> calculator[
-    ...    ["i1", "i1", "i1", "i1", "i1"],
-    ...    ["i1", "i2", "i3", "i4", "i6"]
+    ...    ["i1", "i1", "i1"],
+    ...    ["i1", "i2", "i3"]
     ... ]
-    array([ 0.,  1.,  2., nan, nan], dtype=float32)
+    array([0., 1., 2.], dtype=float32)
     """
 
     def __init__(self, features: SparseFeatures, id_map: IdMap) -> None:
@@ -137,7 +136,7 @@ class SparsePairwiseHammingDistanceCalculator(PairwiseDistanceCalculator):
         existing_mask = np.logical_and(existing_external_0, existing_external_1)
         # Check absence items ids in mapper
         if not existing_mask.all():
-            warnings.warn("Some items absent in mapper" " Corresponding pair distances are set to NaN.")
+            warnings.warn("Some items absent in mapper. Corresponding pair distances are set to NaN.")
             # Set nan to absent ids place
             result[~existing_mask] = np.nan
             # Get view for existing items

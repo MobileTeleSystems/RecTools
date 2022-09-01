@@ -20,7 +20,7 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
 from rectools.dataset import Dataset
