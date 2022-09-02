@@ -19,7 +19,7 @@ from pandas.core.dtypes.common import is_object_dtype
 from rectools import AnySequence
 
 
-def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
+def fast_isin(elements: np.ndarray, test_elements: np.ndarray, invert: bool = False) -> np.ndarray:
     """
     Effective version of `np.isin` that works well even if arrays have `object` types.
 
@@ -29,6 +29,9 @@ def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
         Array of elements that you want to check.
     test_elements : np.ndarray
         The values against which to test each value of `elements`.
+    invert : bool, default ``False``
+        If True, the values in the returned array are inverted, as if
+        calculating `element not in test_elements`
 
     Returns
     -------
@@ -37,8 +40,10 @@ def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
     """
     if is_object_dtype(elements) or is_object_dtype(test_elements):
         res = pd.Series(elements.astype("O")).isin(test_elements.astype("O")).values
+        if invert:
+            res = ~res
     else:
-        res = np.isin(elements, test_elements)
+        res = np.isin(elements, test_elements, invert=invert)
     return res
 
 
@@ -141,14 +146,11 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
     KeyError
         If `strict` is ``True`` and at least one element of `ids` not in `s.index`.
     """
-    ids_arr = np.asarray(ids)
-    exists_mask = fast_isin(ids_arr, series.index.values)
-
+    r = series.reindex(ids)
     if strict:
-        if not exists_mask.all():
+        if r.isna().any():
             raise KeyError("Some indices not exists")
-        known_ids = ids_arr
     else:
-        known_ids = ids_arr[exists_mask]
-    selected = series[known_ids].values
+        r.dropna(inplace=True)
+    selected = r.astype(series.dtype).values
     return selected
