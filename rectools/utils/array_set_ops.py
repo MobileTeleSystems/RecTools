@@ -85,7 +85,7 @@ def fast_2d_2col_int_unique(arr: np.ndarray) -> np.ndarray:
     return res
 
 
-def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
+def fast_isin(elements: np.ndarray, test_elements: np.ndarray, invert: bool = False) -> np.ndarray:
     """
     Effective version of `np.isin` that works well even if arrays have `object` types.
 
@@ -95,6 +95,9 @@ def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
         Array of elements that you want to check.
     test_elements : np.ndarray
         The values against which to test each value of `elements`.
+    invert : bool, default ``False``
+        If True, the values in the returned array are inverted, as if
+        calculating `element not in test_elements`
 
     Returns
     -------
@@ -103,8 +106,10 @@ def fast_isin(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarray:
     """
     if is_object_dtype(elements) or is_object_dtype(test_elements):
         res = pd.Series(elements.astype("O")).isin(test_elements.astype("O")).values
+        if invert:
+            res = ~res
     else:
-        res = np.isin(elements, test_elements)
+        res = np.isin(elements, test_elements, invert=invert)
     return res
 
 

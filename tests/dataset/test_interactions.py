@@ -17,6 +17,7 @@
 import typing as tp
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import pytest
 from pytest_subtests import SubTests
@@ -68,7 +69,7 @@ class TestInteractions:
                 Columns.Datetime: ["2021-09-08"] * 4,
             }
         )
-        user_id_map = IdMap(pd.Series([0, 1, 2], index=["u0", "u1", "u2"]))
+        user_id_map = IdMap(np.array(["u0", "u1", "u2"]))
         item_id_map = IdMap.from_values(["i1", "i2"])
         interactions = Interactions.from_raw(raw_df, user_id_map, item_id_map)
         pd.testing.assert_frame_equal(interactions.df, self.df)

@@ -95,13 +95,17 @@ class TestFast2d2colIntUnique:
         (np.array([2, 6, 4]), np.array(["2", "5", "4", "1"], dtype="O"), np.array([False, False, False])),
         (np.array([2, 6, 4], dtype="O"), np.array(["2", "5", "4", "1"], dtype="O"), np.array([False, False, False])),
         (np.array(["2", "6", "4"], dtype="O"), np.array([2, 5, 4, 1]), np.array([False, False, False])),
-        (np.array([]), np.array([]), np.array([])),
-        (np.array([]), np.array([2, 5, 4]), np.array([])),
+        (np.array([]), np.array([]), np.array([], dtype=bool)),
+        (np.array([]), np.array([2, 5, 4]), np.array([], dtype=bool)),
         (np.array([2, 6, 4]), np.array([]), np.array([False, False, False])),
     ),
 )
-def test_fast_isin(elements: np.ndarray, test_elements: np.ndarray, expected: np.ndarray) -> None:
-    actual = fast_isin(elements, test_elements)
+@pytest.mark.parametrize("invert", (True, False))
+@pytest.mark.filterwarnings("ignore:elementwise comparison failed")
+def test_fast_isin(elements: np.ndarray, test_elements: np.ndarray, expected: np.ndarray, invert: bool) -> None:
+    actual = fast_isin(elements, test_elements, invert=invert)
+    if invert:
+        expected = ~expected
     np.testing.assert_array_equal(actual, expected)
 
 
