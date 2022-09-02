@@ -3,6 +3,7 @@
 ## Dataset Description
 This is an official repository of the Kion Movies Recommendation Dataset. 
 The data was gathered from the users of [MTS Kion](https://kion.ru/home) video streaming platform from 13.03.2021 to 22.08.2022.
+It is sample of anonymous data with adding random noise.
 
 The public part of the  dataset includes 5,476,251 interactions of 962,179 users with 15,706 items. The dataset includes user_item interactions and their characteristics (such as temporal information, watch duration and watch percentage), as well as user demographics and rich movies meta-information.
 
