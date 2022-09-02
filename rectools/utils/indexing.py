@@ -85,14 +85,11 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
     KeyError
         If `strict` is ``True`` and at least one element of `ids` not in `s.index`.
     """
-    ids_arr = np.asarray(ids)
-    exists_mask = fast_isin(ids_arr, series.index.values)
-
+    r = series.reindex(ids)
     if strict:
-        if not exists_mask.all():
+        if r.isna().any():
             raise KeyError("Some indices not exists")
-        known_ids = ids_arr
     else:
-        known_ids = ids_arr[exists_mask]
-    selected = series[known_ids].values
+        r.dropna(inplace=True)
+    selected = r.astype(series.dtype).values
     return selected

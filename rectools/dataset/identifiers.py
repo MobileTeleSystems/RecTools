@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from rectools import ExternalId, ExternalIds, InternalId, InternalIds
-from rectools.utils import get_from_series_by_index
+from rectools.utils import fast_isin, get_from_series_by_index
 
 
 @attr.s(frozen=True, slots=True)
@@ -32,43 +32,32 @@ class IdMap:
 
     Usually you do not need to create this object directly, use `from_values` class method instead.
 
+    When creating directly you have to pass unique external ids.
+
     Parameters
     ----------
-    to_internal: pd.Series
-        Mapping external -> internal ids.
+    external_ids: np.ndarray
+        Array of *unique* external ids.
     """
 
-    to_internal: pd.Series = attr.ib()
-
-    @to_internal.validator
-    def _check_internal_correct(self, _: str, value: pd.Series) -> None:
-        """Check that internal ids are correct."""
-        if (np.sort(value.values) != np.arange(len(value))).any():
-            raise ValueError("Internal ids must be integers from 0 to n_objects-1")
-
-    @to_internal.validator
-    def _check_external_unique(self, _: str, value: pd.Series) -> None:  # noqa: D102
-        """Check that external ids are unique."""
-        if np.unique(value.index.values).size != len(value):
-            raise ValueError("External ids must be unique")
+    external_ids: np.ndarray = attr.ib()
 
     @classmethod
     def from_values(cls, values: ExternalIds) -> "IdMap":
         """
-        Create IdMap from list of external ids.
+        Create IdMap from list of external ids (possibly not unique).
 
         Parameters
         ----------
         values: iterable(hashable) :
-            List of external ids (may be not unique).
+            List of all external ids (may be not unique).
 
         Returns
         -------
         IdMap
         """
-        unq_values = np.unique(np.asarray(values))
-        ids = np.arange(len(unq_values))
-        return cls(pd.Series(ids, index=unq_values))
+        unq_values = pd.unique(values)
+        return cls(unq_values)
 
     @classmethod
     def from_dict(cls, mapping: tp.Dict[ExternalId, InternalId]) -> "IdMap":
@@ -80,35 +69,51 @@ class IdMap:
         ----------
         mapping: dict(hashable, int) :
             Dict of mappings from external ids to internal ids.
+            Internal ids must be integers from 0 to n_objects-1.
 
         Returns
         -------
         IdMap
         """
-        return cls(pd.Series(mapping))
+        external_ids = list(mapping.keys())
+        internal_ids = np.array([mapping[e] for e in external_ids])
+        order = np.argsort(internal_ids)
+        internal_ids_sorted = internal_ids[order]
+
+        internals_incorrect = internal_ids_sorted != np.arange(internal_ids_sorted.size)
+        if internals_incorrect is True or internals_incorrect.any():
+            raise ValueError("Internal ids must be integers from 0 to n_objects-1")
+
+        res = np.array(external_ids)[order]
+        return cls(res)
+
+    @property
+    def size(self) -> int:
+        """Return number of ids in map."""
+        return self.external_ids.size
+
+    @property
+    def to_internal(self) -> pd.Series:
+        """Map internal->external."""
+        return pd.Series(np.arange(self.size), index=self.external_ids)
 
     @property
     def to_external(self) -> pd.Series:
         """Map internal->external."""
-        return pd.Series(self.to_internal.index.values, index=self.to_internal.values)
+        return pd.Series(self.external_ids, index=pd.RangeIndex(0, self.size))
 
     @property
     def internal_ids(self) -> np.ndarray:
         """Array of internal ids."""
-        return self.to_internal.values
-
-    @property
-    def external_ids(self) -> np.ndarray:
-        """Array of external ids."""
-        return self.to_internal.index.values
+        return np.arange(self.size)
 
     def get_sorted_internal(self) -> np.ndarray:
         """Return array of sorted internal ids."""
-        return np.sort(self.to_internal.values)
+        return self.internal_ids
 
     def get_external_sorted_by_internal(self) -> np.ndarray:
         """Return array of external ids sorted by internal ids."""
-        return self.to_internal.index.values[np.argsort(self.to_internal.values)]
+        return self.external_ids
 
     def convert_to_internal(self, external: ExternalIds, strict: bool = True) -> np.ndarray:
         """
@@ -161,3 +166,33 @@ class IdMap:
         """
         external = get_from_series_by_index(self.to_external, internal, strict)
         return external
+
+    def add_ids(self, values: ExternalIds, raise_if_already_present: bool = False) -> "IdMap":
+        """
+        Add new external ids to current IdMap and return new IdMap.
+        Mapping for old ids does not change.
+        New ids are added to the end of list of external ids.
+
+        Parameters
+        ----------
+        values : iterable(hashable)
+            List of new external ids (may be not unique).
+        raise_if_already_present : bool, default ``False``
+            If True and some of given ids are already present in the map
+            ValueError will be raised.
+
+        Returns
+        -------
+        IdMap
+
+        Raises
+        ------
+        ValueError
+            If some of given ids are already present in the map and `raise_if_already_present` flag is ``True``.
+        """
+        unq = pd.unique(values)
+        new_ids = unq[fast_isin(unq, self.external_ids, invert=True)]
+        if raise_if_already_present and new_ids.size < unq.size:
+            raise ValueError("Some of new ids are already present in map")
+        full_external_ids = np.concatenate((self.external_ids, new_ids))
+        return self.__class__(full_external_ids)

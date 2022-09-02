@@ -37,18 +37,25 @@ class TestGetElementIds:
             get_element_ids(np.array([2, 5, 3, 8]), np.array([]))
 
 
+@pytest.mark.parametrize("index_type", ("int64", "str"))
+@pytest.mark.parametrize("value_type", ("int64", "str"))
 class TestGetFromSeriesByIndex:
-    def test_normal(self) -> None:
-        s = pd.Series([40, 20, 40, 10, 30], index=[4, 2, 1, 3, 0])
-        actual = get_from_series_by_index(s, [1, 3, 4])
-        np.testing.assert_equal(actual, np.array([40, 10, 40]))
+    def test_normal(self, index_type: str, value_type: str) -> None:
+        s = pd.Series([40, 20, 40, 10, 30], index=np.array([4, 2, 1, 3, 0], dtype=index_type), dtype=value_type)
+        ids = np.array([1, 3, 4], dtype=index_type)
+        actual = get_from_series_by_index(s, ids)
+        expected = np.array([40, 10, 40], dtype=value_type)
+        np.testing.assert_equal(actual, expected)
 
-    def test_raises_when_unknown_object(self) -> None:
-        s = pd.Series([40, 20], index=[4, 2])
+    def test_raises_when_unknown_object(self, index_type: str, value_type: str) -> None:
+        s = pd.Series([40, 20], index=np.array([4, 2], dtype=index_type), dtype=value_type)
+        ids = np.array([1, 2, 4], dtype=index_type)
         with pytest.raises(KeyError):
-            get_from_series_by_index(s, [1, 2, 4])
+            get_from_series_by_index(s, ids)
 
-    def test_selects_known_objects(self) -> None:
-        s = pd.Series([40, 20], index=[4, 2])
-        actual = get_from_series_by_index(s, [2, 4, 1], strict=False)
-        np.testing.assert_equal(actual, np.array([20, 40]))
+    def test_selects_known_objects(self, index_type: str, value_type: str) -> None:
+        s = pd.Series([40, 20], index=np.array([4, 2], dtype=index_type), dtype=value_type)
+        ids = np.array([2, 4, 1], dtype=index_type)
+        actual = get_from_series_by_index(s, ids, strict=False)
+        expected = np.array([20, 40], dtype=value_type)
+        np.testing.assert_equal(actual, expected)
