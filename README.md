@@ -113,4 +113,4 @@ make clean
 
 [Emiliy Feldman](https://github.com/feldlime), [Ildar Safilo](https://github.com/irsafilo), [Daniil Potapov](https://github.com/sharthZ23), 
 [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Alexander Butenko](https://github.com/iomallach), 
-[Daria](https://github.com/blondered)
+[Mikhail Khasykov](https://github.com/mkhasykov), [Daria](https://github.com/blondered)
