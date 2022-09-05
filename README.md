@@ -109,7 +109,7 @@ To remove virtual environment run
 make clean
 ```
 
-## Acknowledgments
+## RecTools.Team
 
 [Emiliy Feldman](https://github.com/feldlime), [Ildar Safilo](https://github.com/irsafilo), [Daniil Potapov](https://github.com/sharthZ23), 
 [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Alexander Butenko](https://github.com/iomallach), 
