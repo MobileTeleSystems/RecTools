@@ -208,9 +208,10 @@ class MAP(_RankingMetric):
         # Here rows - users, columns - all possible k
         full_cumsum = np.cumsum(csr.data)
         n_row_elements = np.diff(csr.indptr)
+        row_sums = np.asarray(csr.sum(axis=1)).ravel()
         sum_n_elements_in_prev_rows = np.repeat(
             # add [0] because no elements before first row
-            np.concatenate((np.array([0]), np.cumsum(n_row_elements)[:-1])),
+            np.concatenate((np.array([0]), np.cumsum(row_sums)[:-1])),
             n_row_elements,
         )
 
