@@ -67,6 +67,28 @@ class TestMAP:
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
 
+    def test_when_duplicates_in_interactions(self) -> None:
+        reco = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 1, 2, 2, 2],
+                Columns.Item: [1, 2, 3, 1, 2, 3],
+                Columns.Rank: [1, 2, 3, 1, 2, 3],
+            }
+        )
+        interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 1, 2, 2, 2],
+                Columns.Item: [1, 2, 1, 1, 2, 3],
+            }
+        )
+        metric = MAP(k=3)
+        expected_metric_per_user = pd.Series(
+            [3.5 / 3, 3 / 3],
+            index=pd.Series([1, 2], name=Columns.User),
+            dtype=float,
+        )
+        pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
+
 
 class TestNDCG:
 
