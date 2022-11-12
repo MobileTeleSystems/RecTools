@@ -24,6 +24,6 @@ Splitters
 `model_selection.TimeRangeSplit` - split interactions by time
 """
 
-from .time_split import TimeRangeSplit
+from .time_split import TimeRangeSplitter
 
-__all__ = ("TimeRangeSplit",)
+__all__ = ("TimeRangeSplitter",)

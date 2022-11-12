@@ -12,24 +12,25 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""TimeRangeSplit."""
+"""TimeRangeSplitter."""
 
 import typing as tp
 from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
 from rectools import Columns
-from rectools.utils import pairwise
+from rectools.dataset import Interactions
+from rectools.utils import isin_2d_int, pairwise
 
 DateRange = tp.Sequence[tp.Union[date, datetime]]
 
 
-class TimeRangeSplit:
+class TimeRangeSplitter:
     """
     Splitter for cross-validation by time.
-
     Generate train and test folds by time,
     it is also possible to exclude cold users and items
     and already seen items.
@@ -54,29 +55,30 @@ class TimeRangeSplit:
     --------
     >>> from datetime import date
     >>> df = pd.DataFrame(
-    ...         [
-    ...             [1, 2, "2021-09-01"],  # 0
-    ...             [2, 1, "2021-09-02"],  # 1
-    ...             [2, 3, "2021-09-03"],  # 2
-    ...             [3, 2, "2021-09-03"],  # 3
-    ...             [3, 3, "2021-09-04"],  # 4
-    ...             [3, 4, "2021-09-04"],  # 5
-    ...             [1, 2, "2021-09-05"],  # 6
-    ...             [4, 2, "2021-09-05"],  # 7
-    ...             [4, 2, "2021-09-06"],  # 8
-    ...         ],
-    ...         columns=[Columns.User, Columns.Item, Columns.Datetime],
-    ...     ).astype({Columns.Datetime: "datetime64[ns]"})
+    ...     [
+    ...         [1, 2, 1, "2021-09-01"],  # 0
+    ...         [2, 1, 1, "2021-09-02"],  # 1
+    ...         [2, 3, 1, "2021-09-03"],  # 2
+    ...         [3, 2, 1, "2021-09-03"],  # 3
+    ...         [3, 3, 1, "2021-09-04"],  # 4
+    ...         [3, 4, 1, "2021-09-04"],  # 5
+    ...         [1, 2, 1, "2021-09-05"],  # 6
+    ...         [4, 2, 1, "2021-09-05"],  # 7
+    ...         [4, 2, 1, "2021-09-06"],  # 8
+    ...     ],
+    ...     columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+    ... ).astype({Columns.Datetime: "datetime64[ns]"})
+    >>> interactions = Interactions(df)
     >>> date_range = pd.date_range(date(2021, 9, 4), date(2021, 9, 6))
     >>>
-    >>> trs = TimeRangeSplit(date_range, False, False, False)
-    >>> for train_ids, test_ids, _ in trs.split(df):
+    >>> trs = TimeRangeSplitter(date_range, False, False, False)
+    >>> for train_ids, test_ids, _ in trs.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4 5]
     [0 1 2 3 4 5] [6 7]
     >>>
-    >>> trs = TimeRangeSplit(date_range, True, True, True)
-    >>> for train_ids, test_ids, _ in trs.split(df):
+    >>> trs = TimeRangeSplitter(date_range, True, True, True)
+    >>> for train_ids, test_ids, _ in trs.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4]
     [0 1 2 3 4 5] []
@@ -96,7 +98,7 @@ class TimeRangeSplit:
 
     def split(
         self,
-        df: pd.DataFrame,
+        interactions: Interactions,
         collect_fold_stats: bool = False,
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
         """
@@ -104,9 +106,8 @@ class TimeRangeSplit:
 
         Parameters
         ----------
-        df: pd.DataFrame
+        interactions: Interactions
             User-item interactions.
-            Obligatory columns: `Columns.User`, `Columns.Item`, `Columns.Datetime`.
         collect_fold_stats: bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
@@ -116,62 +117,129 @@ class TimeRangeSplit:
         iterator(array, array, dict)
             Yields tuples with train part row numbers, test part row numbers and fold info.
         """
-        required_columns = {Columns.User, Columns.Item, Columns.Datetime}
-        actual_columns = set(df.columns)
-        if not actual_columns >= required_columns:
-            raise KeyError(f"Missed columns {required_columns - actual_columns}")
+        df = interactions.df
+        idx = pd.RangeIndex(0, len(df))
 
         series_datetime = df[Columns.Datetime]
-        train_datetime_mask = series_datetime.notnull()
-        date_range = self._get_real_date_range(df[Columns.Datetime], self.date_range)
+        date_range = self._get_real_date_range(series_datetime, self.date_range)
 
-        df = df.loc[:]
-        idx_col = "__IDX"
-        df[idx_col] = np.arange(len(df))
+        need_ui = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
 
         for start, end in pairwise(date_range):
             fold_info = {"Start date": start, "End date": end}
-            train_mask = train_datetime_mask & (series_datetime < start)
-            df_train = df.loc[train_mask]
 
-            if collect_fold_stats:
-                fold_info["Train"] = len(df_train)
-                fold_info["Train users"] = df_train[Columns.User].nunique()
-                fold_info["Train items"] = df_train[Columns.Item].nunique()
-
+            train_mask = series_datetime < start
             test_mask = (series_datetime >= start) & (series_datetime < end)
-            df_test = df.loc[test_mask]
+
+            train_idx = idx[train_mask].values
+            test_idx = idx[test_mask].values
+
+            if need_ui:
+                train_users = df[Columns.User].values[train_mask]
+                train_items = df[Columns.Item].values[train_mask]
+                test_users = df[Columns.User].values[test_mask]
+                test_items = df[Columns.Item].values[test_mask]
+
+            unq_train_users = None
+            unq_train_items = None
 
             if self.filter_cold_users:
-                new_users = np.setdiff1d(df_test[Columns.User].unique(), df_train[Columns.User].unique())
-                df_test = df_test.loc[~df_test[Columns.User].isin(new_users)]
+                unq_train_users = pd.unique(train_users)
+                mask = np.isin(test_users, unq_train_users)
+                test_users = test_users[mask]
+                test_items = test_items[mask]
+                test_idx = test_idx[mask]
 
             if self.filter_cold_items:
-                new_items = np.setdiff1d(df_test[Columns.Item].unique(), df_train[Columns.Item].unique())
-                df_test = df_test.loc[~df_test[Columns.Item].isin(new_items)]
+                unq_train_items = pd.unique(train_items)
+                mask = np.isin(test_items, unq_train_items)
+                test_users = test_users[mask]
+                test_items = test_items[mask]
+                test_idx = test_idx[mask]
 
             if self.filter_already_seen:
-                df_test.index.rename("_index", inplace=True)
-                df_test = (
-                    df_test.reset_index()
-                    .merge(df_train[Columns.UserItem], on=Columns.UserItem, how="left", indicator=True)
-                    .query("_merge == 'left_only'")
-                    .drop(columns="_merge")
-                    .set_index("_index")
-                )
+                mask = get_not_seen_mask(train_users, train_items, test_users, test_items)
+                test_users = test_users[mask]
+                test_items = test_items[mask]
+                test_idx = test_idx[mask]
 
             if collect_fold_stats:
-                fold_info["Test"] = len(df_test)
-                fold_info["Test users"] = df_test[Columns.User].nunique()
-                fold_info["Test items"] = df_test[Columns.Item].nunique()
+                if unq_train_users is None:
+                    unq_train_users = pd.unique(train_users)
+                if unq_train_items is None:
+                    unq_train_items = pd.unique(train_items)
 
-            yield df_train[idx_col].values, df_test[idx_col].values, fold_info
+                fold_info["Train"] = train_users.size
+                fold_info["Train users"] = unq_train_users.size
+                fold_info["Train items"] = unq_train_items.size
+                fold_info["Test"] = test_users.size
+                fold_info["Test users"] = pd.unique(test_users).size
+                fold_info["Test items"] = pd.unique(test_items).size
 
-    def get_n_splits(self, df: pd.DataFrame) -> int:
+            yield train_idx, test_idx, fold_info
+
+    def get_n_splits(self, interactions: Interactions) -> int:
         """Return real number of folds."""
-        date_range = self._get_real_date_range(df[Columns.Datetime], self.date_range)
+        date_range = self._get_real_date_range(interactions.df[Columns.Datetime], self.date_range)
         return max(0, len(date_range) - 1)
 
     @staticmethod
     def _get_real_date_range(series_datetime: pd.Series, date_range: DateRange) -> pd.Series:
         return date_range[(date_range >= series_datetime.min()) & (date_range <= series_datetime.max())]
+
+
+def get_not_seen_mask(
+    train_users: np.ndarray,
+    train_items: np.ndarray,
+    test_users: np.ndarray,
+    test_items: np.ndarray,
+) -> np.ndarray:
+    """
+    Return mask for test interactions that is not in train interactions.
+
+    Parameters
+    ----------
+    train_users : np.ndarray
+        Integer array of users in train interactions (it's not a unique users!).
+    train_items : np.ndarray
+        Integer array of items in train interactions. Has same length as `train_users`.
+    test_users : np.ndarray
+        Integer array of users in test interactions (it's not a unique users!).
+    test_items : np.ndarray
+        Integer array of items in test interactions. Has same length as `test_users`.
+
+    Returns
+    -------
+    np.ndarray
+     Boolean mask of same length as `test_users` (`test_items`).
+     ``True`` means interaction not present in train.
+    """
+    if train_users.size != train_items.size:
+        raise ValueError("Lengths of `train_users` and `train_items` must be the same")
+    if test_users.size != test_items.size:
+        raise ValueError("Lengths of `test_users` and `test_items` must be the same")
+
+    if train_users.size == 0:
+        return np.ones(test_users.size, dtype=bool)
+    if test_users.size == 0:
+        return np.array([], dtype=bool)
+
+    n_users = max(train_users.max(), test_users.max()) + 1
+    n_items = max(train_items.max(), test_items.max()) + 1
+
+    cls = sparse.csr_matrix if n_users < n_items else sparse.csc_matrix
+
+    def make_matrix(users: np.ndarray, items: np.ndarray) -> sparse.spmatrix:
+        return cls((np.ones(len(users), dtype=bool), (users, items)), shape=(n_users, n_items))
+
+    train_mat = make_matrix(train_users, train_items)
+    test_mat = make_matrix(test_users, test_items)
+
+    already_seen_coo = test_mat.multiply(train_mat).tocoo(copy=False)
+    del train_mat, test_mat
+    already_seen_arr = np.vstack((already_seen_coo.row, already_seen_coo.col)).T.astype(test_users.dtype)
+    del already_seen_coo
+
+    test_ui = np.vstack((test_users, test_items)).T
+    not_seen_mask = isin_2d_int(test_ui, already_seen_arr, invert=True)
+    return not_seen_mask
