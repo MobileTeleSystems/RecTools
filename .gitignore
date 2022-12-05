@@ -78,9 +78,15 @@ dmypy.json
 # VS code
 settings.json
 .vscode/
+.vs/
 
 # Pytorch-lightning
 lightning_logs
 
 # benchmarks
 benchmark_results/
+
+# Data
+*.zip
+*.csv
+*.dat
