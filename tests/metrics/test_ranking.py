@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics.ranking import MAP, NDCG
+from rectools.metrics.ranking import MAP, MRR, NDCG
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
@@ -102,12 +102,6 @@ class TestNDCG:
         ),
     )
     def test_calc(self, k: int, expected_ndcg: tp.List[float]) -> None:
-        pd.DataFrame(
-            {
-                "user": [10, 20, 30, 30, 30, 40, 50, 50, 50, 50],
-                "rank": [15, np.nan, 1, 2, 3, 1, np.nan, 3, 7, 9],
-            }
-        )
         reco = pd.DataFrame(
             {
                 Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6],
@@ -137,3 +131,65 @@ class TestNDCG:
         metric = NDCG(k=3)
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
+
+
+class TestMRR:
+    @pytest.mark.parametrize(
+        "k,expected_mrr",
+        (
+            (1, [0, 0, 1, 1, 0]),
+            (3, [0, 0, 1, 1, 1 / 3]),
+        ),
+    )
+    def test_calc(self, k: int, expected_mrr: tp.List[float]) -> None:
+        reco = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
+                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
+            }
+        )
+        interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+            }
+        )
+
+        metric = MRR(k=k)
+        expected_metric_per_user = pd.Series(
+            expected_mrr,
+            index=pd.Series([1, 2, 3, 4, 5], name=Columns.User),
+            dtype=float,
+        )
+        pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
+        assert np.allclose(metric.calc(reco, interactions), expected_metric_per_user.mean())
+
+    def test_when_no_interactions(self) -> None:
+        reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
+        metric = MRR(k=3)
+        pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
+        assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
+
+    def test_when_duplicates_in_interactions(self) -> None:
+        reco = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 1, 2, 2, 2],
+                Columns.Item: [1, 2, 3, 1, 2, 3],
+                Columns.Rank: [1, 2, 3, 4, 5, 6],
+            }
+        )
+        interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 1, 2, 2, 2],
+                Columns.Item: [1, 2, 1, 1, 2, 3],
+            }
+        )
+        metric = MRR(k=3)
+        expected_metric_per_user = pd.Series(
+            [1, 0],
+            index=pd.Series([1, 2], name=Columns.User),
+            dtype=float,
+        )
+        pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
