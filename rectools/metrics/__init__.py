@@ -26,6 +26,7 @@ Metrics
 `metrics.Accuracy`
 `metrics.MAP`
 `metrics.NDCG`
+`metrics.MRR`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.Serendipity`
@@ -46,7 +47,7 @@ from .distances import (
 )
 from .diversity import IntraListDiversity
 from .novelty import MeanInvUserFreq
-from .ranking import MAP, NDCG
+from .ranking import MAP, MRR, NDCG
 from .scoring import calc_metrics
 from .serendipity import Serendipity
 
@@ -56,6 +57,7 @@ __all__ = (
     "Accuracy",
     "MAP",
     "NDCG",
+    "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",
     "Serendipity",

@@ -24,6 +24,7 @@ SOURCES=rectools
 TESTS=tests
 REPORTS=reports
 
+
 # Installation
 
 reports:
@@ -111,6 +112,7 @@ coverage: .venv reports
 	${COVERAGE} html -d ${REPORTS}/coverage_html
 	${COVERAGE} xml -o ${REPORTS}/coverage.xml -i
 
+
 # Generalization
 
 .autoformat: .isort_fix .autopep8_fix .black_fix
@@ -121,8 +123,6 @@ lint: .venv .lint
 
 .test: .pytest .doctest
 test: .venv .test
-
-test_metrics: .venv .test_metrics
 
 
 # Cleaning
