@@ -461,7 +461,7 @@ class MRR(_RankingMetric):
     >>> MRR(k=1).calc_per_user(reco, interactions).values
     array([0., 1., 0., 0.])
     >>> MRR(k=3).calc_per_user(reco, interactions).values
-    array([0., 1., 0.5, 0.33333333])
+    array([0.        , 1.        , 0.5       , 0.33333333])
     """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
