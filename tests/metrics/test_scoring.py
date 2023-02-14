@@ -20,6 +20,7 @@ import pytest
 from rectools import Columns
 from rectools.metrics import (
     MAP,
+    MRR,
     NDCG,
     Accuracy,
     IntraListDiversity,
@@ -73,6 +74,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "map@1": MAP(k=1),
             "map@2": MAP(k=2),
             "ndcg@1": NDCG(k=1, log_base=3),
+            "mrr@1": MRR(k=1),
             "miuf": MeanInvUserFreq(k=3),
             "ild": IntraListDiversity(k=3, distance_calculator=self.calculator),
             "serendipity": Serendipity(k=3),
@@ -88,6 +90,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "map@1": 0.125,
             "map@2": 0.375,
             "ndcg@1": 0.25,
+            "mrr@1": 0.25,
             "miuf": 0.125,
             "ild": 0.25,
             "serendipity": 0,
