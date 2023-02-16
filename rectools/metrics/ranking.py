@@ -189,7 +189,7 @@ class MAP(_RankingMetric):
             prec_at_k_csr = sparse.csr_matrix(np.array([]).reshape(0, 0))
             return MAPFitted(prec_at_k_csr, users, np.array([]))
 
-        n_relevant_items = merged.groupby(Columns.User)[Columns.Item].agg("size")[users].values
+        n_relevant_items = merged.groupby(Columns.User, sort=False)[Columns.Item].agg("size")[users].values
 
         user_to_idx_map = pd.Series(np.arange(users.size), index=users)
         df_prepared = merged.query(f"{Columns.Rank} <= @k_max")
@@ -407,14 +407,126 @@ class NDCG(_RankingMetric):
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
         ndcg = (
             pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": dcg / idcg})
-            .groupby(Columns.User)["__ndcg"]
+            .groupby(Columns.User, sort=False)["__ndcg"]
             .sum()
             .rename(None)
         )
         return ndcg
 
 
-RankingMetric = tp.Union[NDCG, MAP]
+class MRR(_RankingMetric):
+    r"""
+    Mean Reciprocal Rank at k (MRR@k).
+
+    MRR calculates as mean value of reciprocal rank
+    of first relevant recommendation among all users.
+
+    Estimates relevance of recommendations taking in account their order.
+
+    .. math::
+        MRR@K = \frac{1}{|U|} \sum_{i=1}^{|U|} \frac{1}{rank_{i}}
+
+    where
+        - :math:`{|U|}` is a number of unique users;
+        - :math:`rank_{i}` is a rank of first relevant recommendation
+          starting from ``1``.
+
+    If a user doesn't have any relevant recommendation then his metric value will be ``0``.
+
+    Parameters
+    ----------
+     k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+
+    Examples
+    --------
+    >>> reco = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4],
+    ...         Columns.Item: [7, 8, 1, 2, 2, 1, 3, 4, 7, 8, 3],
+    ...         Columns.Rank: [1, 2, 1, 2, 1, 2, 3, 4, 1, 2, 3],
+    ...     }
+    ... )
+    >>> interactions = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 3, 3, 3, 4, 4, 4],
+    ...         Columns.Item: [1, 2, 1, 1, 3, 4, 1, 2, 3],
+    ...     }
+    ... )
+    >>> # Here
+    >>> #    - for user ``1`` we return non-relevant recommendations;
+    >>> #    - for user ``2`` we return 2 items and relevant is first;
+    >>> #    - for user ``3`` we return 4 items, 2nd, 3rd and 4th are relevant;
+    >>> #    - for user ``4`` we return 3 items and relevant is last;
+    >>> MRR(k=1).calc_per_user(reco, interactions).values
+    array([0., 1., 0., 0.])
+    >>> MRR(k=3).calc_per_user(reco, interactions).values
+    array([0.        , 1.        , 0.5       , 0.33333333])
+    """
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        self._check(reco, interactions=interactions)
+        merged_reco = merge_reco(reco, interactions)
+        return self.calc_per_user_from_merged(merged_reco)
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users from merged recommendations.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
+        min_rank_per_user = (
+            pd.DataFrame({Columns.User: merged[Columns.User], "__cutted_rank": cutted_rank})
+            .groupby(Columns.User, sort=False)["__cutted_rank"]
+            .min()
+        )
+        return (1.0 / min_rank_per_user).fillna(0).rename(None)
+
+    def calc_from_merged(self, merged: pd.DataFrame) -> float:
+        """
+        Calculate metric value from merged recommendations.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        float
+            Value of metric (average between users).
+        """
+        per_user = self.calc_per_user_from_merged(merged)
+        return per_user.mean()
+
+
+RankingMetric = tp.Union[NDCG, MAP, MRR]
 
 
 def calc_ranking_metrics(
@@ -422,7 +534,7 @@ def calc_ranking_metrics(
     merged: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
-    Calculate any ranking metrics (MAP and NDCG for now).
+    Calculate any ranking metrics (MAP, NDCG and MRR for now).
 
     Works with pre-prepared data.
 
@@ -431,7 +543,7 @@ def calc_ranking_metrics(
 
     Parameters
     ----------
-    metrics : dict(str -> (MAP | NDCG))
+    metrics : dict(str -> (MAP | NDCG | MRR))
         Dict of metric objects to calculate,
         where key is metric name and value is metric object.
     merged : pd.DataFrame
@@ -446,12 +558,11 @@ def calc_ranking_metrics(
     """
     results = {}
 
-    # NDCG
-    ndcg_metrics: tp.Dict[str, NDCG] = select_by_type(metrics, NDCG)
-    for name, ndcg_metric in ndcg_metrics.items():
-        results[name] = ndcg_metric.calc_from_merged(merged)
+    for ranking_metric_cls in [NDCG, MRR]:
+        ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
+        for name, metric in ranking_metrics.items():
+            results[name] = metric.calc_from_merged(merged)
 
-    # MAP
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
