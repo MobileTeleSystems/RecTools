@@ -453,7 +453,7 @@ class F1Beta(SimpleClassificationMetric):
         Weight of recall. Default value: beta = 1.0
     """
 
-    beta = attr.ib(default=1.0)
+    beta: float = attr.ib(default=1.0)
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
         beta_sqr = self.beta**2
@@ -488,12 +488,12 @@ class MCC(ClassificationMetric):
     """
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame, catalog: Catalog) -> pd.Series:
-        tp = confusion_df[TP]
-        tn = confusion_df[TN]
-        fp = confusion_df[FP]
-        fn = confusion_df[FN]
-        mcc_numerator = tp * tn - fp * fn
-        mcc_denominator = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+        tp_ = confusion_df[TP]
+        tn_ = confusion_df[TN]
+        fp_ = confusion_df[FP]
+        fn_ = confusion_df[FN]
+        mcc_numerator = tp_ * tn_ - fp_ * fn_
+        mcc_denominator = np.sqrt((tp_ + fp_) * (tp_ + fn_) * (tn_ + fp_) * (tn_ + fn_))
         mcc = mcc_numerator / mcc_denominator
         mcc.loc[mcc_denominator == 0.0] = 0.0  # if denominator == 0 than numerator is also equals 0
         return mcc
