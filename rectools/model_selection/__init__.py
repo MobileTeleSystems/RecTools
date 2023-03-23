@@ -22,8 +22,13 @@ Instruments to validate and compare models.
 Splitters
 ---------
 `model_selection.TimeRangeSplit` - split interactions by time
+`model_selection.LastNSplitter` - split interactions by recent activity
 """
 
+from .last_n_split import LastNSplitter
 from .time_split import TimeRangeSplitter
 
-__all__ = ("TimeRangeSplitter",)
+__all__ = (
+    "TimeRangeSplitter",
+    "LastNSplitter",
+)
