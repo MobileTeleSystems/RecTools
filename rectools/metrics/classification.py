@@ -430,7 +430,7 @@ def make_confusions(reco: pd.DataFrame, interactions: pd.DataFrame, k: int) -> p
 @attr.s
 class F1Beta(SimpleClassificationMetric):
     """
-    Calculates metric base on precision@k and recall@k
+    Fbeta score for k first recommendations.
     See more: https://en.wikipedia.org/wiki/F-score
 
     The f1_beta equals to ``(1 + beta_sqr) * p@k * r@k / (beta_sqr * p@k + r@k)``
