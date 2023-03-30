@@ -15,6 +15,7 @@
 """RandomSplitter."""
 
 import typing as tp
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -82,7 +83,7 @@ class RandomSplitter:
         self,
         test_size: float,
         n_splits: int = 1,
-        random_state: int = None,
+        random_state: Optional[int] = None,
         filter_cold_users: bool = True,
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
@@ -124,7 +125,7 @@ class RandomSplitter:
 
         need_ui = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
 
-        for i in range(self.n_splits):
+        for _ in range(self.n_splits):
             fold_info = {}
 
             test_mask = np.zeros_like(idx, dtype=bool)
