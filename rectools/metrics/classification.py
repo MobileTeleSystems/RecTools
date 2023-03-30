@@ -18,6 +18,7 @@ import typing as tp
 from collections import defaultdict
 
 import attr
+import numpy as np
 import pandas as pd
 
 from rectools import Columns
@@ -424,3 +425,75 @@ def make_confusions(reco: pd.DataFrame, interactions: pd.DataFrame, k: int) -> p
     merged = merge_reco(reco, interactions)
     confusion_df = calc_confusions(merged, k)
     return confusion_df
+
+
+@attr.s
+class F1Beta(SimpleClassificationMetric):
+    """
+    Fbeta score for k first recommendations.
+    See more: https://en.wikipedia.org/wiki/F-score
+
+    The f1_beta equals to ``(1 + beta_sqr) * p@k * r@k / (beta_sqr * p@k + r@k)``
+    where
+        - beta_sqr equals to beta ** 2
+        - p@k: precision@k equals to ``tp / k`` where
+            -``tp`` is the number of relevant recommendations
+                among first ``k`` items in the top of recommendation list.
+        - r@k: recall@k equals to ``tp / liked`` where
+            - ``tp`` is the number of relevant recommendations
+                among first ``k`` items in the top of recommendation list;
+            - ``liked`` is the number of items the user has interacted
+                (bought, liked) with (in period after recommendations were given).
+
+    Parameters
+    ----------
+    k : int
+        Number of items in top of recommendations list that will be used to calculate metric.
+    beta : float
+        Weight of recall. Default value: beta = 1.0
+    """
+
+    beta: float = attr.ib(default=1.0)
+
+    def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
+        beta_sqr = self.beta**2
+        p_k = confusion_df[TP] / self.k
+        r_k = confusion_df[TP] / confusion_df[LIKED]
+
+        f1 = (1 + beta_sqr) * p_k * r_k / (beta_sqr * p_k + r_k)
+        f1.loc[(p_k == 0.0) & (r_k == 0.0)] = 0.0
+        return f1
+
+
+@attr.s
+class MCC(ClassificationMetric):
+    """
+    Matthew correlation coefficient calculates correlation between actual and predicted classification.
+    Min value = -1 (negative correlation), Max value = 1 (positive correlation), zero means no correlation
+    See more: https://en.wikipedia.org/wiki/Phi_coefficient
+
+    The MCC equals to ``(tp * tn - fp * fn) / sqrt((tp + fp)(tp + fn)(tn + fp)(tn + fn))`` where
+        - ``tp`` is the number of relevant recommendations
+          among the first ``k`` items in recommendation list;
+        - ``tn`` is the number of items with which user has not interacted (bought, liked) with
+          (in period after recommendations were given) and we do not recommend to him
+          (in the top ``k`` items of recommendation list);
+        - ``fp`` - number of non-relevant recommendations among the first `k` items of recommendation list;
+        - ``fn`` - number of items the user has interacted with but that weren't recommended (in top-`k`).
+
+    Parameters
+    ----------
+    k : int
+        Number of items in top of recommendations list that will be used to calculate metric.
+    """
+
+    def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame, catalog: Catalog) -> pd.Series:
+        tp_ = confusion_df[TP]
+        tn_ = confusion_df[TN]
+        fp_ = confusion_df[FP]
+        fn_ = confusion_df[FN]
+        mcc_numerator = tp_ * tn_ - fp_ * fn_
+        mcc_denominator = np.sqrt((tp_ + fp_) * (tp_ + fn_) * (tn_ + fp_) * (tn_ + fn_))
+        mcc = mcc_numerator / mcc_denominator
+        mcc.loc[mcc_denominator == 0.0] = 0.0  # if denominator == 0 than numerator is also equals 0
+        return mcc
