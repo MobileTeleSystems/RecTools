@@ -52,6 +52,7 @@ from .novelty import MeanInvUserFreq
 from .ranking import MAP, MRR, NDCG
 from .scoring import calc_metrics
 from .serendipity import Serendipity
+from .roc_auc import AUC
 
 __all__ = (
     "Precision",
@@ -62,6 +63,7 @@ __all__ = (
     "MAP",
     "NDCG",
     "MRR",
+    "AUC",
     "MeanInvUserFreq",
     "IntraListDiversity",
     "Serendipity",
