@@ -67,15 +67,15 @@ class RandomSplitter:
     ...                     filter_cold_items=False, filter_already_seen=False)
     >>> for train_ids, test_ids, _ in rs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 3 5 6] [4 7]
-    [0 1 2 3 4 7] [5 6]
+    [0 2 3 4 6 7] [1 5]
+    [0 1 2 4 5 6] [3 7]
     >>>
     >>> rs = RandomSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
     >>> for train_ids, test_ids, _ in rs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 3 5 6] [4]
-    [0 1 2 3 4 7] []
+    [0 2 3 4 6 7] []
+    [0 1 2 3 4 7] [3]
     """
 
     def __init__(
@@ -90,7 +90,7 @@ class RandomSplitter:
         if test_size <= 0.0 or test_size >= 1.0:
             raise ValueError("Value of test_size must be between 0 and 1")
 
-        self.random_state = random_state
+        self.random = np.random.RandomState(random_state)
         self.n_splits = n_splits
         self.test_size = test_size
         self.filter_cold_users = filter_cold_users
@@ -128,7 +128,7 @@ class RandomSplitter:
             fold_info = {}
 
             test_mask = np.zeros_like(idx, dtype=bool)
-            choose_idx = np.random.RandomState(self.random_state).choice(idx, test_part_size, replace=False)
+            choose_idx = self.random.choice(idx, test_part_size, replace=False)
             test_mask[choose_idx] = True
             train_mask = ~test_mask
 
