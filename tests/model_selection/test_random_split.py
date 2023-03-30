@@ -50,21 +50,23 @@ class TestRandomSplitter:
         return Interactions(df.iloc[shuffle_arr])
 
     @pytest.fixture
-    def train_size(self) -> float:
-        return 0.5
+    def test_size(self) -> float:
+        return 0.25
 
     @pytest.mark.parametrize("execution_number", range(5))
-    def test_without_filtering(self, interactions: Interactions, train_size: float, execution_number: list) -> None:
+    def test_without_filtering(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
         interactions_copy = deepcopy(interactions)
-        rs = RandomSplitter(train_size, False, False, False)
+        rs = RandomSplitter(test_size, 2, None, False, False, False)
 
         actual = list(rs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
-        assert len(actual) == 1
+        assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert actual[0][0].shape[0] == int(train_size * interactions.df.shape[0])
+        assert actual[0][1].shape[0] == int(test_size * interactions.df.shape[0])
         assert actual[0][0].shape[0] + actual[0][1].shape[0] == interactions.df.shape[0]
+        assert actual[1][1].shape[0] == int(test_size * interactions.df.shape[0])
+        assert actual[1][0].shape[0] + actual[0][1].shape[0] == interactions.df.shape[0]
 
         fold_info = actual[0][2]
         df = interactions.df
@@ -81,9 +83,9 @@ class TestRandomSplitter:
         assert fold_info["Test items"] == pd.unique(test_items).size
 
     @pytest.mark.parametrize("execution_number", range(5))
-    def test_cold_users(self, interactions: Interactions, train_size: float, execution_number: list) -> None:
+    def test_filter_cold_users(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
         interactions_copy = deepcopy(interactions)
-        rs = RandomSplitter(train_size, True, False, False)
+        rs = RandomSplitter(test_size, 1, None, True, False, False)
 
         actual = list(rs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -95,9 +97,9 @@ class TestRandomSplitter:
         assert np.intersect1d(train_users, test_users).shape[0] == test_users.shape[0]
 
     @pytest.mark.parametrize("execution_number", range(5))
-    def test_cold_items(self, interactions: Interactions, train_size: float, execution_number: list) -> None:
+    def test_filter_cold_items(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
         interactions_copy = deepcopy(interactions)
-        rs = RandomSplitter(train_size, False, True, False)
+        rs = RandomSplitter(test_size, 1, None, False, True, False)
 
         actual = list(rs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -109,9 +111,9 @@ class TestRandomSplitter:
         assert np.intersect1d(train_items, test_items).shape[0] == test_items.shape[0]
 
     @pytest.mark.parametrize("execution_number", range(5))
-    def test_filter_already_seen(self, interactions: Interactions, train_size: float, execution_number: list) -> None:
+    def test_filter_already_seen(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
         interactions_copy = deepcopy(interactions)
-        rs = RandomSplitter(train_size, False, False, True)
+        rs = RandomSplitter(test_size, 1, None, False, False, True)
 
         actual = list(rs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -122,15 +124,55 @@ class TestRandomSplitter:
 
         assert train_interactions.merge(test_interactions, how="inner").shape[0] == 0
 
+    @pytest.mark.parametrize("execution_number", range(5))
+    def test_filter_all(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
+        interactions_copy = deepcopy(interactions)
+        rs = RandomSplitter(test_size, 1, None, True, True, True)
+
+        actual = list(rs.split(interactions, collect_fold_stats=True))
+        pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
+
+        df = interactions.df
+        train_users = df.iloc[actual[0][0]]["user_id"].drop_duplicates()
+        train_items = df.iloc[actual[0][0]]["item_id"].drop_duplicates()
+        test_users = df.iloc[actual[0][1]]["user_id"].drop_duplicates()
+        test_items = df.iloc[actual[0][1]]["item_id"].drop_duplicates()
+        train_interactions = df.iloc[actual[0][0]][["user_id", "item_id"]].drop_duplicates()
+        test_interactions = df.iloc[actual[0][1]][["user_id", "item_id"]].drop_duplicates()
+
+        assert np.intersect1d(train_users, test_users).shape[0] == test_users.shape[0]
+        assert np.intersect1d(train_items, test_items).shape[0] == test_items.shape[0]
+        assert train_interactions.merge(test_interactions, how="inner").shape[0] == 0
+
+    @pytest.mark.parametrize("execution_number", range(2))
+    @pytest.mark.parametrize("random_state", (10, 42, 156))
+    def test_random_state(
+        self, interactions: Interactions, test_size: float, random_state: int, execution_number: int
+    ) -> None:
+        interactions_copy = deepcopy(interactions)
+
+        rs1 = RandomSplitter(test_size, 1, random_state, True, True, True)
+        actual1 = list(rs1.split(interactions, collect_fold_stats=True))
+
+        rs2 = RandomSplitter(test_size, 1, random_state, True, True, True)
+        actual2 = list(rs2.split(interactions, collect_fold_stats=True))
+
+        pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
+
+        assert np.array_equal(actual1[0][0], actual2[0][0])
+        assert np.array_equal(actual1[0][1], actual2[0][1])
+
     @pytest.mark.parametrize(
-        "incorrect_train_size, expected_error_type",
+        "incorrect_test_size, expected_error_type",
         (
             (-0.1, ValueError),
+            (0.0, ValueError),
+            (1.0, ValueError),
             (1.5, ValueError),
         ),
     )
-    def test_with_incorrect_train_size(
-        self, interactions: Interactions, incorrect_train_size: float, expected_error_type: tp.Type[Exception]
+    def test_with_incorrect_test_size(
+        self, interactions: Interactions, incorrect_test_size: float, expected_error_type: tp.Type[Exception]
     ) -> None:
         with pytest.raises(expected_error_type):
-            RandomSplitter(incorrect_train_size, False, False, False)
+            RandomSplitter(incorrect_test_size, 1, None, False, False, False)
