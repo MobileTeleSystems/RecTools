@@ -46,7 +46,7 @@ class RandomSplitter:
     filter_already_seen: bool, default ``True``
         If `True`, pairs (user, item) that are in train will be excluded from test.
 
-     Examples
+    Examples
     --------
     >>> df = pd.DataFrame(
     ...     [
@@ -75,7 +75,7 @@ class RandomSplitter:
     >>> for train_ids, test_ids, _ in rs.split(interactions):
     ...     print(train_ids, test_ids)
     [0 2 3 4 6 7] []
-    [0 1 2 3 4 7] [3]
+    [0 1 2 4 5 6] [3]
     """
 
     def __init__(
