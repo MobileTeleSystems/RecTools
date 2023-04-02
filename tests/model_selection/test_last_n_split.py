@@ -12,17 +12,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import typing as tp
 from copy import deepcopy
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from rectools import Columns
 from rectools.dataset import Interactions
 from rectools.model_selection import LastNSplitter
-from rectools.model_selection.last_n_split import get_not_seen_mask
 
 
 class TestLastNSplitters:
@@ -104,42 +101,14 @@ class TestLastNSplitters:
         assert sorted(actual[0][0]) == [0, 2, 4, 5]
         assert sorted(actual[0][1]) == [1, 3, 6, 8]
 
+    def test_filter_all(self, interactions: Interactions, n: int) -> None:
+        interactions_copy = deepcopy(interactions)
+        lns = LastNSplitter(n, True, True, True)
+        actual = list(lns.split(interactions, collect_fold_stats=True))
+        pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
 
-class TestGetNotSeenMask:
-    @pytest.mark.parametrize(
-        "train_users,train_items,test_users,test_items,expected",
-        (
-            ([], [], [], [], []),
-            ([1, 2], [10, 20], [], [], []),
-            ([], [], [1, 2], [10, 20], [True, True]),
-            ([1, 2, 3, 4, 2, 3], [10, 20, 30, 40, 22, 30], [1, 2, 3, 2], [10, 20, 33, 20], [False, False, True, False]),
-        ),
-    )
-    def test_correct(
-        self,
-        train_users: tp.List[int],
-        train_items: tp.List[int],
-        test_users: tp.List[int],
-        test_items: tp.List[int],
-        expected: tp.List[bool],
-    ) -> None:
-        actual = get_not_seen_mask(*(np.array(a) for a in (train_users, train_items, test_users, test_items)))
-        np.testing.assert_equal(actual, expected)
+        assert len(actual) == 1
+        assert len(actual[0]) == 3
 
-    @pytest.mark.parametrize(
-        "train_users,train_items,test_users,test_items,expected_error_type",
-        (
-            ([1], [10, 20], [1], [10], ValueError),
-            ([1], [10], [1, 2], [10], ValueError),
-        ),
-    )
-    def test_with_incorrect_arrays(
-        self,
-        train_users: tp.List[int],
-        train_items: tp.List[int],
-        test_users: tp.List[int],
-        test_items: tp.List[int],
-        expected_error_type: tp.Type[Exception],
-    ) -> None:
-        with pytest.raises(expected_error_type):
-            get_not_seen_mask(*(np.array(a) for a in (train_users, train_items, test_users, test_items)))
+        assert sorted(actual[0][0]) == [0, 2, 4, 5]
+        assert sorted(actual[0][1]) == [1, 3]

@@ -18,11 +18,10 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
-from scipy import sparse
 
 from rectools import Columns
 from rectools.dataset import Interactions
-from rectools.utils import isin_2d_int
+from rectools.model_selection.utils import get_not_seen_mask
 
 
 class LastNSplitter:
@@ -42,6 +41,34 @@ class LastNSplitter:
         If `True`, items that not in train will be excluded from test.
     filter_already_seen: bool, default ``True``
         If ``True``, pairs (user, item) that are in train will be excluded from test.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame(
+    ...     [
+    ...         [1, 1, 1, "2021-09-01"], # 0
+    ...         [1, 2, 1, "2021-09-02"], # 1
+    ...         [1, 1, 1, "2021-08-20"], # 2
+    ...         [1, 2, 1, "2021-09-04"], # 3
+    ...         [2, 1, 1, "2021-08-20"], # 4
+    ...         [2, 2, 1, "2021-08-20"], # 5
+    ...         [2, 3, 1, "2021-09-05"], # 6
+    ...         [2, 2, 1, "2021-09-06"], # 7
+    ...         [3, 1, 1, "2021-09-05"], # 8
+    ...     ],
+    ...     columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+    ... ).astype({Columns.Datetime: "datetime64[ns]"})
+    >>> interactions = Interactions(df)
+    >>>
+    >>> lns = LastNSplitter(n=1, False, False, False)
+    >>> for train_ids, test_ids, _ in lns.split(interactions):
+    ...     print(train_ids, test_ids)
+    [0 2 4 5] [1 3 6 7 8]
+    >>>
+    >>> lns = LastNSplitter(n=1, True, True, True)
+    >>> for train_ids, test_ids, _ in lns.split(interactions):
+    ...     print(train_ids, test_ids)
+    [0 2 4 5] [1 3]
     """
 
     def __init__(
@@ -138,60 +165,3 @@ class LastNSplitter:
             fold_info["Test items"] = pd.unique(test_items).size
 
         yield train_idx, test_idx, fold_info
-
-
-def get_not_seen_mask(
-    train_users: np.ndarray,
-    train_items: np.ndarray,
-    test_users: np.ndarray,
-    test_items: np.ndarray,
-) -> np.ndarray:
-    """
-    Return mask for test interactions that is not in train interactions.
-
-    Parameters
-    ----------
-    train_users : np.ndarray
-        Integer array of users in train interactions (it's not a unique users!).
-    train_items : np.ndarray
-        Integer array of items in train interactions. Has same length as `train_users`.
-    test_users : np.ndarray
-        Integer array of users in test interactions (it's not a unique users!).
-    test_items : np.ndarray
-        Integer array of items in test interactions. Has same length as `test_users`.
-
-    Returns
-    -------
-    np.ndarray
-     Boolean mask of same length as `test_users` (`test_items`).
-     ``True`` means interaction not present in train.
-    """
-    if train_users.size != train_items.size:
-        raise ValueError("Lengths of `train_users` and `train_items` must be the same")
-    if test_users.size != test_items.size:
-        raise ValueError("Lengths of `test_users` and `test_items` must be the same")
-
-    if train_users.size == 0:
-        return np.ones(test_users.size, dtype=bool)
-    if test_users.size == 0:
-        return np.array([], dtype=bool)
-
-    n_users = max(train_users.max(), test_users.max()) + 1
-    n_items = max(train_items.max(), test_items.max()) + 1
-
-    cls = sparse.csr_matrix if n_users < n_items else sparse.csc_matrix
-
-    def make_matrix(users: np.ndarray, items: np.ndarray) -> sparse.spmatrix:
-        return cls((np.ones(len(users), dtype=bool), (users, items)), shape=(n_users, n_items))
-
-    train_mat = make_matrix(train_users, train_items)
-    test_mat = make_matrix(test_users, test_items)
-
-    already_seen_coo = test_mat.multiply(train_mat).tocoo(copy=False)
-    del train_mat, test_mat
-    already_seen_arr = np.vstack((already_seen_coo.row, already_seen_coo.col)).T.astype(test_users.dtype)
-    del already_seen_coo
-
-    test_ui = np.vstack((test_users, test_items)).T
-    not_seen_mask = isin_2d_int(test_ui, already_seen_arr, invert=True)
-    return not_seen_mask
