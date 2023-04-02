@@ -26,6 +26,7 @@ def get_not_seen_mask(
 ) -> np.ndarray:
     """
     Return mask for test interactions that is not in train interactions.
+
     Parameters
     ----------
     train_users : np.ndarray
@@ -36,6 +37,7 @@ def get_not_seen_mask(
         Integer array of users in test interactions (it's not a unique users!).
     test_items : np.ndarray
         Integer array of items in test interactions. Has same length as `test_users`.
+
     Returns
     -------
     np.ndarray

@@ -60,12 +60,12 @@ class LastNSplitter:
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
     >>> interactions = Interactions(df)
     >>>
-    >>> lns = LastNSplitter(n=1, False, False, False)
+    >>> lns = LastNSplitter(1, False, False, False)
     >>> for train_ids, test_ids, _ in lns.split(interactions):
     ...     print(train_ids, test_ids)
     [0 2 4 5] [1 3 6 7 8]
     >>>
-    >>> lns = LastNSplitter(n=1, True, True, True)
+    >>> lns = LastNSplitter(1, True, True, True)
     >>> for train_ids, test_ids, _ in lns.split(interactions):
     ...     print(train_ids, test_ids)
     [0 2 4 5] [1 3]
