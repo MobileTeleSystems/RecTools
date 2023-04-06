@@ -21,14 +21,18 @@ Instruments to validate and compare models.
 
 Splitters
 ---------
-`model_selection.TimeRangeSplit` - split interactions by time
+`model_selection.Splitter` - base class for all splitters
+
 `model_selection.RandomSplit` - split interactions randomly
+`model_selection.TimeRangeSplit` - split interactions by time
 """
 
 from .random_split import RandomSplitter
+from .splitter import Splitter
 from .time_split import TimeRangeSplitter
 
 __all__ = (
-    "TimeRangeSplitter",
+    "Splitter",
     "RandomSplitter",
+    "TimeRangeSplitter",
 )
