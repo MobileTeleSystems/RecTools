@@ -91,6 +91,7 @@ class TimeRangeSplitter(Splitter):
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
     ) -> None:
+        super().__init__()
         self.date_range = date_range
         self.filter_cold_users = filter_cold_users
         self.filter_cold_items = filter_cold_items

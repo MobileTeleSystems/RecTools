@@ -32,6 +32,11 @@ class Splitter:
     Check specific class descriptions to get more information.
     """
 
+    def __init__(self) -> None:
+        self.filter_cold_users = False
+        self.filter_cold_items = False
+        self.filter_already_seen = False
+
     def split(
         self,
         interactions: Interactions,
@@ -74,12 +79,9 @@ class Splitter:
         """
         Filter train and test indexes based on `filter_cold_users`,
         `filter_cold_items`,`filter_already_seen` class fields.
-        They are set to `False` if not defined.
+        They are set to `False` by default.
         """
-        need_cold_users = hasattr(self, "filter_cold_users") and self.filter_cold_users
-        need_cold_items = hasattr(self, "filter_cold_items") and self.filter_cold_items
-        need_already_seen = hasattr(self, "filter_already_seen") and self.filter_already_seen
-        need_ui = need_cold_users or need_cold_items or need_already_seen or collect_fold_stats
+        need_ui = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
 
         if need_ui:
             df = interactions.df
@@ -91,21 +93,21 @@ class Splitter:
         unq_train_users = None
         unq_train_items = None
 
-        if need_cold_users:
+        if self.filter_cold_users:
             unq_train_users = pd.unique(train_users)
             mask = np.isin(test_users, unq_train_users)
             test_users = test_users[mask]
             test_items = test_items[mask]
             test_idx = test_idx[mask]
 
-        if need_cold_items:
+        if self.filter_cold_items:
             unq_train_items = pd.unique(train_items)
             mask = np.isin(test_items, unq_train_items)
             test_users = test_users[mask]
             test_items = test_items[mask]
             test_idx = test_idx[mask]
 
-        if need_already_seen:
+        if self.filter_already_seen:
             mask = get_not_seen_mask(train_users, train_items, test_users, test_items)
             test_users = test_users[mask]
             test_items = test_items[mask]

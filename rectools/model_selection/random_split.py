@@ -91,6 +91,7 @@ class RandomSplitter(Splitter):
         if test_size <= 0.0 or test_size >= 1.0:
             raise ValueError("Value of test_size must be between 0 and 1")
 
+        super().__init__()
         self.random = np.random.RandomState(random_state)
         self.n_splits = n_splits
         self.test_size = test_size
