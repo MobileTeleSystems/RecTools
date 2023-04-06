@@ -72,11 +72,10 @@ class Splitter:
         fold_info: tp.Dict[str, tp.Any],
     ) -> tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]:
         """
-        Filters train and test indexes based on `filter_cold_users`,
+        Filter train and test indexes based on `filter_cold_users`,
         `filter_cold_items`,`filter_already_seen` class fields.
-        They are set to 'False' if not defined.
+        They are set to `False` if not defined.
         """
-
         need_cold_users = hasattr(self, "filter_cold_users") and self.filter_cold_users
         need_cold_items = hasattr(self, "filter_cold_items") and self.filter_cold_items
         need_already_seen = hasattr(self, "filter_already_seen") and self.filter_already_seen

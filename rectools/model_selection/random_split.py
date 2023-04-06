@@ -48,6 +48,7 @@ class RandomSplitter(Splitter):
 
     Examples
     --------
+    >>> from rectools import Columns
     >>> df = pd.DataFrame(
     ...     [
     ...         [1, 2, 1, "2021-09-01"],  # 0
