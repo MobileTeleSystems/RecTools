@@ -28,7 +28,7 @@ class Splitter:
     """
     Base class to construct data splitters. It cannot be used directly.
     New splitter can be defined by subclassing the `Splitter` class
-    and implementing `__init__` and `_split_without_filter` methods.
+    and implementing `_split_without_filter` method.
     Check specific class descriptions to get more information.
     """
 
@@ -43,7 +43,7 @@ class Splitter:
         collect_fold_stats: bool = False,
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
         """
-        Split interactions into folds.
+        Split interactions into folds and apply filtration to the result.
 
         Parameters
         ----------
@@ -66,6 +66,22 @@ class Splitter:
         interactions: Interactions,
         collect_fold_stats: bool = False,
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
+        """
+        Split interactions into folds.
+
+        Parameters
+        ----------
+        interactions: Interactions
+            User-item interactions.
+        collect_fold_stats: bool, default False
+            Add some stats to fold info,
+            like size of train and test part, number of users and items.
+
+        Returns
+        -------
+        iterator(array, array, dict)
+            Yields tuples with train part row numbers, test part row numbers and fold info.
+        """
         raise NotImplementedError
 
     def filter(
@@ -77,9 +93,28 @@ class Splitter:
         fold_info: tp.Dict[str, tp.Any],
     ) -> tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]:
         """
-        Filter train and test indexes based on `filter_cold_users`,
+        Filter train and test indexes from one fold based on `filter_cold_users`,
         `filter_cold_items`,`filter_already_seen` class fields.
         They are set to `False` by default.
+
+        Parameters
+        ----------
+        interactions: Interactions
+            User-item interactions.
+        collect_fold_stats: bool, default False
+            Add some stats to fold info,
+            like size of train and test part, number of users and items.
+        train_idx: array
+            Train part row numbers.
+        test_idx: array
+            Test part row numbers.
+        fold_info: dict
+            Information about fold.
+
+        Returns
+        -------
+        Tuple(array, array, dict)
+            Returns tuple with filtered train part row numbers, test part row numbers and fold info.
         """
         need_ui = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
 
