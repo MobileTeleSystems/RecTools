@@ -12,10 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import typing as tp
 from copy import deepcopy
 
-import typing as tp
-
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -130,3 +130,22 @@ class TestLastNSplitters:
 
         assert sorted(actual[1][0]) == [0, 2, 4, 5]
         assert sorted(actual[1][1]) == [1, 3]
+
+    @pytest.mark.parametrize("filter_cold_users", (True, False))
+    @pytest.mark.parametrize("filter_cold_items", (True, False))
+    @pytest.mark.parametrize("filter_already_seen", (True, False))
+    def test_int_and_array_n(
+        self, interactions: Interactions, filter_cold_users: bool, filter_cold_items: bool, filter_already_seen: bool
+    ) -> None:
+        n_array = np.array([2])
+        lns = LastNSplitter(n_array, False, False, False)
+        actual1 = list(lns.split(interactions, collect_fold_stats=True))
+
+        n_int = 2
+        lns = LastNSplitter(n_int, False, False, False)
+        actual2 = list(lns.split(interactions, collect_fold_stats=True))
+
+        assert len(actual1) == len(actual2)
+        assert len(actual1[0]) == len(actual2[0])
+        assert np.array_equal(actual1[0][0], actual2[0][0])
+        assert np.array_equal(actual1[0][1], actual2[0][1])

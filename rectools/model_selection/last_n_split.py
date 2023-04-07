@@ -85,6 +85,7 @@ class LastNSplitter(Splitter):
         filter_already_seen: bool = True,
     ) -> None:
         super().__init__()
+        self.n: tp.Iterable[int]
         if isinstance(n, int):
             self.n = [n]
         else:
