@@ -32,7 +32,7 @@ class LastNSplitter(Splitter):
 
     Parameters
     ----------
-    n: int
+    n: int or iterable of ints
         Number of interactions for each user that will be included in test
     filter_cold_users: bool, default ``True``
         If `True`, users that not in train will be excluded from test.
@@ -69,17 +69,26 @@ class LastNSplitter(Splitter):
     >>> for train_ids, test_ids, _ in lns.split(interactions):
     ...     print(train_ids, test_ids)
     [0 2 4 5] [1 3]
+    >>>
+    >>> lns = LastNSplitter([1, 2], False, False, False)
+    >>> for train_ids, test_ids, _ in lns.split(interactions):
+    ...     print(train_ids, test_ids)
+    [0 1 2 4 5 6] [3 7 8]
+    [0 2 4 5] [1 3 6 7 8]
     """
 
     def __init__(
         self,
-        n: int,
+        n: tp.Union[int, tp.Iterable[int]],
         filter_cold_users: bool = True,
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
     ) -> None:
         super().__init__()
-        self.n = n
+        if isinstance(n, int):
+            self.n = [n]
+        else:
+            self.n = n
         self.filter_cold_users = filter_cold_users
         self.filter_cold_items = filter_cold_items
         self.filter_already_seen = filter_already_seen
@@ -92,19 +101,20 @@ class LastNSplitter(Splitter):
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
 
-        grouped_df = df.groupby("user_id")["datetime"].nlargest(self.n)
-        test_interactions = grouped_df.keys().to_numpy()
-        get_second_value = np.vectorize(lambda x: x[1])
-        test_interactions = get_second_value(test_interactions)
-        test_mask = np.zeros_like(idx, dtype=bool)
-        test_mask[test_interactions] = True
-        train_mask = ~test_mask
+        for n in self.n:
+            grouped_df = df.groupby("user_id")["datetime"].nlargest(n)
+            test_interactions = grouped_df.keys().to_numpy()
+            get_second_value = np.vectorize(lambda x: x[1])
+            test_interactions = get_second_value(test_interactions)
+            test_mask = np.zeros_like(idx, dtype=bool)
+            test_mask[test_interactions] = True
+            train_mask = ~test_mask
 
-        train_idx = idx[train_mask].values
-        test_idx = idx[test_mask].values
+            train_idx = idx[train_mask].values
+            test_idx = idx[test_mask].values
 
-        fold_info = {}
-        if collect_fold_stats:
-            fold_info["n"] = self.n
+            fold_info = {}
+            if collect_fold_stats:
+                fold_info["n"] = n
 
-        yield train_idx, test_idx, fold_info
+            yield train_idx, test_idx, fold_info

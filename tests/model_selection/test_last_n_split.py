@@ -14,6 +14,8 @@
 
 from copy import deepcopy
 
+import typing as tp
+
 import pandas as pd
 import pytest
 
@@ -42,21 +44,24 @@ class TestLastNSplitters:
         return Interactions(df)
 
     @pytest.fixture
-    def n(self) -> int:
-        return 2
+    def n(self) -> tp.List[int]:
+        return [1, 2]
 
-    def test_without_filtering(self, interactions: Interactions, n: int) -> None:
+    def test_without_filtering(self, interactions: Interactions, n: tp.List[int]) -> None:
         interactions_copy = deepcopy(interactions)
         lns = LastNSplitter(n, False, False, False)
         actual = list(lns.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
 
-        assert len(actual) == 1
+        assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert sorted(actual[0][0]) == [0, 2, 4, 5]
-        assert sorted(actual[0][1]) == [1, 3, 6, 7, 8]
-        assert actual[0][2] == {
+        assert sorted(actual[0][0]) == [0, 1, 2, 4, 5, 6]
+        assert sorted(actual[0][1]) == [3, 7, 8]
+
+        assert sorted(actual[1][0]) == [0, 2, 4, 5]
+        assert sorted(actual[1][1]) == [1, 3, 6, 7, 8]
+        assert actual[1][2] == {
             "n": 2,
             "Train": 4,
             "Train users": 2,
@@ -66,50 +71,62 @@ class TestLastNSplitters:
             "Test items": 3,
         }
 
-    def test_filter_cold_users(self, interactions: Interactions, n: int) -> None:
+    def test_filter_cold_users(self, interactions: Interactions, n: tp.List[int]) -> None:
         interactions_copy = deepcopy(interactions)
         lns = LastNSplitter(n, True, False, False)
         actual = list(lns.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
 
-        assert len(actual) == 1
+        assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert sorted(actual[0][0]) == [0, 2, 4, 5]
-        assert sorted(actual[0][1]) == [1, 3, 6, 7]
+        assert sorted(actual[0][0]) == [0, 1, 2, 4, 5, 6]
+        assert sorted(actual[0][1]) == [3, 7]
 
-    def test_filter_cold_items(self, interactions: Interactions, n: int) -> None:
+        assert sorted(actual[1][0]) == [0, 2, 4, 5]
+        assert sorted(actual[1][1]) == [1, 3, 6, 7]
+
+    def test_filter_cold_items(self, interactions: Interactions, n: tp.List[int]) -> None:
         interactions_copy = deepcopy(interactions)
         lns = LastNSplitter(n, False, True, False)
         actual = list(lns.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
 
-        assert len(actual) == 1
+        assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert sorted(actual[0][0]) == [0, 2, 4, 5]
-        assert sorted(actual[0][1]) == [1, 3, 7, 8]
+        assert sorted(actual[0][0]) == [0, 1, 2, 4, 5, 6]
+        assert sorted(actual[0][1]) == [3, 7, 8]
 
-    def test_filter_already_seen(self, interactions: Interactions, n: int) -> None:
+        assert sorted(actual[1][0]) == [0, 2, 4, 5]
+        assert sorted(actual[1][1]) == [1, 3, 7, 8]
+
+    def test_filter_already_seen(self, interactions: Interactions, n: tp.List[int]) -> None:
         interactions_copy = deepcopy(interactions)
         lns = LastNSplitter(n, False, False, True)
         actual = list(lns.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
 
-        assert len(actual) == 1
+        assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert sorted(actual[0][0]) == [0, 2, 4, 5]
-        assert sorted(actual[0][1]) == [1, 3, 6, 8]
+        assert sorted(actual[0][0]) == [0, 1, 2, 4, 5, 6]
+        assert sorted(actual[0][1]) == [8]
 
-    def test_filter_all(self, interactions: Interactions, n: int) -> None:
+        assert sorted(actual[1][0]) == [0, 2, 4, 5]
+        assert sorted(actual[1][1]) == [1, 3, 6, 8]
+
+    def test_filter_all(self, interactions: Interactions, n: tp.List[int]) -> None:
         interactions_copy = deepcopy(interactions)
         lns = LastNSplitter(n, True, True, True)
         actual = list(lns.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
 
-        assert len(actual) == 1
+        assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert sorted(actual[0][0]) == [0, 2, 4, 5]
-        assert sorted(actual[0][1]) == [1, 3]
+        assert sorted(actual[0][0]) == [0, 1, 2, 4, 5, 6]
+        assert sorted(actual[0][1]) == []
+
+        assert sorted(actual[1][0]) == [0, 2, 4, 5]
+        assert sorted(actual[1][1]) == [1, 3]
