@@ -15,20 +15,20 @@
 """
 Model selection tools (:mod:`rectools.model_selection`)
 =======================================================
-
 Instruments to validate and compare models.
-
-
 Splitters
 ---------
-`model_selection.TimeRangeSplit` - split interactions by time
+`model_selection.Splitter` - base class for all splitters
 `model_selection.LastNSplitter` - split interactions by recent activity
+`model_selection.TimeRangeSplit` - split interactions by time
 """
 
 from .last_n_split import LastNSplitter
+from .splitter import Splitter
 from .time_split import TimeRangeSplitter
 
 __all__ = (
-    "TimeRangeSplitter",
     "LastNSplitter",
+    "Splitter",
+    "TimeRangeSplitter",
 )

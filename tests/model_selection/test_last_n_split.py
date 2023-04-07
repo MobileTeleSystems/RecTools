@@ -57,6 +57,7 @@ class TestLastNSplitters:
         assert sorted(actual[0][0]) == [0, 2, 4, 5]
         assert sorted(actual[0][1]) == [1, 3, 6, 7, 8]
         assert actual[0][2] == {
+            "n": 2,
             "Train": 4,
             "Train users": 2,
             "Train items": 2,
