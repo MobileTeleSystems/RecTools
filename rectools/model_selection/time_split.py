@@ -34,6 +34,7 @@ class TimeRangeSplitter(Splitter):
     Generate train and test folds by time,
     it is also possible to exclude cold users and items
     and already seen items.
+
     Parameters
     ----------
     date_range: array-like(date|datetime)
@@ -49,6 +50,7 @@ class TimeRangeSplitter(Splitter):
         If `True`, items that not in train will be excluded from test.
     filter_already_seen: bool, default ``True``
         If ``True``, pairs (user, item) that are in train will be excluded from test.
+
     Examples
     --------
     >>> from datetime import date

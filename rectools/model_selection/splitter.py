@@ -44,6 +44,7 @@ class Splitter:
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
         """
         Split interactions into folds and apply filtration to the result.
+
         Parameters
         ----------
         interactions: Interactions
@@ -51,6 +52,7 @@ class Splitter:
         collect_fold_stats: bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
+
         Returns
         -------
         iterator(array, array, dict)
@@ -66,6 +68,7 @@ class Splitter:
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
         """
         Split interactions into folds.
+
         Parameters
         ----------
         interactions: Interactions
@@ -73,6 +76,7 @@ class Splitter:
         collect_fold_stats: bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
+
         Returns
         -------
         iterator(array, array, dict)
@@ -92,6 +96,7 @@ class Splitter:
         Filter train and test indexes from one fold based on `filter_cold_users`,
         `filter_cold_items`,`filter_already_seen` class fields.
         They are set to `False` by default.
+
         Parameters
         ----------
         interactions: Interactions
@@ -105,6 +110,7 @@ class Splitter:
             Test part row numbers.
         fold_info: dict
             Information about fold.
+
         Returns
         -------
         Tuple(array, array, dict)
