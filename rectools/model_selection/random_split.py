@@ -68,14 +68,14 @@ class RandomSplitter(Splitter):
     ...                     filter_cold_items=False, filter_already_seen=False)
     >>> for train_ids, test_ids, _ in rs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 2 3 4 6 7] [1 5]
+    [1 2 3 4 5 7] [0 6]
     [0 1 2 4 5 6] [3 7]
     >>>
     >>> rs = RandomSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
     >>> for train_ids, test_ids, _ in rs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 2 3 4 6 7] []
+    [1 2 3 4 5 7] []
     [0 1 2 4 5 6] [3]
     """
 
