@@ -32,10 +32,12 @@ class Splitter:
     Check specific class descriptions to get more information.
     """
 
-    def __init__(self) -> None:
-        self.filter_cold_users = False
-        self.filter_cold_items = False
-        self.filter_already_seen = False
+    def __init__(
+        self, filter_cold_users: bool = True, filter_cold_items: bool = True, filter_already_seen: bool = True
+    ) -> None:
+        self.filter_cold_users = filter_cold_users
+        self.filter_cold_items = filter_cold_items
+        self.filter_already_seen = filter_already_seen
 
     def split(
         self,
@@ -95,7 +97,7 @@ class Splitter:
         """
         Filter train and test indexes from one fold based on `filter_cold_users`,
         `filter_cold_items`,`filter_already_seen` class fields.
-        They are set to `False` by default.
+        They are set to `True` by default.
 
         Parameters
         ----------

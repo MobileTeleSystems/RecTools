@@ -51,10 +51,10 @@ class TestSplitter:
     @pytest.mark.parametrize("collect_fold_stats", [False, True])
     def test_not_defined_fields(self, interactions: Interactions, collect_fold_stats: bool) -> None:
         s = Splitter()
-        train_idx = np.array([1, 2, 3, 4])
-        test_idx = np.array([5, 6, 7, 8, 9, 10])
+        train_idx = np.array([1, 2, 3, 5, 7, 8])
+        test_idx = np.array([4, 6, 9, 10])
         fold_info = {"info_from_split": 123}
         train_idx_new, test_idx_new, _ = s.filter(interactions, collect_fold_stats, train_idx, test_idx, fold_info)
 
         assert np.array_equal(train_idx, train_idx_new)
-        assert np.array_equal(test_idx, test_idx_new)
+        assert sorted(test_idx_new) == [4]

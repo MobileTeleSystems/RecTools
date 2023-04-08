@@ -63,9 +63,9 @@ class TestRandomSplitter:
         assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert actual[0][1].shape[0] == int(test_size * interactions.df.shape[0])
+        assert actual[0][1].shape[0] == int(round(test_size * interactions.df.shape[0]))
         assert actual[0][0].shape[0] + actual[0][1].shape[0] == interactions.df.shape[0]
-        assert actual[1][1].shape[0] == int(test_size * interactions.df.shape[0])
+        assert actual[1][1].shape[0] == int(round(test_size * interactions.df.shape[0]))
         assert actual[1][0].shape[0] + actual[0][1].shape[0] == interactions.df.shape[0]
 
         fold_info = actual[0][2]
@@ -162,6 +162,13 @@ class TestRandomSplitter:
         assert np.array_equal(actual1[0][0], actual2[0][0])
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
+        rs = RandomSplitter(test_size, 1, random_state, True, True, True)
+        actual1 = list(rs.split(interactions, collect_fold_stats=True))
+        actual2 = list(rs.split(interactions, collect_fold_stats=True))
+
+        assert np.array_equal(actual1[0][0], actual2[0][0])
+        assert np.array_equal(actual1[0][1], actual2[0][1])
+
     @pytest.mark.parametrize(
         "incorrect_test_size, expected_error_type",
         (
@@ -174,5 +181,16 @@ class TestRandomSplitter:
     def test_with_incorrect_test_size(
         self, interactions: Interactions, incorrect_test_size: float, expected_error_type: tp.Type[Exception]
     ) -> None:
-        with pytest.raises(expected_error_type):
+        with pytest.raises(expected_error_type, match=r"Value of test_size must be between 0 and 1"):
             RandomSplitter(incorrect_test_size, 1, None, False, False, False)
+
+    def test_empty_train_or_test(self, interactions: Interactions) -> None:
+        rs = RandomSplitter(0.01, 1, None, False, False, False)
+        with pytest.raises(ValueError, match=r"Test part must be not empty"):
+            for _, _, _ in rs.split(interactions):
+                pass
+
+        rs = RandomSplitter(0.99, 1, None, False, False, False)
+        with pytest.raises(ValueError, match=r"Test part must not contain all interactions"):
+            for _, _, _ in rs.split(interactions):
+                pass

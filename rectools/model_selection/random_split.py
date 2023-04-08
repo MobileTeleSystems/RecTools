@@ -38,7 +38,7 @@ class RandomSplitter(Splitter):
     n_splits : int, default 1
         Number of folds.
     random_state: int, default  None,
-        Controls randomness of each fold. Pass an int to get reproducible result across multiple class instances.
+        Controls randomness of each fold. Pass an int to get reproducible result across multiple `split` calls.
     filter_cold_users: bool, default ``True``
         If `True`, users that not in train will be excluded from test.
     filter_cold_items: bool, default ``True``
@@ -92,7 +92,7 @@ class RandomSplitter(Splitter):
             raise ValueError("Value of test_size must be between 0 and 1")
 
         super().__init__()
-        self.random = np.random.RandomState(random_state)
+        self.random_state = random_state
         self.n_splits = n_splits
         self.test_size = test_size
         self.filter_cold_users = filter_cold_users
@@ -104,15 +104,21 @@ class RandomSplitter(Splitter):
         interactions: Interactions,
         collect_fold_stats: bool = False,
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
+        rng = np.random.default_rng(self.random_state)
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
-        test_part_size = int(self.test_size * len(df))
+
+        test_part_size = int(round(self.test_size * len(df)))
+        if test_part_size == 0:
+            raise ValueError("Test part must be not empty")
+        if test_part_size == len(df):
+            raise ValueError("Test part must not contain all interactions")
 
         for num in range(self.n_splits):
             fold_info = {"fold_number": num}
             test_mask = np.zeros_like(idx, dtype=bool)
-            choose_idx = self.random.choice(idx, test_part_size, replace=False)
-            test_mask[choose_idx] = True
+            chosen_idx = rng.choice(idx, test_part_size, replace=False)
+            test_mask[chosen_idx] = True
             train_mask = ~test_mask
 
             train_idx = idx[train_mask].values
