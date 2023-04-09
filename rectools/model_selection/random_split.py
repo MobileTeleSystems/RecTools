@@ -91,13 +91,10 @@ class RandomSplitter(Splitter):
         if test_size <= 0.0 or test_size >= 1.0:
             raise ValueError("Value of test_size must be between 0 and 1")
 
-        super().__init__()
+        super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
         self.random_state = random_state
         self.n_splits = n_splits
         self.test_size = test_size
-        self.filter_cold_users = filter_cold_users
-        self.filter_cold_items = filter_cold_items
-        self.filter_already_seen = filter_already_seen
 
     def _split_without_filter(
         self,
@@ -110,9 +107,11 @@ class RandomSplitter(Splitter):
 
         test_part_size = int(round(self.test_size * len(df)))
         if test_part_size == 0:
-            raise ValueError("Test part must be not empty")
+            err_message = "Length of interactions ({} elements) with test_size={} leads to empty test part"
+            raise ValueError(err_message.format(len(df), self.test_size))
         if test_part_size == len(df):
-            raise ValueError("Test part must not contain all interactions")
+            err_message = "Length of interactions ({} elements) with test_size={} leads to empty train part"
+            raise ValueError(err_message.format(len(df), self.test_size))
 
         for num in range(self.n_splits):
             fold_info = {"fold_number": num}

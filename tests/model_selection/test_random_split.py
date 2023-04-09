@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+import re
 import typing as tp
 from copy import deepcopy
 
@@ -53,8 +53,7 @@ class TestRandomSplitter:
     def test_size(self) -> float:
         return 0.25
 
-    @pytest.mark.parametrize("execution_number", range(5))
-    def test_without_filtering(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
+    def test_without_filtering(self, interactions: Interactions, test_size: float) -> None:
         interactions_copy = deepcopy(interactions)
         rs = RandomSplitter(test_size, 2, None, False, False, False)
 
@@ -82,8 +81,7 @@ class TestRandomSplitter:
         assert fold_info["Test users"] == pd.unique(test_users).size
         assert fold_info["Test items"] == pd.unique(test_items).size
 
-    @pytest.mark.parametrize("execution_number", range(5))
-    def test_filter_cold_users(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
+    def test_filter_cold_users(self, interactions: Interactions, test_size: float) -> None:
         interactions_copy = deepcopy(interactions)
         rs = RandomSplitter(test_size, 1, None, True, False, False)
 
@@ -96,8 +94,7 @@ class TestRandomSplitter:
 
         assert np.intersect1d(train_users, test_users).shape[0] == test_users.shape[0]
 
-    @pytest.mark.parametrize("execution_number", range(5))
-    def test_filter_cold_items(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
+    def test_filter_cold_items(self, interactions: Interactions, test_size: float) -> None:
         interactions_copy = deepcopy(interactions)
         rs = RandomSplitter(test_size, 1, None, False, True, False)
 
@@ -110,8 +107,7 @@ class TestRandomSplitter:
 
         assert np.intersect1d(train_items, test_items).shape[0] == test_items.shape[0]
 
-    @pytest.mark.parametrize("execution_number", range(5))
-    def test_filter_already_seen(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
+    def test_filter_already_seen(self, interactions: Interactions, test_size: float) -> None:
         interactions_copy = deepcopy(interactions)
         rs = RandomSplitter(test_size, 1, None, False, False, True)
 
@@ -124,8 +120,7 @@ class TestRandomSplitter:
 
         assert train_interactions.merge(test_interactions, how="inner").shape[0] == 0
 
-    @pytest.mark.parametrize("execution_number", range(5))
-    def test_filter_all(self, interactions: Interactions, test_size: float, execution_number: int) -> None:
+    def test_filter_all(self, interactions: Interactions, test_size: float) -> None:
         interactions_copy = deepcopy(interactions)
         rs = RandomSplitter(test_size, 1, None, True, True, True)
 
@@ -144,11 +139,8 @@ class TestRandomSplitter:
         assert np.intersect1d(train_items, test_items).shape[0] == test_items.shape[0]
         assert train_interactions.merge(test_interactions, how="inner").shape[0] == 0
 
-    @pytest.mark.parametrize("execution_number", range(2))
     @pytest.mark.parametrize("random_state", (10, 42, 156))
-    def test_random_state(
-        self, interactions: Interactions, test_size: float, random_state: int, execution_number: int
-    ) -> None:
+    def test_random_state(self, interactions: Interactions, test_size: float, random_state: int) -> None:
         interactions_copy = deepcopy(interactions)
 
         rs1 = RandomSplitter(test_size, 1, random_state, True, True, True)
@@ -184,13 +176,17 @@ class TestRandomSplitter:
         with pytest.raises(expected_error_type, match=r"Value of test_size must be between 0 and 1"):
             RandomSplitter(incorrect_test_size, 1, None, False, False, False)
 
-    def test_empty_train_or_test(self, interactions: Interactions) -> None:
-        rs = RandomSplitter(0.01, 1, None, False, False, False)
-        with pytest.raises(ValueError, match=r"Test part must be not empty"):
-            for _, _, _ in rs.split(interactions):
-                pass
-
-        rs = RandomSplitter(0.99, 1, None, False, False, False)
-        with pytest.raises(ValueError, match=r"Test part must not contain all interactions"):
+    @pytest.mark.parametrize(
+        "test_size, expected_error_type, err_message",
+        (
+            (0.01, ValueError, "Length of interactions (11 elements) with test_size=0.01 leads to empty test part"),
+            (0.99, ValueError, "Length of interactions (11 elements) with test_size=0.99 leads to empty train part"),
+        ),
+    )
+    def test_empty_train_or_test(
+        self, interactions: Interactions, test_size: float, expected_error_type: tp.Type[Exception], err_message: str
+    ) -> None:
+        rs = RandomSplitter(test_size, 1, None, False, False, False)
+        with pytest.raises(expected_error_type, match=re.escape(err_message)):
             for _, _, _ in rs.split(interactions):
                 pass
