@@ -77,7 +77,7 @@ class KFoldSplitter(Splitter):
     >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 5 6 7] [3 4]
-    [0 1 3 4 5 6] []
+    [0 1 3 4 5 6] [2]
     """
 
     def __init__(
