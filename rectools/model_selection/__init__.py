@@ -23,16 +23,16 @@ Splitters
 ---------
 `model_selection.Splitter` - base class for all splitters
 
-`model_selection.RandomSplit` - split interactions randomly
+`model_selection.KFoldSplitter` - split interactions randomly
 `model_selection.TimeRangeSplit` - split interactions by time
 """
 
-from .random_split import RandomSplitter
+from .kfold_split import KFoldSplitter
 from .splitter import Splitter
 from .time_split import TimeRangeSplitter
 
 __all__ = (
     "Splitter",
-    "RandomSplitter",
+    "KFoldSplitter",
     "TimeRangeSplitter",
 )

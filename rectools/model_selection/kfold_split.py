@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""RandomSplitter."""
+"""KFoldSplitter."""
 
 import typing as tp
 from typing import Optional
@@ -24,11 +24,12 @@ from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
 
 
-class RandomSplitter(Splitter):
+class KFoldSplitter(Splitter):
     """
     Splitter for cross-validation by random.
-    Generate train and test folds with fixed part ratio,
-    it is also possible to exclude cold users and items
+    Generate train and test folds with fixed part ratio
+    without intersections between test folds.
+    It is also possible to exclude cold users and items
     and already seen items.
 
     Parameters
@@ -64,19 +65,19 @@ class RandomSplitter(Splitter):
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
     >>> interactions = Interactions(df)
     >>>
-    >>> rs = RandomSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=False,
+    >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=False,
     ...                     filter_cold_items=False, filter_already_seen=False)
-    >>> for train_ids, test_ids, _ in rs.split(interactions):
+    >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
-    [1 2 3 4 5 7] [0 6]
-    [0 1 2 4 5 6] [3 7]
+    [0 1 2 5 6 7] [3 4]
+    [0 1 3 4 5 6] [2 7]
     >>>
-    >>> rs = RandomSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
+    >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
-    >>> for train_ids, test_ids, _ in rs.split(interactions):
+    >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
-    [1 2 3 4 5 7] []
-    [0 1 2 4 5 6] [3]
+    [0 1 2 5 6 7] [3 4]
+    [0 1 3 4 5 6] []
     """
 
     def __init__(
@@ -113,10 +114,15 @@ class RandomSplitter(Splitter):
             err_message = "Length of interactions ({} elements) with test_size={} leads to empty train part"
             raise ValueError(err_message.format(len(df), self.test_size))
 
-        for num in range(self.n_splits):
-            fold_info = {"fold_number": num}
+        if self.n_splits * test_part_size > len(df):
+            err_message = "Impossible to create {} non-overlapping folds with size {} from {} interactions"
+            raise ValueError(err_message.format(self.n_splits, test_part_size, len(df)))
+
+        shuffled_idx = rng.permutation(idx)
+        for i in range(self.n_splits):
+            fold_info = {"fold_number": i}
             test_mask = np.zeros_like(idx, dtype=bool)
-            chosen_idx = rng.choice(idx, test_part_size, replace=False)
+            chosen_idx = shuffled_idx[i * test_part_size : (i + 1) * test_part_size]
             test_mask[chosen_idx] = True
             train_mask = ~test_mask
 
