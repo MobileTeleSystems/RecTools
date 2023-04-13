@@ -182,7 +182,12 @@ class TestKFoldSplitter:
         "test_size, expected_error_type, err_message",
         (
             (0.01, ValueError, "Length of interactions (11 elements) with test_size=0.01 leads to empty test part"),
-            (0.99, ValueError, "Length of interactions (11 elements) with test_size=0.99 leads to empty train part"),
+            (
+                0.99,
+                ValueError,
+                "Length of interactions (11 elements) with test_size=0.99 leads to empty train part: "
+                "all interactions are split to the test",
+            ),
         ),
     )
     def test_empty_train_or_test(

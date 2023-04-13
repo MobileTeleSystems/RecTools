@@ -111,7 +111,10 @@ class KFoldSplitter(Splitter):
             err_message = "Length of interactions ({} elements) with test_size={} leads to empty test part"
             raise ValueError(err_message.format(len(df), self.test_size))
         if test_part_size == len(df):
-            err_message = "Length of interactions ({} elements) with test_size={} leads to empty train part"
+            err_message = (
+                "Length of interactions ({} elements) with test_size={} leads to empty train part: "
+                "all interactions are split to the test"
+            )
             raise ValueError(err_message.format(len(df), self.test_size))
 
         if self.n_splits * test_part_size > len(df):
