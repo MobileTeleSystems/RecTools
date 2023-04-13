@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from rectools import Columns
-from rectools.metrics import AUC
+from rectools.metrics import LAUC
 from rectools.metrics.base import Catalog
 from rectools.metrics.classification import make_confusions
 
@@ -27,7 +27,14 @@ USER_RECO_SIMPLE = pd.DataFrame(
         Columns.User: [1, 1, 1],
         Columns.Item: [1, 2, 3],
         Columns.Rank: [1, 2, 3],
-        Columns.Score: [3, 2, 1],
+    }
+)
+
+RECO_SIMPLE = pd.DataFrame(
+    {
+        Columns.User: [1, 1, 1, 2, 2, 2],
+        Columns.Item: [1, 2, 3, 4, 5, 6],
+        Columns.Rank: [1, 2, 3, 1, 2, 3],
     }
 )
 
@@ -45,6 +52,13 @@ USER_INTERACTIONS_SIMPLE = pd.DataFrame(
     }
 )
 
+INTERACTIONS_SIMPLE = pd.DataFrame(
+    {
+        Columns.User: [1, 1, 1, 2, 2, 2, 2],
+        Columns.Item: [4, 2, 8, 4, 5, 6, 7],
+    }
+)
+
 CATALOG = list(range(20))
 CATALOG_SIMPLE = list(range(1, 9))
 
@@ -52,7 +66,7 @@ CATALOG_SIMPLE = list(range(1, 9))
 class TestRoc:
     def setup(self) -> None:
         self.k = 7
-        self.metric = AUC(self.k)
+        self.metric = LAUC(self.k)
 
     def _make_extended_confusions(
         self, reco: pd.DataFrame, interactions: pd.DataFrame, k: int, catalog: Catalog
@@ -74,11 +88,34 @@ class TestRoc:
             expected_tpr[roc_k] = confusion_df[TP] / (confusion_df[TP] + confusion_df[FN])
             expected_fpr[roc_k] = confusion_df[FP] / (confusion_df[FP] + confusion_df[TN])
 
-        tpr, fpr = self.metric._calc_tpr_fpr(USER_RECO, USER_INTERACTIONS, CATALOG)
+        tpr, fpr = self.metric.calc_user_tpr_fpr(USER_RECO, USER_INTERACTIONS, CATALOG)
 
         assert np.array_equal(expected_tpr, tpr)
         assert np.array_equal(expected_fpr, fpr)
 
-    def test_auc(self) -> None:
+    def test_auc_for_user(self) -> None:
         expected_auc = 7 / 15
-        assert expected_auc == self.metric.calc_for_user(1, USER_RECO_SIMPLE, USER_INTERACTIONS_SIMPLE, CATALOG_SIMPLE)
+        eps = 1e-6
+        self.k = 3
+        self.metric = LAUC(self.k)
+        assert (
+            np.abs(
+                expected_auc - self.metric.calc_for_user(1, USER_RECO_SIMPLE, USER_INTERACTIONS_SIMPLE, CATALOG_SIMPLE)
+            )
+            < eps
+        )
+
+    def test_auc(self) -> None:
+        expected_auc = (7 / 15 + 0.875) / 2
+        """
+        for second user with sklearn
+        y_true = np.array([0, 0, 0, 1, 1, 1, 1, 0, 0, 0])
+        scores = np.array([0, 0, 0, 3, 2, 1, 0, 0, 0, 0])
+        y_score = scores/ np.sum(scores)
+        fpr, tpr, _ = metrics.roc_curve(y_true, y_score)
+        metrics.auc(fpr, tpr)
+        """
+        eps = 1e-6
+        self.k = 3
+        self.metric = LAUC(self.k)
+        assert np.abs(expected_auc - self.metric.calc(RECO_SIMPLE, INTERACTIONS_SIMPLE, CATALOG_SIMPLE)) < eps

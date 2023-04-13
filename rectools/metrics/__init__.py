@@ -50,9 +50,9 @@ from .distances import (
 from .diversity import IntraListDiversity
 from .novelty import MeanInvUserFreq
 from .ranking import MAP, MRR, NDCG
+from .roc_auc import LAUC
 from .scoring import calc_metrics
 from .serendipity import Serendipity
-from .roc_auc import AUC
 
 __all__ = (
     "Precision",
@@ -63,7 +63,7 @@ __all__ = (
     "MAP",
     "NDCG",
     "MRR",
-    "AUC",
+    "LAUC",
     "MeanInvUserFreq",
     "IntraListDiversity",
     "Serendipity",
