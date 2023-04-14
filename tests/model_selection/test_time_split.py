@@ -29,7 +29,7 @@ T = tp.TypeVar("T")
 Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
 
 
-class TestTimeRangeSplit:
+class TestTimeRangeSplitter:
     @pytest.fixture
     def shuffle_arr(self) -> np.ndarray:
         return np.random.choice(np.arange(11), 11, replace=False)

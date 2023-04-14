@@ -23,7 +23,9 @@ Metrics
 -------
 `metrics.Precision`
 `metrics.Recall`
+`metrics.F1Beta`
 `metrics.Accuracy`
+`metrics.MCC`
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
@@ -39,7 +41,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
-from .classification import Accuracy, Precision, Recall
+from .classification import MCC, Accuracy, F1Beta, Precision, Recall
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -54,7 +56,9 @@ from .serendipity import Serendipity
 __all__ = (
     "Precision",
     "Recall",
+    "F1Beta",
     "Accuracy",
+    "MCC",
     "MAP",
     "NDCG",
     "MRR",
