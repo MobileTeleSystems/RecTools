@@ -84,15 +84,12 @@ class LastNSplitter(Splitter):
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
     ) -> None:
-        super().__init__()
+        super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
         self.n: tp.Iterable[int]
         if isinstance(n, int):
             self.n = [n]
         else:
             self.n = n
-        self.filter_cold_users = filter_cold_users
-        self.filter_cold_items = filter_cold_items
-        self.filter_already_seen = filter_already_seen
 
     def _split_without_filter(
         self,
