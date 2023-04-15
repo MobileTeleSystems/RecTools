@@ -100,6 +100,9 @@ class LastNSplitter(Splitter):
         idx = pd.RangeIndex(0, len(df))
 
         for n in self.n:
+            if n <= 0:
+                raise ValueError(f"N must be positive, got {n}")
+
             grouped_df = df.groupby("user_id")["datetime"].nlargest(n)
             test_interactions = grouped_df.keys().to_numpy()
             get_second_value = np.vectorize(lambda x: x[1])

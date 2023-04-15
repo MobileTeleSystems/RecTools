@@ -149,3 +149,24 @@ class TestLastNSplitters:
         assert len(actual1[0]) == len(actual2[0])
         assert np.array_equal(actual1[0][0], actual2[0][0])
         assert np.array_equal(actual1[0][1], actual2[0][1])
+
+    @pytest.mark.parametrize(
+        "n, expected_error_type, err_message",
+        (
+            (0, ValueError, "N must be positive, got 0"),
+            (-1, ValueError, "N must be positive, got -1"),
+            ([1, 0], ValueError, "N must be positive, got 0"),
+            ([-1], ValueError, "N must be positive, got -1"),
+        ),
+    )
+    def test_negative_n(
+        self,
+        interactions: Interactions,
+        n: tp.Union[int, tp.Iterable[int]],
+        expected_error_type: tp.Type[Exception],
+        err_message: str,
+    ) -> None:
+        lns = LastNSplitter(n, False, False, False)
+        with pytest.raises(expected_error_type, match=err_message):
+            for _, _, _ in lns.split(interactions):
+                pass
