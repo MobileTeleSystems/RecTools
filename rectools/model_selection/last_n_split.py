@@ -32,13 +32,13 @@ class LastNSplitter(Splitter):
 
     Parameters
     ----------
-    n: int or iterable of ints
+    n : int or iterable of ints
         Number of interactions for each user that will be included in test
-    filter_cold_users: bool, default ``True``
+    filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
-    filter_cold_items: bool, default ``True``
+    filter_cold_items : bool, default ``True``
         If `True`, items that not in train will be excluded from test.
-    filter_already_seen: bool, default ``True``
+    filter_already_seen : bool, default ``True``
         If ``True``, pairs (user, item) that are in train will be excluded from test.
 
     Examples
@@ -85,11 +85,10 @@ class LastNSplitter(Splitter):
         filter_already_seen: bool = True,
     ) -> None:
         super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
-        self.n: tp.Iterable[int]
         if isinstance(n, int):
             self.n = [n]
         else:
-            self.n = n
+            self.n = list(n)
 
     def _split_without_filter(
         self,
@@ -103,16 +102,12 @@ class LastNSplitter(Splitter):
             if n <= 0:
                 raise ValueError(f"N must be positive, got {n}")
 
-            grouped_df = df.groupby("user_id")["datetime"].nlargest(n)
-            test_interactions = grouped_df.keys().to_numpy()
-            get_second_value = np.vectorize(lambda x: x[1])
-            test_interactions = get_second_value(test_interactions)
+            grouped_interactions = df.reset_index().groupby("user_id")["datetime"].nlargest(n)
+            test_idx = grouped_interactions.index.levels[1].to_numpy()
             test_mask = np.zeros_like(idx, dtype=bool)
-            test_mask[test_interactions] = True
+            test_mask[test_idx] = True
             train_mask = ~test_mask
-
             train_idx = idx[train_mask].values
-            test_idx = idx[test_mask].values
 
             fold_info = {}
             if collect_fold_stats:

@@ -38,13 +38,13 @@ class KFoldSplitter(Splitter):
         Relative size of test part, must be between 0. and 1.
     n_splits : int, default 1
         Number of folds.
-    random_state: int, default  None,
+    random_state : int, default  None,
         Controls randomness of each fold. Pass an int to get reproducible result across multiple `split` calls.
-    filter_cold_users: bool, default ``True``
+    filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
-    filter_cold_items: bool, default ``True``
+    filter_cold_items : bool, default ``True``
         If `True`, items that not in train will be excluded from test.
-    filter_already_seen: bool, default ``True``
+    filter_already_seen : bool, default ``True``
         If `True`, pairs (user, item) that are in train will be excluded from test.
 
     Examples

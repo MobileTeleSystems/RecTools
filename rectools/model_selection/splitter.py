@@ -49,9 +49,9 @@ class Splitter:
 
         Parameters
         ----------
-        interactions: Interactions
+        interactions : Interactions
             User-item interactions.
-        collect_fold_stats: bool, default False
+        collect_fold_stats : bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
 
@@ -73,9 +73,9 @@ class Splitter:
 
         Parameters
         ----------
-        interactions: Interactions
+        interactions : Interactions
             User-item interactions.
-        collect_fold_stats: bool, default False
+        collect_fold_stats : bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
 
@@ -101,16 +101,16 @@ class Splitter:
 
         Parameters
         ----------
-        interactions: Interactions
+        interactions : Interactions
             User-item interactions.
-        collect_fold_stats: bool, default False
+        collect_fold_stats : bool, default False
             Add some stats to fold info,
             like size of train and test part, number of users and items.
-        train_idx: array
+        train_idx : array
             Train part row numbers.
-        test_idx: array
+        test_idx : array
             Test part row numbers.
-        fold_info: dict
+        fold_info : dict
             Information about fold.
 
         Returns
