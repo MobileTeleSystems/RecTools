@@ -23,7 +23,6 @@ from rectools import Columns
 from rectools.dataset import Interactions
 from rectools.model_selection import LastNSplitter
 
-T = tp.TypeVar("T")
 Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
 
 

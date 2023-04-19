@@ -25,6 +25,7 @@ from rectools.model_selection.splitter import Splitter
 
 class LastNSplitter(Splitter):
     """
+    Splitter for cross-validation by recent activity.
     Generate train and test putting last n interaction for
     each user in test and others in train.
     It is also possible to exclude cold users and items
@@ -33,7 +34,8 @@ class LastNSplitter(Splitter):
     Parameters
     ----------
     n : int or iterable of ints
-        Number of interactions for each user that will be included in test
+        Number of interactions for each user that will be included in test.
+        If multiple arguments are passed, separate fold will be created for each of them.
     filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
     filter_cold_items : bool, default ``True``
@@ -95,15 +97,15 @@ class LastNSplitter(Splitter):
         interactions: Interactions,
         collect_fold_stats: bool = False,
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
-        df = interactions.df
+        df = interactions.df.reset_index()
         idx = pd.RangeIndex(0, len(df))
 
         for n in self.n:
             if n <= 0:
                 raise ValueError(f"N must be positive, got {n}")
 
-            grouped_interactions = df.reset_index().groupby("user_id")["datetime"].nlargest(n)
-            test_idx = grouped_interactions.index.levels[1].to_numpy()
+            last_n_interactions = df.groupby("user_id")["datetime"].nlargest(n)
+            test_idx = last_n_interactions.index.levels[1].to_numpy()
             test_mask = np.zeros_like(idx, dtype=bool)
             test_mask[test_idx] = True
             train_mask = ~test_mask
