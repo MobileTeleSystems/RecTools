@@ -99,7 +99,7 @@ class LastNSplitter(Splitter):
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
-        index_df = pd.DataFrame(idx, index=df.index)
+        index_df = pd.Series(idx, index=df.index)
 
         for n in self.n:
             if n <= 0:
@@ -110,8 +110,8 @@ class LastNSplitter(Splitter):
             train_mask = np.ones_like(idx, dtype=bool)
             train_mask[test_idx_remapped] = False
             train_idx_remapped = idx[train_mask]
-            train_idx = index_df.loc[train_idx_remapped].values.ravel()
-            test_idx = index_df.loc[test_idx_remapped].values.ravel()
+            train_idx = index_df.loc[train_idx_remapped].values
+            test_idx = index_df.loc[test_idx_remapped].values
 
             fold_info = {}
             if collect_fold_stats:
