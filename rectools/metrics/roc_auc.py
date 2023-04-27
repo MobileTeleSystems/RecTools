@@ -3,16 +3,11 @@ import typing as tp
 import attr
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 
-from rectools import Columns, ExternalId
+from rectools import Columns
 
 from .base import Catalog, MetricAtK
-
-TP = "__TP"
-FP = "__FP"
-FN = "__FN"
-TN = "__TN"
-LIKED = "__LIKED"
 
 
 @attr.s
@@ -31,68 +26,6 @@ class LAUC(MetricAtK):
 
     """
 
-    def calc_user_tpr_fpr(
-        self, user_reco: pd.DataFrame, user_interactions: pd.DataFrame, catalog: Catalog
-    ) -> tp.Tuple[np.array, np.array]:
-        """
-        Calculate tpr and fpr for L AUC, make_confusions is not used for optimization
-            y-axis: ``tpr`` equals to ``tp / (tp + fn)``
-            x-axis: ``fpr`` equals to ``fp / (fp + tn)``
-
-        Parameters
-        ----------
-        user_reco: recommendations for user: pd.DataFrame with columns: [user_id, item_id, rank],
-            but user_id is considered the same
-        user_interactions: interactions for user: pd.DataFrame with columns: [user_id, item_id],
-            but user_id is considered the same
-        catalog: catalog
-        ----------
-
-        Can make plot using:
-
-        from matplotlib import pyplot as plt
-        plt.figure(figsize=(8, 8))
-        plt.plot(fpr, tpr, c="orange")
-        plt.plot([0.0, 1.0], [0.0, 1.0], linestyle="dashed", c="green")
-        plt.title("ROC curve")
-        plt.xlabel("fpr")
-        plt.ylabel("tpr")
-        plt.xlim((-0.01, 1.01))
-        plt.ylim((-0.01, 1.01))
-        plt.show()
-
-        """
-        tpr = np.zeros(self.k + 2)
-        fpr = np.zeros(self.k + 2)
-        tpr[self.k + 1] = 1.0
-        fpr[self.k + 1] = 1.0
-
-        _tp = 0
-        _fp = 0
-        _fn = len(user_interactions[Columns.Item].unique())
-        _tn = len(catalog) - _fn
-
-        if user_reco.shape[0] == 0:
-            raise ValueError("user_reco is empty")
-        if user_interactions.shape[0] == 0:
-            raise ValueError("user_interactions is empty")
-
-        if self.k > user_reco.shape[0]:
-            raise ValueError(
-                f"user {user_reco.iloc[0][Columns.User]} has {user_reco.shape[0]} rows, which is less than k: {self.k}"
-            )
-        for roc_k in range(self.k):
-            if not user_interactions.loc[user_interactions[Columns.Item] == user_reco.iloc[roc_k][Columns.Item]].empty:
-                _tp += 1
-                _fn -= 1
-            else:
-                _fp += 1
-                _tn -= 1
-            tpr[roc_k + 1] = _tp / (_tp + _fn)
-            fpr[roc_k + 1] = _fp / (_fp + _tn)
-
-        return tpr, fpr
-
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> float:
         """
         AUC is an area under the roc-curve.
@@ -104,35 +37,90 @@ class LAUC(MetricAtK):
         per_user = self.calc_per_user(reco, interactions, catalog)
         return per_user.mean()
 
+    def _calc_auc_for_true_interacted(
+        self, users_true_interactions: pd.DataFrame, interactions: pd.DataFrame, catalog_len: int
+    ) -> tp.Tuple[np.ndarray, pd.Series]:
+        # can't stack because sizes are different
+        users_tps_series = users_true_interactions.apply(lambda x: put_copy(np.zeros(self.k + 1), x, 1))
+        # can stack now
+        users_tps = np.stack(users_tps_series.values)
+        users_tps = np.cumsum(users_tps, axis=1)
+        users_fps = np.arange(self.k + 1) - users_tps
+
+        _tp = users_tps[:, -1]
+        _fp = users_fps[:, -1]
+
+        interactions_count_series = (
+            interactions.groupby(Columns.User)[Columns.Item].count().rename("interactions_count")
+        )
+        tp_series = pd.Series(index=users_true_interactions.index, data=_tp, name="tps")
+
+        # fn_all counts fn for users with zero true interactions, these users don't appear in reco_true_interactions
+        fn_all = pd.concat([interactions_count_series, tp_series], axis=1)
+        fn_all["tps"] = fn_all["tps"].fillna(0)
+        fn_all = fn_all["interactions_count"] - fn_all["tps"]
+
+        # these users are dropped here
+        _fn = fn_all.drop(labels=(set(fn_all.index) - set(users_true_interactions.index))).to_numpy()
+        _tn = catalog_len - _fn - self.k
+
+        users_tpr = users_tps / (_tp + _fn).reshape(-1, 1)
+        users_fpr = users_fps / (_fp + _tn).reshape(-1, 1)
+        # interpolating to (1, 1)
+        users_tpr = np.hstack((users_tpr, np.ones((users_tpr.shape[0], 1))))
+        users_fpr = np.hstack((users_fpr, np.ones((users_fpr.shape[0], 1))))
+
+        auc = np.trapz(users_tpr, users_fpr)
+        return auc, fn_all
+
+    def _calc_auc_for_interacted(
+        self, reco_for_interacted_users: pd.DataFrame, interactions: pd.DataFrame, catalog_len: int
+    ) -> pd.Series:
+        """Calculate auc for users, who interacted with items during interactions time"""
+        # make interactions, which were predicted right
+        reco_true_interactions = reco_for_interacted_users.merge(
+            interactions, left_on=[Columns.User, Columns.Item], right_on=[Columns.User, Columns.Item], how="inner"
+        )
+
+        # make pd.Series with index: user_id, value: np.array of ranks of reco_true_interactions
+        users_true_interactions = (
+            reco_true_interactions[[Columns.User, Columns.Rank]].groupby(Columns.User)[Columns.Rank].apply(np.array)
+        )
+
+        auc, fn_all = self._calc_auc_for_true_interacted(users_true_interactions, interactions, catalog_len)
+        auc_series = pd.Series(index=users_true_interactions.index, data=auc)
+        fn_for_users_with_all_fps = fn_all.drop(labels=users_true_interactions.index)
+        # For users with no true positives auc is the square of the last interpolated triangle
+        auc_for_users_with_all_fps = (1 - self.k / (catalog_len - fn_for_users_with_all_fps)) / 2
+        auc_with_users_with_all_fps = pd.concat([auc_series, auc_for_users_with_all_fps])
+        return auc_with_users_with_all_fps
+
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
         """
-        Calculate LAUC for user every user
-        Note that for users without interactions calc_for_user is NaN
+        Calculate LAUC for every user using trapezoidal rule
+        Note that for users without interactions calc_per_user is NaN
 
         """
         MetricAtK._check(reco, interactions=interactions)
-        users = np.array(reco[Columns.User].unique())
-        per_user = np.zeros_like(users, dtype=float)
-        for index, user_id in enumerate(reco[Columns.User].unique()):
-            per_user[index] = self.calc_for_user(user_id, reco, interactions, catalog)
-            # print(per_user[index])
-        return pd.Series(data=per_user, index=users)
+        reco_k_first_ranks = reco[reco[Columns.Rank] <= self.k]
 
-    def calc_for_user(
-        self, user_id: ExternalId, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog
-    ) -> float:
-        """
-        Calculate LAUC for user using numpy.trapz
-        Note that for users without interactions calc_for_user is NaN
+        # list of users, who interacted during interactions time
+        interacted_users = interactions[Columns.User].unique()
+        reco_for_interacted_users = reco_k_first_ranks[reco_k_first_ranks[Columns.User].isin(interacted_users)]
 
-        """
-        MetricAtK._check(reco, interactions=interactions)
-        if user_id not in reco[Columns.User]:
-            raise ValueError(f"Expected user_id from recommendations, got {user_id}")
-        user_interactions = interactions.loc[interactions[Columns.User] == user_id]
-        if user_interactions.empty:
-            return np.nan
-        else:
-            user_reco = reco.loc[reco[Columns.User] == user_id]
-        tpr, fpr = self.calc_user_tpr_fpr(user_reco, user_interactions, catalog)
-        return np.trapz(tpr, fpr)
+        auc_with_users_with_all_fps = self._calc_auc_for_interacted(
+            reco_for_interacted_users, interactions, len(catalog)
+        )
+        auc_for_users_without_interactions = pd.Series(
+            index=list(set(reco[Columns.User].unique()) - set(interacted_users)), data=np.nan
+        )
+        auc_per_user = pd.concat([auc_with_users_with_all_fps, auc_for_users_without_interactions], sort=True)
+        return auc_per_user
+
+
+# https://stackoverflow.com/questions/36985659/numpy-replace-values-and-return-new-array
+def put_copy(arr: np.ndarray, ind: np.ndarray, v: ArrayLike) -> np.ndarray:
+    """np.put with copy"""
+    arr_copy = arr.copy()
+    np.put(arr_copy, ind, v)
+    return arr_copy
