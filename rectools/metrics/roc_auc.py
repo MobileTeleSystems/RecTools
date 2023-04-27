@@ -3,7 +3,6 @@ import typing as tp
 import attr
 import numpy as np
 import pandas as pd
-from numpy.typing import ArrayLike
 
 from rectools import Columns
 
@@ -121,7 +120,7 @@ class LAUC(MetricAtK):
 
 
 # https://stackoverflow.com/questions/36985659/numpy-replace-values-and-return-new-array
-def put_copy(arr: np.ndarray, ind: np.ndarray, v: ArrayLike) -> np.ndarray:
+def put_copy(arr: np.ndarray, ind: np.ndarray, v: tp.Union[int, np.ndarray]) -> np.ndarray:
     """np.put with copy"""
     arr_copy = arr.copy()
     np.put(arr_copy, ind, v)
