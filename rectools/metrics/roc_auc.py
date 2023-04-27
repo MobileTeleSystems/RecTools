@@ -102,6 +102,8 @@ class LAUC(MetricAtK):
 
         """
         MetricAtK._check(reco, interactions=interactions)
+        if interactions.empty:
+            return pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         reco_k_first_ranks = reco[reco[Columns.Rank] <= self.k]
 
         # list of users, who interacted during interactions time
