@@ -55,7 +55,7 @@ pandas = ">=0.25.3, <2.0.0"
 scipy = "^1.5.4"
 tqdm = "^4.27.0"
 implicit = "0.4.4"
-nmslib = "^2.0.4"
+nmslib = {version = "^2.0.4", markers = "python_version != '3.9' and platform_system == 'Windows' or platform_system != 'Windows'"}
 attrs = ">=19.1.0,<22.0.0"
 typeguard = "^2.0.1"
 lightfm = "^1.16"
