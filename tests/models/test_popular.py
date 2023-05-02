@@ -54,8 +54,8 @@ class TestPopularModel:
             ],
             columns=Columns.Interactions,
         )
-        user_id_map = IdMap.from_values([10, 20, 30, 40, 50, 60, 70, 80])
-        item_id_map = IdMap.from_values([11, 12, 13, 14, 15, 16])
+        user_id_map = IdMap.from_values(np.array([10, 20, 30, 40, 50, 60, 70, 80], dtype="int64"))
+        item_id_map = IdMap.from_values(np.array([11, 12, 13, 14, 15, 16], dtype="int64"))
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
         return Dataset(user_id_map, item_id_map, interactions)
 

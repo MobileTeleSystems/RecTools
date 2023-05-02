@@ -95,7 +95,7 @@ class IdMap:
     @property
     def to_internal(self) -> pd.Series:
         """Map internal->external."""
-        return pd.Series(np.arange(self.size), index=self.external_ids)
+        return pd.Series(np.arange(self.size, dtype="int64"), index=self.external_ids)
 
     @property
     def to_external(self) -> pd.Series:
@@ -105,7 +105,7 @@ class IdMap:
     @property
     def internal_ids(self) -> np.ndarray:
         """Array of internal ids."""
-        return np.arange(self.size)
+        return np.arange(self.size, dtype="int64")
 
     def get_sorted_internal(self) -> np.ndarray:
         """Return array of sorted internal ids."""
