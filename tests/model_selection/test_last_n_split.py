@@ -166,6 +166,20 @@ class TestLastNSplitters:
         assert np.array_equal(actual1[0][0], actual2[0][0])
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
+    def test_complicated_index(self, interactions: Interactions) -> None:
+        interactions_new_index = deepcopy(interactions)
+        # interactions_new_index.df.index = [0, 11, 11, 11, 4, 5, 16, 7, 11]
+        interactions_new_index.df.index = [0, 11, 2, 3, 4, 5, 16, 7, 1]
+        lns = LastNSplitter(2, False, False, False)
+        actual1 = list(lns.split(interactions))
+        actual2 = list(lns.split(interactions_new_index))
+
+        assert len(actual1) == len(actual2)
+        assert len(actual1[0]) == len(actual2[0])
+
+        assert sorted(actual1[0][0]) == sorted(actual2[0][0])
+        assert sorted(actual1[0][1]) == sorted(actual2[0][1])
+
     @pytest.mark.parametrize(
         "n, expected_error_type, err_message",
         (

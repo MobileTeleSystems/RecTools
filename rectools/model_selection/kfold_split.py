@@ -126,7 +126,7 @@ class KFoldSplitter(Splitter):
             fold_info = {"fold_number": i}
             left = i * test_part_size
             right = (i + 1) * test_part_size
-            test_idx = shuffled_idx[left: right]
+            test_idx = shuffled_idx[left:right]
             train_idx = np.concatenate((shuffled_idx[:left], shuffled_idx[right:]))
 
             yield train_idx, test_idx, fold_info

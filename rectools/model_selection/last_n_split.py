@@ -100,18 +100,17 @@ class LastNSplitter(Splitter):
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
         index_df = pd.Series(idx, index=df.index)
-
         for n in self.n:
             if n <= 0:
                 raise ValueError(f"N must be positive, got {n}")
 
             last_n_interactions = df.groupby("user_id")["datetime"].nlargest(n)
             test_idx_remapped = last_n_interactions.index.levels[1].to_numpy()
-            train_mask = np.ones_like(idx, dtype=bool)
-            train_mask[test_idx_remapped] = False
-            train_idx_remapped = idx[train_mask]
-            train_idx = index_df.loc[train_idx_remapped].values
             test_idx = index_df.loc[test_idx_remapped].values
+
+            train_mask = np.ones_like(idx, dtype=bool)
+            train_mask[test_idx] = False
+            train_idx = idx[train_mask].values
 
             fold_info = {}
             if collect_fold_stats:
