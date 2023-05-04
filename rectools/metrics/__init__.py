@@ -44,6 +44,7 @@ Tools
 """
 
 from .classification import MCC, Accuracy, F1Beta, Precision, Recall
+from .coverage import ItemCoverage, NumRetrieved
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -54,7 +55,6 @@ from .novelty import MeanInvUserFreq
 from .ranking import MAP, MRR, NDCG
 from .scoring import calc_metrics
 from .serendipity import Serendipity
-from .coverage import ItemCoverage, NumRetrieved
 
 __all__ = (
     "Precision",

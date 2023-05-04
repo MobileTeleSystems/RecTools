@@ -56,7 +56,7 @@ class ItemCoverage(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         reco_k_first_ranks = reco[reco[Columns.Rank] <= self.k]
-        return reco_k_first_ranks.groupby(Columns.User)[Columns.Item].nunique() / len(catalog)
+        return reco_k_first_ranks.groupby(Columns.User)[Columns.Item].nunique().rename(None) / len(catalog)
 
 
 @attr.s
@@ -106,4 +106,4 @@ class NumRetrieved(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         reco_k_first_ranks = reco[reco[Columns.Rank] <= self.k]
-        return reco_k_first_ranks.groupby(Columns.User)[Columns.Item].count()
+        return reco_k_first_ranks.groupby(Columns.User)[Columns.Item].count().rename(None)
