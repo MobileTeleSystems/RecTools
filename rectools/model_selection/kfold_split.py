@@ -124,12 +124,9 @@ class KFoldSplitter(Splitter):
         shuffled_idx = rng.permutation(idx)
         for i in range(self.n_splits):
             fold_info = {"fold_number": i}
-            test_mask = np.zeros_like(idx, dtype=bool)
-            chosen_idx = shuffled_idx[i * test_part_size : (i + 1) * test_part_size]
-            test_mask[chosen_idx] = True
-            train_mask = ~test_mask
-
-            train_idx = idx[train_mask].values
-            test_idx = idx[test_mask].values
+            left = i * test_part_size
+            right = (i + 1) * test_part_size
+            test_idx = shuffled_idx[left: right]
+            train_idx = np.concatenate((shuffled_idx[:left], shuffled_idx[right:]))
 
             yield train_idx, test_idx, fold_info
