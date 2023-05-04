@@ -13,15 +13,6 @@ FP = "__FP"
 FN = "__FN"
 TN = "__TN"
 
-USER_RECO_SIMPLE = pd.DataFrame(
-    {
-        Columns.User: [1, 1, 1],
-        Columns.Item: [1, 2, 3],
-        Columns.Rank: [1, 2, 3],
-    }
-)
-
-USER_RECO_SIMPLE_LIST = USER_RECO_SIMPLE[Columns.Item]
 EMPTY_USER_RECO_LIST = np.array([], dtype=float)
 
 RECO_SIMPLE = pd.DataFrame(
@@ -31,15 +22,6 @@ RECO_SIMPLE = pd.DataFrame(
         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
     }
 )
-
-USER_INTERACTIONS_SIMPLE = pd.DataFrame(
-    {
-        Columns.User: [1, 1, 1],
-        Columns.Item: [4, 2, 8],
-    }
-)
-
-USER_INTERACTIONS_SIMPLE_SET = set(USER_INTERACTIONS_SIMPLE[Columns.Item].unique())
 
 INTERACTIONS_SIMPLE = pd.DataFrame(
     {
@@ -70,6 +52,7 @@ class TestRoc:
         expected_auc = (7 / 15 + 0.875) / 2
         eps = 1e-6
         assert np.abs(expected_auc - self.metric_simple.calc(RECO_SIMPLE, INTERACTIONS_SIMPLE, CATALOG_SIMPLE)) < eps
+        assert self.metric_simple.calc_per_user(RECO_SIMPLE, INTERACTIONS_SIMPLE, CATALOG_SIMPLE)[2] == 0.875
 
     def test_when_no_interactions(self) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
