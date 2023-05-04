@@ -29,6 +29,8 @@ Metrics
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
+`metrics.ItemCoverage`
+`metrics.NumRetrieved`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.Serendipity`
@@ -52,6 +54,7 @@ from .novelty import MeanInvUserFreq
 from .ranking import MAP, MRR, NDCG
 from .scoring import calc_metrics
 from .serendipity import Serendipity
+from .coverage import ItemCoverage, NumRetrieved
 
 __all__ = (
     "Precision",
@@ -65,6 +68,8 @@ __all__ = (
     "MeanInvUserFreq",
     "IntraListDiversity",
     "Serendipity",
+    "ItemCoverage",
+    "NumRetrieved",
     "calc_metrics",
     "PairwiseDistanceCalculator",
     "PairwiseHammingDistanceCalculator",
