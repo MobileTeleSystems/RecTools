@@ -63,7 +63,7 @@ class ItemCoverage(MetricAtK):
 class NumRetrieved(MetricAtK):
     """
     Number of recommendations retrieved is a metric that shows
-    how much items retrieved by first k recommendations (less or equal k)
+    how much items were recommended to users by first k recommendations (less or equal k)
     See more: https://elliot.readthedocs.io/en/latest/guide/metrics/coverage.html
 
     Parameters
