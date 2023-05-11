@@ -167,7 +167,8 @@ class TestLastNSplitters:
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
     @pytest.mark.parametrize(
-        "new_index", (
+        "new_index",
+        (
             ([0, 11, 11, 11, 4, 5, 16, 7, 11]),
             ([0, 11, 2, -3, -4, -5, 16, 7, 1]),
         ),
