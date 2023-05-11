@@ -29,7 +29,7 @@ Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
 class TestLastNSplitters:
     @pytest.fixture
     def shuffle_arr(self) -> np.ndarray:
-        return np.random.choice(np.arange(9), 9, replace=False)
+        return np.arange(0, 9)
 
     @pytest.fixture
     def norm(self, shuffle_arr: np.ndarray) -> Converter:
@@ -166,10 +166,15 @@ class TestLastNSplitters:
         assert np.array_equal(actual1[0][0], actual2[0][0])
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
-    def test_complicated_index(self, interactions: Interactions) -> None:
+    @pytest.mark.parametrize(
+        "new_index", (
+            ([0, 11, 11, 11, 4, 5, 16, 7, 11]),
+            ([0, 11, 2, -3, -4, -5, 16, 7, 1]),
+        ),
+    )
+    def test_complicated_index(self, interactions: Interactions, new_index: tp.List[int]) -> None:
         interactions_new_index = deepcopy(interactions)
-        # interactions_new_index.df.index = [0, 11, 11, 11, 4, 5, 16, 7, 11]
-        interactions_new_index.df.index = [0, 11, 2, 3, 4, 5, 16, 7, 1]
+        interactions_new_index.df.index = new_index
         lns = LastNSplitter(2, False, False, False)
         actual1 = list(lns.split(interactions))
         actual2 = list(lns.split(interactions_new_index))
