@@ -29,7 +29,7 @@ Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
 class TestLastNSplitters:
     @pytest.fixture
     def shuffle_arr(self) -> np.ndarray:
-        return np.arange(0, 9)
+        return np.random.choice(np.arange(9), 9, replace=False)
 
     @pytest.fixture
     def norm(self, shuffle_arr: np.ndarray) -> Converter:
