@@ -46,7 +46,7 @@ from .random import RandomModel
 try:
     from .sar import SarWrapper
 except ImportError:
-    from ..compat import SarWraper
+    from ..compat import SarWrapper
 
 try:
     from .dssm import DSSMModel
