@@ -24,8 +24,8 @@ try:
     import nmslib
 except ImportError as e:
     raise ImportError(
-        "ANN needs nmslib which is an extra dependency."
-        'It may be installed via "pip install rectools[nmslib]" or manually'
+        "ANN requires nmslib which is an extra dependency."
+        "It may be installed via 'pip install rectools[nmslib]' or manually."
     ) from e
 
 import numpy as np
