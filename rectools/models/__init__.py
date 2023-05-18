@@ -33,6 +33,7 @@ Models
 `models.PopularInCategoryModel`
 `models.PureSVDModel`
 `models.RandomModel`
+`models.SarWrapper`
 """
 
 from .implicit_als import ImplicitALSWrapperModel
@@ -42,6 +43,10 @@ from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
 from .pure_svd import PureSVDModel
 from .random import RandomModel
+try:
+    from .sar import SarWrapper
+except ImportError:
+    from ..compat import SarWraper
 
 try:
     from .dssm import DSSMModel

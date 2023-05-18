@@ -65,10 +65,12 @@ Markdown = "~3.2"
 
 torch = {version = "^1.6", optional = true}
 pytorch-lightning = {version = "^1.6", optional = true}
+recommenders = {version = "^1.1.1", optional = true}
 
 [tool.poetry.extras]
+recders = ["recommenders"]
 nn = ["torch", "pytorch-lightning"]
-all = ["torch", "pytorch-lightning"]
+all = ["torch", "pytorch-lightning", "recommenders"]
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
