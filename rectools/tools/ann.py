@@ -20,14 +20,7 @@ import itertools
 import typing as tp
 from tempfile import NamedTemporaryFile
 
-try:
-    import nmslib
-except ImportError as e:
-    raise ImportError(
-        "ANN requires nmslib which is an extra dependency."
-        "It may be installed via 'pip install rectools[nmslib]' or manually."
-    ) from e
-
+import nmslib
 import numpy as np
 
 from rectools import ExternalId, ExternalIds, InternalId, InternalIds
