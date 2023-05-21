@@ -69,14 +69,14 @@ class KFoldSplitter(Splitter):
     ...                     filter_cold_items=False, filter_already_seen=False)
     >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 5 6 7] [3 4]
+    [2 7 6 1 5 0] [3 4]
     [3 4 6 1 5 0] [2 7]
     >>>
     >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
     >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 5 6 7] [3 4]
+    [2 7 6 1 5 0] [3 4]
     [3 4 6 1 5 0] [2]
     """
 
