@@ -27,5 +27,25 @@ class NNModelUnavailable:
         )
 
 
+class NmslibModelUnavailable:
+    """Dummy class the instance of which is returned in case a model provided lacks any libraries required"""
+
+    def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
+        """Raise ImportError when an attempt to instantiate an unavailable model is made"""
+        raise ImportError(
+            f"Cannot initialize {cls.__name__}: "
+            f"run `pip install rectools[nmslib]` to install extra requirements before accessing {cls.__name__} "
+            f"(see `extras/requirements-nn.txt)"
+        )
+
+
 class DSSMModel(NNModelUnavailable):
     """Dummy class the instance of which is returned in case DSSMModel lacks any libraries required"""
+
+
+class ItemToItemAnnRecommender(NmslibModelUnavailable):
+    """Dummy class the instance of which is returned in case ItemToItemAnnRecommender lacks any libraries required"""
+
+
+class UserToItemAnnRecommender(NmslibModelUnavailable):
+    """Dummy class the instance of which is returned in case UserToItemAnnRecommender lacks any libraries required"""
