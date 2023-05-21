@@ -26,7 +26,7 @@ from rectools.model_selection import LastNSplitter
 Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
 
 
-class TestLastNSplitters:
+class TestLastNSplitter:
     @pytest.fixture
     def shuffle_arr(self) -> np.ndarray:
         return np.random.choice(np.arange(9), 9, replace=False)
@@ -167,13 +167,17 @@ class TestLastNSplitters:
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
     @pytest.mark.parametrize(
-        "new_index",
+        "test_name, new_index",
         (
-            ([0, 11, 11, 11, 4, 5, 16, 7, 11]),
-            ([0, 11, 2, -3, -4, -5, 16, 7, 1]),
+            ("not 0...n permutation", [0, 10, 15, 3, 40, 5, 6, 11, 20]),
+            ("negative numbers", [-1, -2, -3, -4, -5, -6, -7, -8, -9]),
+            ("duplicates1", [0, 0, 0, 0, 1, 1, 1, 2, 2]),
+            ("duplicates2", [0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            ("combination1", [0, 11, 11, 11, 4, 5, 16, 7, 11]),
+            ("combination2", [0, 11, 2, -3, -4, -5, 16, 7, 11]),
         ),
     )
-    def test_complicated_index(self, interactions: Interactions, new_index: tp.List[int]) -> None:
+    def test_complicated_index(self, interactions: Interactions, test_name: str, new_index: tp.List[int]) -> None:
         interactions_new_index = deepcopy(interactions)
         interactions_new_index.df.index = new_index
         lns = LastNSplitter(2, False, False, False)
