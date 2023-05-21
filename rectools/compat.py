@@ -25,7 +25,21 @@ class NNModelUnavailable:
             f"run `pip install rectools[nn]` to install extra requirements before accessing {cls.__name__} "
             f"(see `extras/requirements-nn.txt)"
         )
+    
+class RecommendersModelUnavailable:
+    """Dummy class the instance of which is returned in case a model provided lacks any libraries required"""
+
+    def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
+        """Raise ImportError when an attempt to instantiate an unavailable model is made"""
+        raise ImportError(
+            f"Cannot initialize {cls.__name__}: "
+            f"run `pip install rectools[recders]` to install extra requirements before accessing {cls.__name__} "
+            f"(see `extras/requirements-nn.txt)"
+        )
 
 
 class DSSMModel(NNModelUnavailable):
     """Dummy class the instance of which is returned in case DSSMModel lacks any libraries required"""
+
+class SarWrapper(RecommendersModelUnavailable):
+    """Dummy class the instance of which is returned in case SarWrapper lacks any libraries required"""
