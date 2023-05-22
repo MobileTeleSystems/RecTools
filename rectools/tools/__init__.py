@@ -25,7 +25,10 @@ Tools
 `tools.UserToItemAnnRecommender`
 """
 
-from .ann import ItemToItemAnnRecommender, UserToItemAnnRecommender
+try:
+    from .ann import ItemToItemAnnRecommender, UserToItemAnnRecommender
+except ImportError:  # pragma: no cover
+    from ..compat import ItemToItemAnnRecommender, UserToItemAnnRecommender  # type: ignore
 
 __all__ = (
     "ItemToItemAnnRecommender",
