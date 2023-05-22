@@ -41,8 +41,8 @@ def get_not_seen_mask(
     Returns
     -------
     np.ndarray
-     Boolean mask of same length as `test_users` (`test_items`).
-     ``True`` means interaction not present in train.
+        Boolean mask of same length as `test_users` (`test_items`).
+        ``True`` means interaction not present in train.
     """
     if train_users.size != train_items.size:
         raise ValueError("Lengths of `train_users` and `train_items` must be the same")
