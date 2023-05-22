@@ -38,13 +38,13 @@ class KFoldSplitter(Splitter):
         Relative size of test part, must be between 0. and 1.
     n_splits : int, default 1
         Number of folds.
-    random_state: int, default  None,
+    random_state : int, default  None,
         Controls randomness of each fold. Pass an int to get reproducible result across multiple `split` calls.
-    filter_cold_users: bool, default ``True``
+    filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
-    filter_cold_items: bool, default ``True``
+    filter_cold_items : bool, default ``True``
         If `True`, items that not in train will be excluded from test.
-    filter_already_seen: bool, default ``True``
+    filter_already_seen : bool, default ``True``
         If `True`, pairs (user, item) that are in train will be excluded from test.
 
     Examples
@@ -69,15 +69,15 @@ class KFoldSplitter(Splitter):
     ...                     filter_cold_items=False, filter_already_seen=False)
     >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 5 6 7] [3 4]
-    [0 1 3 4 5 6] [2 7]
+    [2 7 6 1 5 0] [3 4]
+    [3 4 6 1 5 0] [2 7]
     >>>
     >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
     >>> for train_ids, test_ids, _ in kfs.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 5 6 7] [3 4]
-    [0 1 3 4 5 6] [2]
+    [2 7 6 1 5 0] [3 4]
+    [3 4 6 1 5 0] [2]
     """
 
     def __init__(
@@ -124,12 +124,9 @@ class KFoldSplitter(Splitter):
         shuffled_idx = rng.permutation(idx)
         for i in range(self.n_splits):
             fold_info = {"fold_number": i}
-            test_mask = np.zeros_like(idx, dtype=bool)
-            chosen_idx = shuffled_idx[i * test_part_size : (i + 1) * test_part_size]
-            test_mask[chosen_idx] = True
-            train_mask = ~test_mask
-
-            train_idx = idx[train_mask].values
-            test_idx = idx[test_mask].values
+            left = i * test_part_size
+            right = (i + 1) * test_part_size
+            test_idx = shuffled_idx[left:right]
+            train_idx = np.concatenate((shuffled_idx[:left], shuffled_idx[right:]))
 
             yield train_idx, test_idx, fold_info

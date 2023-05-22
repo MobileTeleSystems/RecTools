@@ -37,18 +37,18 @@ class TimeRangeSplitter(Splitter):
 
     Parameters
     ----------
-    date_range: array-like(date|datetime)
+    date_range : array-like(date|datetime)
         Ordered test fold borders.
         Left will be included, right will be excluded from fold.
         Interactions before first border will be used for train.
         Interaction after right border will not be used.
         Ca be easily generated with [`pd.date_range`]
         (https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.date_range.html)
-    filter_cold_users: bool, default ``True``
+    filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
-    filter_cold_items: bool, default ``True``
+    filter_cold_items : bool, default ``True``
         If `True`, items that not in train will be excluded from test.
-    filter_already_seen: bool, default ``True``
+    filter_already_seen : bool, default ``True``
         If ``True``, pairs (user, item) that are in train will be excluded from test.
 
     Examples
