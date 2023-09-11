@@ -58,7 +58,7 @@ tqdm = "^4.27.0"
 implicit = "0.4.4"
 attrs = ">=19.1.0,<22.0.0"
 typeguard = "^2.0.1"
-lightfm = "^1.17"
+lightfm = "~1.17"
 
 # To avoid problems with resolving dependencies
 Markdown = "~3.2"
