@@ -1281,7 +1281,6 @@ numpy = [
     {version = ">=1.17.3", markers = "platform_machine != \"aarch64\" and platform_machine != \"arm64\" and python_version < \"3.10\""},
     {version = ">=1.19.2", markers = "platform_machine == \"aarch64\" and python_version < \"3.10\""},
     {version = ">=1.20.0", markers = "platform_machine == \"arm64\" and python_version < \"3.10\""},
-    {version = ">=1.21.0", markers = "python_version >= \"3.10\""},
 ]
 python-dateutil = ">=2.7.3"
 pytz = ">=2017.3"
@@ -2325,5 +2324,5 @@ nn = ["pytorch-lightning", "torch"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = ">=3.7.2, <3.11.0"
-content-hash = "01c10470d1782bb975f3b3c50c0a0a6022518781056303d81b514adf628fb32b"
+python-versions = ">=3.7.2, <3.10.0"
+content-hash = "72682105c5a2ca0bd3df3af55c2fcdcaee30b91efe51f84a2423dd7b3d095d8c"
