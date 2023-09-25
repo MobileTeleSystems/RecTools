@@ -21,7 +21,7 @@ jobs:
           python-version: 3.8
 
       - name: Install poetry
-        run: pip install urllib3==1.26.15 poetry==1.1.15
+        run: pip install urllib3==1.26.15 poetry==1.4.0
 
       - name: Install dependencies
         run: make install
