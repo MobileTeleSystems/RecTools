@@ -7,7 +7,7 @@ on:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Dump GitHub context
         env:
@@ -22,7 +22,7 @@ jobs:
           python-version: "3.8"
 
       - name: Install poetry
-        run: pip install urllib3==1.26.15 poetry==1.1.15
+        run: pip install urllib3==1.26.15 poetry==1.4.0
 
       - name: Install Dependencies
         run: poetry install --no-dev

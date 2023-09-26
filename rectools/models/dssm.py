@@ -24,9 +24,8 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn.functional as F
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.callbacks.base import Callback
-from pytorch_lightning.loggers import base
+from pytorch_lightning import Callback, LightningModule, Trainer
+from pytorch_lightning.loggers import Logger
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
@@ -253,8 +252,8 @@ class DSSMModel(VectorModel):
         trainer_sanity_steps: int = 2,
         trainer_devices: tp.Union[str, int] = 1,
         trainer_accelerator: str = "auto",
-        callbacks: tp.Optional[tp.Sequence[Callback]] = None,
-        loggers: tp.Union[base.LightningLoggerBase, tp.Iterable[base.LightningLoggerBase], bool] = True,
+        callbacks: tp.Optional[tp.Union[tp.List[Callback], Callback]] = None,
+        loggers: tp.Union[Logger, tp.Iterable[Logger], bool] = True,
         verbose: int = 0,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -262,14 +261,13 @@ class DSSMModel(VectorModel):
         self._model = model
         self.max_epochs = max_epochs
         self.batch_size = batch_size
-        cb = list(callbacks) if callbacks is not None else callbacks
         self.trainer: Trainer
         self._trainer = Trainer(
             devices=trainer_devices,
             accelerator=trainer_accelerator,
             max_epochs=self.max_epochs,
             num_sanity_val_steps=trainer_sanity_steps,
-            callbacks=cb,
+            callbacks=callbacks,
             logger=loggers,
         )
         self.dataloader_num_workers = dataloader_num_workers
