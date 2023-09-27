@@ -3,15 +3,14 @@ name: Test
 on:
   push:
     branches:
-      - "**"
+      - master
   pull_request:
-    branches:
-      - "**"
+    types: [opened, synchronize]
 
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v2
@@ -22,7 +21,7 @@ jobs:
           python-version: 3.8
 
       - name: Install poetry
-        run: pip install urllib3==1.26.15 poetry==1.1.15
+        run: pip install urllib3==1.26.15 poetry==1.4.0
 
       - name: Install dependencies
         run: make install
@@ -32,7 +31,7 @@ jobs:
 
   test:
     name: test (${{ matrix.python-version }}, old-deps - ${{ matrix.old-deps }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +50,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install poetry
-        run: pip install urllib3==1.26.15 poetry==1.1.15
+        run: pip install urllib3==1.26.15 poetry==1.4.0
 
       - name: Install dependencies
         run: make install
