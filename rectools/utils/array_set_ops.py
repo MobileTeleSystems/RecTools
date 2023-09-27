@@ -140,11 +140,21 @@ def fast_isin_for_sorted_test_elements(
     np.ndarray
         Boolean array with same shape as `elements`.
     """
-    ss_result_left = np.searchsorted(sorted_test_elements, elements, side="left")
-    ss_result_right = np.searchsorted(sorted_test_elements, elements, side="right")
+    if sorted_test_elements.size == 0:
+        if invert:
+            return np.ones(elements.size, dtype=bool) 
+        return np.zeros(elements.size, dtype=bool) 
+    
+    searched_indices = np.searchsorted(sorted_test_elements, elements, side="left")
+    
+    # If there are some values in `elements` bigger than the max value in `sorted_test_elements`,
+    # they will get index equal to `sorted_test_elements.size`
+    searched_indices = np.minimum(searched_indices, sorted_test_elements.size - 1)
+    
+    found_elements = sorted_test_elements[searched_indices]
     if invert:
-        return ss_result_right != ss_result_left + 1
-    return ss_result_right == ss_result_left + 1
+        return found_elements != elements
+    return found_elements == elements
 
 
 def isin_2d_int(
