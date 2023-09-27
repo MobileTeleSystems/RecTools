@@ -81,7 +81,7 @@ def fast_2d_2col_int_unique(arr: np.ndarray) -> np.ndarray:
         ),
     )
     coo = csr.tocoo(copy=False)
-    res = np.array([coo.row, coo.col]).T
+    res = np.array([coo.row, coo.col], dtype=arr.dtype).T
     return res
 
 
