@@ -118,7 +118,7 @@ def is_instance(obj: tp.Any, types: tp.Union[AnyType, tp.Tuple[AnyType, ...]]) -
     Examples
     --------
     >>> from typing import Union
-    
+
     >>> Number = Union[int, float]
     >>> is_instance(1, Number)
     True
@@ -158,7 +158,7 @@ def select_by_type(
     Examples
     --------
     >>> from typing import Union
-    
+
     >>> Number = Union[int, float]
     >>> select_by_type({1: 10, 2: 0.5, 3: "abc", 4: [1, 2]}, (Number, str))
     {1: 10, 2: 0.5, 3: 'abc'}
