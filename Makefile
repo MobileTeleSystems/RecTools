@@ -115,8 +115,8 @@ coverage: .venv reports
 
 # Generalization
 
-.autoformat: .isort_fix .autopep8_fix .black_fix
-autoformat: .venv .autoformat
+.format: .isort_fix .autopep8_fix .black_fix
+format: .venv .format
 
 .lint: .isort .black .flake8 .codespell .mypy .pylint .bandit
 lint: .venv .lint
