@@ -28,6 +28,26 @@ def fast_2d_int_unique(arr: np.ndarray) -> tp.Tuple[np.ndarray, np.ndarray]:
     np.ndarray
         Unique rows of arr, shape (n_unique_rows, m)
 
+    Examples
+    --------
+    >>> arr = np.array(
+    ...     [
+    ...         [10, 30, 12],
+    ...         [10, 30, 555],
+    ...         [10, 30, 12],
+    ...         [10, 30, 12],
+    ...         [1, 2, 3],
+    ...         [1, 2, 3],
+    ...     ]
+    ... )
+    >>> unq, inv_ids = fast_2d_int_unique(arr)
+    >>> unq
+    array([[  1,   2,   3],
+           [ 10,  30,  12],
+           [ 10,  30, 555]])
+    >>> inv_ids
+    array([1, 2, 1, 1, 0, 0])
+
     Notes
     -----
     Taken from https://github.com/numpy/numpy/issues/11136
@@ -60,6 +80,23 @@ def fast_2d_2col_int_unique(arr: np.ndarray) -> np.ndarray:
     -------
     np.ndarray
         Unique rows of arr, shape (n_unique_rows, 2), sorted by 1 then 2 column.
+
+    Examples
+    --------
+    >>> arr = np.array(
+    ...     [
+    ...         [10, 30],
+    ...         [10, 555],
+    ...         [10, 30],
+    ...         [10, 30],
+    ...         [1, 2],
+    ...         [1, 2],
+    ...     ]
+    ... )
+    >>> fast_2d_2col_int_unique(arr)
+    array([[  1,   2],
+           [ 10,  30],
+           [ 10,  555]])
     """
     if not np.issubdtype(arr.dtype, np.integer):
         raise TypeError("Only integer array is allowed")
@@ -81,7 +118,7 @@ def fast_2d_2col_int_unique(arr: np.ndarray) -> np.ndarray:
         ),
     )
     coo = csr.tocoo(copy=False)
-    res = np.array([coo.row, coo.col]).T
+    res = np.array([coo.row, coo.col], dtype=arr.dtype).T
     return res
 
 
@@ -98,6 +135,11 @@ def fast_isin(elements: np.ndarray, test_elements: np.ndarray, invert: bool = Fa
     invert : bool, default ``False``
         If True, the values in the returned array are inverted, as if
         calculating `element not in test_elements`
+
+    Examples
+    --------
+    >>> fast_isin(np.array(["a", "b", "c"]), np.array(["c", "x", "a", "y"]))
+    array([ True, False,  True])
 
     Returns
     -------
@@ -135,16 +177,31 @@ def fast_isin_for_sorted_test_elements(
         as if calculating *`element` not in `test_elements`*.
         Faster than using negation after getting result.
 
+    Examples
+    --------
+    >>> fast_isin_for_sorted_test_elements(np.array([5, 2, 3]), np.array([1, 3, 4, 5, 6]))
+    array([ True, False,  True])
+
     Returns
     -------
     np.ndarray
         Boolean array with same shape as `elements`.
     """
-    ss_result_left = np.searchsorted(sorted_test_elements, elements, side="left")
-    ss_result_right = np.searchsorted(sorted_test_elements, elements, side="right")
+    if sorted_test_elements.size == 0:
+        if invert:
+            return np.ones(elements.size, dtype=bool)
+        return np.zeros(elements.size, dtype=bool)
+
+    searched_indices = np.searchsorted(sorted_test_elements, elements, side="left")
+
+    # If there are some values in `elements` bigger than the max value in `sorted_test_elements`,
+    # they will get index equal to `sorted_test_elements.size`
+    searched_indices = np.minimum(searched_indices, sorted_test_elements.size - 1)
+
+    found_elements = sorted_test_elements[searched_indices]
     if invert:
-        return ss_result_right != ss_result_left + 1
-    return ss_result_right == ss_result_left + 1
+        return found_elements != elements
+    return found_elements == elements
 
 
 def isin_2d_int(
@@ -170,6 +227,26 @@ def isin_2d_int(
     invert : bool, optional
         If True, the values in the returned array are inverted, as if
         calculating `element not in test_elements`. Default is False.
+
+    Examples
+    --------
+    >>> elements = np.array(
+    ...     [
+    ...         [10, 30],
+    ...         [1, 2],
+    ...         [21, 23],
+    ...     ]
+    ... )
+    >>> test_elements = np.array(
+    ...     [
+    ...         [4, 5],
+    ...         [21, 23],
+    ...         [100, 200],
+    ...         [10, 30],
+    ...     ]
+    ... )
+    >>> isin_2d_int(elements, test_elements)
+    array([ True, False,  True])
 
     Returns
     -------

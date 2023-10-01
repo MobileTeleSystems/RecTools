@@ -36,6 +36,11 @@ def pairwise(iterable: tp.Iterable[T]) -> tp.Iterable[tp.Tuple[T, T]]:
     -------
     iterable
         Sequence of pairs.
+
+    Examples
+    --------
+    >>> list(pairwise(range(4)))
+    [(0, 1), (1, 2), (2, 3)]
     """
     a, b = tee(iterable)
     next(b, None)
@@ -58,6 +63,10 @@ def log_at_base(arr: np.ndarray, base: float) -> np.ndarray:
     np.ndarray
         Logarithms of given numbers.
 
+    Examples
+    --------
+    >>> log_at_base(np.array([1, 2, 32]), 2)
+    array([0., 1., 5.])
     """
     return np.log(arr) / np.log(base)
 
@@ -65,7 +74,7 @@ def log_at_base(arr: np.ndarray, base: float) -> np.ndarray:
 AnyType = tp.Any
 
 
-def is_instance_of_type(obj: tp.Any, type_: AnyType) -> bool:
+def _is_instance_of_type(obj: tp.Any, type_: AnyType) -> bool:
     """
     Check that `type_` is type of `obj`.
 
@@ -105,12 +114,24 @@ def is_instance(obj: tp.Any, types: tp.Union[AnyType, tp.Tuple[AnyType, ...]]) -
     -------
     bool
         Whether `types` (or some of `types` if `types` is tuple) is type of `obj`.
+
+    Examples
+    --------
+    >>> from typing import Union
+
+    >>> Number = Union[int, float]
+    >>> is_instance(1, Number)
+    True
+    >>> is_instance(1, (Number, str))
+    True
+    >>> is_instance("abc", (Number, str))
+    True
     """
     if not isinstance(types, tuple):
         types = (types,)
 
     for type_ in types:
-        if is_instance_of_type(obj, type_):
+        if _is_instance_of_type(obj, type_):
             return True
     return False
 
@@ -133,6 +154,14 @@ def select_by_type(
     -------
     dict
         Dictionary of objects from `objects` where type of value is `types` (or in `types` if `types` is tuple).
+
+    Examples
+    --------
+    >>> from typing import Union
+
+    >>> Number = Union[int, float]
+    >>> select_by_type({1: 10, 2: 0.5, 3: "abc", 4: [1, 2]}, (Number, str))
+    {1: 10, 2: 0.5, 3: 'abc'}
     """
     selected = {k: obj for k, obj in objects.items() if is_instance(obj, types)}
     return selected
