@@ -22,10 +22,10 @@ import numpy as np
 import pandas as pd
 
 from rectools import Columns
-from rectools.metrics import PairwiseDistanceCalculator
 from rectools.utils import select_by_type
 
 from .base import MetricAtK
+from .distances import PairwiseDistanceCalculator
 
 
 @attr.s
