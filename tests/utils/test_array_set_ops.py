@@ -126,9 +126,13 @@ class TestFastIsinForSortedTestElements:
         actual = fast_isin_for_sorted_test_elements(np.array([]), np.array([4, 8, 10]))
         np.testing.assert_array_equal(actual, np.array([]))
 
-    def test_output_for_empty_test_elements(self) -> None:
-        actual = fast_isin_for_sorted_test_elements(np.array([10, 6]), np.array([]))
-        np.testing.assert_array_equal(actual, np.array([False, False]))
+    @pytest.mark.parametrize("invert", (True, False))
+    def test_output_for_empty_test_elements(self, invert: bool) -> None:
+        actual = fast_isin_for_sorted_test_elements(np.array([10, 6]), np.array([]), invert=invert)
+        expected = np.array([False, False])
+        if invert:
+            expected = ~expected
+        np.testing.assert_array_equal(actual, expected)
 
 
 class TestIsin2dInt:

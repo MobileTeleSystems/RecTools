@@ -42,6 +42,12 @@ def get_element_ids(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarr
     ------
     ValueError
         If there are elements from `elements` which are not in `test_elements`.
+
+    Examples
+    --------
+    >>> get_element_ids(np.array([50, 20, 30]), np.array([10, 30, 40, 50, 60, 20]))
+    array([3, 5, 1])
+
     """
     sort_test_element_ids = np.argsort(test_elements)
     sorted_test_elements = test_elements[sort_test_element_ids]
@@ -82,11 +88,25 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
     ------
     KeyError
         If `strict` is ``True`` and at least one element of `ids` not in `s.index`.
+
+    Examples
+    --------
+    >>> s = pd.Series([10, 20, 30, 40, 50], index=[1, 2, 3, 4, 5])
+    >>> get_from_series_by_index(s, [3, 1, 4])
+    array([30, 10, 40])
+
+    >>> get_from_series_by_index(s, [3, 7, 4])
+    Traceback (most recent call last):
+    ...
+    KeyError: 'Some indices do not exist'
+
+    >>> get_from_series_by_index(s, [3, 7, 4], strict=False)
+    array([30, 40])
     """
     r = series.reindex(ids)
     if strict:
         if r.isna().any():
-            raise KeyError("Some indices not exists")
+            raise KeyError("Some indices do not exist")
     else:
         r.dropna(inplace=True)
     selected = r.astype(series.dtype).values
