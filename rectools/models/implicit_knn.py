@@ -49,8 +49,8 @@ class ImplicitItemKNNWrapperModel(ModelBase):
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
-        iu_csr = dataset.get_user_item_matrix(include_weights=True).T.tocsr(copy=False)
-        self.model.fit(iu_csr, show_progress=self.verbose > 0)
+        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        self.model.fit(ui_csr, show_progress=self.verbose > 0)
 
     def _recommend_u2i(
         self,
@@ -97,16 +97,16 @@ class ImplicitItemKNNWrapperModel(ModelBase):
         if sorted_item_ids is not None:
             sorted_filtered_item_ids = sorted_item_ids[~fast_isin_for_sorted_test_elements(sorted_item_ids, viewed_ids)]
             n_items = user_items.shape[1]
-            reco_scores = self.model.recommend(user_id, user_items, N=n_items, filter_already_liked_items=False)
-            reco = np.array([r[0] for r in reco_scores])
-            scores = np.array([r[1] for r in reco_scores])
+            reco, scores = self.model.recommend(
+                user_id, user_items[user_id], N=n_items, filter_already_liked_items=False
+            )
             valid_items_mask = fast_isin_for_sorted_test_elements(reco, sorted_filtered_item_ids)
 
         else:
             n_items = k + viewed_ids.size
-            reco_scores = self.model.recommend(user_id, user_items, N=n_items, filter_already_liked_items=False)
-            reco = np.array([r[0] for r in reco_scores])
-            scores = np.array([r[1] for r in reco_scores])
+            reco, scores = self.model.recommend(
+                user_id, user_items[user_id], N=n_items, filter_already_liked_items=False
+            )
             valid_items_mask = fast_isin_for_sorted_test_elements(reco, viewed_ids, invert=True)
 
         reco = reco[valid_items_mask][:k]

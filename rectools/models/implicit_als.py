@@ -17,7 +17,8 @@ import warnings
 from copy import deepcopy
 
 import numpy as np
-from implicit.als import AlternatingLeastSquares
+from implicit.cpu.als import AlternatingLeastSquares as CpuAlternatingLeastSquares
+from implicit.gpu.als import AlternatingLeastSquares as GpuAlternatingLeastSquares
 from implicit.utils import check_random_state
 from scipy import sparse
 from tqdm.auto import tqdm
@@ -29,6 +30,7 @@ from .vector import Distance, Factors, VectorModel
 
 MAX_GPU_FACTORS = 1024
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
+AlternatingLeastSquares = tp.Union[CpuAlternatingLeastSquares, GpuAlternatingLeastSquares]
 
 
 class ImplicitALSWrapperModel(VectorModel):
@@ -56,7 +58,7 @@ class ImplicitALSWrapperModel(VectorModel):
     def __init__(self, model: AlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
         super().__init__(verbose=verbose)
 
-        if model.use_gpu and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
+        if isinstance(model, GpuAlternatingLeastSquares) and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
             raise ValueError(f"When using GPU max number of factors is {MAX_GPU_FACTORS}")
         self.model: AlternatingLeastSquares
         self._model = model  # for refit; TODO: try to do it better
@@ -139,7 +141,7 @@ def fit_als_with_features_separately(
         Combined latent and explicit user factors.
     """
     iu_csr = ui_csr.T.tocsr(copy=False)
-    model.fit(iu_csr, show_progress=verbose > 0)
+    model.fit(ui_csr, show_progress=verbose > 0)
 
     user_factors_chunks = [model.user_factors]
     item_factors_chunks = [model.item_factors]
@@ -162,7 +164,7 @@ def fit_als_with_features_separately(
 
 
 def _fit_paired_factors(model: AlternatingLeastSquares, xy_csr: sparse.csr_matrix, y_factors: np.ndarray) -> np.ndarray:
-    if model.use_gpu:  # pragma: no cover
+    if isinstance(model, GpuAlternatingLeastSquares):  # pragma: no cover
         paired_factors = _fit_paired_factors_on_gpu(model, xy_csr, y_factors)
     else:
         paired_factors = _fit_paired_factors_on_cpu(model, xy_csr, y_factors)
@@ -191,13 +193,13 @@ def _fit_paired_factors_on_gpu(
     y_factors: np.ndarray,
 ) -> np.ndarray:  # pragma: no cover
     try:
-        from implicit.cuda import (  # pylint: disable=import-outside-toplevel
+        from implicit.gpu import (  # pylint: disable=import-outside-toplevel
             CuCSRMatrix,
             CuDenseMatrix,
             CuLeastSquaresSolver,
         )
     except ImportError:
-        raise RuntimeError("implicit.cuda is not available")
+        raise RuntimeError("implicit.gpu is not available")
 
     n_factors = y_factors.shape[1]
     if n_factors > MAX_GPU_FACTORS:
@@ -264,7 +266,7 @@ def fit_als_with_features_together(
 
     # Fix number of factors
     n_factors_all = model.factors + n_user_explicit_factors + n_item_explicit_factors
-    if model.use_gpu and n_factors_all % 32:  # pragma: no cover
+    if isinstance(model, GpuAlternatingLeastSquares) and n_factors_all % 32:  # pragma: no cover
         padding = 32 - n_factors_all % 32
         warnings.warn(
             "GPU training requires number of factors to be a multiple of 32."
@@ -303,7 +305,7 @@ def fit_als_with_features_together(
     ).astype(model.dtype)
 
     ui_csr = ui_csr.astype(np.float32)
-    if model.use_gpu:  # pragma: no cover
+    if isinstance(model, GpuAlternatingLeastSquares):  # pragma: no cover
         _fit_combined_factors_on_gpu_inplace(
             model,
             ui_csr,
@@ -371,7 +373,7 @@ def _fit_combined_factors_on_gpu_inplace(
     verbose: int,
 ) -> None:  # pragma: no cover
     try:
-        from implicit.cuda import (  # pylint: disable=import-outside-toplevel
+        from implicit.gpu import (  # pylint: disable=import-outside-toplevel
             CuCSRMatrix,
             CuDenseMatrix,
             CuLeastSquaresSolver,

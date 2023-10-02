@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from implicit.als import AlternatingLeastSquares
-from implicit.cuda import HAS_CUDA
+from implicit.gpu import HAS_CUDA
 
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, IdMap, Interactions, SparseFeatures
