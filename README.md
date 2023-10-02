@@ -82,7 +82,7 @@ To install all requirements run
 ```
 make install
 ```
-You must have `python3` and `poetry` installed.
+You must have `python3` and `poetry>=1.4.0` installed.
 
 For autoformatting run 
 ```
