@@ -17,8 +17,8 @@ import warnings
 from copy import deepcopy
 
 import numpy as np
-from implicit.cpu.als import AlternatingLeastSquares as CpuAlternatingLeastSquares
-from implicit.gpu.als import AlternatingLeastSquares as GpuAlternatingLeastSquares
+from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
+from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
 from scipy import sparse
 from tqdm.auto import tqdm
@@ -30,7 +30,7 @@ from .vector import Distance, Factors, VectorModel
 
 MAX_GPU_FACTORS = 1024
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
-AlternatingLeastSquares = tp.Union[CpuAlternatingLeastSquares, GpuAlternatingLeastSquares]
+AlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
 
 
 class ImplicitALSWrapperModel(VectorModel):
@@ -61,12 +61,13 @@ class ImplicitALSWrapperModel(VectorModel):
         if fit_features_together:
             raise NotImplementedError("We temporarily do not support fitting features together")
 
-        if isinstance(model, GpuAlternatingLeastSquares) and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
+        if isinstance(model, GPUAlternatingLeastSquares) and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
             raise ValueError(f"When using GPU max number of factors is {MAX_GPU_FACTORS}")
         self.model: AlternatingLeastSquares
         self._model = model  # for refit; TODO: try to do it better
 
         self.fit_features_together = fit_features_together
+        self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
@@ -83,14 +84,28 @@ class ImplicitALSWrapperModel(VectorModel):
                 self.verbose,
             )
 
+        if self.use_gpu:
+            user_factors = Matrix(user_factors)
+            item_factors = Matrix(item_factors)
+
         self.model.user_factors = user_factors
         self.model.item_factors = item_factors
 
+    def _get_users_vectors(self, model: AlternatingLeastSquares) -> np.ndarray:
+        if self.use_gpu:
+            return model.user_factors.to_numpy()
+        return model.user_factors
+
+    def _get_items_vectors(self, model: AlternatingLeastSquares) -> np.ndarray:
+        if self.use_gpu:
+            return model.items_factors.to_numpy()
+        return model.items_factors
+
     def _get_users_factors(self, dataset: Dataset) -> Factors:
-        return Factors(self.model.user_factors)
+        return Factors(self._get_users_vectors(self.model))
 
     def _get_items_factors(self, dataset: Dataset) -> Factors:
-        return Factors(self.model.item_factors)
+        return Factors(self._get_items_vectors(self.model))
 
     def get_vectors(self) -> tp.Tuple[np.ndarray, np.ndarray]:
         """
@@ -104,7 +119,7 @@ class ImplicitALSWrapperModel(VectorModel):
         """
         if not self.is_fitted:
             raise NotFittedError(self.__class__.__name__)
-        return self.model.user_factors, self.model.item_factors
+        return self._get_users_vectors(self.model), self._get_items_vectors(self.model)
 
 
 def fit_als_with_features_separately(
@@ -140,8 +155,8 @@ def fit_als_with_features_separately(
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.fit(ui_csr, show_progress=verbose > 0)
 
-    user_factors_chunks = [model.user_factors]
-    item_factors_chunks = [model.item_factors]
+    user_factors_chunks = [self.get_users_vectors(model)]
+    item_factors_chunks = [self.get_items_vectors(model)]
 
     if user_features is not None:
         user_feature_factors = user_features.get_dense()
@@ -161,7 +176,7 @@ def fit_als_with_features_separately(
 
 
 def _fit_paired_factors(model: AlternatingLeastSquares, xy_csr: sparse.csr_matrix, y_factors: np.ndarray) -> np.ndarray:
-    feaures_model_params = dict(
+    features_model_params = dict(
         factors=y_factors.shape[1],
         regularization=model.regularization,
         alpha=model.alpha,
@@ -169,10 +184,14 @@ def _fit_paired_factors(model: AlternatingLeastSquares, xy_csr: sparse.csr_matri
         iterations=1,
         random_state=model.random_state
     )
-    if isinstance(model, GpuAlternatingLeastSquares):  # pragma: no cover
-        features_model = GpuAlternatingLeastSquares(**feaures_model_params)
+    if self.use_gpu:  # pragma: no cover
+        features_model = GPUAlternatingLeastSquares(**features_model_params)
+        features_model.item_factors = Matrix(y_factors)
+        features_model.fit(xy_csr)
+        x_factors = features_model.user_factors.to_numpy()
     else:
-        features_model = CpuAlternatingLeastSquares(**feaures_model_params)  
-    features_model.item_factors = y_factors
-    features_model.fit(xy_csr)
-    return features_model.user_factors
+        features_model = CPUAlternatingLeastSquares(**features_model_params)
+        features_model.item_factors = y_factors
+        features_model.fit(xy_csr)
+        x_factors = features_model.user_factors
+    return x_factors
