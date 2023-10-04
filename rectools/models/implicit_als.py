@@ -82,7 +82,7 @@ class ImplicitALSWrapperModel(VectorModel):
             self.verbose,
         )
 
-        if self.use_gpu:
+        if self.use_gpu:  # pragma: no cover
             user_factors = implicit.gpu.Matrix(user_factors)
             item_factors = implicit.gpu.Matrix(item_factors)
 
@@ -124,7 +124,7 @@ def get_users_vectors(model: AnyAlternatingLeastSquares) -> np.ndarray:
     np.ndarray
        User vectors
     """
-    if isinstance(model, GPUAlternatingLeastSquares):
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         return model.user_factors.to_numpy()
     return model.user_factors
 
@@ -143,7 +143,7 @@ def get_items_vectors(model: AnyAlternatingLeastSquares) -> np.ndarray:
     np.ndarray
         Item vectors
     """
-    if isinstance(model, GPUAlternatingLeastSquares):
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         return model.item_factors.to_numpy()
     return model.item_factors
 
