@@ -86,7 +86,7 @@ You must have `python3` and `poetry==1.4.0` installed.
 
 For autoformatting run 
 ```
-make autoformat
+make format
 ```
 
 For linters check run 

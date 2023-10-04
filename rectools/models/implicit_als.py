@@ -201,7 +201,9 @@ def fit_als_with_features_separately(
     return user_factors, item_factors
 
 
-def _fit_paired_factors(model: AnyAlternatingLeastSquares, xy_csr: sparse.csr_matrix, y_factors: np.ndarray) -> np.ndarray:
+def _fit_paired_factors(
+    model: AnyAlternatingLeastSquares, xy_csr: sparse.csr_matrix, y_factors: np.ndarray
+) -> np.ndarray:
     features_model_params = {
         "factors": y_factors.shape[1],
         "regularization": model.regularization,
