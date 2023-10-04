@@ -14,16 +14,18 @@
 
 import typing as tp
 
+import implicit.gpu
 import numpy as np
 import pandas as pd
 import pytest
 from implicit.als import AlternatingLeastSquares
-from implicit.cuda import HAS_CUDA
+from implicit.gpu import HAS_CUDA
 
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, IdMap, Interactions, SparseFeatures
 from rectools.exceptions import NotFittedError
 from rectools.models import ImplicitALSWrapperModel
+from rectools.models.implicit_als import AnyAlternatingLeastSquares, GPUAlternatingLeastSquares
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET
@@ -34,13 +36,20 @@ from .utils import assert_second_fit_refits_model
 @pytest.mark.parametrize("use_gpu", (False, True) if HAS_CUDA else (False,))
 class TestImplicitALSWrapperModel:
     @staticmethod
-    def _init_model_factors_inplace(model: AlternatingLeastSquares, dataset: Dataset) -> None:
+    def _init_model_factors_inplace(model: AnyAlternatingLeastSquares, dataset: Dataset) -> None:
         """Init factors to make the test deterministic"""
         n_factors = model.factors
         n_users = dataset.user_id_map.to_internal.size
         n_items = dataset.item_id_map.to_internal.size
-        model.user_factors = np.linspace(0.1, 0.5, n_users * n_factors).reshape(n_users, n_factors)
-        model.item_factors = np.linspace(0.1, 0.5, n_items * n_factors).reshape(n_items, n_factors)
+        user_factors = np.linspace(0.1, 0.5, n_users * n_factors, dtype=np.float32).reshape(n_users, n_factors)
+        item_factors = np.linspace(0.1, 0.5, n_items * n_factors, dtype=np.float32).reshape(n_items, n_factors)
+
+        if isinstance(model, GPUAlternatingLeastSquares):
+            user_factors = implicit.gpu.Matrix(user_factors)
+            item_factors = implicit.gpu.Matrix(item_factors)
+
+        model.user_factors = user_factors
+        model.item_factors = item_factors
 
     @pytest.fixture
     def dataset(self) -> Dataset:
@@ -71,7 +80,8 @@ class TestImplicitALSWrapperModel:
             ),
         ),
     )
-    @pytest.mark.parametrize("fit_features_together", (True, False))
+    # `True` option for `fit_features_together` must be added after we develop support for it
+    @pytest.mark.parametrize("fit_features_together", (False,))
     def test_basic(
         self,
         dataset: Dataset,
@@ -142,16 +152,6 @@ class TestImplicitALSWrapperModel:
     @pytest.mark.parametrize(
         "fit_features_together,expected",
         (
-            (
-                True,
-                pd.DataFrame(
-                    {
-                        Columns.User: ["u1", "u1", "u2", "u3", "u3"],
-                        Columns.Item: ["i2", "i4", "i4", "i3", "i2"],
-                        Columns.Rank: [1, 2, 1, 1, 2],
-                    }
-                ),
-            ),
             (
                 False,
                 pd.DataFrame(
