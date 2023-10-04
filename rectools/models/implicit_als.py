@@ -28,7 +28,7 @@ from .vector import Distance, Factors, VectorModel
 
 MAX_GPU_FACTORS = 1024
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
-AlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
 
 
 class ImplicitALSWrapperModel(VectorModel):
@@ -40,7 +40,7 @@ class ImplicitALSWrapperModel(VectorModel):
 
     Parameters
     ----------
-    model : AlternatingLeastSquares
+    model : AnyAlternatingLeastSquares
         Base model that will be used.
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
@@ -53,7 +53,7 @@ class ImplicitALSWrapperModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
-    def __init__(self, model: AlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
+    def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
         super().__init__(verbose=verbose)
 
         if fit_features_together:
@@ -61,7 +61,7 @@ class ImplicitALSWrapperModel(VectorModel):
 
         if isinstance(model, GPUAlternatingLeastSquares) and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
             raise ValueError(f"When using GPU max number of factors is {MAX_GPU_FACTORS}")
-        self.model: AlternatingLeastSquares
+        self.model: AnyAlternatingLeastSquares
         self._model = model  # for refit; TODO: try to do it better
 
         self.fit_features_together = fit_features_together
@@ -110,13 +110,13 @@ class ImplicitALSWrapperModel(VectorModel):
         return get_users_vectors(self.model), get_items_vectors(self.model)
 
 
-def get_users_vectors(model: AlternatingLeastSquares) -> np.ndarray:
+def get_users_vectors(model: AnyAlternatingLeastSquares) -> np.ndarray:
     """
     Get users vectors from ALS model as numpy array
 
     Parameters
     ----------
-    model : AlternatingLeastSquares
+    model : AnyAlternatingLeastSquares
         Model to get vectors from. Can be CPU or GPU model
 
     Returns
@@ -129,13 +129,13 @@ def get_users_vectors(model: AlternatingLeastSquares) -> np.ndarray:
     return model.user_factors
 
 
-def get_items_vectors(model: AlternatingLeastSquares) -> np.ndarray:
+def get_items_vectors(model: AnyAlternatingLeastSquares) -> np.ndarray:
     """
     Get items vectors from ALS model as numpy array
 
     Parameters
     ----------
-    model : AlternatingLeastSquares
+    model : AnyAlternatingLeastSquares
         Model to get vectors from. Can be CPU or GPU model
 
     Returns
@@ -149,7 +149,7 @@ def get_items_vectors(model: AlternatingLeastSquares) -> np.ndarray:
 
 
 def fit_als_with_features_separately(
-    model: AlternatingLeastSquares,
+    model: AnyAlternatingLeastSquares,
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
@@ -160,7 +160,7 @@ def fit_als_with_features_separately(
 
     Parameters
     ----------
-    model: AlternatingLeastSquares
+    model: AnyAlternatingLeastSquares
         Base model to fit.
     ui_csr : sparse.csr_matrix
         Matrix of interactions.
@@ -201,7 +201,7 @@ def fit_als_with_features_separately(
     return user_factors, item_factors
 
 
-def _fit_paired_factors(model: AlternatingLeastSquares, xy_csr: sparse.csr_matrix, y_factors: np.ndarray) -> np.ndarray:
+def _fit_paired_factors(model: AnyAlternatingLeastSquares, xy_csr: sparse.csr_matrix, y_factors: np.ndarray) -> np.ndarray:
     features_model_params = {
         "factors": y_factors.shape[1],
         "regularization": model.regularization,
