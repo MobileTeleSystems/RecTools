@@ -15,9 +15,9 @@
 import typing as tp
 from copy import deepcopy
 
+import implicit.gpu
 import numpy as np
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
-import implicit.gpu
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from scipy import sparse
 
