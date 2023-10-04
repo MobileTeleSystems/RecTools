@@ -9,25 +9,25 @@ on:
 
 
 jobs:
-  # lint:
-  #   runs-on: ubuntu-22.04
+  lint:
+    runs-on: ubuntu-22.04
 
-  #   steps:
-  #     - uses: actions/checkout@v2
+    steps:
+      - uses: actions/checkout@v2
 
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v2
-  #       with:
-  #         python-version: 3.8
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
 
-  #     - name: Install poetry
-  #       run: pip install urllib3==1.26.15 poetry==1.4.0
+      - name: Install poetry
+        run: pip install urllib3==1.26.15 poetry==1.4.0
 
-  #     - name: Install dependencies
-  #       run: make install
+      - name: Install dependencies
+        run: make install
 
-  #     - name: Static analysis
-  #       run: make lint
+      - name: Static analysis
+        run: make lint
 
   test:
     name: test (${{ matrix.python-version }}, old-deps - ${{ matrix.old-deps }})
@@ -35,12 +35,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # python-version: [ "3.7", "3.8", "3.9", "3.10" ]
-        python-version: [ "3.10" ]
+        python-version: [ "3.7", "3.8", "3.9", "3.10" ]
         old-deps: [ "false" ]
-        # include:
-        #   - python-version: "3.7"
-        #     old-deps: "true"
+        include:
+          - python-version: "3.7"
+            old-deps: "true"
 
     steps:
       - uses: actions/checkout@v2

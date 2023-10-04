@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `F1beta`, `MCC (Matthew correlation coefficient)` to `metrics` ([#32](https://github.com/MobileTeleSystems/RecTools/pull/32))
 - Added `LastNSplitter` to `model_selection` ([#33](https://github.com/MobileTeleSystems/RecTools/pull/32))
 - Added random `KFoldSplitter` to `model_selection` ([#31](https://github.com/MobileTeleSystems/RecTools/pull/31))
-- 
+- Support for `Python 3.10` ([#47](https://github.com/MobileTeleSystems/RecTools/pull/47))
 
 ### Changed
 - Bumped `implicit` version to 0.7.1 ([#45](https://github.com/MobileTeleSystems/RecTools/pull/45))
