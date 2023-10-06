@@ -80,8 +80,7 @@ class TestImplicitALSWrapperModel:
             ),
         ),
     )
-    # `True` option for `fit_features_together` must be added after we develop support for it
-    @pytest.mark.parametrize("fit_features_together", (False,))
+    @pytest.mark.parametrize("fit_features_together", (False, True))
     def test_basic(
         self,
         dataset: Dataset,

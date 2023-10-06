@@ -19,14 +19,15 @@ import implicit.gpu
 import numpy as np
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
+from implicit.utils import check_random_state
 from scipy import sparse
+from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 
 from .vector import Distance, Factors, VectorModel
 
-MAX_GPU_FACTORS = 1024
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
 
@@ -56,11 +57,6 @@ class ImplicitALSWrapperModel(VectorModel):
     def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
         super().__init__(verbose=verbose)
 
-        if fit_features_together:
-            raise NotImplementedError("We temporarily do not support fitting features together")
-
-        if isinstance(model, GPUAlternatingLeastSquares) and model.factors > MAX_GPU_FACTORS:  # pragma: no cover
-            raise ValueError(f"When using GPU max number of factors is {MAX_GPU_FACTORS}")
         self.model: AnyAlternatingLeastSquares
         self._model = model  # for refit; TODO: try to do it better
 
@@ -69,22 +65,24 @@ class ImplicitALSWrapperModel(VectorModel):
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
-        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
 
         if self.fit_features_together:
-            raise NotImplementedError("We temporarily do not support fitting features together")
-
-        user_factors, item_factors = fit_als_with_features_separately(
-            self.model,
-            ui_csr,
-            dataset.user_features,
-            dataset.item_features,
-            self.verbose,
-        )
-
-        if self.use_gpu:  # pragma: no cover
-            user_factors = implicit.gpu.Matrix(user_factors)
-            item_factors = implicit.gpu.Matrix(item_factors)
+            user_factors, item_factors = fit_als_with_features_together(
+                self.model,
+                ui_csr,
+                dataset.user_features,
+                dataset.item_features,
+                self.verbose,
+            )
+        else:
+            user_factors, item_factors = fit_als_with_features_separately(
+                self.model,
+                ui_csr,
+                dataset.user_features,
+                dataset.item_features,
+                self.verbose,
+            )
 
         self.model.user_factors = user_factors
         self.model.item_factors = item_factors
@@ -174,9 +172,9 @@ def fit_als_with_features_separately(
     Returns
     -------
     user_factors : np.ndarray
-        Combined latent and explicit user factors.
+        Combined latent, explicit user factors and paired item factors.
     item_factors : np.ndarray
-        Combined latent and explicit user factors.
+        Combined latent, paired user factors and explicit item factors.
     """
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.fit(ui_csr, show_progress=verbose > 0)
@@ -198,6 +196,10 @@ def fit_als_with_features_separately(
 
     user_factors = np.hstack(user_factors_chunks)
     item_factors = np.hstack(item_factors_chunks)
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
+        user_factors = implicit.gpu.Matrix(user_factors)
+        item_factors = implicit.gpu.Matrix(item_factors)
+
     return user_factors, item_factors
 
 
@@ -223,3 +225,204 @@ def _fit_paired_factors(
         features_model.fit(xy_csr)
         x_factors = features_model.user_factors
     return x_factors
+
+
+def fit_als_with_features_together(
+    model: AnyAlternatingLeastSquares,
+    ui_csr: sparse.csr_matrix,
+    user_features: tp.Optional[Features],
+    item_features: tp.Optional[Features],
+    verbose: int = 0,
+) -> tp.Tuple[np.ndarray, np.ndarray]:
+    """
+    Fit ALS model with explicit features, explicit features fit together with latent.
+
+    Parameters
+    ----------
+    model: AnyAlternatingLeastSquares
+        Base model to fit.
+    ui_csr : sparse.csr_matrix
+        Matrix of interactions.
+    user_features : (SparseFeatures | DenseFeatures), optional
+        Explicit user features.
+    item_features : (SparseFeatures | DenseFeatures), optional
+        Explicit item features.
+    verbose : int
+         Whether to print output.
+
+    Returns
+    -------
+    user_factors : np.ndarray
+        Combined explicit user factors, latent factors and user factors paired to items.
+    item_factors : np.ndarray
+        Combined item factors paired to users, latent factors and explicit item factors.
+    """
+    n_users, n_items = ui_csr.shape
+
+    # Prepare explicit factors
+    user_explicit_factors: np.ndarray
+    if user_features is None:
+        user_explicit_factors = np.array([]).reshape((n_users, 0))
+    else:
+        user_explicit_factors = user_features.get_dense()
+    n_user_explicit_factors = user_explicit_factors.shape[1]
+
+    item_explicit_factors: np.ndarray
+    if item_features is None:
+        item_explicit_factors = np.array([]).reshape((n_items, 0))
+    else:
+        item_explicit_factors = item_features.get_dense()
+    n_item_explicit_factors = item_explicit_factors.shape[1]
+
+    # Fix number of factors
+    n_latent_factors = model.factors
+    model.factors = n_latent_factors + n_user_explicit_factors + n_item_explicit_factors
+
+    # Prepare latent factors with the same math logic as in implicit library
+    random_state = check_random_state(model.random_state)
+    if isinstance(model, GPUAlternatingLeastSquares):
+        user_latent_factors = random_state.uniform(
+            low=-0.5 / n_latent_factors, high=0.5 / n_latent_factors, size=(n_users, n_latent_factors)
+        )
+        item_latent_factors = random_state.uniform(
+            low=-0.5 / n_latent_factors, high=0.5 / n_latent_factors, size=(n_items, n_latent_factors)
+        )
+    else:
+        user_latent_factors = random_state.random((n_users, n_latent_factors)) * 0.01
+        item_latent_factors = random_state.random((n_items, n_latent_factors)) * 0.01
+
+    # Prepare paired factors
+    user_factors_paired_to_items = np.zeros((n_users, n_item_explicit_factors))
+    item_factors_paired_to_users = np.zeros((n_items, n_user_explicit_factors))
+
+    # Make full factors
+    user_factors = np.hstack(
+        (
+            user_explicit_factors,
+            user_latent_factors,
+            user_factors_paired_to_items,
+        )
+    ).astype(model.dtype)
+    item_factors = np.hstack(
+        (
+            item_factors_paired_to_users,
+            item_latent_factors,
+            item_explicit_factors,
+        )
+    ).astype(model.dtype)
+
+    # Give the positive examples more weight if asked for
+    if model.alpha != 1.0:
+        ui_csr = model.alpha * ui_csr
+
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
+        _fit_combined_factors_on_gpu_inplace(
+            model,
+            ui_csr,
+            user_factors,
+            item_factors,
+            n_user_explicit_factors,
+            n_item_explicit_factors,
+            verbose,
+        )
+    else:
+        _fit_combined_factors_on_cpu_inplace(
+            model,
+            ui_csr,
+            user_factors,
+            item_factors,
+            n_user_explicit_factors,
+            n_item_explicit_factors,
+            verbose,
+        )
+
+    return user_factors, item_factors
+
+
+def _fit_combined_factors_on_cpu_inplace(
+    model: CPUAlternatingLeastSquares,
+    ui_csr: sparse.csr_matrix,
+    user_factors: np.ndarray,
+    item_factors: np.ndarray,
+    n_user_explicit_factors: int,
+    n_item_explicit_factors: int,
+    verbose: int,
+) -> None:
+    n_factors = user_factors.shape[1]
+    user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
+    item_explicit_factors = item_factors[:, n_factors - n_item_explicit_factors :].copy()
+    iu_csr = ui_csr.T.tocsr(copy=False)
+
+    # invalidate cached norms and squared factors
+    model._item_norms = model._user_norms = None  # pylint: disable=protected-access
+    model._YtY = None  # pylint: disable=protected-access
+    model._XtX = None  # pylint: disable=protected-access
+
+    solver = model.solver
+
+    for _ in tqdm(range(model.iterations), disable=verbose == 0):
+
+        solver(
+            ui_csr,
+            user_factors,
+            item_factors,
+            model.regularization,
+            model.num_threads,
+        )
+        user_factors[:, :n_user_explicit_factors] = user_explicit_factors
+
+        solver(
+            iu_csr,
+            item_factors,
+            user_factors,
+            model.regularization,
+            model.num_threads,
+        )
+        item_factors[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
+
+
+def _fit_combined_factors_on_gpu_inplace(
+    model: GPUAlternatingLeastSquares,
+    ui_csr: sparse.csr_matrix,
+    user_factors: np.ndarray,
+    item_factors: np.ndarray,
+    n_user_explicit_factors: int,
+    n_item_explicit_factors: int,
+    verbose: int,
+) -> None:
+    n_factors = user_factors.shape[1]
+    user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
+    item_explicit_factors = item_factors[:, n_factors - n_item_explicit_factors :].copy()
+    iu_csr = ui_csr.T.tocsr(copy=False)
+
+    iu_csr_cuda = implicit.gpu.CSRMatrix(iu_csr)
+    ui_csr_cuda = implicit.gpu.CSRMatrix(ui_csr)
+    X = implicit.gpu.Matrix(user_factors)
+    Y = implicit.gpu.Matrix(item_factors)
+
+    model.user_factors = X
+    model.item_factors = Y
+
+    # invalidate cached norms and squared factors
+    model._item_norms = model._user_norms = None  # pylint: disable=protected-access
+    model._item_norms_host = model._user_norms_host = None  # pylint: disable=protected-access
+    model._YtY = model._XtX = None  # pylint: disable=protected-access
+
+    _YtY = implicit.gpu.Matrix.zeros(model.factors, model.factors)
+    _XtX = implicit.gpu.Matrix.zeros(model.factors, model.factors)
+
+    for _ in tqdm(range(model.iterations), disable=verbose == 0):
+
+        model.solver.calculate_yty(Y, _YtY, model.regularization)
+        model.solver.least_squares(ui_csr_cuda, X, _YtY, Y, model.cg_steps)
+
+        user_factors_np = X.to_numpy()
+        user_factors_np[:, :n_user_explicit_factors] = user_explicit_factors
+        X = implicit.gpu.Matrix(user_factors_np)
+
+        model.solver.calculate_yty(X, _XtX, model.regularization)
+        model.solver.least_squares(iu_csr_cuda, Y, _XtX, X, model.cg_steps)
+
+        item_factors_np = Y.to_numpy()
+        item_factors_np[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
+        Y = implicit.gpu.Matrix(item_factors_np)
