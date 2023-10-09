@@ -199,7 +199,6 @@ def fit_als_with_features_separately(
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         user_factors = implicit.gpu.Matrix(user_factors)
         item_factors = implicit.gpu.Matrix(item_factors)
-
     return user_factors, item_factors
 
 
@@ -213,6 +212,7 @@ def _fit_paired_factors(
         "dtype": model.dtype,
         "iterations": 1,
         "random_state": model.random_state,
+        "num_threads": model.num_threads,
     }
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         features_model = GPUAlternatingLeastSquares(**features_model_params)
