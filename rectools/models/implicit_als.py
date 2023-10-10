@@ -323,7 +323,7 @@ def fit_als_with_features_together(
         ui_csr = model.alpha * ui_csr
 
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-        _fit_combined_factors_on_gpu_inplace(
+        user_factors, item_factors = _fit_combined_factors_on_gpu(
             model,
             ui_csr,
             user_factors,
@@ -388,7 +388,7 @@ def _fit_combined_factors_on_cpu_inplace(
         item_factors[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
 
 
-def _fit_combined_factors_on_gpu_inplace(
+def _fit_combined_factors_on_gpu(
     model: GPUAlternatingLeastSquares,
     ui_csr: sparse.csr_matrix,
     user_factors: np.ndarray,
@@ -396,7 +396,7 @@ def _fit_combined_factors_on_gpu_inplace(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
-) -> None:
+) -> tp.Tuple[implicit.gpu.Matrix, implicit.gpu.Matrix]:
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
     item_explicit_factors = item_factors[:, n_factors - n_item_explicit_factors :].copy()
@@ -406,9 +406,6 @@ def _fit_combined_factors_on_gpu_inplace(
     ui_csr_cuda = implicit.gpu.CSRMatrix(ui_csr)
     X = implicit.gpu.Matrix(user_factors)
     Y = implicit.gpu.Matrix(item_factors)
-
-    user_factors = X
-    item_factors = Y
 
     # invalidate cached norms and squared factors
     model._item_norms = model._user_norms = None  # pylint: disable=protected-access
@@ -433,3 +430,5 @@ def _fit_combined_factors_on_gpu_inplace(
         item_factors_np = Y.to_numpy()
         item_factors_np[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
         Y = implicit.gpu.Matrix(item_factors_np)
+
+    return X, Y
