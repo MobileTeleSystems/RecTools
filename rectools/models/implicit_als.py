@@ -212,7 +212,6 @@ def _fit_paired_factors(
         "dtype": model.dtype,
         "iterations": 1,
         "random_state": model.random_state,
-        "num_threads": model.num_threads,
     }
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         features_model = GPUAlternatingLeastSquares(**features_model_params)
@@ -220,6 +219,13 @@ def _fit_paired_factors(
         features_model.fit(xy_csr)
         x_factors = features_model.user_factors.to_numpy()
     else:
+        features_model_params.update(
+            {
+                "num_threads": model.num_threads,
+                "use_native": model.use_native,
+                "use_cg": model.use_cg,
+            }
+        )
         features_model = CPUAlternatingLeastSquares(**features_model_params)
         features_model.item_factors = y_factors
         features_model.fit(xy_csr)
