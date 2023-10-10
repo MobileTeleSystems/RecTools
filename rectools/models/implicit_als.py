@@ -172,9 +172,9 @@ def fit_als_with_features_separately(
 
     Returns
     -------
-    user_factors : np.ndarray
+    user_factors : TrainedFactors
         Combined latent, explicit user factors and paired item factors.
-    item_factors : np.ndarray
+    item_factors : TrainedFactors
         Combined latent, paired user factors and explicit item factors.
     """
     iu_csr = ui_csr.T.tocsr(copy=False)
@@ -259,9 +259,9 @@ def fit_als_with_features_together(
 
     Returns
     -------
-    user_factors : np.ndarray
+    user_factors : TrainedFactors
         Combined explicit user factors, latent factors and user factors paired to items.
-    item_factors : np.ndarray
+    item_factors : TrainedFactors
         Combined item factors paired to users, latent factors and explicit item factors.
     """
     n_users, n_items = ui_csr.shape
