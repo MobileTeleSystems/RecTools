@@ -30,6 +30,7 @@ from .vector import Distance, Factors, VectorModel
 
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+TrainedFactors = tp.Union[np.ndarray, implicit.gpu.Matrix]
 
 
 class ImplicitALSWrapperModel(VectorModel):
@@ -152,7 +153,7 @@ def fit_als_with_features_separately(
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
     verbose: int = 0,
-) -> tp.Tuple[np.ndarray, np.ndarray]:
+) -> tp.Tuple[TrainedFactors, TrainedFactors]:
     """
     Fit ALS model with explicit features, explicit features fit separately from latent.
 
@@ -239,7 +240,7 @@ def fit_als_with_features_together(
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
     verbose: int = 0,
-) -> tp.Tuple[np.ndarray, np.ndarray]:
+) -> tp.Tuple[TrainedFactors, TrainedFactors]:
     """
     Fit ALS model with explicit features, explicit features fit together with latent.
 
@@ -406,8 +407,8 @@ def _fit_combined_factors_on_gpu_inplace(
     X = implicit.gpu.Matrix(user_factors)
     Y = implicit.gpu.Matrix(item_factors)
 
-    model.user_factors = X
-    model.item_factors = Y
+    user_factors = X
+    item_factors = Y
 
     # invalidate cached norms and squared factors
     model._item_norms = model._user_norms = None  # pylint: disable=protected-access
