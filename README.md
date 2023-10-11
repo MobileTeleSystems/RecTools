@@ -2,11 +2,11 @@
 
 [![Python versions](https://img.shields.io/pypi/pyversions/rectools.svg)](https://pypi.org/project/rectools)
 [![PyPI](https://img.shields.io/pypi/v/rectools.svg)](https://pypi.org/project/rectools)
-[![Docs](https://img.shields.io/github/workflow/status/MobileTeleSystems/RecTools/Publish?label=docs)](https://rectools.readthedocs.io)
+[![Docs](https://img.shields.io/github/actions/workflow/status/MobileTeleSystems/RecTools/publish.yml?label=docs)](https://rectools.readthedocs.io)
 
 [![License](https://img.shields.io/github/license/MobileTeleSystems/RecTools.svg)](https://github.com/MobileTeleSystems/RecTools/blob/main/LICENSE)
 [![Coverage](https://img.shields.io/codecov/c/github/MobileTeleSystems/RecTools.svg)](https://app.codecov.io/gh/MobileTeleSystems/RecTools)
-[![Tests](https://img.shields.io/github/workflow/status/MobileTeleSystems/RecTools/Test/main?label=tests)](https://github.com/MobileTeleSystems/RecTools/actions/workflows/test.yml?query=branch%3Amain++)
+[![Tests](https://img.shields.io/github/actions/workflow/status/MobileTeleSystems/RecTools/test.yml?branch=main&label=tests)](https://github.com/MobileTeleSystems/RecTools/actions/workflows/test.yml?query=branch%3Amain++)
 
 [![Contributors](https://img.shields.io/github/contributors/MobileTeleSystems/RecTools.svg)](https://github.com/MobileTeleSystems/RecTools/graphs/contributors)
 [![Telegram](https://img.shields.io/badge/channel-telegram-blue)](https://t.me/RecTools_Support)
