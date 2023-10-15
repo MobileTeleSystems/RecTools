@@ -30,7 +30,6 @@ from .vector import Distance, Factors, VectorModel
 
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
-TrainedFactors = tp.Union[np.ndarray, implicit.gpu.Matrix]
 
 
 class ImplicitALSWrapperModel(VectorModel):
@@ -69,7 +68,7 @@ class ImplicitALSWrapperModel(VectorModel):
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
 
         if self.fit_features_together:
-            user_factors, item_factors = fit_als_with_features_together(
+            fit_als_with_features_together_inplace(
                 self.model,
                 ui_csr,
                 dataset.user_features,
@@ -77,16 +76,13 @@ class ImplicitALSWrapperModel(VectorModel):
                 self.verbose,
             )
         else:
-            user_factors, item_factors = fit_als_with_features_separately(
+            fit_als_with_features_separately_inplace(
                 self.model,
                 ui_csr,
                 dataset.user_features,
                 dataset.item_features,
                 self.verbose,
             )
-
-        self.model.user_factors = user_factors
-        self.model.item_factors = item_factors
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
         return Factors(get_users_vectors(self.model))
@@ -147,13 +143,13 @@ def get_items_vectors(model: AnyAlternatingLeastSquares) -> np.ndarray:
     return model.item_factors
 
 
-def fit_als_with_features_separately(
+def fit_als_with_features_separately_inplace(
     model: AnyAlternatingLeastSquares,
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
     verbose: int = 0,
-) -> tp.Tuple[TrainedFactors, TrainedFactors]:
+) -> None:
     """
     Fit ALS model with explicit features, explicit features fit separately from latent.
 
@@ -169,13 +165,6 @@ def fit_als_with_features_separately(
         Explicit item features.
     verbose : int
          Whether to print output.
-
-    Returns
-    -------
-    user_factors : TrainedFactors
-        Combined latent, explicit user factors and paired item factors.
-    item_factors : TrainedFactors
-        Combined latent, paired user factors and explicit item factors.
     """
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.fit(ui_csr, show_progress=verbose > 0)
@@ -197,10 +186,13 @@ def fit_als_with_features_separately(
 
     user_factors = np.hstack(user_factors_chunks)
     item_factors = np.hstack(item_factors_chunks)
+
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         user_factors = implicit.gpu.Matrix(user_factors)
         item_factors = implicit.gpu.Matrix(item_factors)
-    return user_factors, item_factors
+
+    model.user_factors = user_factors
+    model.item_factors = item_factors
 
 
 def _fit_paired_factors(
@@ -234,13 +226,13 @@ def _fit_paired_factors(
     return x_factors
 
 
-def fit_als_with_features_together(
+def fit_als_with_features_together_inplace(
     model: AnyAlternatingLeastSquares,
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
     verbose: int = 0,
-) -> tp.Tuple[TrainedFactors, TrainedFactors]:
+) -> None:
     """
     Fit ALS model with explicit features, explicit features fit together with latent.
 
@@ -256,13 +248,6 @@ def fit_als_with_features_together(
         Explicit item features.
     verbose : int
          Whether to print output.
-
-    Returns
-    -------
-    user_factors : TrainedFactors
-        Combined explicit user factors, latent factors and user factors paired to items.
-    item_factors : TrainedFactors
-        Combined item factors paired to users, latent factors and explicit item factors.
     """
     n_users, n_items = ui_csr.shape
 
@@ -323,7 +308,7 @@ def fit_als_with_features_together(
         ui_csr = model.alpha * ui_csr
 
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-        user_factors, item_factors = _fit_combined_factors_on_gpu(
+        _fit_combined_factors_on_gpu_inplace(
             model,
             ui_csr,
             user_factors,
@@ -342,8 +327,6 @@ def fit_als_with_features_together(
             n_item_explicit_factors,
             verbose,
         )
-
-    return user_factors, item_factors
 
 
 def _fit_combined_factors_on_cpu_inplace(
@@ -387,8 +370,11 @@ def _fit_combined_factors_on_cpu_inplace(
         )
         item_factors[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
 
+    model.user_factors = user_factors
+    model.item_factors = item_factors
 
-def _fit_combined_factors_on_gpu(
+
+def _fit_combined_factors_on_gpu_inplace(
     model: GPUAlternatingLeastSquares,
     ui_csr: sparse.csr_matrix,
     user_factors: np.ndarray,
@@ -396,7 +382,7 @@ def _fit_combined_factors_on_gpu(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
-) -> tp.Tuple[implicit.gpu.Matrix, implicit.gpu.Matrix]:
+) -> None:
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
     item_explicit_factors = item_factors[:, n_factors - n_item_explicit_factors :].copy()
@@ -431,4 +417,5 @@ def _fit_combined_factors_on_gpu(
         item_factors_np[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
         Y = implicit.gpu.Matrix(item_factors_np)
 
-    return X, Y
+    model.user_factors = X
+    model.item_factors = Y
