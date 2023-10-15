@@ -226,6 +226,40 @@ def _fit_paired_factors(
     return x_factors
 
 
+def _init_latent_factors_cpu(
+    model: CPUAlternatingLeastSquares, n_users: int, n_items: int
+) -> tp.Tuple[np.ndarray, np.ndarray]:
+    random_state = check_random_state(model.random_state)
+    if model.user_factors is None:
+        user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
+    else:
+        user_latent_factors = model.user_factors
+    if model.item_factors is None:
+        item_latent_factors = random_state.random((n_items, model.factors)) * 0.01
+    else:
+        item_latent_factors = model.item_factors
+    return user_latent_factors, item_latent_factors
+
+
+def _init_latent_factors_gpu(
+    model: GPUAlternatingLeastSquares, n_users: int, n_items: int
+) -> tp.Tuple[np.ndarray, np.ndarray]:
+    random_state = check_random_state(model.random_state)
+    if model.user_factors is None:
+        user_latent_factors = random_state.uniform(
+            low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_users, model.factors)
+        )
+    else:
+        user_latent_factors = model.user_factors.to_numpy()
+    if model.item_factors is None:
+        item_latent_factors = random_state.uniform(
+            low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_items, model.factors)
+        )
+    else:
+        item_latent_factors = model.item_factors.to_numpy()
+    return user_latent_factors, item_latent_factors
+
+
 def fit_als_with_features_together_inplace(
     model: AnyAlternatingLeastSquares,
     ui_csr: sparse.csr_matrix,
@@ -266,22 +300,15 @@ def fit_als_with_features_together_inplace(
         item_explicit_factors = item_features.get_dense()
     n_item_explicit_factors = item_explicit_factors.shape[1]
 
+    # Prepare latent factors with the same math logic as in implicit library
+    if isinstance(model, GPUAlternatingLeastSquares):
+        user_latent_factors, item_latent_factors = _init_latent_factors_gpu(model, n_users, n_items)
+    else:
+        user_latent_factors, item_latent_factors = _init_latent_factors_cpu(model, n_users, n_items)
+
     # Fix number of factors
     n_latent_factors = model.factors
     model.factors = n_latent_factors + n_user_explicit_factors + n_item_explicit_factors
-
-    # Prepare latent factors with the same math logic as in implicit library
-    random_state = check_random_state(model.random_state)
-    if isinstance(model, GPUAlternatingLeastSquares):
-        user_latent_factors = random_state.uniform(
-            low=-0.5 / n_latent_factors, high=0.5 / n_latent_factors, size=(n_users, n_latent_factors)
-        )
-        item_latent_factors = random_state.uniform(
-            low=-0.5 / n_latent_factors, high=0.5 / n_latent_factors, size=(n_items, n_latent_factors)
-        )
-    else:
-        user_latent_factors = random_state.random((n_users, n_latent_factors)) * 0.01
-        item_latent_factors = random_state.random((n_items, n_latent_factors)) * 0.01
 
     # Prepare paired factors
     user_factors_paired_to_items = np.zeros((n_users, n_item_explicit_factors))
