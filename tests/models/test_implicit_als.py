@@ -107,8 +107,7 @@ class TestImplicitALSWrapperModel:
 
     @pytest.mark.parametrize("fit_features_together", (False, True))
     def test_consistent_with_pure_implicit(self, dataset: Dataset, fit_features_together: bool, use_gpu: bool) -> None:
-        base_model = AlternatingLeastSquares(factors=10, num_threads=2, iterations=30, use_gpu=use_gpu)
-        self._init_model_factors_inplace(base_model, dataset)
+        base_model = AlternatingLeastSquares(factors=10, num_threads=2, iterations=30, use_gpu=use_gpu, random_state=32)
         users = np.array([10, 20, 30, 40])
 
         model_for_wrap = deepcopy(base_model)
@@ -136,8 +135,6 @@ class TestImplicitALSWrapperModel:
             actual_scores = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Score].values
             np.testing.assert_equal(actual_internal_ids, expected_ids)
             np.testing.assert_almost_equal(actual_scores, expected_scores, decimal=5)
-            # assert (actual_internal_ids == expected_ids).all()
-            # assert (actual_scores == expected_scores).all()
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
