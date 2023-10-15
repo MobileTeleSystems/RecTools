@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from copy import deepcopy
 
 import implicit.gpu
 import numpy as np
@@ -104,6 +105,40 @@ class TestImplicitALSWrapperModel:
             actual,
         )
 
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    def test_consistent_with_pure_implicit(self, dataset: Dataset, fit_features_together: bool, use_gpu: bool) -> None:
+        base_model = AlternatingLeastSquares(factors=10, num_threads=2, iterations=30, use_gpu=use_gpu)
+        self._init_model_factors_inplace(base_model, dataset)
+        users = np.array([10, 20, 30, 40])
+
+        model_for_wrap = deepcopy(base_model)
+        wrapped_model = ImplicitALSWrapperModel(model=model_for_wrap, fit_features_together=fit_features_together)
+        wrapped_model.fit(dataset)
+        actual_reco = wrapped_model.recommend(
+            users=users,
+            dataset=dataset,
+            k=3,
+            filter_viewed=False,
+        )
+
+        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        base_model.fit(ui_csr)
+        for user_id in users:
+            internal_id = dataset.user_id_map.convert_to_internal([user_id])[0]
+            expected_ids, expected_scores = base_model.recommend(
+                userid=internal_id,
+                user_items=ui_csr[internal_id],
+                N=3,
+                filter_already_liked_items=False,
+            )
+            actual_ids = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Item].values
+            actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
+            actual_scores = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Score].values
+            np.testing.assert_equal(actual_internal_ids, expected_ids)
+            np.testing.assert_almost_equal(actual_scores, expected_scores, decimal=5)
+            # assert (actual_internal_ids == expected_ids).all()
+            # assert (actual_scores == expected_scores).all()
+
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -151,6 +186,16 @@ class TestImplicitALSWrapperModel:
     @pytest.mark.parametrize(
         "fit_features_together,expected",
         (
+            (
+                True,
+                pd.DataFrame(
+                    {
+                        Columns.User: ["u1", "u1", "u2", "u3", "u3"],
+                        Columns.Item: ["i2", "i4", "i4", "i3", "i2"],
+                        Columns.Rank: [1, 2, 1, 1, 2],
+                    }
+                ),
+            ),
             (
                 False,
                 pd.DataFrame(
