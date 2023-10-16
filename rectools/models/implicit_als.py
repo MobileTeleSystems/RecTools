@@ -301,7 +301,7 @@ def fit_als_with_features_together_inplace(
     n_item_explicit_factors = item_explicit_factors.shape[1]
 
     # Prepare latent factors with the same math logic as in implicit library
-    if isinstance(model, GPUAlternatingLeastSquares):
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         user_latent_factors, item_latent_factors = _init_latent_factors_gpu(model, n_users, n_items)
     else:
         user_latent_factors, item_latent_factors = _init_latent_factors_cpu(model, n_users, n_items)
