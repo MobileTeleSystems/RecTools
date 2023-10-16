@@ -106,8 +106,13 @@ class TestImplicitALSWrapperModel:
         )
 
     @pytest.mark.parametrize("fit_features_together", (False, True))
-    def test_consistent_with_pure_implicit(self, dataset: Dataset, fit_features_together: bool, use_gpu: bool) -> None:
+    @pytest.mark.parametrize("init_model_before_fit", (False, True))
+    def test_consistent_with_pure_implicit(
+        self, dataset: Dataset, fit_features_together: bool, use_gpu: bool, init_model_before_fit: bool
+    ) -> None:
         base_model = AlternatingLeastSquares(factors=10, num_threads=2, iterations=30, use_gpu=use_gpu, random_state=32)
+        if init_model_before_fit:
+            self._init_model_factors_inplace(base_model, dataset)
         users = np.array([10, 20, 30, 40])
 
         model_for_wrap = deepcopy(base_model)
