@@ -230,9 +230,6 @@ class TestImplicitALSWrapperModel:
         # In case of big number of iterations there are differences between CPU and GPU results
         base_model = AlternatingLeastSquares(factors=32, num_threads=2, use_gpu=use_gpu)
         self._init_model_factors_inplace(base_model, dataset)
-        # Make common number of factors 32, so that CPU and GPU results be equal
-        if fit_features_together:
-            base_model.factors = 32 - user_features.values.shape[1] - item_features.values.shape[1]
 
         model = ImplicitALSWrapperModel(model=base_model, fit_features_together=fit_features_together).fit(dataset)
         actual = model.recommend(
