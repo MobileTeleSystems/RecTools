@@ -229,6 +229,7 @@ def _fit_paired_factors(
 def _init_latent_factors_cpu(
     model: CPUAlternatingLeastSquares, n_users: int, n_items: int
 ) -> tp.Tuple[np.ndarray, np.ndarray]:
+    """Logic is copied and pasted from original implicit library code"""
     random_state = check_random_state(model.random_state)
     if model.user_factors is None:
         user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
@@ -243,7 +244,8 @@ def _init_latent_factors_cpu(
 
 def _init_latent_factors_gpu(
     model: GPUAlternatingLeastSquares, n_users: int, n_items: int
-) -> tp.Tuple[np.ndarray, np.ndarray]:
+) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
+    """Logic is copied and pasted from original implicit library code"""
     random_state = check_random_state(model.random_state)
     if model.user_factors is None:
         user_latent_factors = random_state.uniform(
@@ -330,9 +332,8 @@ def fit_als_with_features_together_inplace(
         )
     ).astype(model.dtype)
 
-    # Give the positive examples more weight if asked for
-    if model.alpha != 1.0:
-        ui_csr = model.alpha * ui_csr
+    # Give the positive examples more weight if asked for (implicit library logic copy)
+    ui_csr = model.alpha * ui_csr
 
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         _fit_combined_factors_on_gpu_inplace(
@@ -409,7 +410,7 @@ def _fit_combined_factors_on_gpu_inplace(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
-) -> None:
+) -> None:  # pragma: no cover
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
     item_explicit_factors = item_factors[:, n_factors - n_item_explicit_factors :].copy()
