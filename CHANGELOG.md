@@ -29,4 +29,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed cyclic imports ([#45](https://github.com/MobileTeleSystems/RecTools/pull/45))
 
 ### Removed
-- Temporarily removed support for fitting ALS model with features together ([#45](https://github.com/MobileTeleSystems/RecTools/pull/45))
+- 
