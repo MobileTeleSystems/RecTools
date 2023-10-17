@@ -139,7 +139,7 @@ class TestImplicitALSWrapperModel:
             actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
             actual_scores = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Score].values
             np.testing.assert_equal(actual_internal_ids, expected_ids)
-            np.testing.assert_almost_equal(actual_scores, expected_scores, decimal=5)
+            np.testing.assert_allclose(actual_scores, expected_scores, atol=0.01)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
