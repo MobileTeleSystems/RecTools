@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved `nmslib` from main dependencies to extras ([#36](https://github.com/MobileTeleSystems/RecTools/pull/36))
 - Added base `Splitter` class to construct data splitters ([#31](https://github.com/MobileTeleSystems/RecTools/pull/31))
 - Updated notebooks in `examples` ([#44](https://github.com/MobileTeleSystems/RecTools/pull/44))
+- Moved `lightfm` to extras ([#50](https://github.com/MobileTeleSystems/RecTools/pull/50))
 
 ### Fixed
 - Fixed bugs with new version of `pytorch_lightning` ([#43](https://github.com/MobileTeleSystems/RecTools/pull/43))
