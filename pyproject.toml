@@ -58,20 +58,28 @@ tqdm = "^4.27.0"
 implicit = "^0.7.1"
 attrs = ">=19.1.0,<22.0.0"
 typeguard = "^2.0.1"
-lightfm = "1.17"
 
 # To avoid problems with resolving dependencies
 Markdown = "~3.2"
+
+
+lightfm = {version = "^1.17", optional = true}
 
 nmslib = {version = "^2.0.4", optional = true}
 
 torch = {version = "^1.6", optional = true}
 pytorch-lightning = {version = "^1.6", optional = true}
 
+
 [tool.poetry.extras]
+lightfm = ["lightfm"]
 nmslib = ["nmslib"]
 torch = ["torch", "pytorch-lightning"]
-all = ["nmslib", "torch", "pytorch-lightning"]
+all = [
+    "lightfm",
+    "nmslib", 
+    "torch", "pytorch-lightning",
+]
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"

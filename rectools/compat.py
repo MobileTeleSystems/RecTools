@@ -15,35 +15,38 @@
 import typing as tp
 
 
-class TorchModelUnavailable:
-    """Dummy class the instance of which is returned in case a model provided lacks any libraries required"""
+class RequirementUnavailable:
+    """Base class for dummy classes, which are returned if there are no dependencies required for the original class"""
+
+    requirement: str = NotImplemented
 
     def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
         """Raise ImportError when an attempt to instantiate an unavailable model is made"""
         raise ImportError(
-            f"Cannot initialize {cls.__name__}: "
-            f"run `pip install rectools[torch]` to install extra requirements before accessing {cls.__name__} "
+            f"Requirement `{cls.requirement}` does not satisfied. Run `pip install rectools[{cls.requirement}]` "
+            f"to install extra requirements before accessing {cls.__name__}."
         )
 
 
-class NmslibModelUnavailable:
-    """Dummy class the instance of which is returned in case a model provided lacks any libraries required"""
+class LightFMWrapperModel(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
 
-    def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
-        """Raise ImportError when an attempt to instantiate an unavailable model is made"""
-        raise ImportError(
-            f"Cannot initialize {cls.__name__}: "
-            f"run `pip install rectools[nmslib]` to install extra requirements before accessing {cls.__name__} "
-        )
+    requirement = "lightfm"
 
 
-class DSSMModel(TorchModelUnavailable):
-    """Dummy class the instance of which is returned in case DSSMModel lacks any libraries required"""
+class DSSMModel(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "torch"
 
 
-class ItemToItemAnnRecommender(NmslibModelUnavailable):
-    """Dummy class the instance of which is returned in case ItemToItemAnnRecommender lacks any libraries required"""
+class ItemToItemAnnRecommender(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "nmslib"
 
 
-class UserToItemAnnRecommender(NmslibModelUnavailable):
-    """Dummy class the instance of which is returned in case UserToItemAnnRecommender lacks any libraries required"""
+class UserToItemAnnRecommender(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "nmslib"
