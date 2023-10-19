@@ -15,15 +15,14 @@
 import typing as tp
 
 
-class NNModelUnavailable:
+class TorchModelUnavailable:
     """Dummy class the instance of which is returned in case a model provided lacks any libraries required"""
 
     def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
         """Raise ImportError when an attempt to instantiate an unavailable model is made"""
         raise ImportError(
             f"Cannot initialize {cls.__name__}: "
-            f"run `pip install rectools[nn]` to install extra requirements before accessing {cls.__name__} "
-            f"(see `extras/requirements-nn.txt)"
+            f"run `pip install rectools[torch]` to install extra requirements before accessing {cls.__name__} "
         )
 
 
@@ -35,11 +34,10 @@ class NmslibModelUnavailable:
         raise ImportError(
             f"Cannot initialize {cls.__name__}: "
             f"run `pip install rectools[nmslib]` to install extra requirements before accessing {cls.__name__} "
-            f"(see `extras/requirements-nn.txt)"
         )
 
 
-class DSSMModel(NNModelUnavailable):
+class DSSMModel(TorchModelUnavailable):
     """Dummy class the instance of which is returned in case DSSMModel lacks any libraries required"""
 
 

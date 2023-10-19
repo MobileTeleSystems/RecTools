@@ -64,12 +64,13 @@ lightfm = "1.17"
 Markdown = "~3.2"
 
 nmslib = {version = "^2.0.4", optional = true}
+
 torch = {version = "^1.6", optional = true}
 pytorch-lightning = {version = "^1.6", optional = true}
 
 [tool.poetry.extras]
 nmslib = ["nmslib"]
-nn = ["torch", "pytorch-lightning"]
+torch = ["torch", "pytorch-lightning"]
 all = ["nmslib", "torch", "pytorch-lightning"]
 
 [tool.poetry.dev-dependencies]
