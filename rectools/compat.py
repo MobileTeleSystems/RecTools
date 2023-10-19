@@ -23,7 +23,7 @@ class RequirementUnavailable:
     def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
         """Raise ImportError when an attempt to instantiate an unavailable model is made"""
         raise ImportError(
-            f"Requirement `{cls.requirement}` does not satisfied. Run `pip install rectools[{cls.requirement}]` "
+            f"Requirement `{cls.requirement}` is not satisfied. Run `pip install rectools[{cls.requirement}]` "
             f"to install extra requirements before accessing {cls.__name__}."
         )
 
