@@ -74,6 +74,27 @@ RecTools is on PyPI, so you can use `pip` to install it.
 ```
 pip install rectools
 ```
+The default version doesn't contain all the dependencies, because some of them are needed only for specific models. Available user extensions are the following:
+
+- `lightfm`: adds wrapper for LightFM model,
+- `torch`: adds models based on neural nets,
+- `nmslib`: adds fast ANN recommenders.
+
+Install extension:
+```
+pip install rectools[extension-name]
+```
+
+Install all extensions:
+```
+pip install rectools[all]
+```
+
+**Important:** If you're using `poetry` and you want to add `rectools` to your project, then you should either install `rectools` without `lightfm` extras or use `poetry==1.4.0` and add to your `poetry.toml` file the next lines:
+```
+[experimental]
+new-installer = false
+```
 
 
 ## Contribution
