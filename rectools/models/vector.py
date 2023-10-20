@@ -50,7 +50,7 @@ class ImplicitRanker:
     """Ranker for DOT and COSINE similarity distance which uses implicit library matrix factorization topk method"""
 
     def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
-        if distance not in (Distance.EUCLIDEAN, Distance.COSINE):
+        if distance not in (Distance.DOT, Distance.COSINE):
             raise ValueError(f"ImplicitRanker is not suitable for {distance} distance")
         self.distance = distance
         self.subjects_factors = subjects_factors
@@ -72,8 +72,9 @@ class ImplicitRanker:
         )[1][0][0]
         return neginf
 
-    def _get_mask_for_correct_scores(self, scores: np.ndarray, min_score: float = 3e-38) -> tp.List[bool]:
+    def _get_mask_for_correct_scores(self, scores: np.ndarray) -> tp.List[bool]:
         num_masked = 0
+        min_score = self._get_neginf_score()
         for el in np.flip(scores):
             if el == 0 or el <= min_score:
                 num_masked += 1
@@ -239,7 +240,8 @@ class VectorModel(ModelBase):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    use_implicit: bool = False  # TODO: remove
+    use_implicit: bool = True  # TODO: remove
+    calculator: tp.Union[ScoreCalculator, ImplicitRanker]  # TODO: remove
 
     def _recommend_u2i(
         self,
@@ -258,6 +260,7 @@ class VectorModel(ModelBase):
 
         if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
             ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
+            self.calculator = ranker
             user_items_csr_for_filter_viewed = user_items[user_ids] if filter_viewed else None
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=user_ids,
@@ -267,6 +270,7 @@ class VectorModel(ModelBase):
             )
 
         scores_calculator = ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
+        self.calculator = scores_calculator
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -296,6 +300,7 @@ class VectorModel(ModelBase):
 
         if self.use_implicit and self.i2i_dist in (Distance.COSINE, Distance.DOT):
             ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
+            self.calculator = ranker
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=target_ids,
                 k=k,
@@ -304,6 +309,7 @@ class VectorModel(ModelBase):
             )
 
         scores_calculator = ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
+        self.calculator = scores_calculator
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
