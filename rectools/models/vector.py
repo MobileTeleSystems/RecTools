@@ -126,27 +126,40 @@ class ScoreCalculator:
         )[1][0][0]
         return neginf
 
+    
+    def _get_mask_for_correct_scores(self, scores: np.ndarray, min_score: float = 3e-38):
+        num_masked = 0
+        for el in np.flip(scores):
+            if el == 0 or el <= min_score:
+                num_masked +=1
+            else:
+                break
+        return [True for _ in range(len(scores) - num_masked)] + [False for _ in range(num_masked)]
+
     def _process_implicit_scores(
         self, subject_ids: np.ndarray, ids: np.ndarray, scores: np.ndarray, apply_norm: bool
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        neginf = self._get_neginf_score()
-        max_pos = scores.shape[1]
+        # neginf = self._get_neginf_score()
+        # max_pos = scores.shape[1]
 
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
 
         for i in range(scores.shape[0]):
-            neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
-            relevant_scores = scores[i][:neginf_start_pos]
-            relevant_ids = ids[i][:neginf_start_pos]
+            correct_mask = self._get_mask_for_correct_scores(scores[i])
+            relevant_scores = scores[i][correct_mask]
+            relevant_ids = ids[i][correct_mask]
+            #neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
+            #relevant_scores = scores[i][:neginf_start_pos]
+            #relevant_ids = ids[i][:neginf_start_pos]
 
             if apply_norm:
                 subject_norm = self.subjects_norms[subject_ids[i]]
                 subject_norm = 1e-10 if subject_norm == 0 else subject_norm
                 relevant_scores /= subject_norm
 
-            all_target_ids.extend([subject_ids[i]] * neginf_start_pos)
+            all_target_ids.extend([subject_ids[i] for _ in range(len(relevant_ids))])
             all_reco_ids.append(relevant_ids)
             all_scores.append(relevant_scores)
 
@@ -169,6 +182,9 @@ class ScoreCalculator:
                 filter_query_items = implicit.cpu.matrix_factorization_base._filter_items_from_sparse_matrix(
                     sorted_item_ids_to_recommend, user_items_csr_for_filter_viewed
                 )
+            else:
+                filter_query_items = user_items_csr_for_filter_viewed
+
         else:
             object_factors_whitelist = self.objects_factors
             filter_query_items = user_items_csr_for_filter_viewed
@@ -211,6 +227,7 @@ class VectorModel(ModelBase):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
+    use_implicit: bool = True  # TODO: remove
 
     def _recommend_u2i(
         self,
@@ -227,11 +244,12 @@ class VectorModel(ModelBase):
 
         scores_calculator = self._get_u2i_calculator(dataset)
 
-        if self.u2i_dist in (Distance.COSINE, Distance.DOT):
+        if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
+            user_items_csr_for_filter_viewed = user_items[user_ids] if filter_viewed else None
             return scores_calculator.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=user_ids,
                 k=k,
-                user_items_csr_for_filter_viewed=user_items,
+                user_items_csr_for_filter_viewed=user_items_csr_for_filter_viewed,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             )
 
@@ -262,7 +280,7 @@ class VectorModel(ModelBase):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         scores_calculator = self._get_i2i_calculator(dataset)
 
-        if self.i2i_dist == Distance.COSINE or self.u2i_dist == Distance.DOT:
+        if self.use_implicit and self.i2i_dist in (Distance.COSINE, Distance.DOT):
             return scores_calculator.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=target_ids,
                 k=k,
