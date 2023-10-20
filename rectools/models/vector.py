@@ -76,7 +76,8 @@ class ImplicitRanker:
         num_masked = 0
         min_score = self._get_neginf_score()
         for el in np.flip(scores):
-            if el == 0 or el <= min_score:
+            # if el == 0 or el <= min_score:
+            if el <= min_score:
                 num_masked += 1
             else:
                 break
@@ -141,11 +142,13 @@ class ImplicitRanker:
                 object_norms = object_norms[sorted_item_ids_to_recommend]
             if object_norms is not None:
                 object_norms[object_norms == 0] = 1e-10
+        
+        real_k = min(k, object_factors_whitelist.shape[0])
 
         ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
             items=object_factors_whitelist,  # overall whitelist item factors
             query=subject_factors,  # query_factors
-            k=k,
+            k=real_k,
             item_norms=object_norms,  # for COSINE we pass norms. query norms is applied after
             # filter_query_items = user_items_csr for filter_viewed=True. these items get neginf score
             filter_query_items=filter_query_items,
