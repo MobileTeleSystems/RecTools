@@ -37,16 +37,21 @@ Models
 
 from .implicit_als import ImplicitALSWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
-from .lightfm import LightFMWrapperModel
 from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
 from .pure_svd import PureSVDModel
 from .random import RandomModel
 
 try:
+    from .lightfm import LightFMWrapperModel
+except ImportError:  # pragma: no cover
+    from ..compat import LightFMWrapperModel  # type: ignore
+
+try:
     from .dssm import DSSMModel
 except ImportError:  # pragma: no cover
     from ..compat import DSSMModel  # type: ignore
+
 
 __all__ = (
     "ImplicitALSWrapperModel",
