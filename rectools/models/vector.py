@@ -76,7 +76,6 @@ class ImplicitRanker:
         num_masked = 0
         min_score = self._get_neginf_score()
         for el in np.flip(scores):
-            # if el == 0 or el <= min_score:
             if el <= min_score:
                 num_masked += 1
             else:
@@ -86,8 +85,6 @@ class ImplicitRanker:
     def _process_implicit_scores(
         self, subject_ids: np.ndarray, ids: np.ndarray, scores: np.ndarray
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        # neginf = self._get_neginf_score()
-        # max_pos = scores.shape[1]
 
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
@@ -97,9 +94,6 @@ class ImplicitRanker:
             correct_mask = self._get_mask_for_correct_scores(scores[i])
             relevant_scores = scores[i][correct_mask]
             relevant_ids = ids[i][correct_mask]
-            # neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
-            # relevant_scores = scores[i][:neginf_start_pos]
-            # relevant_ids = ids[i][:neginf_start_pos]
 
             if self.distance == Distance.COSINE:
                 subject_norm = self.subjects_norms[subject_ids[i]]
@@ -118,6 +112,7 @@ class ImplicitRanker:
         k: int,
         user_items_csr_for_filter_viewed: tp.Optional[sparse.csr_matrix],  # only relevant for u2i recos
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],  # whitelist
+        num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Proceed inference using implicit library matrix factorization topk cpu method"""
         if sorted_item_ids_to_recommend is not None:
@@ -142,7 +137,7 @@ class ImplicitRanker:
                 object_norms = object_norms[sorted_item_ids_to_recommend]
             if object_norms is not None:
                 object_norms[object_norms == 0] = 1e-10
-        
+
         real_k = min(k, object_factors_whitelist.shape[0])
 
         ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
@@ -154,7 +149,7 @@ class ImplicitRanker:
             filter_query_items=filter_query_items,
             # can't be both 'items' and 'filter_items'. items to score as neginf. rectools doesn't support
             filter_items=None,
-            # num_threads=self.num_threads, TODO: pass num_threads from implicit model
+            num_threads=num_threads,
         )
 
         if sorted_item_ids_to_recommend is not None:
@@ -243,8 +238,8 @@ class VectorModel(ModelBase):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    use_implicit: bool = True  # TODO: remove
-    calculator: tp.Union[ScoreCalculator, ImplicitRanker]  # TODO: remove
+    n_threads: int = 0  # TODO: decide how to pass it correctly for all models
+    use_implicit: bool = True  # TODO: remove. For bedug only
 
     def _recommend_u2i(
         self,
@@ -262,18 +257,18 @@ class VectorModel(ModelBase):
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
         if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
+
             ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
-            self.calculator = ranker
             user_items_csr_for_filter_viewed = user_items[user_ids] if filter_viewed else None
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=user_ids,
                 k=k,
                 user_items_csr_for_filter_viewed=user_items_csr_for_filter_viewed,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+                num_threads=self.n_threads,
             )
 
         scores_calculator = ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
-        self.calculator = scores_calculator
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -303,16 +298,16 @@ class VectorModel(ModelBase):
 
         if self.use_implicit and self.i2i_dist in (Distance.COSINE, Distance.DOT):
             ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
-            self.calculator = ranker
+
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=target_ids,
                 k=k,
                 user_items_csr_for_filter_viewed=None,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+                num_threads=self.n_threads,
             )
 
         scores_calculator = ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
-        self.calculator = scores_calculator
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -339,7 +334,7 @@ class VectorModel(ModelBase):
         object_embeddings: np.ndarray,
         object_biases: np.ndarray,
     ) -> tp.Tuple[np.ndarray, np.ndarray]:
-        # TODO: make it possible to control if add biases or not (even if they present)
+        # TODO: make it possible to control if add biases or not (even if they are present)
         if distance == Distance.DOT:
             subject_vectors = np.hstack(
                 (subject_biases[:, np.newaxis], np.ones((subject_biases.size, 1)), subject_embeddings)
