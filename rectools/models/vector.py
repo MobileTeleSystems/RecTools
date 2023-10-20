@@ -246,7 +246,8 @@ class VectorModel(ModelBase):
         else:
             user_items = None
 
-        scores_calculator = self._get_u2i_calculator(dataset)
+        user_vectors, item_vectors = self._get_u2i_vectors(dataset)
+        scores_calculator = ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
 
         if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
             user_items_csr_for_filter_viewed = user_items[user_ids] if filter_viewed else None
@@ -282,7 +283,8 @@ class VectorModel(ModelBase):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        scores_calculator = self._get_i2i_calculator(dataset)
+        item_vectors_1, item_vectors_2 = self._get_i2i_vectors(dataset)
+        scores_calculator = ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
 
         if self.use_implicit and self.i2i_dist in (Distance.COSINE, Distance.DOT):
             return scores_calculator.calc_batch_scores_via_implicit_matrix_topk(
@@ -333,7 +335,7 @@ class VectorModel(ModelBase):
             raise ValueError(f"Unexpected distance `{distance}`")
         return subject_vectors, object_vectors
 
-    def _get_u2i_calculator(self, dataset: Dataset) -> ScoreCalculator:
+    def _get_u2i_vectors(self, dataset: Dataset) -> ScoreCalculator:
         user_factors = self._get_users_factors(dataset)
         item_factors = self._get_items_factors(dataset)
 
@@ -347,20 +349,20 @@ class VectorModel(ModelBase):
                 self.u2i_dist, user_vectors, user_biases, item_vectors, item_biases
             )
 
-        return ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
+        return user_vectors, item_vectors
 
-    def _get_i2i_calculator(self, dataset: Dataset) -> ScoreCalculator:
+    def _get_i2i_vectors(self, dataset: Dataset) -> ScoreCalculator:
         item_factors = self._get_items_factors(dataset)
         item_vectors = item_factors.embeddings
         item_biases = item_factors.biases
+        item_vectors_1 = item_vectors_2 = item_vectors
 
         if item_biases is not None:
             item_vectors_1, item_vectors_2 = self._process_biases_to_vectors(
                 self.i2i_dist, item_vectors, item_biases, item_vectors, item_biases
             )
-        else:
-            item_vectors_1 = item_vectors_2 = item_vectors
-        return ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
+        
+        return item_vectors_1, item_vectors_2
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
         raise NotImplementedError()
