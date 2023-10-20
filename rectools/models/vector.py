@@ -53,14 +53,14 @@ class ImplicitRanker:
         if distance not in (Distance.DOT, Distance.COSINE):
             raise ValueError(f"ImplicitRanker is not suitable for {distance} distance")
         self.distance = distance
-        self.subjects_factors = subjects_factors
-        self.objects_factors = objects_factors
+        self.subjects_factors = subjects_factors.astype(np.float32)
+        self.objects_factors = objects_factors.astype(np.float32)
 
         self.subjects_norms: np.ndarray
         self.objects_norms: np.ndarray
         if distance == Distance.COSINE:
-            self.subjects_norms = np.linalg.norm(subjects_factors, axis=1)
-            self.objects_norms = np.linalg.norm(objects_factors, axis=1)
+            self.subjects_norms = np.linalg.norm(subjects_factors, axis=1).astype(np.float32)
+            self.objects_norms = np.linalg.norm(objects_factors, axis=1).astype(np.float32)
 
     def _get_neginf_score(self) -> float:
         dummy_factors = np.array([[1, 2]], dtype=np.float32)

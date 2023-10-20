@@ -125,7 +125,7 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
         else:  # i2i
             _, reco, scores = model._recommend_i2i(np.array([0, 1]), self.stub_dataset, 5, None)
         assert list(reco) == sum(expected_reco, [])
-        assert list(scores) == sum(expected_scores, [])
+        np.testing.assert_almost_equal(scores, np.array(expected_scores).ravel(), decimal=5)
 
     @pytest.mark.parametrize(
         "distance,expected_reco,expected_scores",
@@ -151,7 +151,7 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
         else:  # i2i
             _, reco, scores = model._recommend_i2i(np.array([0, 1]), self.stub_dataset, 5, None)
         assert list(reco) == sum(expected_reco, [])
-        assert list(scores) == sum(expected_scores, [])
+        np.testing.assert_almost_equal(scores, np.array(expected_scores).ravel(), decimal=5)
 
     @pytest.mark.parametrize("method", ("u2i", "i2i"))
     def test_with_incorrect_distance(self, method: str) -> None:
