@@ -20,6 +20,7 @@ from enum import Enum
 import attr
 import implicit.cpu
 import numpy as np
+from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
 from scipy import sparse
 from tqdm.auto import tqdm
 
@@ -45,9 +46,120 @@ class Factors:
     biases: tp.Optional[np.ndarray] = None
 
 
-# class ImplicitRanker:
-#    def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
-#        pass
+class ImplicitRanker:
+    """Ranker for DOT and COSINE similarity distance which uses implicit library matrix factorization topk method"""
+
+    def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
+        if distance not in (Distance.EUCLIDEAN, Distance.COSINE):
+            raise ValueError(f"ImplicitRanker is not suitable for {distance} distance")
+        self.distance = distance
+        self.subjects_factors = subjects_factors
+        self.objects_factors = objects_factors
+
+        self.subjects_norms: np.ndarray
+        self.objects_norms: np.ndarray
+        if distance == Distance.COSINE:
+            self.subjects_norms = np.linalg.norm(subjects_factors, axis=1)
+            self.objects_norms = np.linalg.norm(objects_factors, axis=1)
+
+    def _get_neginf_score(self) -> float:
+        dummy_factors = np.array([[1, 2]], dtype=np.float32)
+        neginf = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
+            items=dummy_factors,  # overall whitelist item factors
+            query=dummy_factors,  # query_factors
+            k=1,
+            filter_items=np.array([0]),
+        )[1][0][0]
+        return neginf
+
+    def _get_mask_for_correct_scores(self, scores: np.ndarray, min_score: float = 3e-38) -> tp.List[bool]:
+        num_masked = 0
+        for el in np.flip(scores):
+            if el == 0 or el <= min_score:
+                num_masked += 1
+            else:
+                break
+        return [True for _ in range(len(scores) - num_masked)] + [False for _ in range(num_masked)]
+
+    def _process_implicit_scores(
+        self, subject_ids: np.ndarray, ids: np.ndarray, scores: np.ndarray
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
+        # neginf = self._get_neginf_score()
+        # max_pos = scores.shape[1]
+
+        all_target_ids = []
+        all_reco_ids: tp.List[np.ndarray] = []
+        all_scores: tp.List[np.ndarray] = []
+
+        for i in range(scores.shape[0]):
+            correct_mask = self._get_mask_for_correct_scores(scores[i])
+            relevant_scores = scores[i][correct_mask]
+            relevant_ids = ids[i][correct_mask]
+            # neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
+            # relevant_scores = scores[i][:neginf_start_pos]
+            # relevant_ids = ids[i][:neginf_start_pos]
+
+            if self.distance == Distance.COSINE:
+                subject_norm = self.subjects_norms[subject_ids[i]]
+                subject_norm = 1e-10 if subject_norm == 0 else subject_norm
+                relevant_scores /= subject_norm
+
+            all_target_ids.extend([subject_ids[i] for _ in range(len(relevant_ids))])
+            all_reco_ids.append(relevant_ids)
+            all_scores.append(relevant_scores)
+
+        return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
+
+    def calc_batch_scores_via_implicit_matrix_topk(
+        self,
+        subject_ids: np.ndarray,
+        k: int,
+        user_items_csr_for_filter_viewed: tp.Optional[sparse.csr_matrix],  # only relevant for u2i recos
+        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],  # whitelist
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
+        """Proceed inference using implicit library matrix factorization topk cpu method"""
+        if sorted_item_ids_to_recommend is not None:
+            object_factors_whitelist = self.objects_factors[sorted_item_ids_to_recommend]
+            if user_items_csr_for_filter_viewed is not None:
+                filter_query_items = filter_items_from_sparse_matrix(
+                    sorted_item_ids_to_recommend, user_items_csr_for_filter_viewed
+                )
+            else:
+                filter_query_items = user_items_csr_for_filter_viewed
+
+        else:
+            object_factors_whitelist = self.objects_factors
+            filter_query_items = user_items_csr_for_filter_viewed
+
+        subject_factors = self.subjects_factors[subject_ids]
+
+        object_norms = None
+        if self.distance == Distance.COSINE:
+            object_norms = self.objects_norms
+            if sorted_item_ids_to_recommend is not None:
+                object_norms = object_norms[sorted_item_ids_to_recommend]
+            if object_norms is not None:
+                object_norms[object_norms == 0] = 1e-10
+
+        ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
+            items=object_factors_whitelist,  # overall whitelist item factors
+            query=subject_factors,  # query_factors
+            k=k,
+            item_norms=object_norms,  # for COSINE we pass norms. query norms is applied after
+            # filter_query_items = user_items_csr for filter_viewed=True. these items get neginf score
+            filter_query_items=filter_query_items,
+            # can't be both 'items' and 'filter_items'. items to score as neginf. rectools doesn't support
+            filter_items=None,
+            # num_threads=self.num_threads, TODO: pass num_threads from implicit model
+        )
+
+        if sorted_item_ids_to_recommend is not None:
+            ids = sorted_item_ids_to_recommend[ids]
+
+        # filter neginf from implicit results and apply norms from correct cosine scores
+        all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(subject_ids, ids, scores)
+
+        return all_target_ids, all_reco_ids, all_scores
 
 
 class ScoreCalculator:
@@ -121,110 +233,6 @@ class ScoreCalculator:
 
         return scores
 
-    def _get_neginf_score(self) -> float:
-        dummy_factors = np.array([[1, 2]], dtype=np.float32)
-        neginf = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=dummy_factors,  # overall whitelist item factors
-            query=dummy_factors,  # query_factors
-            k=1,
-            filter_items=np.array([0]),
-        )[1][0][0]
-        return neginf
-
-    def _get_mask_for_correct_scores(self, scores: np.ndarray, min_score: float = 3e-38) -> tp.List[bool]:
-        num_masked = 0
-        for el in np.flip(scores):
-            if el == 0 or el <= min_score:
-                num_masked += 1
-            else:
-                break
-        return [True for _ in range(len(scores) - num_masked)] + [False for _ in range(num_masked)]
-
-    def _process_implicit_scores(
-        self, subject_ids: np.ndarray, ids: np.ndarray, scores: np.ndarray, apply_norm: bool
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        # neginf = self._get_neginf_score()
-        # max_pos = scores.shape[1]
-
-        all_target_ids = []
-        all_reco_ids: tp.List[np.ndarray] = []
-        all_scores: tp.List[np.ndarray] = []
-
-        for i in range(scores.shape[0]):
-            correct_mask = self._get_mask_for_correct_scores(scores[i])
-            relevant_scores = scores[i][correct_mask]
-            relevant_ids = ids[i][correct_mask]
-            # neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
-            # relevant_scores = scores[i][:neginf_start_pos]
-            # relevant_ids = ids[i][:neginf_start_pos]
-
-            if apply_norm:
-                subject_norm = self.subjects_norms[subject_ids[i]]
-                subject_norm = 1e-10 if subject_norm == 0 else subject_norm
-                relevant_scores /= subject_norm
-
-            all_target_ids.extend([subject_ids[i] for _ in range(len(relevant_ids))])
-            all_reco_ids.append(relevant_ids)
-            all_scores.append(relevant_scores)
-
-        return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
-
-    def calc_batch_scores_via_implicit_matrix_topk(
-        self,
-        subject_ids: np.ndarray,
-        k: int,
-        user_items_csr_for_filter_viewed: tp.Optional[sparse.csr_matrix],  # only relevant for u2i recos
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],  # whitelist
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        """Proceed inference using implicit library matrix factorization topk cpu method"""
-        if self.distance == Distance.EUCLIDEAN:
-            raise ValueError("Implicit Matrix topk scoring method is not suitable for Euclidean distance")
-
-        if sorted_item_ids_to_recommend is not None:
-            object_factors_whitelist = self.objects_factors[sorted_item_ids_to_recommend]
-            if user_items_csr_for_filter_viewed is not None:
-                filter_query_items = implicit.cpu.matrix_factorization_base._filter_items_from_sparse_matrix(
-                    sorted_item_ids_to_recommend, user_items_csr_for_filter_viewed
-                )
-            else:
-                filter_query_items = user_items_csr_for_filter_viewed
-
-        else:
-            object_factors_whitelist = self.objects_factors
-            filter_query_items = user_items_csr_for_filter_viewed
-
-        subject_factors = self.subjects_factors[subject_ids]
-
-        object_norms = None
-        if self.distance == Distance.COSINE:
-            object_norms = self.objects_norms
-            if sorted_item_ids_to_recommend is not None:
-                object_norms = object_norms[sorted_item_ids_to_recommend]
-            if object_norms is not None:
-                object_norms[object_norms == 0] = 1e-10
-
-        ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=object_factors_whitelist,  # overall whitelist item factors
-            query=subject_factors,  # query_factors
-            k=k,
-            item_norms=object_norms,  # for COSINE we pass norms. query norms is applied after
-            # filter_query_items = user_items_csr for filter_viewed=True. these items get neginf score
-            filter_query_items=filter_query_items,
-            # can't be both 'items' and 'filter_items'. items to score as neginf. rectools doesn't support
-            filter_items=None,
-            # num_threads=self.num_threads, TODO: pass num_threads from implicit model
-        )
-
-        if sorted_item_ids_to_recommend is not None:
-            ids = sorted_item_ids_to_recommend[ids]
-
-        # filter neginf from implicit results and apply norms from correct cosine scores
-        all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(
-            subject_ids, ids, scores, apply_norm=self.distance == Distance.COSINE
-        )
-
-        return all_target_ids, all_reco_ids, all_scores
-
 
 class VectorModel(ModelBase):
     """Base class for models that represents users and items as vectors"""
@@ -247,17 +255,18 @@ class VectorModel(ModelBase):
             user_items = None
 
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
-        scores_calculator = ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
 
         if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
+            ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
             user_items_csr_for_filter_viewed = user_items[user_ids] if filter_viewed else None
-            return scores_calculator.calc_batch_scores_via_implicit_matrix_topk(
+            return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=user_ids,
                 k=k,
                 user_items_csr_for_filter_viewed=user_items_csr_for_filter_viewed,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             )
 
+        scores_calculator = ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -284,16 +293,17 @@ class VectorModel(ModelBase):
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         item_vectors_1, item_vectors_2 = self._get_i2i_vectors(dataset)
-        scores_calculator = ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
 
         if self.use_implicit and self.i2i_dist in (Distance.COSINE, Distance.DOT):
-            return scores_calculator.calc_batch_scores_via_implicit_matrix_topk(
+            ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
+            return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=target_ids,
                 k=k,
                 user_items_csr_for_filter_viewed=None,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             )
 
+        scores_calculator = ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -335,7 +345,7 @@ class VectorModel(ModelBase):
             raise ValueError(f"Unexpected distance `{distance}`")
         return subject_vectors, object_vectors
 
-    def _get_u2i_vectors(self, dataset: Dataset) -> ScoreCalculator:
+    def _get_u2i_vectors(self, dataset: Dataset) -> tp.Tuple[np.ndarray, np.ndarray]:
         user_factors = self._get_users_factors(dataset)
         item_factors = self._get_items_factors(dataset)
 
@@ -351,7 +361,7 @@ class VectorModel(ModelBase):
 
         return user_vectors, item_vectors
 
-    def _get_i2i_vectors(self, dataset: Dataset) -> ScoreCalculator:
+    def _get_i2i_vectors(self, dataset: Dataset) -> tp.Tuple[np.ndarray, np.ndarray]:
         item_factors = self._get_items_factors(dataset)
         item_vectors = item_factors.embeddings
         item_biases = item_factors.biases
@@ -361,7 +371,7 @@ class VectorModel(ModelBase):
             item_vectors_1, item_vectors_2 = self._process_biases_to_vectors(
                 self.i2i_dist, item_vectors, item_biases, item_vectors, item_biases
             )
-        
+
         return item_vectors_1, item_vectors_2
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
