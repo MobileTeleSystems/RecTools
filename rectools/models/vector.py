@@ -45,6 +45,11 @@ class Factors:
     biases: tp.Optional[np.ndarray] = None
 
 
+# class ImplicitRanker:
+#    def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
+#        pass
+
+
 class ScoreCalculator:
     """
     Calculate proximity scores between one subject (e.g. user) and all objects (e.g. items)
@@ -126,12 +131,11 @@ class ScoreCalculator:
         )[1][0][0]
         return neginf
 
-    
-    def _get_mask_for_correct_scores(self, scores: np.ndarray, min_score: float = 3e-38):
+    def _get_mask_for_correct_scores(self, scores: np.ndarray, min_score: float = 3e-38) -> tp.List[bool]:
         num_masked = 0
         for el in np.flip(scores):
             if el == 0 or el <= min_score:
-                num_masked +=1
+                num_masked += 1
             else:
                 break
         return [True for _ in range(len(scores) - num_masked)] + [False for _ in range(num_masked)]
@@ -150,9 +154,9 @@ class ScoreCalculator:
             correct_mask = self._get_mask_for_correct_scores(scores[i])
             relevant_scores = scores[i][correct_mask]
             relevant_ids = ids[i][correct_mask]
-            #neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
-            #relevant_scores = scores[i][:neginf_start_pos]
-            #relevant_ids = ids[i][:neginf_start_pos]
+            # neginf_start_pos = max_pos - np.searchsorted(np.flip(scores[i]), np.array([neginf]), side="right")[0]
+            # relevant_scores = scores[i][:neginf_start_pos]
+            # relevant_ids = ids[i][:neginf_start_pos]
 
             if apply_norm:
                 subject_norm = self.subjects_norms[subject_ids[i]]
@@ -227,7 +231,7 @@ class VectorModel(ModelBase):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    use_implicit: bool = True  # TODO: remove
+    use_implicit: bool = False  # TODO: remove
 
     def _recommend_u2i(
         self,
@@ -306,6 +310,29 @@ class VectorModel(ModelBase):
 
         return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
 
+    def _process_biases_to_vectors(
+        self,
+        distance: Distance,
+        subject_embeddings: np.ndarray,
+        subject_biases: np.ndarray,
+        object_embeddings: np.ndarray,
+        object_biases: np.ndarray,
+    ) -> tp.Tuple[np.ndarray, np.ndarray]:
+        # TODO: make it possible to control if add biases or not (even if they present)
+        if distance == Distance.DOT:
+            subject_vectors = np.hstack(
+                (subject_biases[:, np.newaxis], np.ones((subject_biases.size, 1)), subject_embeddings)
+            )
+            object_vectors = np.hstack(
+                (np.ones((object_biases.size, 1)), object_biases[:, np.newaxis], object_embeddings)
+            )
+        elif distance in (Distance.COSINE, Distance.EUCLIDEAN):
+            subject_vectors = np.hstack((subject_biases[:, np.newaxis], subject_embeddings))
+            object_vectors = np.hstack((object_biases[:, np.newaxis], object_embeddings))
+        else:
+            raise ValueError(f"Unexpected distance `{distance}`")
+        return subject_vectors, object_vectors
+
     def _get_u2i_calculator(self, dataset: Dataset) -> ScoreCalculator:
         user_factors = self._get_users_factors(dataset)
         item_factors = self._get_items_factors(dataset)
@@ -315,16 +342,10 @@ class VectorModel(ModelBase):
         user_biases = user_factors.biases
         item_biases = item_factors.biases
 
-        # TODO: make it possible to control if add biases or not (even if they present)
         if user_biases is not None and item_biases is not None:
-            if self.u2i_dist == Distance.DOT:
-                user_vectors = np.hstack((user_biases[:, np.newaxis], np.ones((user_biases.size, 1)), user_vectors))
-                item_vectors = np.hstack((np.ones((item_biases.size, 1)), item_biases[:, np.newaxis], item_vectors))
-            elif self.u2i_dist in (Distance.COSINE, Distance.EUCLIDEAN):
-                user_vectors = np.hstack((user_biases[:, np.newaxis], user_vectors))
-                item_vectors = np.hstack((item_biases[:, np.newaxis], item_vectors))
-            else:
-                raise ValueError(f"Unexpected distance `{self.u2i_dist}`")
+            user_vectors, item_vectors = self._process_biases_to_vectors(
+                self.u2i_dist, user_vectors, user_biases, item_vectors, item_biases
+            )
 
         return ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
 
@@ -332,16 +353,13 @@ class VectorModel(ModelBase):
         item_factors = self._get_items_factors(dataset)
         item_vectors = item_factors.embeddings
         item_biases = item_factors.biases
-        item_vectors_1 = item_vectors_2 = item_vectors
 
-        if item_biases is not None:  # TODO: make it possible to control if add biases or not (even if they present)
-            if self.i2i_dist == Distance.DOT:
-                item_vectors_1 = np.hstack((np.ones((item_biases.size, 1)), item_biases[:, np.newaxis], item_vectors))
-                item_vectors_2 = np.hstack((item_biases[:, np.newaxis], np.ones((item_biases.size, 1)), item_vectors))
-            elif self.i2i_dist in (Distance.COSINE, Distance.EUCLIDEAN):
-                item_vectors_1 = item_vectors_2 = np.hstack((item_biases[:, np.newaxis], item_vectors))
-            else:
-                raise ValueError(f"Unexpected distance `{self.u2i_dist}`")
+        if item_biases is not None:
+            item_vectors_1, item_vectors_2 = self._process_biases_to_vectors(
+                self.i2i_dist, item_vectors, item_biases, item_vectors, item_biases
+            )
+        else:
+            item_vectors_1 = item_vectors_2 = item_vectors
         return ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
