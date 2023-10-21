@@ -50,21 +50,21 @@ class TestRandomSplitter:
         return Interactions(df.iloc[shuffle_arr])
 
     @pytest.fixture
-    def test_size(self) -> float:
+    def test_fold_frac(self) -> float:
         return 0.25
 
-    def test_without_filtering(self, interactions: Interactions, test_size: float) -> None:
+    def test_without_filtering(self, interactions: Interactions, test_fold_frac: float) -> None:
         interactions_copy = deepcopy(interactions)
-        kfs = RandomSplitter(test_size, 2, None, False, False, False)
+        kfs = RandomSplitter(test_fold_frac, 2, None, False, False, False)
 
         actual = list(kfs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
         assert len(actual) == 2
         assert len(actual[0]) == 3
 
-        assert actual[0][1].shape[0] == int(round(test_size * interactions.df.shape[0]))
+        assert actual[0][1].shape[0] == int(round(test_fold_frac * interactions.df.shape[0]))
         assert actual[0][0].shape[0] + actual[0][1].shape[0] == interactions.df.shape[0]
-        assert actual[1][1].shape[0] == int(round(test_size * interactions.df.shape[0]))
+        assert actual[1][1].shape[0] == int(round(test_fold_frac * interactions.df.shape[0]))
         assert actual[1][0].shape[0] + actual[0][1].shape[0] == interactions.df.shape[0]
 
         assert np.intersect1d(actual[0][1], actual[1][1]).size == 0
@@ -83,9 +83,9 @@ class TestRandomSplitter:
         assert fold_info["Test users"] == pd.unique(test_users).size
         assert fold_info["Test items"] == pd.unique(test_items).size
 
-    def test_filter_cold_users(self, interactions: Interactions, test_size: float) -> None:
+    def test_filter_cold_users(self, interactions: Interactions, test_fold_frac: float) -> None:
         interactions_copy = deepcopy(interactions)
-        kfs = RandomSplitter(test_size, 1, None, True, False, False)
+        kfs = RandomSplitter(test_fold_frac, 1, None, True, False, False)
 
         actual = list(kfs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -96,9 +96,9 @@ class TestRandomSplitter:
 
         assert np.intersect1d(train_users, test_users).shape[0] == test_users.shape[0]
 
-    def test_filter_cold_items(self, interactions: Interactions, test_size: float) -> None:
+    def test_filter_cold_items(self, interactions: Interactions, test_fold_frac: float) -> None:
         interactions_copy = deepcopy(interactions)
-        kfs = RandomSplitter(test_size, 1, None, False, True, False)
+        kfs = RandomSplitter(test_fold_frac, 1, None, False, True, False)
 
         actual = list(kfs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -109,9 +109,9 @@ class TestRandomSplitter:
 
         assert np.intersect1d(train_items, test_items).shape[0] == test_items.shape[0]
 
-    def test_filter_already_seen(self, interactions: Interactions, test_size: float) -> None:
+    def test_filter_already_seen(self, interactions: Interactions, test_fold_frac: float) -> None:
         interactions_copy = deepcopy(interactions)
-        kfs = RandomSplitter(test_size, 1, None, False, False, True)
+        kfs = RandomSplitter(test_fold_frac, 1, None, False, False, True)
 
         actual = list(kfs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -122,9 +122,9 @@ class TestRandomSplitter:
 
         assert train_interactions.merge(test_interactions, how="inner").shape[0] == 0
 
-    def test_filter_all(self, interactions: Interactions, test_size: float) -> None:
+    def test_filter_all(self, interactions: Interactions, test_fold_frac: float) -> None:
         interactions_copy = deepcopy(interactions)
-        kfs = RandomSplitter(test_size, 1, None, True, True, True)
+        kfs = RandomSplitter(test_fold_frac, 1, None, True, True, True)
 
         actual = list(kfs.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -142,13 +142,13 @@ class TestRandomSplitter:
         assert train_interactions.merge(test_interactions, how="inner").shape[0] == 0
 
     @pytest.mark.parametrize("random_state", (10, 42, 156))
-    def test_random_state(self, interactions: Interactions, test_size: float, random_state: int) -> None:
+    def test_random_state(self, interactions: Interactions, test_fold_frac: float, random_state: int) -> None:
         interactions_copy = deepcopy(interactions)
 
-        kfs1 = RandomSplitter(test_size, 1, random_state, True, True, True)
+        kfs1 = RandomSplitter(test_fold_frac, 1, random_state, True, True, True)
         actual1 = list(kfs1.split(interactions, collect_fold_stats=True))
 
-        kfs2 = RandomSplitter(test_size, 1, random_state, True, True, True)
+        kfs2 = RandomSplitter(test_fold_frac, 1, random_state, True, True, True)
         actual2 = list(kfs2.split(interactions, collect_fold_stats=True))
 
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
@@ -156,7 +156,7 @@ class TestRandomSplitter:
         assert np.array_equal(actual1[0][0], actual2[0][0])
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
-        kfs = RandomSplitter(test_size, 1, random_state, True, True, True)
+        kfs = RandomSplitter(test_fold_frac, 1, random_state, True, True, True)
         actual1 = list(kfs.split(interactions, collect_fold_stats=True))
         actual2 = list(kfs.split(interactions, collect_fold_stats=True))
 
@@ -164,7 +164,7 @@ class TestRandomSplitter:
         assert np.array_equal(actual1[0][1], actual2[0][1])
 
     @pytest.mark.parametrize(
-        "incorrect_test_size, expected_error_type",
+        "incorrect_test_fold_frac, expected_error_type",
         (
             (-0.1, ValueError),
             (0.0, ValueError),
@@ -172,28 +172,28 @@ class TestRandomSplitter:
             (1.5, ValueError),
         ),
     )
-    def test_with_incorrect_test_size(
-        self, interactions: Interactions, incorrect_test_size: float, expected_error_type: tp.Type[Exception]
+    def test_with_incorrect_test_fold_frac(
+        self, interactions: Interactions, incorrect_test_fold_frac: float, expected_error_type: tp.Type[Exception]
     ) -> None:
-        with pytest.raises(expected_error_type, match=r"Value of test_size must be between 0 and 1"):
-            RandomSplitter(incorrect_test_size, 1, None, False, False, False)
+        with pytest.raises(expected_error_type, match=r"Value of test_fold_frac must be between 0 and 1"):
+            RandomSplitter(incorrect_test_fold_frac, 1, None, False, False, False)
 
     @pytest.mark.parametrize(
-        "test_size, expected_error_type, err_message",
+        "test_fold_frac, expected_error_type, err_message",
         (
-            (0.01, ValueError, "Length of interactions (11 elements) with test_size=0.01 leads to empty test part"),
+            (0.01, ValueError, "Length of interactions (11) with test_fold_frac=0.01 leads to empty test part"),
             (
                 0.99,
                 ValueError,
-                "Length of interactions (11 elements) with test_size=0.99 leads to empty train part: "
-                "all interactions are split to the test",
+                "Length of interactions (11) with test_fold_frac=0.99 leads to empty train part: "
+                "all interactions are related to the test",
             ),
         ),
     )
     def test_empty_train_or_test(
-        self, interactions: Interactions, test_size: float, expected_error_type: tp.Type[Exception], err_message: str
+        self, interactions: Interactions, test_fold_frac: float, expected_error_type: tp.Type[Exception], err_message: str
     ) -> None:
-        kfs = RandomSplitter(test_size, 1, None, False, False, False)
+        kfs = RandomSplitter(test_fold_frac, 1, None, False, False, False)
         with pytest.raises(expected_error_type, match=re.escape(err_message)):
             for _, _, _ in kfs.split(interactions):
                 pass
@@ -203,8 +203,8 @@ class TestRandomSplitter:
         with pytest.raises(ValueError, match=re.escape(err_message)):
              RandomSplitter(0.26, 4)
    
-    def test_too_many_folds_during_split(self, interactions: Interactions, test_size: float) -> None:
-        kfs = RandomSplitter(test_size, 4, None, False, False, False)
+    def test_too_many_folds_during_split(self, interactions: Interactions, test_fold_frac: float) -> None:
+        kfs = RandomSplitter(test_fold_frac, 4, None, False, False, False)
         err_message = "Impossible to create 4 non-overlapping folds with size 3 from 11 interactions"
         with pytest.raises(ValueError, match=re.escape(err_message)):
             for _, _, _ in kfs.split(interactions):
