@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""KFoldSplitter."""
+"""RandomSplitter."""
 
 import typing as tp
 from typing import Optional
@@ -24,7 +24,7 @@ from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
 
 
-class KFoldSplitter(Splitter):
+class RandomSplitter(Splitter):
     """
     Splitter for cross-validation by random.
     Generate train and test folds with fixed part ratio

@@ -27,14 +27,14 @@ Splitters
 `model_selection.TimeRangeSplit` - split interactions by time
 """
 
-from .kfold_split import KFoldSplitter
+from .random_split import RandomSplitter
 from .last_n_split import LastNSplitter
 from .splitter import Splitter
 from .time_split import TimeRangeSplitter
 
 __all__ = (
     "Splitter",
-    "KFoldSplitter",
+    "RandomSplitter",
     "LastNSplitter",
     "TimeRangeSplitter",
 )
