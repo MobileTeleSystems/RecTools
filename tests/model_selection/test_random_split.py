@@ -198,7 +198,12 @@ class TestRandomSplitter:
             for _, _, _ in kfs.split(interactions):
                 pass
 
-    def test_too_many_folds(self, interactions: Interactions, test_size: float) -> None:
+    def test_too_many_folds(self) -> None:
+        err_message = r"Impossible to create 4 non-overlapping folds 26.0% each"
+        with pytest.raises(ValueError, match=re.escape(err_message)):
+             RandomSplitter(0.26, 4)
+   
+    def test_too_many_folds_during_split(self, interactions: Interactions, test_size: float) -> None:
         kfs = RandomSplitter(test_size, 4, None, False, False, False)
         err_message = "Impossible to create 4 non-overlapping folds with size 3 from 11 interactions"
         with pytest.raises(ValueError, match=re.escape(err_message)):

@@ -27,7 +27,7 @@ from rectools.model_selection.splitter import Splitter
 class RandomSplitter(Splitter):
     """
     Splitter for cross-validation by random.
-    Generate train and test folds with fixed part ratio
+    Generate train and test folds with fixed test part ratio
     without intersections between test folds.
     It is also possible to exclude cold users and items
     and already seen items.
@@ -91,6 +91,9 @@ class RandomSplitter(Splitter):
     ) -> None:
         if test_size <= 0.0 or test_size >= 1.0:
             raise ValueError("Value of test_size must be between 0 and 1")
+        
+        if test_size * n_splits > 1:
+            raise ValueError(f"Impossible to create {n_splits} non-overlapping folds {test_size:.1%} each")
 
         super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
         self.random_state = random_state
@@ -118,8 +121,11 @@ class RandomSplitter(Splitter):
             raise ValueError(err_message.format(len(df), self.test_size))
 
         if self.n_splits * test_part_size > len(df):
-            err_message = "Impossible to create {} non-overlapping folds with size {} from {} interactions"
-            raise ValueError(err_message.format(self.n_splits, test_part_size, len(df)))
+            err_message = f"Impossible to create {self.n_splits} non-overlapping folds with size {test_part_size} from {len(df)} interactions"
+            raise ValueError(
+                f"Impossible to create {self.n_splits} non-overlapping folds "
+                f"with size {test_part_size} from {len(df)} interactions"
+            )
 
         shuffled_idx = rng.permutation(idx)
         for i in range(self.n_splits):
