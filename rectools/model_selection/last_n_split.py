@@ -19,6 +19,7 @@ import typing as tp
 import numpy as np
 import pandas as pd
 
+from rectools import Columns
 from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
 
@@ -33,9 +34,10 @@ class LastNSplitter(Splitter):
 
     Parameters
     ----------
-    n : int or iterable of ints
+    n : int
         Number of interactions for each user that will be included in test.
-        If multiple arguments are passed, separate fold will be created for each of them.
+    n_splits : int, default 1
+        Number of test parts.
     filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
     filter_cold_items : bool, default ``True``
@@ -50,47 +52,41 @@ class LastNSplitter(Splitter):
     ...     [
     ...         [1, 1, 1, "2021-09-01"], # 0
     ...         [1, 2, 1, "2021-09-02"], # 1
-    ...         [1, 1, 1, "2021-08-20"], # 2
+    ...         [1, 1, 1, "2021-09-03"], # 2
     ...         [1, 2, 1, "2021-09-04"], # 3
-    ...         [2, 1, 1, "2021-08-20"], # 4
-    ...         [2, 2, 1, "2021-08-20"], # 5
-    ...         [2, 3, 1, "2021-09-05"], # 6
-    ...         [2, 2, 1, "2021-09-06"], # 7
-    ...         [3, 1, 1, "2021-09-05"], # 8
+    ...         [1, 2, 1, "2021-09-05"], # 4
+    ...         [2, 1, 1, "2021-08-20"], # 5
+    ...         [2, 2, 1, "2021-08-21"], # 6
+    ...         [2, 2, 1, "2021-08-22"], # 7
     ...     ],
     ...     columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
     >>> interactions = Interactions(df)
     >>>
-    >>> lns = LastNSplitter(2, False, False, False)
-    >>> for train_ids, test_ids, _ in lns.split(interactions):
+    >>> splitter = LastNSplitter(2, 2, False, False, False)
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 2 4 5] [1 3 6 7 8]
+    [0 1 2 5] [3 4 6 7]
+    [0] [1 2 5]
     >>>
-    >>> lns = LastNSplitter(2, True, True, True)
-    >>> for train_ids, test_ids, _ in lns.split(interactions):
+    >>> splitter = LastNSplitter(2, 2, True, False, False)
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 2 4 5] [1 3]
-    >>>
-    >>> lns = LastNSplitter([1, 2], False, False, False)
-    >>> for train_ids, test_ids, _ in lns.split(interactions):
-    ...     print(train_ids, test_ids)
-    [0 1 2 4 5 6] [3 7 8]
-    [0 2 4 5] [1 3 6 7 8]
+    [0 1 2 5] [3 4 6 7]
+    [0] [1 2]
     """
 
     def __init__(
         self,
-        n: tp.Union[int, tp.Iterable[int]],
+        n: int,
+        n_splits: int = 1,
         filter_cold_users: bool = True,
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
     ) -> None:
         super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
-        if isinstance(n, int):
-            self.n = [n]
-        else:
-            self.n = list(n)
+        self.n = n
+        self.n_splits = n_splits
 
     def _split_without_filter(
         self,
@@ -99,29 +95,19 @@ class LastNSplitter(Splitter):
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
-        index_has_duplicates = df.index.has_duplicates
-        if index_has_duplicates:
-            df = df[["user_id", "datetime"]].reset_index(drop=True)
-        else:
-            index_df = pd.Series(idx, index=df.index)
 
-        for n in self.n:
-            if n <= 0:
-                raise ValueError(f"N must be positive, got {n}")
+        # last event - rank=1
+        inv_ranks = df.groupby(Columns.User)[Columns.Datetime].rank(method="first", ascending=False)  
 
-            last_n_interactions = df.groupby("user_id")["datetime"].nlargest(n)
-            if index_has_duplicates:
-                test_idx = last_n_interactions.index.levels[1].to_numpy()
-            else:
-                test_idx_remapped = last_n_interactions.index.levels[1].to_numpy()
-                test_idx = index_df.loc[test_idx_remapped].values
+        for i_split in range(self.n_splits):
+            min_rank = i_split * self.n  # excluded
+            max_rank = min_rank + self.n  # included
+            
+            test_mask = (inv_ranks > min_rank) &  (inv_ranks <= max_rank)
+            train_mask = inv_ranks > max_rank
 
-            train_mask = np.ones_like(idx, dtype=bool)
-            train_mask[test_idx] = False
+            test_idx = idx[test_mask].values
             train_idx = idx[train_mask].values
 
             fold_info = {}
-            if collect_fold_stats:
-                fold_info["n"] = n
-
             yield train_idx, test_idx, fold_info
