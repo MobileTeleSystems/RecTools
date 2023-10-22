@@ -37,7 +37,7 @@ class RandomSplitter(Splitter):
     test_fold_frac : float
         Relative size of test part, must be between 0. and 1.
     n_splits : int, default 1
-        Number of folds.
+        Number of test folds.
     random_state : int, default  None,
         Controls randomness of each fold. Pass an int to get reproducible result across multiple `split` calls.
     filter_cold_users : bool, default ``True``

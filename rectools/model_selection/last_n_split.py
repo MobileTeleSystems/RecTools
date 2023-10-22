@@ -37,7 +37,7 @@ class LastNSplitter(Splitter):
     n : int
         Number of interactions for each user that will be included in test.
     n_splits : int, default 1
-        Number of test parts.
+        Number of test folds.
     filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
     filter_cold_items : bool, default ``True``
