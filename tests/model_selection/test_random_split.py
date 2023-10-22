@@ -191,7 +191,11 @@ class TestRandomSplitter:
         ),
     )
     def test_empty_train_or_test(
-        self, interactions: Interactions, test_fold_frac: float, expected_error_type: tp.Type[Exception], err_message: str
+        self,
+        interactions: Interactions,
+        test_fold_frac: float,
+        expected_error_type: tp.Type[Exception],
+        err_message: str,
     ) -> None:
         kfs = RandomSplitter(test_fold_frac, 1, None, False, False, False)
         with pytest.raises(expected_error_type, match=re.escape(err_message)):
@@ -201,8 +205,8 @@ class TestRandomSplitter:
     def test_too_many_folds(self) -> None:
         err_message = r"Impossible to create 4 non-overlapping folds 26.0% each"
         with pytest.raises(ValueError, match=re.escape(err_message)):
-             RandomSplitter(0.26, 4)
-   
+            RandomSplitter(0.26, 4)
+
     def test_too_many_folds_during_split(self, interactions: Interactions, test_fold_frac: float) -> None:
         kfs = RandomSplitter(test_fold_frac, 4, None, False, False, False)
         err_message = "Impossible to create 4 non-overlapping folds with size 3 from 11 interactions"

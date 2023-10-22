@@ -14,10 +14,8 @@
 
 """TimeRangeSplitter."""
 
-from enum import Enum
 import re
 import typing as tp
-from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
@@ -27,11 +25,9 @@ from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
 from rectools.utils import pairwise
 
-DateRange = tp.Sequence[tp.Union[date, datetime]]
-
 
 class TimeRangeSplitter(Splitter):
-    """
+    r"""
     Splitter for cross-validation by time.
     Generate train and test folds by time,
     it is also possible to exclude cold users and items
@@ -47,7 +43,7 @@ class TimeRangeSplitter(Splitter):
         with `test_size = "1D"` the last fold will be the full Monday,
         and with `test_size = "1H"` the last fold will be between 01:00 a.m. and 02:00 a.m in Monday.
     n_splits : int
-        Number of test folds. 
+        Number of test folds.
     filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
     filter_cold_items : bool, default ``True``
@@ -96,7 +92,7 @@ class TimeRangeSplitter(Splitter):
         super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
         m = re.fullmatch(r"([1-9]\d*)([DH])", test_size)
         if not m:
-            raise ValueError("Test size must match to `[1-9]\d*[DH]`, e.g. 1D, 4H")
+            raise ValueError(r"Test size must match to `[1-9]\d*[DH]`, e.g. 1D, 4H")
         self.test_size = test_size
         self.test_size_value = int(m.groups()[0])
         self.test_size_unit = m.groups()[1]

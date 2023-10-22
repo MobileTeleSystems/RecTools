@@ -97,17 +97,17 @@ class LastNSplitter(Splitter):
         idx = pd.RangeIndex(0, len(df))
 
         # last event - rank=1
-        inv_ranks = df.groupby(Columns.User)[Columns.Datetime].rank(method="first", ascending=False)  
+        inv_ranks = df.groupby(Columns.User)[Columns.Datetime].rank(method="first", ascending=False)
 
         for i_split in range(self.n_splits):
             min_rank = i_split * self.n  # excluded
             max_rank = min_rank + self.n  # included
-            
-            test_mask = (inv_ranks > min_rank) &  (inv_ranks <= max_rank)
+
+            test_mask = (inv_ranks > min_rank) & (inv_ranks <= max_rank)
             train_mask = inv_ranks > max_rank
 
             test_idx = idx[test_mask].values
             train_idx = idx[train_mask].values
 
-            fold_info = {}
+            fold_info: tp.Dict[str, tp.Any] = {}
             yield train_idx, test_idx, fold_info

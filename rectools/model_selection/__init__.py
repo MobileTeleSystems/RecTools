@@ -27,8 +27,8 @@ Splitters
 `model_selection.TimeRangeSplit` - split interactions by time
 """
 
-from .random_split import RandomSplitter
 from .last_n_split import LastNSplitter
+from .random_split import RandomSplitter
 from .splitter import Splitter
 from .time_split import TimeRangeSplitter
 

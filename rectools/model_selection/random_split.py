@@ -91,7 +91,7 @@ class RandomSplitter(Splitter):
     ) -> None:
         if test_fold_frac <= 0.0 or test_fold_frac >= 1.0:
             raise ValueError("Value of test_fold_frac must be between 0 and 1")
-        
+
         if test_fold_frac * n_splits > 1:
             raise ValueError(f"Impossible to create {n_splits} non-overlapping folds {test_fold_frac:.1%} each")
 
@@ -111,11 +111,13 @@ class RandomSplitter(Splitter):
 
         test_fold_size = int(round(self.test_fold_frac * len(df)))
         if test_fold_size == 0:
-            raise ValueError(f"Length of interactions ({len(df)}) with test_fold_frac={self.test_fold_frac} leads to empty test part")
+            raise ValueError(
+                f"Length of interactions ({len(df)}) with test_fold_frac={self.test_fold_frac} leads to empty test part"
+            )
         if test_fold_size == len(df):
             raise ValueError(
-                f"Length of interactions ({len(df)}) with test_fold_frac={self.test_fold_frac} leads to empty train part: "
-                "all interactions are related to the test"
+                f"Length of interactions ({len(df)}) with test_fold_frac={self.test_fold_frac} "
+                "leads to empty train part: all interactions are related to the test"
             )
 
         if self.n_splits * test_fold_size > len(df):

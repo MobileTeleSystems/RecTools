@@ -136,7 +136,7 @@ class TestLastNSplitter:
         splitter = LastNSplitter(2, 2, True, True, True)
         actual = list(splitter.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
-        
+
         assert len(actual) == 2
         assert len(actual[0]) == 3
         assert len(actual[1]) == 3

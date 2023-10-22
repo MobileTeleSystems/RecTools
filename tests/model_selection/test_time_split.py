@@ -12,10 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from datetime import datetime
 import typing as tp
 from copy import deepcopy
-from datetime import date
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -24,7 +23,6 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Interactions
 from rectools.model_selection import TimeRangeSplitter
-from rectools.model_selection.time_split import DateRange
 
 T = tp.TypeVar("T")
 Converter = tp.Callable[[tp.Sequence[int]], tp.List[int]]
@@ -49,7 +47,7 @@ class TestTimeRangeSplitter:
     def interactions(self, shuffle_arr: np.ndarray) -> Interactions:
         df = pd.DataFrame(
             [
-                [1, 1, 1, datetime(2021, 9, 1, 18, 5)],  # 0  
+                [1, 1, 1, datetime(2021, 9, 1, 18, 5)],  # 0
                 [1, 2, 1, datetime(2021, 9, 2, 18, 5)],  # 1
                 [2, 1, 1, datetime(2021, 9, 2, 18, 5)],  # 2
                 [2, 2, 1, datetime(2021, 9, 3, 18, 5)],  # 3
