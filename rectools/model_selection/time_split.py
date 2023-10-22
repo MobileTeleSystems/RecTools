@@ -71,14 +71,14 @@ class TimeRangeSplitter(Splitter):
     >>> interactions = Interactions(df)
     >>> date_range = pd.date_range(date(2021, 9, 4), date(2021, 9, 6))
     >>>
-    >>> trs = TimeRangeSplitter(date_range, False, False, False)
-    >>> for train_ids, test_ids, _ in trs.split(interactions):
+    >>> splitter = TimeRangeSplitter(date_range, False, False, False)
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4 5]
     [0 1 2 3 4 5] [6 7]
     >>>
-    >>> trs = TimeRangeSplitter(date_range, True, True, True)
-    >>> for train_ids, test_ids, _ in trs.split(interactions):
+    >>> splitter = TimeRangeSplitter(date_range, True, True, True)
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4]
     [0 1 2 3 4 5] []

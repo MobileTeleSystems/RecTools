@@ -65,16 +65,16 @@ class RandomSplitter(Splitter):
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
     >>> interactions = Interactions(df)
     >>>
-    >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=False,
+    >>> splitter = RandomSplitter(test_fold_frac=0.25, random_state=42, n_splits=2, filter_cold_users=False,
     ...                     filter_cold_items=False, filter_already_seen=False)
-    >>> for train_ids, test_ids, _ in kfs.split(interactions):
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [2 7 6 1 5 0] [3 4]
     [3 4 6 1 5 0] [2 7]
     >>>
-    >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
+    >>> splitter = RandomSplitter(test_fold_frac=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
-    >>> for train_ids, test_ids, _ in kfs.split(interactions):
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [2 7 6 1 5 0] [3 4]
     [3 4 6 1 5 0] [2]
