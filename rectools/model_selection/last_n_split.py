@@ -109,5 +109,6 @@ class LastNSplitter(Splitter):
             test_idx = idx[test_mask].values
             train_idx = idx[train_mask].values
 
-            fold_info: tp.Dict[str, tp.Any] = {}
-            yield train_idx, test_idx, fold_info
+            split_info = {"i_split": i_split}
+
+            yield train_idx, test_idx, split_info

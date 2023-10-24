@@ -73,14 +73,15 @@ class TestTimeRangeSplitter:
         assert sorted(actual[0][0]) == norm([0, 1, 2])
         assert sorted(actual[0][1]) == norm([3, 4, 5, 6, 7])
         assert actual[0][2] == {
-            "Start date": pd.Timestamp("2021-09-03 00:00:00", freq="2D"),
-            "End date": pd.Timestamp("2021-09-05 00:00:00", freq="2D"),
-            "Train": 3,
-            "Train users": 2,
-            "Train items": 2,
-            "Test": 5,
-            "Test users": 3,
-            "Test items": 3,
+            "i_split": 0,
+            "start": pd.Timestamp("2021-09-03 00:00:00", freq="2D"),
+            "end": pd.Timestamp("2021-09-05 00:00:00", freq="2D"),
+            "train": 3,
+            "train_users": 2,
+            "train_items": 2,
+            "test": 5,
+            "test_users": 3,
+            "test_items": 3,
         }
 
         assert sorted(actual[1][0]) == norm([0, 1, 2, 3, 4, 5, 6, 7])

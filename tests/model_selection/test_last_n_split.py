@@ -74,13 +74,15 @@ class TestLastNSplitter:
 
         assert sorted(actual[1][0]) == norm([0])
         assert sorted(actual[1][1]) == norm([1, 2, 5])
+
         assert actual[1][2] == {
-            "Train": 1,
-            "Train users": 1,
-            "Train items": 1,
-            "Test": 3,
-            "Test users": 2,
-            "Test items": 2,
+            "i_split": 1,
+            "train": 1,
+            "train_users": 1,
+            "train_items": 1,
+            "test": 3,
+            "test_users": 2,
+            "test_items": 2,
         }
 
     def test_filter_cold_users(self, interactions: Interactions, norm: Converter) -> None:

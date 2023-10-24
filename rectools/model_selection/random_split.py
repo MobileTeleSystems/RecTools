@@ -127,11 +127,12 @@ class RandomSplitter(Splitter):
             )
 
         shuffled_idx = rng.permutation(idx)
-        for i in range(self.n_splits):
-            fold_info = {"fold_number": i}
-            left = i * test_fold_size
-            right = (i + 1) * test_fold_size
+        for i_split in range(self.n_splits):
+            left = i_split * test_fold_size
+            right = (i_split + 1) * test_fold_size
             test_idx = shuffled_idx[left:right]
             train_idx = np.concatenate((shuffled_idx[:left], shuffled_idx[right:]))
 
-            yield train_idx, test_idx, fold_info
+            split_info = {"i_split": i_split}
+
+            yield train_idx, test_idx, split_info

@@ -69,19 +69,22 @@ class TestRandomSplitter:
 
         assert np.intersect1d(actual[0][1], actual[1][1]).size == 0
 
-        fold_info = actual[0][2]
+        split_info = actual[0][2]
         df = interactions.df
         train_users = df.iloc[actual[0][0]]["user_id"]
         train_items = df.iloc[actual[0][0]]["item_id"]
         test_users = df.iloc[actual[0][1]]["user_id"]
         test_items = df.iloc[actual[0][1]]["item_id"]
-
-        assert fold_info["Train"] == train_users.size
-        assert fold_info["Train users"] == pd.unique(train_users).size
-        assert fold_info["Train items"] == pd.unique(train_items).size
-        assert fold_info["Test"] == test_users.size
-        assert fold_info["Test users"] == pd.unique(test_users).size
-        assert fold_info["Test items"] == pd.unique(test_items).size
+        
+        assert split_info == {
+            "i_split": 0,
+            "train": train_users.size,
+            "train_users": pd.unique(train_users).size,
+            "train_items": pd.unique(train_items).size,
+            "test": test_users.size,
+            "test_users": pd.unique(test_users).size,
+            "test_items": pd.unique(test_items).size,
+        }
 
     def test_filter_cold_users(self, interactions: Interactions, test_fold_frac: float) -> None:
         interactions_copy = deepcopy(interactions)

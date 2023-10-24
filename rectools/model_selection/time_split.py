@@ -36,12 +36,12 @@ class TimeRangeSplitter(Splitter):
     Parameters
     ----------
     test_size : str
-        Size of test fold in format ``[1-9]\d*[DH]``, e.g. 1D, 4H.
+        Size of test fold in format ``[1-9]\d*[DH]``, e.g. ``1D`` (1 day), ``4H`` (4 hours).
         Test folds are taken from the end of `interactions`.
-        The last fold includes full time unit with the last interaction.
-        E.g. if last interaction was in 01:25 a.m. of Mondat, then
+        The last fold includes the whole time unit with the last interaction.
+        E.g. if the last interaction was at 01:25 a.m. of Monday, then
         with `test_size = "1D"` the last fold will be the full Monday,
-        and with `test_size = "1H"` the last fold will be between 01:00 a.m. and 02:00 a.m in Monday.
+        and with `test_size = "1H"` the last fold will be between 01:00 a.m. and 02:00 a.m on Monday.
     n_splits : int
         Number of test folds.
     filter_cold_users : bool, default ``True``
@@ -122,13 +122,13 @@ class TimeRangeSplitter(Splitter):
 
         series_datetime = interactions.df[Columns.Datetime]
 
-        for start, end in test_fold_borders:
-            fold_info = {"Start date": start, "End date": end}
-
+        for i_split, (start, end) in enumerate(test_fold_borders):
             train_mask = series_datetime < start
             test_mask = (series_datetime >= start) & (series_datetime < end)
 
             train_idx = idx[train_mask].values
             test_idx = idx[test_mask].values
+
+            fold_info = {"i_split": i_split, "start": start, "end": end}
 
             yield train_idx, test_idx, fold_info
