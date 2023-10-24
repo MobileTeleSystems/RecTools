@@ -34,7 +34,7 @@ class TestTimeRangeSplitter:
         return np.random.choice(np.arange(11), 11, replace=False)
 
     @pytest.fixture
-    def norm(self, shuffle_arr: np.ndarray) -> Converter:
+    def to_shuffled(self, shuffle_arr: np.ndarray) -> Converter:
         inv_shuffle_arr = np.zeros_like(shuffle_arr)
         inv_shuffle_arr[shuffle_arr] = np.arange(shuffle_arr.size)
 
@@ -63,15 +63,15 @@ class TestTimeRangeSplitter:
         ).astype({Columns.Datetime: "datetime64[ns]"})
         return Interactions(df.iloc[shuffle_arr])
 
-    def test_without_filtering(self, interactions: Interactions, norm: Converter) -> None:
+    def test_without_filtering(self, interactions: Interactions, to_shuffled: Converter) -> None:
         interactions_copy = deepcopy(interactions)
         splitter = TimeRangeSplitter("2D", 2, False, False, False)
         actual = list(splitter.split(interactions, collect_fold_stats=True))
         pd.testing.assert_frame_equal(interactions.df, interactions_copy.df)
         assert len(actual) == 2
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2])
-        assert sorted(actual[0][1]) == norm([3, 4, 5, 6, 7])
+        assert sorted(actual[0][0]) == to_shuffled([0, 1, 2])
+        assert sorted(actual[0][1]) == to_shuffled([3, 4, 5, 6, 7])
         assert actual[0][2] == {
             "i_split": 0,
             "start": pd.Timestamp("2021-09-03 00:00:00", freq="2D"),
@@ -84,10 +84,10 @@ class TestTimeRangeSplitter:
             "test_items": 3,
         }
 
-        assert sorted(actual[1][0]) == norm([0, 1, 2, 3, 4, 5, 6, 7])
-        assert sorted(actual[1][1]) == norm([8, 9, 10])
+        assert sorted(actual[1][0]) == to_shuffled([0, 1, 2, 3, 4, 5, 6, 7])
+        assert sorted(actual[1][1]) == to_shuffled([8, 9, 10])
 
-    def test_filter_cold_users(self, interactions: Interactions, norm: Converter) -> None:
+    def test_filter_cold_users(self, interactions: Interactions, to_shuffled: Converter) -> None:
         splitter = TimeRangeSplitter(
             "2D",
             2,
@@ -98,12 +98,12 @@ class TestTimeRangeSplitter:
         actual = list(splitter.split(interactions))
         assert len(actual) == 2
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2])
-        assert sorted(actual[0][1]) == norm([3, 7])
-        assert sorted(actual[1][0]) == norm([0, 1, 2, 3, 4, 5, 6, 7])
-        assert sorted(actual[1][1]) == norm([8, 10])
+        assert sorted(actual[0][0]) == to_shuffled([0, 1, 2])
+        assert sorted(actual[0][1]) == to_shuffled([3, 7])
+        assert sorted(actual[1][0]) == to_shuffled([0, 1, 2, 3, 4, 5, 6, 7])
+        assert sorted(actual[1][1]) == to_shuffled([8, 10])
 
-    def test_filter_cold_items(self, interactions: Interactions, norm: Converter) -> None:
+    def test_filter_cold_items(self, interactions: Interactions, to_shuffled: Converter) -> None:
         splitter = TimeRangeSplitter(
             "2D",
             2,
@@ -114,12 +114,12 @@ class TestTimeRangeSplitter:
         actual = list(splitter.split(interactions))
         assert len(actual) == 2
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2])
-        assert sorted(actual[0][1]) == norm([3, 4, 7])
-        assert sorted(actual[1][0]) == norm([0, 1, 2, 3, 4, 5, 6, 7])
-        assert sorted(actual[1][1]) == norm([8, 9, 10])
+        assert sorted(actual[0][0]) == to_shuffled([0, 1, 2])
+        assert sorted(actual[0][1]) == to_shuffled([3, 4, 7])
+        assert sorted(actual[1][0]) == to_shuffled([0, 1, 2, 3, 4, 5, 6, 7])
+        assert sorted(actual[1][1]) == to_shuffled([8, 9, 10])
 
-    def test_filter_already_seen(self, interactions: Interactions, norm: Converter) -> None:
+    def test_filter_already_seen(self, interactions: Interactions, to_shuffled: Converter) -> None:
         splitter = TimeRangeSplitter(
             "2D",
             2,
@@ -130,12 +130,12 @@ class TestTimeRangeSplitter:
         actual = list(splitter.split(interactions))
         assert len(actual) == 2
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2])
-        assert sorted(actual[0][1]) == norm([3, 4, 5, 6])
-        assert sorted(actual[1][0]) == norm([0, 1, 2, 3, 4, 5, 6, 7])
-        assert sorted(actual[1][1]) == norm([8, 9])
+        assert sorted(actual[0][0]) == to_shuffled([0, 1, 2])
+        assert sorted(actual[0][1]) == to_shuffled([3, 4, 5, 6])
+        assert sorted(actual[1][0]) == to_shuffled([0, 1, 2, 3, 4, 5, 6, 7])
+        assert sorted(actual[1][1]) == to_shuffled([8, 9])
 
-    def test_filter_all(self, interactions: Interactions, norm: Converter) -> None:
+    def test_filter_all(self, interactions: Interactions, to_shuffled: Converter) -> None:
         splitter = TimeRangeSplitter(
             "2D",
             2,
@@ -146,10 +146,10 @@ class TestTimeRangeSplitter:
         actual = list(splitter.split(interactions))
         assert len(actual) == 2
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2])
-        assert sorted(actual[0][1]) == norm([3])
-        assert sorted(actual[1][0]) == norm([0, 1, 2, 3, 4, 5, 6, 7])
-        assert sorted(actual[1][1]) == norm([8])
+        assert sorted(actual[0][0]) == to_shuffled([0, 1, 2])
+        assert sorted(actual[0][1]) == to_shuffled([3])
+        assert sorted(actual[1][0]) == to_shuffled([0, 1, 2, 3, 4, 5, 6, 7])
+        assert sorted(actual[1][1]) == to_shuffled([8])
 
     def test_hour_interval(self) -> None:
         df = pd.DataFrame(
