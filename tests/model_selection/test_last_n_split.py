@@ -148,4 +148,3 @@ class TestLastNSplitter:
 
         assert sorted(actual[1][0]) == to_shuffled([0, 1, 2, 5])
         assert sorted(actual[1][1]) == to_shuffled([])
-

@@ -75,7 +75,7 @@ class TestRandomSplitter:
         train_items = df.iloc[actual[0][0]]["item_id"]
         test_users = df.iloc[actual[0][1]]["user_id"]
         test_items = df.iloc[actual[0][1]]["item_id"]
-        
+
         assert split_info == {
             "i_split": 0,
             "train": train_users.size,
