@@ -69,13 +69,13 @@ class TestLastNSplitter:
         assert len(actual[0]) == 3
         assert len(actual[1]) == 3
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2, 5])
-        assert sorted(actual[0][1]) == norm([3, 4, 6, 7, 8])
+        assert sorted(actual[0][0]) == norm([0])
+        assert sorted(actual[0][1]) == norm([1, 2, 5])
 
-        assert sorted(actual[1][0]) == norm([0])
-        assert sorted(actual[1][1]) == norm([1, 2, 5])
+        assert sorted(actual[1][0]) == norm([0, 1, 2, 5])
+        assert sorted(actual[1][1]) == norm([3, 4, 6, 7, 8])
 
-        assert actual[1][2] == {
+        assert actual[0][2] == {
             "i_split": 1,
             "train": 1,
             "train_users": 1,
@@ -95,11 +95,11 @@ class TestLastNSplitter:
         assert len(actual[0]) == 3
         assert len(actual[1]) == 3
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2, 5])
-        assert sorted(actual[0][1]) == norm([3, 4, 6, 7])
+        assert sorted(actual[0][0]) == norm([0])
+        assert sorted(actual[0][1]) == norm([1, 2])
 
-        assert sorted(actual[1][0]) == norm([0])
-        assert sorted(actual[1][1]) == norm([1, 2])
+        assert sorted(actual[1][0]) == norm([0, 1, 2, 5])
+        assert sorted(actual[1][1]) == norm([3, 4, 6, 7])
 
     def test_filter_cold_items(self, interactions: Interactions, norm: Converter) -> None:
         interactions_copy = deepcopy(interactions)
@@ -111,11 +111,11 @@ class TestLastNSplitter:
         assert len(actual[0]) == 3
         assert len(actual[1]) == 3
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2, 5])
-        assert sorted(actual[0][1]) == norm([3, 7, 8])
+        assert sorted(actual[0][0]) == norm([0])
+        assert sorted(actual[0][1]) == norm([2])
 
-        assert sorted(actual[1][0]) == norm([0])
-        assert sorted(actual[1][1]) == norm([2])
+        assert sorted(actual[1][0]) == norm([0, 1, 2, 5])
+        assert sorted(actual[1][1]) == norm([3, 7, 8])
 
     def test_filter_already_seen(self, interactions: Interactions, norm: Converter) -> None:
         interactions_copy = deepcopy(interactions)
@@ -127,11 +127,11 @@ class TestLastNSplitter:
         assert len(actual[0]) == 3
         assert len(actual[1]) == 3
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2, 5])
-        assert sorted(actual[0][1]) == norm([4, 6, 8])
+        assert sorted(actual[0][0]) == norm([0])
+        assert sorted(actual[0][1]) == norm([1, 5])
 
-        assert sorted(actual[1][0]) == norm([0])
-        assert sorted(actual[1][1]) == norm([1, 5])
+        assert sorted(actual[1][0]) == norm([0, 1, 2, 5])
+        assert sorted(actual[1][1]) == norm([4, 6, 8])
 
     def test_filter_all(self, interactions: Interactions, norm: Converter) -> None:
         interactions_copy = deepcopy(interactions)
@@ -143,8 +143,9 @@ class TestLastNSplitter:
         assert len(actual[0]) == 3
         assert len(actual[1]) == 3
 
-        assert sorted(actual[0][0]) == norm([0, 1, 2, 5])
+        assert sorted(actual[0][0]) == norm([0])
         assert sorted(actual[0][1]) == norm([])
-
-        assert sorted(actual[1][0]) == norm([0])
+        
+        assert sorted(actual[1][0]) == norm([0, 1, 2, 5])
         assert sorted(actual[1][1]) == norm([])
+

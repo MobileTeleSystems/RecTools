@@ -66,14 +66,14 @@ class LastNSplitter(Splitter):
     >>> splitter = LastNSplitter(2, 2, False, False, False)
     >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 5] [3 4 6 7]
     [0] [1 2 5]
+    [0 1 2 5] [3 4 6 7]
     >>>
     >>> splitter = LastNSplitter(2, 2, True, False, False)
     >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
-    [0 1 2 5] [3 4 6 7]
     [0] [1 2]
+    [0 1 2 5] [3 4 6 7]
     """
 
     def __init__(
@@ -99,7 +99,7 @@ class LastNSplitter(Splitter):
         # last event - rank=1
         inv_ranks = df.groupby(Columns.User)[Columns.Datetime].rank(method="first", ascending=False)
 
-        for i_split in range(self.n_splits):
+        for i_split in range(self.n_splits)[::-1]:
             min_rank = i_split * self.n  # excluded
             max_rank = min_rank + self.n  # included
 
