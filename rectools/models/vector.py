@@ -72,6 +72,8 @@ class ImplicitRanker:
         if distance == Distance.COSINE:
             self.subjects_norms = np.linalg.norm(self.subjects_factors, axis=1)
             self.objects_norms = np.linalg.norm(self.objects_factors, axis=1)
+            self.objects_norms[self.objects_norms == 0] = 1e-10
+            self.subjects_norms[self.subjects_norms == 0] = 1e-10
 
     def _get_neginf_score(self) -> float:
         return -np.finfo(np.float32).max
@@ -104,7 +106,6 @@ class ImplicitRanker:
 
             if self.distance == Distance.COSINE:
                 subject_norm = self.subjects_norms[subject_id]
-                subject_norm = 1e-10 if subject_norm == 0 else subject_norm
                 relevant_scores /= subject_norm
 
             all_target_ids.extend([subject_id for _ in range(len(relevant_ids))])
@@ -143,7 +144,6 @@ class ImplicitRanker:
             object_norms = self.objects_norms
             if sorted_item_ids_to_recommend is not None:
                 object_norms = object_norms[sorted_item_ids_to_recommend]
-            object_norms[object_norms == 0] = 1e-10  # prevent zero division
 
         real_k = min(k, object_factors_whitelist.shape[0])
 
