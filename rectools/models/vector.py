@@ -47,7 +47,18 @@ class Factors:
 
 
 class ImplicitRanker:
-    """Ranker for DOT and COSINE similarity distance which uses implicit library matrix factorization topk method"""
+    """
+    Ranker for DOT and COSINE similarity distance which uses implicit library matrix factorization topk method
+
+    Parameters
+    ----------
+    distance : Distance
+        Distance metric.
+    subjects_factors : np.ndarray
+        Array of subject embeddings, shape (n_subjects, n_factors).
+    objects_factors : np.ndarray
+        Array with embeddings of all objects, shape (n_objects, n_factors).
+    """
 
     def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
         if distance not in (Distance.DOT, Distance.COSINE):
@@ -63,19 +74,11 @@ class ImplicitRanker:
             self.objects_norms = np.linalg.norm(self.objects_factors, axis=1)
 
     def _get_neginf_score(self) -> float:
-        dummy_factors = np.array([[1, 2]], dtype=np.float32)
-        neginf = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=dummy_factors,  # overall whitelist item factors
-            query=dummy_factors,  # query_factors
-            k=1,
-            filter_items=np.array([0]),
-        )[1][0][0]
-        return neginf
+        return -np.finfo(np.float32).max
 
     def _get_mask_for_correct_scores(self, scores: np.ndarray) -> tp.List[bool]:
-        """Filter scores from implicit library that are not relevant.
-        Implicit library assignes `neginf` score to items that are meant to be filtered
-        (e.g. blacklist items or already seen items)
+        """Filter scores from implicit library that are not relevant. Implicit library assigns `neginf` score
+        to items that are meant to be filtered (e.g. blacklist items or already seen items)
         """
         num_masked = 0
         min_score = self._get_neginf_score()
@@ -114,52 +117,52 @@ class ImplicitRanker:
         self,
         subject_ids: np.ndarray,
         k: int,
-        user_items_csr_for_filter_viewed: tp.Optional[sparse.csr_matrix],  # only relevant for u2i recos
+        ui_csr_for_filter: tp.Optional[sparse.csr_matrix],  # only relevant for u2i recos
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],  # whitelist
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Proceed inference using implicit library matrix factorization topk cpu method"""
         if sorted_item_ids_to_recommend is not None:
             object_factors_whitelist = self.objects_factors[sorted_item_ids_to_recommend]
-            if user_items_csr_for_filter_viewed is not None:
-                filter_query_items = filter_items_from_sparse_matrix(
-                    sorted_item_ids_to_recommend, user_items_csr_for_filter_viewed
-                )
+
+            if ui_csr_for_filter is not None:
+                #  filter ui_csr_for_filter matrix to contain only whitelist objects
+                filter_query_items = filter_items_from_sparse_matrix(sorted_item_ids_to_recommend, ui_csr_for_filter)
             else:
-                filter_query_items = user_items_csr_for_filter_viewed
+                filter_query_items = None
 
         else:
+            # keep all objects and full ui_csr_for_filter
             object_factors_whitelist = self.objects_factors
-            filter_query_items = user_items_csr_for_filter_viewed
+            filter_query_items = ui_csr_for_filter
 
         subject_factors = self.subjects_factors[subject_ids]
 
-        object_norms = None
+        object_norms = None  # for DOT distance
         if self.distance == Distance.COSINE:
             object_norms = self.objects_norms
             if sorted_item_ids_to_recommend is not None:
                 object_norms = object_norms[sorted_item_ids_to_recommend]
-            if object_norms is not None:
-                object_norms[object_norms == 0] = 1e-10
+
+        if object_norms is not None:  # prevent zero division
+            object_norms[object_norms == 0] = 1e-10
 
         real_k = min(k, object_factors_whitelist.shape[0])
 
         ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=object_factors_whitelist,  # overall whitelist item factors
-            query=subject_factors,  # query_factors
+            items=object_factors_whitelist,
+            query=subject_factors,
             k=real_k,
-            item_norms=object_norms,  # for COSINE we pass norms. query norms is applied after
-            # filter_query_items = user_items_csr for filter_viewed=True. these items get neginf score
-            filter_query_items=filter_query_items,
-            # can't be both 'items' and 'filter_items'. items to score as neginf. rectools doesn't support
-            filter_items=None,
+            item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
+            filter_query_items=filter_query_items,  # queries x objects csr matrix for getting neginf scores
+            filter_items=None,  # rectools doesn't support blacklist for now
             num_threads=num_threads,
         )
 
         if sorted_item_ids_to_recommend is not None:
             ids = sorted_item_ids_to_recommend[ids]
 
-        # filter neginf from implicit results and apply norms from correct cosine scores
+        # filter neginf from implicit scores and apply norms for correct COSINE distance
         all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(subject_ids, ids, scores)
 
         return all_target_ids, all_reco_ids, all_scores
@@ -263,11 +266,11 @@ class VectorModel(ModelBase):
         if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
 
             ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
-            user_items_csr_for_filter_viewed = user_items[user_ids] if filter_viewed else None
+            ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=user_ids,
                 k=k,
-                user_items_csr_for_filter_viewed=user_items_csr_for_filter_viewed,
+                ui_csr_for_filter=ui_csr_for_filter,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
                 num_threads=self.n_threads,
             )
@@ -306,7 +309,7 @@ class VectorModel(ModelBase):
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
                 subject_ids=target_ids,
                 k=k,
-                user_items_csr_for_filter_viewed=None,
+                ui_csr_for_filter=None,
                 sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
                 num_threads=self.n_threads,
             )

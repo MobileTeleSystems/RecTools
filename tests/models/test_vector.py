@@ -14,13 +14,14 @@
 
 import typing as tp
 
+import implicit.cpu
 import numpy as np
 import pandas as pd
 import pytest
 
 from rectools import Columns
 from rectools.dataset import Dataset
-from rectools.models.vector import Distance, Factors, ScoreCalculator, VectorModel
+from rectools.models.vector import Distance, Factors, ImplicitRanker, ScoreCalculator, VectorModel
 
 T = tp.TypeVar("T")
 
@@ -58,6 +59,54 @@ def test_scores_calculator_with_incorrect_distance() -> None:
     calculator = ScoreCalculator(123, np.random.rand(2, 3), np.random.rand(3, 3))  # type: ignore
     with pytest.raises(ValueError):
         calculator.calc(1)
+
+
+class TestImplicitRanker:  # pylint: disable=protected-access
+    @pytest.fixture
+    def subject_factors(self) -> np.ndarray:
+        return np.array([[-4, 0, 3], [0, 0, 0]])
+
+    @pytest.fixture
+    def object_factors(self) -> np.ndarray:
+        return np.array(
+            [
+                [-4, 0, 3],
+                [0, 0, 0],
+                [1, 1, 1],
+            ]
+        )
+
+    def test_neginf_score(self, subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
+        implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
+        dummy_factors = np.array([[1, 2]], dtype=np.float32)
+        neginf = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
+            items=dummy_factors,
+            query=dummy_factors,
+            k=1,
+            filter_items=np.array([0]),
+        )[1][0][0]
+        assert neginf == implicit_ranker._get_neginf_score()
+
+    def test_with_incorrect_distance(self, subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
+        with pytest.raises(ValueError):
+            ImplicitRanker(Distance.EUCLIDEAN, subjects_factors=subject_factors, objects_factors=object_factors)
+
+    def test_mask_for_correct_scores(self, subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
+        implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
+        neginf = implicit_ranker._get_neginf_score()
+        scores = np.array([7, 6, 0, 0], dtype=np.float32)
+
+        actual = implicit_ranker._get_mask_for_correct_scores(scores)
+        assert actual == [True] * 4
+
+        actual = implicit_ranker._get_mask_for_correct_scores(np.append(scores, [neginf] * 2))
+        assert actual == [True] * 4 + [False] * 2
+
+        actual = implicit_ranker._get_mask_for_correct_scores(np.append(scores, [neginf * 0.99] * 2))
+        assert actual == [True] * 6
+
+        actual = implicit_ranker._get_mask_for_correct_scores(np.insert(scores, 0, neginf))
+        assert actual == [True] * 5
 
 
 class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-outside-init
