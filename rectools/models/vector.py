@@ -113,7 +113,7 @@ class ImplicitRanker:
 
         return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
 
-    def calc_batch_scores_via_implicit_matrix_topk(
+    def rank(
         self,
         subject_ids: np.ndarray,
         k: int,
@@ -143,9 +143,7 @@ class ImplicitRanker:
             object_norms = self.objects_norms
             if sorted_item_ids_to_recommend is not None:
                 object_norms = object_norms[sorted_item_ids_to_recommend]
-
-        if object_norms is not None:  # prevent zero division
-            object_norms[object_norms == 0] = 1e-10
+            object_norms[object_norms == 0] = 1e-10  # prevent zero division
 
         real_k = min(k, object_factors_whitelist.shape[0])
 
@@ -266,7 +264,7 @@ class VectorModel(ModelBase):
 
             ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
             ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
-            return ranker.calc_batch_scores_via_implicit_matrix_topk(
+            return ranker.rank(
                 subject_ids=user_ids,
                 k=k,
                 ui_csr_for_filter=ui_csr_for_filter,
@@ -305,7 +303,7 @@ class VectorModel(ModelBase):
         if self.i2i_dist in (Distance.COSINE, Distance.DOT):
             ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
 
-            return ranker.calc_batch_scores_via_implicit_matrix_topk(
+            return ranker.rank(
                 subject_ids=target_ids,
                 k=k,
                 ui_csr_for_filter=None,
