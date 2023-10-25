@@ -207,7 +207,7 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
         with pytest.raises(ValueError):
             if method == "u2i":
                 m = self.make_model(self.user_biased_factors, self.item_biased_factors, u2i_distance=7)  # type: ignore
-                _ = m._get_u2i_vectors(self.stub_dataset)
+                m._get_u2i_vectors(self.stub_dataset)
             else:
                 m = self.make_model(self.user_biased_factors, self.item_biased_factors, i2i_distance=7)  # type: ignore
-                _ = m._get_i2i_vectors(self.stub_dataset)
+                m._get_i2i_vectors(self.stub_dataset)
