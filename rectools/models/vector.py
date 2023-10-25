@@ -262,7 +262,7 @@ class VectorModel(ModelBase):
 
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
-        if self.use_implicit and self.u2i_dist in (Distance.COSINE, Distance.DOT):
+        if self.u2i_dist in (Distance.COSINE, Distance.DOT):
 
             ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
             ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
@@ -302,7 +302,7 @@ class VectorModel(ModelBase):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         item_vectors_1, item_vectors_2 = self._get_i2i_vectors(dataset)
 
-        if self.use_implicit and self.i2i_dist in (Distance.COSINE, Distance.DOT):
+        if self.i2i_dist in (Distance.COSINE, Distance.DOT):
             ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
 
             return ranker.calc_batch_scores_via_implicit_matrix_topk(
