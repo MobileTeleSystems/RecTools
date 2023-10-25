@@ -59,8 +59,8 @@ class ImplicitRanker:
         self.subjects_norms: np.ndarray
         self.objects_norms: np.ndarray
         if distance == Distance.COSINE:
-            self.subjects_norms = np.linalg.norm(subjects_factors, axis=1).astype(np.float32)
-            self.objects_norms = np.linalg.norm(objects_factors, axis=1).astype(np.float32)
+            self.subjects_norms = np.linalg.norm(self.subjects_factors, axis=1)
+            self.objects_norms = np.linalg.norm(self.objects_factors, axis=1)
 
     def _get_neginf_score(self) -> float:
         dummy_factors = np.array([[1, 2]], dtype=np.float32)
@@ -73,6 +73,10 @@ class ImplicitRanker:
         return neginf
 
     def _get_mask_for_correct_scores(self, scores: np.ndarray) -> tp.List[bool]:
+        """Filter scores from implicit library that are not relevant.
+        Implicit library assignes `neginf` score to items that are meant to be filtered
+        (e.g. blacklist items or already seen items)
+        """
         num_masked = 0
         min_score = self._get_neginf_score()
         for el in np.flip(scores):
@@ -80,7 +84,7 @@ class ImplicitRanker:
                 num_masked += 1
             else:
                 break
-        return [True for _ in range(len(scores) - num_masked)] + [False for _ in range(num_masked)]
+        return [True] * (len(scores) - num_masked) + [False] * num_masked
 
     def _process_implicit_scores(
         self, subject_ids: np.ndarray, ids: np.ndarray, scores: np.ndarray
@@ -90,17 +94,17 @@ class ImplicitRanker:
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
 
-        for i in range(scores.shape[0]):
-            correct_mask = self._get_mask_for_correct_scores(scores[i])
-            relevant_scores = scores[i][correct_mask]
-            relevant_ids = ids[i][correct_mask]
+        for subject_id, object_ids, object_scores in zip(subject_ids, ids, scores):
+            correct_mask = self._get_mask_for_correct_scores(object_scores)
+            relevant_scores = object_scores[correct_mask]
+            relevant_ids = object_ids[correct_mask]
 
             if self.distance == Distance.COSINE:
-                subject_norm = self.subjects_norms[subject_ids[i]]
+                subject_norm = self.subjects_norms[subject_id]
                 subject_norm = 1e-10 if subject_norm == 0 else subject_norm
                 relevant_scores /= subject_norm
 
-            all_target_ids.extend([subject_ids[i] for _ in range(len(relevant_ids))])
+            all_target_ids.extend([subject_id for _ in range(len(relevant_ids))])
             all_reco_ids.append(relevant_ids)
             all_scores.append(relevant_scores)
 
