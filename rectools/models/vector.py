@@ -246,7 +246,6 @@ class VectorModel(ModelBase):
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
     n_threads: int = 0  # TODO: decide how to pass it correctly for all models
-    use_implicit: bool = True  # TODO: remove. For bedug only
 
     def _recommend_u2i(
         self,
