@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""KFoldSplitter."""
+"""RandomSplitter."""
 
 import typing as tp
 from typing import Optional
@@ -24,20 +24,23 @@ from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
 
 
-class KFoldSplitter(Splitter):
+class RandomSplitter(Splitter):
     """
-    Splitter for cross-validation by random.
-    Generate train and test folds with fixed part ratio
+    Slitter for cross-validation by random.
+    Generate train and test folds with fixed test part ratio
     without intersections between test folds.
+    Random splitting is applied to interactions.
+    Users and items are not taken into account while preparing splits.
+
     It is also possible to exclude cold users and items
     and already seen items.
 
     Parameters
     ----------
-    test_size : float
+    test_fold_frac : float
         Relative size of test part, must be between 0. and 1.
     n_splits : int, default 1
-        Number of folds.
+        Number of test folds.
     random_state : int, default  None,
         Controls randomness of each fold. Pass an int to get reproducible result across multiple `split` calls.
     filter_cold_users : bool, default ``True``
@@ -65,16 +68,16 @@ class KFoldSplitter(Splitter):
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
     >>> interactions = Interactions(df)
     >>>
-    >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=False,
+    >>> splitter = RandomSplitter(test_fold_frac=0.25, random_state=42, n_splits=2, filter_cold_users=False,
     ...                     filter_cold_items=False, filter_already_seen=False)
-    >>> for train_ids, test_ids, _ in kfs.split(interactions):
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [2 7 6 1 5 0] [3 4]
     [3 4 6 1 5 0] [2 7]
     >>>
-    >>> kfs = KFoldSplitter(test_size=0.25, random_state=42, n_splits=2, filter_cold_users=True,
+    >>> splitter = RandomSplitter(test_fold_frac=0.25, random_state=42, n_splits=2, filter_cold_users=True,
     ...                     filter_cold_items=True, filter_already_seen=True)
-    >>> for train_ids, test_ids, _ in kfs.split(interactions):
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [2 7 6 1 5 0] [3 4]
     [3 4 6 1 5 0] [2]
@@ -82,20 +85,23 @@ class KFoldSplitter(Splitter):
 
     def __init__(
         self,
-        test_size: float,
+        test_fold_frac: float,
         n_splits: int = 1,
         random_state: Optional[int] = None,
         filter_cold_users: bool = True,
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
     ) -> None:
-        if test_size <= 0.0 or test_size >= 1.0:
-            raise ValueError("Value of test_size must be between 0 and 1")
+        if test_fold_frac <= 0.0 or test_fold_frac >= 1.0:
+            raise ValueError("Value of test_fold_frac must be between 0 and 1")
+
+        if test_fold_frac * n_splits > 1:
+            raise ValueError(f"Impossible to create {n_splits} non-overlapping folds {test_fold_frac:.1%} each")
 
         super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
         self.random_state = random_state
         self.n_splits = n_splits
-        self.test_size = test_size
+        self.test_fold_frac = test_fold_frac
 
     def _split_without_filter(
         self,
@@ -106,27 +112,30 @@ class KFoldSplitter(Splitter):
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
 
-        test_part_size = int(round(self.test_size * len(df)))
-        if test_part_size == 0:
-            err_message = "Length of interactions ({} elements) with test_size={} leads to empty test part"
-            raise ValueError(err_message.format(len(df), self.test_size))
-        if test_part_size == len(df):
-            err_message = (
-                "Length of interactions ({} elements) with test_size={} leads to empty train part: "
-                "all interactions are split to the test"
+        test_fold_size = int(round(self.test_fold_frac * len(df)))
+        if test_fold_size == 0:
+            raise ValueError(
+                f"Length of interactions ({len(df)}) with test_fold_frac={self.test_fold_frac} leads to empty test part"
             )
-            raise ValueError(err_message.format(len(df), self.test_size))
+        if test_fold_size == len(df):
+            raise ValueError(
+                f"Length of interactions ({len(df)}) with test_fold_frac={self.test_fold_frac} "
+                "leads to empty train part: all interactions are related to the test"
+            )
 
-        if self.n_splits * test_part_size > len(df):
-            err_message = "Impossible to create {} non-overlapping folds with size {} from {} interactions"
-            raise ValueError(err_message.format(self.n_splits, test_part_size, len(df)))
+        if self.n_splits * test_fold_size > len(df):
+            raise ValueError(
+                f"Impossible to create {self.n_splits} non-overlapping folds "
+                f"with size {test_fold_size} from {len(df)} interactions"
+            )
 
         shuffled_idx = rng.permutation(idx)
-        for i in range(self.n_splits):
-            fold_info = {"fold_number": i}
-            left = i * test_part_size
-            right = (i + 1) * test_part_size
+        for i_split in range(self.n_splits):
+            left = i_split * test_fold_size
+            right = (i_split + 1) * test_fold_size
             test_idx = shuffled_idx[left:right]
             train_idx = np.concatenate((shuffled_idx[:left], shuffled_idx[right:]))
 
-            yield train_idx, test_idx, fold_info
+            split_info = {"i_split": i_split}
+
+            yield train_idx, test_idx, split_info

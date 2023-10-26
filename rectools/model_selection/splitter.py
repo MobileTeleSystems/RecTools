@@ -52,16 +52,16 @@ class Splitter:
         interactions : Interactions
             User-item interactions.
         collect_fold_stats : bool, default False
-            Add some stats to fold info,
+            Add some stats to split info,
             like size of train and test part, number of users and items.
 
         Returns
         -------
         iterator(array, array, dict)
-            Yields tuples with train part row numbers, test part row numbers and fold info.
+            Yields tuples with train part row numbers, test part row numbers and split info.
         """
-        for train_idx, test_idx, fold_info in self._split_without_filter(interactions, collect_fold_stats):
-            yield self.filter(interactions, collect_fold_stats, train_idx, test_idx, fold_info)
+        for train_idx, test_idx, split_info in self._split_without_filter(interactions, collect_fold_stats):
+            yield self.filter(interactions, collect_fold_stats, train_idx, test_idx, split_info)
 
     def _split_without_filter(
         self,
@@ -76,13 +76,13 @@ class Splitter:
         interactions : Interactions
             User-item interactions.
         collect_fold_stats : bool, default False
-            Add some stats to fold info,
+            Add some stats to split info,
             like size of train and test part, number of users and items.
 
         Returns
         -------
         iterator(array, array, dict)
-            Yields tuples with train part row numbers, test part row numbers and fold info.
+            Yields tuples with train part row numbers, test part row numbers and split info.
         """
         raise NotImplementedError
 
@@ -92,7 +92,7 @@ class Splitter:
         collect_fold_stats: bool,
         train_idx: np.ndarray,
         test_idx: np.ndarray,
-        fold_info: tp.Dict[str, tp.Any],
+        split_info: tp.Dict[str, tp.Any],
     ) -> tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]:
         """
         Filter train and test indexes from one fold based on `filter_cold_users`,
@@ -104,19 +104,19 @@ class Splitter:
         interactions : Interactions
             User-item interactions.
         collect_fold_stats : bool, default False
-            Add some stats to fold info,
+            Add some stats to split info,
             like size of train and test part, number of users and items.
         train_idx : array
             Train part row numbers.
         test_idx : array
             Test part row numbers.
-        fold_info : dict
-            Information about fold.
+        split_info : dict
+            Information about the split.
 
         Returns
         -------
         Tuple(array, array, dict)
-            Returns tuple with filtered train part row numbers, test part row numbers and fold info.
+            Returns tuple with filtered train part row numbers, test part row numbers and split info.
         """
         need_ui = self.filter_cold_users or self.filter_cold_items or self.filter_already_seen or collect_fold_stats
 
@@ -156,11 +156,11 @@ class Splitter:
             if unq_train_items is None:
                 unq_train_items = pd.unique(train_items)
 
-            fold_info["Train"] = train_users.size
-            fold_info["Train users"] = unq_train_users.size
-            fold_info["Train items"] = unq_train_items.size
-            fold_info["Test"] = test_users.size
-            fold_info["Test users"] = pd.unique(test_users).size
-            fold_info["Test items"] = pd.unique(test_items).size
+            split_info["train"] = train_users.size
+            split_info["train_users"] = unq_train_users.size
+            split_info["train_items"] = unq_train_items.size
+            split_info["test"] = test_users.size
+            split_info["test_users"] = pd.unique(test_users).size
+            split_info["test_items"] = pd.unique(test_items).size
 
-        return train_idx, test_idx, fold_info
+        return train_idx, test_idx, split_info
