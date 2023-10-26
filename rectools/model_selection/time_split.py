@@ -14,8 +14,8 @@
 
 """TimeRangeSplitter."""
 
+import re
 import typing as tp
-from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
@@ -25,25 +25,36 @@ from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
 from rectools.utils import pairwise
 
-DateRange = tp.Sequence[tp.Union[date, datetime]]
-
 
 class TimeRangeSplitter(Splitter):
-    """
-    Splitter for cross-validation by time.
-    Generate train and test folds by time,
-    it is also possible to exclude cold users and items
-    and already seen items.
+    r"""
+    Splitter for cross-validation by leave-time-out scheme.
+    Generate train and test putting all interactions for all users
+    after fixed date-time in test and all interactions before this date-time in train.
+    Cross-validation is achieved with sliding window over timeline of interactions.
+
+    Size of the window is defined in days or hours.
+    Test folds do not intersect and start one right after the other.
+    This technique fully reproduces the real life scenario for recommender systems,
+    preventing any data leak from the future.
+
+    It is advised to remember daily and weekly patterns in time series,
+    making each fold equal to full day or full week
+    when such patterns are present in data.
+
+    It is also possible to exclude cold users and items and already seen items.
 
     Parameters
     ----------
-    date_range : array-like(date|datetime)
-        Ordered test fold borders.
-        Left will be included, right will be excluded from fold.
-        Interactions before first border will be used for train.
-        Interaction after right border will not be used.
-        Ca be easily generated with [`pd.date_range`]
-        (https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.date_range.html)
+    test_size : str
+        Size of test fold in format ``[1-9]\d*[DH]``, e.g. ``1D`` (1 day), ``4H`` (4 hours).
+        Test folds are taken from the end of `interactions`.
+        The last fold includes the whole time unit with the last interaction.
+        E.g. if the last interaction was at 01:25 a.m. of Monday, then
+        with `test_size = "1D"` the last fold will be the full Monday,
+        and with `test_size = "1H"` the last fold will be between 01:00 a.m. and 02:00 a.m on Monday.
+    n_splits : int
+        Number of test folds.
     filter_cold_users : bool, default ``True``
         If `True`, users that not in train will be excluded from test.
     filter_cold_items : bool, default ``True``
@@ -61,66 +72,74 @@ class TimeRangeSplitter(Splitter):
     ...         [2, 3, 1, "2021-09-03"],  # 2
     ...         [3, 2, 1, "2021-09-03"],  # 3
     ...         [3, 3, 1, "2021-09-04"],  # 4
-    ...         [3, 4, 1, "2021-09-04"],  # 5
+    ...         [4, 4, 1, "2021-09-04"],  # 5
     ...         [1, 2, 1, "2021-09-05"],  # 6
-    ...         [4, 2, 1, "2021-09-05"],  # 7
-    ...         [4, 2, 1, "2021-09-06"],  # 8
     ...     ],
     ...     columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
     ... ).astype({Columns.Datetime: "datetime64[ns]"})
     >>> interactions = Interactions(df)
-    >>> date_range = pd.date_range(date(2021, 9, 4), date(2021, 9, 6))
     >>>
-    >>> trs = TimeRangeSplitter(date_range, False, False, False)
-    >>> for train_ids, test_ids, _ in trs.split(interactions):
+    >>> splitter = TimeRangeSplitter("1D", 2, False, False, False)
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4 5]
-    [0 1 2 3 4 5] [6 7]
+    [0 1 2 3 4 5] [6]
     >>>
-    >>> trs = TimeRangeSplitter(date_range, True, True, True)
-    >>> for train_ids, test_ids, _ in trs.split(interactions):
+    >>> splitter = TimeRangeSplitter("1D", 2, True, False, False)
+    >>> for train_ids, test_ids, _ in splitter.split(interactions):
     ...     print(train_ids, test_ids)
     [0 1 2 3] [4]
-    [0 1 2 3 4 5] []
+    [0 1 2 3 4 5] [6]
     """
 
     def __init__(
         self,
-        date_range: DateRange,
+        test_size: str,
+        n_splits: int = 1,
         filter_cold_users: bool = True,
         filter_cold_items: bool = True,
         filter_already_seen: bool = True,
     ) -> None:
         super().__init__(filter_cold_users, filter_cold_items, filter_already_seen)
-        self.date_range = date_range
+        m = re.fullmatch(r"([1-9]\d*)([DH])", test_size)
+        if not m:
+            raise ValueError(r"Test size must match to `[1-9]\d*[DH]`, e.g. 1D, 4H")
+        self.test_size = test_size
+        self.test_size_value = int(m.groups()[0])
+        self.test_size_unit = m.groups()[1]
+        self.n_splits = n_splits
+
+    def get_test_fold_borders(self, interactions: Interactions) -> tp.List[tp.Tuple[pd.Timestamp, pd.Timestamp]]:
+        """Return datetime borders of test folds based on given test fold sizes and last interaction."""
+        last_dt = interactions.df[Columns.Datetime].max()
+        last_dt_ceiled = last_dt.ceil(self.test_size_unit)
+
+        if last_dt_ceiled == last_dt:  # dt is exactly on units border, like `2021-09-06 00:00:00` with unit = "D"
+            last_dt_ceiled += pd.Timedelta(1, unit=self.test_size_unit)
+
+        start_dt = last_dt_ceiled - pd.Timedelta(self.n_splits * self.test_size_value, unit=self.test_size_unit)
+        date_range = pd.date_range(start=start_dt, periods=self.n_splits + 1, freq=self.test_size, tz=last_dt.tz)
+        borders = list(pairwise(date_range))
+        return borders
 
     def _split_without_filter(
         self,
         interactions: Interactions,
         collect_fold_stats: bool = False,
     ) -> tp.Iterator[tp.Tuple[np.ndarray, np.ndarray, tp.Dict[str, tp.Any]]]:
-        df = interactions.df
-        idx = pd.RangeIndex(0, len(df))
+        idx = pd.RangeIndex(0, len(interactions.df))
 
-        series_datetime = df[Columns.Datetime]
-        date_range = self._get_real_date_range(series_datetime, self.date_range)
+        test_fold_borders = self.get_test_fold_borders(interactions)
 
-        for start, end in pairwise(date_range):
-            fold_info = {"Start date": start, "End date": end}
+        series_datetime = interactions.df[Columns.Datetime]
 
+        for i_split, (start, end) in enumerate(test_fold_borders):
             train_mask = series_datetime < start
             test_mask = (series_datetime >= start) & (series_datetime < end)
 
             train_idx = idx[train_mask].values
             test_idx = idx[test_mask].values
 
+            fold_info = {"i_split": i_split, "start": start, "end": end}
+
             yield train_idx, test_idx, fold_info
-
-    def get_n_splits(self, interactions: Interactions) -> int:
-        """Return real number of folds."""
-        date_range = self._get_real_date_range(interactions.df[Columns.Datetime], self.date_range)
-        return max(0, len(date_range) - 1)
-
-    @staticmethod
-    def _get_real_date_range(series_datetime: pd.Series, date_range: DateRange) -> pd.Series:
-        return date_range[(date_range >= series_datetime.min()) & (date_range <= series_datetime.max())]

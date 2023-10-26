@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved `lightfm` to extras ([#51](https://github.com/MobileTeleSystems/RecTools/pull/51))
 - Renamed `nn` extra to `torch` ([#51](https://github.com/MobileTeleSystems/RecTools/pull/51))
 - Optimized inference for vector models with COSINE and DOT distances using `implicit` library topk method ([#52](https://github.com/MobileTeleSystems/RecTools/pull/52))
+- Renamed `KFoldSplitter` -> `RandomSplitter` ([#53](https://github.com/MobileTeleSystems/RecTools/pull/51))
+- Renamed argument `test_size` -> `test_fold_frac` for `RandomSplitter` ([#53](https://github.com/MobileTeleSystems/RecTools/pull/51))
+- Changed logic and initialization of `LastNSplitter` in case of `n_splits > 1` ([#53](https://github.com/MobileTeleSystems/RecTools/pull/51))
+- Changed initialization of `TimeRangeSplitter` (instead of `date_range` argument, use `test_size` and `n_splits`) ([#53](https://github.com/MobileTeleSystems/RecTools/pull/51))
+- Changed split infos key names in splitters ([#53](https://github.com/MobileTeleSystems/RecTools/pull/51))
 
 ### Fixed
 - Fixed bugs with new version of `pytorch_lightning` ([#43](https://github.com/MobileTeleSystems/RecTools/pull/43))
