@@ -59,9 +59,6 @@ implicit = "^0.7.1"
 attrs = ">=19.1.0,<22.0.0"
 typeguard = "^2.0.1"
 
-# To avoid problems with resolving dependencies
-Markdown = "~3.2"
-
 
 lightfm = {version = "^1.17", optional = true}
 
