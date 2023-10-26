@@ -17,6 +17,7 @@ maintainers = [
     "Daniil Potapov <sharth23@gmail.com>",
     "Ildar Safilo <irsafilo@gmail.com>",
     "Emiliy Feldman <feldlime@yandex.ru",
+    "Daria Tikhonovich <daria.m.tikhonovich@gmail.com>",
 ]
 readme = "README.md"
 homepage = "https://github.com/MobileTeleSystems/RecTools"
