@@ -26,15 +26,15 @@ from rectools.model_selection.splitter import Splitter
 
 class LastNSplitter(Splitter):
     """
-    Splitter for cross-validation by leave-one-out / leave-k-out scheme (recent activity). 
-    Generate train and test putting last n interactions for each user in test 
-    and all of his previous interactions in train. 
-    Cross-validation is achieved with sliding window over each users interactions history. 
-    
-    This technique may be used for sequential recommendation scenarios. 
-    It is common in research papers on sequential recommendations. 
-    But it doesn't fully prevent data leak from the future. 
-    
+    Splitter for cross-validation by leave-one-out / leave-k-out scheme (recent activity).
+    Generate train and test putting last n interactions for each user in test
+    and all of his previous interactions in train.
+    Cross-validation is achieved with sliding window over each users interactions history.
+
+    This technique may be used for sequential recommendation scenarios.
+    It is common in research papers on sequential recommendations.
+    But it doesn't fully prevent data leak from the future.
+
     It is also possible to exclude cold users and items and already seen items.
 
     Parameters
