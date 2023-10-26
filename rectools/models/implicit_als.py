@@ -62,6 +62,8 @@ class ImplicitALSWrapperModel(VectorModel):
 
         self.fit_features_together = fit_features_together
         self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
+        if not self.use_gpu:
+            self.n_threads = model.num_threads
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
