@@ -26,9 +26,12 @@ from rectools.model_selection.splitter import Splitter
 
 class RandomSplitter(Splitter):
     """
-    Splitter for cross-validation by random.
+    Slitter for cross-validation by random.
     Generate train and test folds with fixed test part ratio
-    without intersections between test folds.
+    without intersections between test folds. 
+    Random splitting is applied to interactions. 
+    Users and items are not taken into account while preparing splits. 
+    
     It is also possible to exclude cold users and items
     and already seen items.
 

@@ -28,10 +28,21 @@ from rectools.utils import pairwise
 
 class TimeRangeSplitter(Splitter):
     r"""
-    Splitter for cross-validation by time.
-    Generate train and test folds by time,
-    it is also possible to exclude cold users and items
-    and already seen items.
+    Splitter for cross-validation by leave-time-out scheme. 
+    Generate train and test putting all interactions for all users 
+    after fixed date-time in test and all interactions before this date-time in train. 
+    Cross-validation is achieved with sliding window over timeline of interactions. 
+    
+    Size of the window is defined in days or hours. 
+    Test folds do not intersect and start one right after the other. 
+    This technique fully reproduces the real life scenario for recommender systems, 
+    preventing any data leak from the future.
+
+    It is advised to remember daily and weekly patterns in time series, 
+    making each fold equal to full day or full week 
+    when such patterns are present in data.
+
+    It is also possible to exclude cold users and items and already seen items.
 
     Parameters
     ----------
