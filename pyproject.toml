@@ -17,6 +17,7 @@ maintainers = [
     "Daniil Potapov <sharth23@gmail.com>",
     "Ildar Safilo <irsafilo@gmail.com>",
     "Emiliy Feldman <feldlime@yandex.ru",
+    "Daria Tikhonovich <daria.m.tikhonovich@gmail.com>",
 ]
 readme = "README.md"
 homepage = "https://github.com/MobileTeleSystems/RecTools"
@@ -58,9 +59,6 @@ tqdm = "^4.27.0"
 implicit = "^0.7.1"
 attrs = ">=19.1.0,<22.0.0"
 typeguard = "^2.0.1"
-
-# To avoid problems with resolving dependencies
-Markdown = "~3.2"
 
 
 lightfm = {version = "^1.17", optional = true}

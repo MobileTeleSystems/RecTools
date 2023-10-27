@@ -13,10 +13,12 @@
 #  limitations under the License.
 
 import typing as tp
+import warnings
 from copy import deepcopy
 
 import numpy as np
 from implicit.nearest_neighbours import ItemItemRecommender
+from implicit.utils import ParameterWarning
 from scipy import sparse
 from tqdm.auto import tqdm
 
@@ -50,7 +52,10 @@ class ImplicitItemKNNWrapperModel(ModelBase):
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
-        self.model.fit(ui_csr, show_progress=self.verbose > 0)
+        # implicit library processes weights in coo_matrix format and then warns about converting it to csr
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action="ignore", category=ParameterWarning, message="Method expects CSR input")
+            self.model.fit(ui_csr, show_progress=self.verbose > 0)
 
     def _recommend_u2i(
         self,

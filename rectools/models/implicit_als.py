@@ -222,7 +222,7 @@ def _fit_paired_factors(
             }
         )
         features_model = CPUAlternatingLeastSquares(**features_model_params)
-        features_model.item_factors = y_factors
+        features_model.item_factors = y_factors.copy()
         features_model.fit(xy_csr)
         x_factors = features_model.user_factors
     return x_factors
