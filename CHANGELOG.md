@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Bumped `implicit` version to 0.7.1 ([#45](https://github.com/MobileTeleSystems/RecTools/pull/45))
 - Bumped `poetry` version to 1.4.0 for github workflows ([#43](https://github.com/MobileTeleSystems/RecTools/pull/43))
-- Updated dependencies ([#43](https://github.com/MobileTeleSystems/RecTools/pull/43))
+- Updated dependencies ([#43](https://github.com/MobileTeleSystems/RecTools/pull/43)) ([#54](https://github.com/MobileTeleSystems/RecTools/pull/54))
 - Moved `nmslib` from main dependencies to extras ([#36](https://github.com/MobileTeleSystems/RecTools/pull/36))
 - Added base `Splitter` class to construct data splitters ([#31](https://github.com/MobileTeleSystems/RecTools/pull/31))
 - Updated notebooks in `examples` ([#44](https://github.com/MobileTeleSystems/RecTools/pull/44))
