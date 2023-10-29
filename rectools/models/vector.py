@@ -27,7 +27,6 @@ from tqdm.auto import tqdm
 from rectools import InternalIds
 from rectools.dataset import Dataset
 from rectools.models.base import ModelBase, Scores
-from rectools.models.utils import get_viewed_item_ids, recommend_from_scores
 
 
 class Distance(Enum):
@@ -177,78 +176,6 @@ class ImplicitRanker:
         return all_target_ids, all_reco_ids, all_scores
 
 
-class ScoreCalculator:
-    """
-    Calculate proximity scores between one subject (e.g. user) and all objects (e.g. items)
-    according to given distance metric.
-
-    Parameters
-    ----------
-    distance : Distance
-        Distance metric.
-    subjects_factors : np.ndarray
-        Array of subject embeddings, shape (n_subjects, n_factors).
-    objects_factors : np.ndarray
-        Array with embeddings of all objects, shape (n_objects, n_factors).
-    """
-
-    def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
-        self.distance = distance
-        self.subjects_factors = subjects_factors
-        self.objects_factors = objects_factors
-
-        self.subjects_norms: np.ndarray
-        self.objects_norms: np.ndarray
-        self.zero_objects_mask: np.ndarray = np.zeros(objects_factors.shape[0], dtype=bool)
-        self.has_zero_object = False  # For optimization only
-        if distance == Distance.COSINE:
-            self.subjects_norms = np.linalg.norm(subjects_factors, axis=1)
-            self.objects_norms = np.linalg.norm(objects_factors, axis=1)
-            self.zero_objects_mask[self.objects_norms == 0] = True
-            self.has_zero_object = bool(self.zero_objects_mask.any())
-
-        self.subjects_dots: np.ndarray
-        self.objects_dots: np.ndarray
-        if distance == Distance.EUCLIDEAN:
-            self.subjects_dots = (subjects_factors**2).sum(axis=1)
-            self.objects_dots = (objects_factors**2).sum(axis=1)
-
-    def calc(self, subject_id: int) -> np.ndarray:
-        """
-        Calculate proximity scores between one subject and all objects according to given distance metric.
-
-        Parameters
-        ----------
-        subject_id : int
-            Subject index.
-
-        Returns
-        -------
-        np.ndarray
-            Array of scores, shape (n_objects,).
-        """
-        subject_factors = self.subjects_factors[subject_id]
-        if self.distance == Distance.DOT:
-            scores = self.objects_factors @ subject_factors
-        elif self.distance == Distance.EUCLIDEAN:
-            subject_dot = self.subjects_dots[subject_id]
-            dot = self.objects_factors @ subject_factors
-            d2 = self.objects_dots + subject_dot - 2 * dot
-            scores = np.sqrt(np.maximum(d2, 0))  # Theoretically d2 >= 0, but can be <0 because of rounding errors
-        elif self.distance == Distance.COSINE:
-            subject_norm = self.subjects_norms[subject_id]
-            if subject_norm == 0:
-                scores = np.zeros_like(self.objects_norms)
-            else:
-                scores = (self.objects_factors @ subject_factors) / (self.objects_norms * subject_norm)
-                if self.has_zero_object:
-                    scores[self.zero_objects_mask] = 0  # If one or both vectors are zero, assume they're orthogonal
-        else:
-            raise ValueError(f"Unexpected distance `{self.distance}`")
-
-        return scores
-
-
 class VectorModel(ModelBase):
     """Base class for models that represents users and items as vectors"""
 
@@ -271,36 +198,15 @@ class VectorModel(ModelBase):
 
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
-        if self.u2i_dist in (Distance.COSINE, Distance.DOT):
-
-            ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
-            ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
-            return ranker.rank(
-                subject_ids=user_ids,
-                k=k,
-                ui_csr_for_filter=ui_csr_for_filter,
-                sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
-                num_threads=self.n_threads,
-            )
-
-        scores_calculator = ScoreCalculator(self.u2i_dist, user_vectors, item_vectors)
-        all_target_ids = []
-        all_reco_ids: tp.List[np.ndarray] = []
-        all_scores: tp.List[np.ndarray] = []
-        for target_id in tqdm(user_ids, disable=self.verbose == 0):
-            scores = scores_calculator.calc(target_id)
-            reco_ids, reco_scores = recommend_from_scores(
-                scores=scores,
-                k=k,
-                sorted_blacklist=get_viewed_item_ids(user_items, target_id) if filter_viewed else None,
-                sorted_whitelist=sorted_item_ids_to_recommend,
-                ascending=self.u2i_dist == Distance.EUCLIDEAN,
-            )
-            all_target_ids.extend([target_id] * len(reco_ids))
-            all_reco_ids.append(reco_ids)
-            all_scores.append(reco_scores)
-
-        return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
+        ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
+        ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
+        return ranker.rank(
+            subject_ids=user_ids,
+            k=k,
+            ui_csr_for_filter=ui_csr_for_filter,
+            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+            num_threads=self.n_threads,
+        )
 
     def _recommend_i2i(
         self,
@@ -311,35 +217,15 @@ class VectorModel(ModelBase):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         item_vectors_1, item_vectors_2 = self._get_i2i_vectors(dataset)
 
-        if self.i2i_dist in (Distance.COSINE, Distance.DOT):
-            ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
+        ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
 
-            return ranker.rank(
-                subject_ids=target_ids,
-                k=k,
-                ui_csr_for_filter=None,
-                sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
-                num_threads=self.n_threads,
-            )
-
-        scores_calculator = ScoreCalculator(self.i2i_dist, item_vectors_1, item_vectors_2)
-        all_target_ids = []
-        all_reco_ids: tp.List[np.ndarray] = []
-        all_scores: tp.List[np.ndarray] = []
-        for target_id in tqdm(target_ids, disable=self.verbose == 0):
-            scores = scores_calculator.calc(target_id)
-            reco_ids, reco_scores = recommend_from_scores(
-                scores=scores,
-                k=k,
-                sorted_blacklist=None,
-                sorted_whitelist=sorted_item_ids_to_recommend,
-                ascending=self.i2i_dist == Distance.EUCLIDEAN,
-            )
-            all_target_ids.extend([target_id] * len(reco_ids))
-            all_reco_ids.append(reco_ids)
-            all_scores.append(reco_scores)
-
-        return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
+        return ranker.rank(
+            subject_ids=target_ids,
+            k=k,
+            ui_csr_for_filter=None,
+            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+            num_threads=self.n_threads,
+        )
 
     def _process_biases_to_vectors(
         self,
