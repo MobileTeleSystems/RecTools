@@ -65,23 +65,29 @@ class ImplicitRanker:
         self.objects_factors = objects_factors.astype(np.float32)
 
         self.subjects_norms: np.ndarray
-        self.objects_norms: np.ndarray
         if distance == Distance.COSINE:
-            self.subjects_norms = np.linalg.norm(self.subjects_factors, axis=1)
-            self.objects_norms = np.linalg.norm(self.objects_factors, axis=1)
-             # If one or both vectors are zero, assume they're orthogonal, need to avoid 0 in denominator
-            self.objects_norms[self.objects_norms == 0] = 1e-10
-            self.subjects_norms[self.subjects_norms == 0] = 1e-10
+            self.subjects_norms = self._calc_norms(self.subjects_factors, avoid_zeros=True)
 
         self.subjects_dots: np.ndarray
-        self.objects_dots: np.ndarray
         if distance == Distance.EUCLIDEAN:
-            self.subjects_dots = (subjects_factors**2).sum(axis=1)
-            self.objects_dots = (objects_factors**2).sum(axis=1)
+            self.subjects_dots = self._calc_dots(self.subjects_factors)
 
     def _get_neginf_score(self) -> float:
         return -np.finfo(np.float32).max
-
+    
+    @staticmethod
+    def _calc_dots(factors: np.ndarray) -> np.ndarray:
+        return (factors**2).sum(axis=1)
+    
+    @classmethod
+    def _calc_norms(factors: np.ndarray, avoid_zeros: bool = False) -> np.ndarray:
+        norms = np.linalg.norm(factors, axis=1)
+        # Used for COSINE distance
+        # If one or both vectors are zero, assume they're orthogonal, need to avoid 0 in denominator
+        if avoid_zeros:
+            norms[norms == 0] = 1e-10
+        return norms
+    
     def _get_mask_for_correct_scores(self, scores: np.ndarray) -> tp.List[bool]:
         """Filter scores from implicit library that are not relevant. Implicit library assigns `neginf` score
         to items that are meant to be filtered (e.g. blacklist items or already seen items)
@@ -150,9 +156,7 @@ class ImplicitRanker:
 
         object_norms = None  # for DOT and EUCLIDIAN distance
         if self.distance == Distance.COSINE:
-            object_norms = self.objects_norms
-            if sorted_object_whitelist is not None:
-                object_norms = object_norms[sorted_object_whitelist]
+            object_norms = self._calc_norms(object_factors, avoid_zeros=True)
         
         if self.distance == Distance.EUCLIDEAN:
             subject_factors = np.hstack((-np.ones((subject_factors.shape[0], 1)), 2*subject_factors))
