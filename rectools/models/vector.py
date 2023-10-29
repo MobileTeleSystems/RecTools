@@ -119,6 +119,7 @@ class ImplicitRanker:
                 relevant_scores /= subject_norm
 
             if self.distance == Distance.EUCLIDEAN:
+                # Restore Euclidean distances from scores
                 d2 = self.subjects_dots[subject_id] - relevant_scores
                 # Theoretically d2 >= 0, but can be <0 because of rounding errors
                 relevant_scores = np.sqrt(np.maximum(d2, 0))
@@ -159,6 +160,8 @@ class ImplicitRanker:
             object_norms = self._calc_norms(object_factors, avoid_zeros=True)
 
         if self.distance == Distance.EUCLIDEAN:
+            # Transform factors to get top-k by Euclidean distance using Dot metric
+            # https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/XboxInnerProduct.pdf
             subject_factors = np.hstack((-np.ones((subject_factors.shape[0], 1)), 2 * subject_factors))
             object_factors = np.hstack(((object_factors**2).sum(axis=1).reshape(-1, 1), object_factors))
 
