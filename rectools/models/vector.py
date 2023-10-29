@@ -112,7 +112,8 @@ class ImplicitRanker:
                 relevant_scores /= subject_norm
 
             if self.distance == Distance.EUCLIDEAN:
-                relevant_scores = np.sqrt(self.subjects_dots[subject_id] - relevant_scores)
+                d2 = self.subjects_dots[subject_id] - relevant_scores
+                relevant_scores = np.sqrt(np.maximum(d2, 0))  # Theoretically d2 >= 0, but can be <0 because of rounding errors
 
             all_target_ids.extend([subject_id for _ in range(len(relevant_ids))])
             all_reco_ids.append(relevant_ids)
