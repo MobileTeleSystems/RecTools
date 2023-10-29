@@ -61,8 +61,6 @@ class ImplicitRanker:
     """
 
     def __init__(self, distance: Distance, subjects_factors: np.ndarray, objects_factors: np.ndarray) -> None:
-        if distance not in (Distance.DOT, Distance.COSINE):
-            raise ValueError(f"ImplicitRanker is not suitable for {distance} distance")
         self.distance = distance
         self.subjects_factors = subjects_factors.astype(np.float32)
         self.objects_factors = objects_factors.astype(np.float32)
@@ -74,6 +72,12 @@ class ImplicitRanker:
             self.objects_norms = np.linalg.norm(self.objects_factors, axis=1)
             self.objects_norms[self.objects_norms == 0] = 1e-10
             self.subjects_norms[self.subjects_norms == 0] = 1e-10
+
+        self.subjects_dots: np.ndarray
+        self.objects_dots: np.ndarray
+        if distance == Distance.EUCLIDEAN:
+            self.subjects_dots = (subjects_factors**2).sum(axis=1)
+            self.objects_dots = (objects_factors**2).sum(axis=1)
 
     def _get_neginf_score(self) -> float:
         return -np.finfo(np.float32).max
@@ -108,6 +112,9 @@ class ImplicitRanker:
                 subject_norm = self.subjects_norms[subject_id]
                 relevant_scores /= subject_norm
 
+            if self.distance == Distance.EUCLIDEAN:
+                relevant_scores = np.sqrt(self.subjects_dots[subject_id] - relevant_scores)
+
             all_target_ids.extend([subject_id for _ in range(len(relevant_ids))])
             all_reco_ids.append(relevant_ids)
             all_scores.append(relevant_scores)
@@ -124,7 +131,7 @@ class ImplicitRanker:
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Proceed inference using implicit library matrix factorization topk cpu method"""
         if sorted_item_ids_to_recommend is not None:
-            object_factors_whitelist = self.objects_factors[sorted_item_ids_to_recommend]
+            object_factors = self.objects_factors[sorted_item_ids_to_recommend]
 
             if ui_csr_for_filter is not None:
                 #  filter ui_csr_for_filter matrix to contain only whitelist objects
@@ -134,21 +141,25 @@ class ImplicitRanker:
 
         else:
             # keep all objects and full ui_csr_for_filter
-            object_factors_whitelist = self.objects_factors
+            object_factors = self.objects_factors
             filter_query_items = ui_csr_for_filter
 
         subject_factors = self.subjects_factors[subject_ids]
 
-        object_norms = None  # for DOT distance
+        object_norms = None  # for DOT and EUCLIDIAN distance
         if self.distance == Distance.COSINE:
             object_norms = self.objects_norms
             if sorted_item_ids_to_recommend is not None:
                 object_norms = object_norms[sorted_item_ids_to_recommend]
+        
+        if self.distance == Distance.EUCLIDEAN:
+            subject_factors = np.hstack((-np.ones((subject_factors.shape[0], 1)), 2*subject_factors))
+            object_factors = np.hstack(((object_factors**2).sum(axis=1).reshape(-1, 1), object_factors))
 
-        real_k = min(k, object_factors_whitelist.shape[0])
+        real_k = min(k, object_factors.shape[0])
 
         ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=object_factors_whitelist,
+            items=object_factors,
             query=subject_factors,
             k=real_k,
             item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
