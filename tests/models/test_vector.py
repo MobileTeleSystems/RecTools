@@ -29,7 +29,6 @@ T = tp.TypeVar("T")
 pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in true_divide")
 
 
-
 class TestImplicitRanker:  # pylint: disable=protected-access
     @pytest.fixture
     def subject_factors(self) -> np.ndarray:
@@ -77,11 +76,18 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         "distance, expected_recs, expected_scores",
         (
             (Distance.DOT, [0, 1, 2, 2, 1, 0], [25, 0, -1, 0, 0, 0]),
-            (Distance.COSINE, [0, 1, 2, 2, 1, 0], [1, 0, -1/(5 * 3**0.5), 0, 0, 0]),
+            (Distance.COSINE, [0, 1, 2, 2, 1, 0], [1, 0, -1 / (5 * 3**0.5), 0, 0, 0]),
             (Distance.EUCLIDEAN, [0, 1, 2, 1, 2, 0], [0, 5, 30**0.5, 0, 3**0.5, 5]),
         ),
     )
-    def test_rank(self, distance: Distance, expected_recs: tp.List[int], expected_scores: tp.List[float], subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
+    def test_rank(
+        self,
+        distance: Distance,
+        expected_recs: tp.List[int],
+        expected_scores: tp.List[float],
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+    ) -> None:
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
         _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3)
         np.testing.assert_equal(actoal_recs, expected_recs)
@@ -91,11 +97,18 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         "distance, expected_recs, expected_scores",
         (
             (Distance.DOT, [0, 2, 2, 1, 0], [25, -1, 0, 0, 0]),
-            (Distance.COSINE, [0, 2, 2, 1, 0], [1, -1/(5 * 3**0.5), 0, 0, 0]),
+            (Distance.COSINE, [0, 2, 2, 1, 0], [1, -1 / (5 * 3**0.5), 0, 0, 0]),
             (Distance.EUCLIDEAN, [0, 2, 1, 2, 0], [0, 30**0.5, 0, 3**0.5, 5]),
         ),
     )
-    def test_rank_with_filtering_viewed_items(self, distance: Distance, expected_recs: tp.List[int], expected_scores: tp.List[float], subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
+    def test_rank_with_filtering_viewed_items(
+        self,
+        distance: Distance,
+        expected_recs: tp.List[int],
+        expected_scores: tp.List[float],
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+    ) -> None:
         ui_csr = sparse.csr_matrix(
             [
                 [0, 1, 0],
@@ -108,14 +121,21 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
-    "distance, expected_recs, expected_scores",
-    (
-        (Distance.DOT, [0, 2, 2, 0], [25, -1, 0, 0]),
-        (Distance.COSINE, [0, 2, 2, 0], [1, -1/(5 * 3**0.5), 0, 0]),
-        (Distance.EUCLIDEAN, [0, 2, 2, 0], [0, 30**0.5, 3**0.5, 5]),
-    ),
+        "distance, expected_recs, expected_scores",
+        (
+            (Distance.DOT, [0, 2, 2, 0], [25, -1, 0, 0]),
+            (Distance.COSINE, [0, 2, 2, 0], [1, -1 / (5 * 3**0.5), 0, 0]),
+            (Distance.EUCLIDEAN, [0, 2, 2, 0], [0, 30**0.5, 3**0.5, 5]),
+        ),
     )
-    def test_rank_with_objects_whitelist(self, distance: Distance, expected_recs: tp.List[int], expected_scores: tp.List[float], subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
+    def test_rank_with_objects_whitelist(
+        self,
+        distance: Distance,
+        expected_recs: tp.List[int],
+        expected_scores: tp.List[float],
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+    ) -> None:
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
         _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]))
         np.testing.assert_equal(actoal_recs, expected_recs)
