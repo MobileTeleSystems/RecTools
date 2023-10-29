@@ -24,8 +24,7 @@ from rectools.dataset.torch_datasets import DSSMDataset
 from rectools.exceptions import NotFittedError
 from rectools.models import DSSMModel
 from rectools.models.dssm import DSSM
-from rectools.models.utils import recommend_from_scores
-from rectools.models.vector import ScoreCalculator
+from rectools.models.vector import ImplicitRanker
 
 from .data import INTERACTIONS
 
@@ -192,13 +191,8 @@ class TestDSSMModel:
         )
         model.fit(dataset=dataset)
         user_embeddings, item_embeddings = model.get_vectors(dataset)
-        score_calculator = ScoreCalculator(model.u2i_dist, user_embeddings, item_embeddings)
-        predictions = [
-            score_calculator.calc(uid) for uid in dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40]))
-        ]
-        vectors_predictions = [recommend_from_scores(-predictions[i].flatten(), k=5) for i in range(4)]
-        vectors_reco = np.array([vp[0] for vp in vectors_predictions]).ravel()
-        vectors_scores = np.array([vp[1] for vp in vectors_predictions]).ravel()
+        ranker = ImplicitRanker(model.u2i_dist, user_embeddings, item_embeddings)
+        _, vectors_reco, vectors_scores = ranker.rank(dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])), k=5)
         (_, reco_item_ids, reco_scores,) = model._recommend_u2i(  # pylint: disable=protected-access
             user_ids=dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])),
             dataset=dataset,
@@ -207,7 +201,7 @@ class TestDSSMModel:
             sorted_item_ids_to_recommend=None,
         )
         np.testing.assert_equal(vectors_reco, reco_item_ids)
-        np.testing.assert_almost_equal(-vectors_scores, reco_scores, decimal=5)
+        np.testing.assert_almost_equal(vectors_scores, reco_scores, decimal=5)
 
     def test_raises_when_get_vectors_from_not_fitted(self, dataset: Dataset) -> None:
         base_model = DSSM(
