@@ -73,7 +73,8 @@ class ImplicitRanker:
             self.subjects_dots = self._calc_dots(self.subjects_factors)
 
     def _get_neginf_score(self) -> float:
-        return -np.finfo(np.float32).max
+        # Adding 1 to avoid float calculation errors (we're comparing `scores <= neginf_score`)
+        return -np.finfo(np.float32).max + 1
     
     @staticmethod
     def _calc_dots(factors: np.ndarray) -> np.ndarray:
