@@ -69,6 +69,7 @@ class ImplicitRanker:
         if distance == Distance.COSINE:
             self.subjects_norms = np.linalg.norm(self.subjects_factors, axis=1)
             self.objects_norms = np.linalg.norm(self.objects_factors, axis=1)
+             # If one or both vectors are zero, assume they're orthogonal, need to avoid 0 in denominator
             self.objects_norms[self.objects_norms == 0] = 1e-10
             self.subjects_norms[self.subjects_norms == 0] = 1e-10
 
