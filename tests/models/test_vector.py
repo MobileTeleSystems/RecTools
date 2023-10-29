@@ -103,7 +103,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             ]
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, ui_csr=ui_csr)
+        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, filter_so_csr=ui_csr)
         np.testing.assert_equal(actoal_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
@@ -117,7 +117,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
     )
     def test_rank_with_objects_whitelist(self, distance: Distance, expected_recs: tp.List[int], expected_scores: tp.List[float], subject_factors: np.ndarray, object_factors: np.ndarray) -> None:
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, sorted_item_ids_to_recommend=np.array([0, 2]))
+        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]))
         np.testing.assert_equal(actoal_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 

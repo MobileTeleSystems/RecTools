@@ -125,32 +125,33 @@ class ImplicitRanker:
         self,
         subject_ids: np.ndarray,
         k: int,
-        ui_csr_for_filter: tp.Optional[sparse.csr_matrix],  # only relevant for u2i recos
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],  # whitelist
+        filter_so_csr: tp.Optional[sparse.csr_matrix] = None,  # subect-object interactions, only relevant for u2i case
+        sorted_object_whitelist: tp.Optional[np.ndarray] = None,
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Proceed inference using implicit library matrix factorization topk cpu method"""
-        if sorted_item_ids_to_recommend is not None:
-            object_factors = self.objects_factors[sorted_item_ids_to_recommend]
 
-            if ui_csr_for_filter is not None:
+        if sorted_object_whitelist is not None:
+            object_factors = self.objects_factors[sorted_object_whitelist]
+
+            if filter_so_csr is not None:
                 #  filter ui_csr_for_filter matrix to contain only whitelist objects
-                filter_query_items = filter_items_from_sparse_matrix(sorted_item_ids_to_recommend, ui_csr_for_filter)
+                filter_query_items = filter_items_from_sparse_matrix(sorted_object_whitelist, filter_so_csr)
             else:
                 filter_query_items = None
 
         else:
             # keep all objects and full ui_csr_for_filter
             object_factors = self.objects_factors
-            filter_query_items = ui_csr_for_filter
+            filter_query_items = filter_so_csr
 
         subject_factors = self.subjects_factors[subject_ids]
 
         object_norms = None  # for DOT and EUCLIDIAN distance
         if self.distance == Distance.COSINE:
             object_norms = self.objects_norms
-            if sorted_item_ids_to_recommend is not None:
-                object_norms = object_norms[sorted_item_ids_to_recommend]
+            if sorted_object_whitelist is not None:
+                object_norms = object_norms[sorted_object_whitelist]
         
         if self.distance == Distance.EUCLIDEAN:
             subject_factors = np.hstack((-np.ones((subject_factors.shape[0], 1)), 2*subject_factors))
@@ -168,8 +169,8 @@ class ImplicitRanker:
             num_threads=num_threads,
         )
 
-        if sorted_item_ids_to_recommend is not None:
-            ids = sorted_item_ids_to_recommend[ids]
+        if sorted_object_whitelist is not None:
+            ids = sorted_object_whitelist[ids]
 
         # filter neginf from implicit scores and apply norms for correct COSINE distance
         all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(subject_ids, ids, scores)
@@ -204,8 +205,8 @@ class VectorModel(ModelBase):
         return ranker.rank(
             subject_ids=user_ids,
             k=k,
-            ui_csr_for_filter=ui_csr_for_filter,
-            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+            filter_so_csr=ui_csr_for_filter,
+            sorted_object_whitelist=sorted_item_ids_to_recommend,
             num_threads=self.n_threads,
         )
 
@@ -223,8 +224,8 @@ class VectorModel(ModelBase):
         return ranker.rank(
             subject_ids=target_ids,
             k=k,
-            ui_csr_for_filter=None,
-            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+            filter_so_csr=None,
+            sorted_object_whitelist=sorted_item_ids_to_recommend,
             num_threads=self.n_threads,
         )
 
