@@ -22,7 +22,6 @@ import implicit.cpu
 import numpy as np
 from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
 from scipy import sparse
-from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
@@ -80,7 +79,7 @@ class ImplicitRanker:
     def _calc_dots(factors: np.ndarray) -> np.ndarray:
         return (factors**2).sum(axis=1)
 
-    @classmethod
+    @staticmethod
     def _calc_norms(factors: np.ndarray, avoid_zeros: bool = False) -> np.ndarray:
         norms = np.linalg.norm(factors, axis=1)
         # Used for COSINE distance
@@ -103,7 +102,7 @@ class ImplicitRanker:
         return [True] * (len(scores) - num_masked) + [False] * num_masked
 
     def _process_implicit_scores(
-        self, subject_ids: np.ndarray, ids: np.ndarray, scores: np.ndarray
+        self, subject_ids: InternalIds, ids: np.ndarray, scores: np.ndarray
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
 
         all_target_ids = []
@@ -132,14 +131,13 @@ class ImplicitRanker:
 
     def rank(
         self,
-        subject_ids: np.ndarray,
+        subject_ids: InternalIds,
         k: int,
         filter_so_csr: tp.Optional[sparse.csr_matrix] = None,  # subect-object interactions, only relevant for u2i case
         sorted_object_whitelist: tp.Optional[np.ndarray] = None,
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Proceed inference using implicit library matrix factorization topk cpu method"""
-
         if sorted_object_whitelist is not None:
             object_factors = self.objects_factors[sorted_object_whitelist]
 
@@ -156,7 +154,7 @@ class ImplicitRanker:
 
         subject_factors = self.subjects_factors[subject_ids]
 
-        object_norms = None  # for DOT and EUCLIDIAN distance
+        object_norms = None  # for DOT and EUCLIDEAN distance
         if self.distance == Distance.COSINE:
             object_norms = self._calc_norms(object_factors, avoid_zeros=True)
 

@@ -141,6 +141,35 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         np.testing.assert_equal(actoal_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
+    @pytest.mark.parametrize(
+        "distance, expected_recs, expected_scores",
+        (
+            (Distance.DOT, [2, 2, 0], [-1, 0, 0]),
+            (Distance.COSINE, [2, 2, 0], [-1 / (5 * 3**0.5), 0, 0]),
+            (Distance.EUCLIDEAN, [2, 2, 0], [30**0.5, 3**0.5, 5]),
+        ),
+    )
+    def test_rank_with_objects_whitelist_and_filtering_viewed_items(
+        self,
+        distance: Distance,
+        expected_recs: tp.List[int],
+        expected_scores: tp.List[float],
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+    ) -> None:
+        ui_csr = sparse.csr_matrix(
+            [
+                [1, 1, 0],
+                [0, 0, 0],
+            ]
+        )
+        ranker = ImplicitRanker(distance, subject_factors, object_factors)
+        _, actoal_recs, actual_scores = ranker.rank(
+            subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), filter_so_csr=ui_csr
+        )
+        np.testing.assert_equal(actoal_recs, expected_recs)
+        np.testing.assert_almost_equal(actual_scores, expected_scores)
+
 
 class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-outside-init
     def setup(self) -> None:
