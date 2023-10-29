@@ -263,3 +263,13 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
             _, reco, scores = model._recommend_i2i(np.array([0, 1]), self.stub_dataset, 5, None)
         assert list(reco) == sum(expected_reco, [])
         np.testing.assert_almost_equal(scores, np.array(expected_scores).ravel(), decimal=5)
+
+    @pytest.mark.parametrize("method", ("u2i", "i2i"))
+    def test_with_incorrect_distance(self, method: str) -> None:
+        with pytest.raises(ValueError):
+            if method == "u2i":
+                m = self.make_model(self.user_biased_factors, self.item_biased_factors, u2i_distance=7)  # type: ignore
+                m._get_u2i_vectors(self.stub_dataset)
+            else:
+                m = self.make_model(self.user_biased_factors, self.item_biased_factors, i2i_distance=7)  # type: ignore
+                m._get_i2i_vectors(self.stub_dataset)
