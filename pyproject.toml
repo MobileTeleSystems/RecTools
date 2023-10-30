@@ -76,16 +76,23 @@ pytorch-lightning = [
     {version = ">=1.6.0, <2.0.0", python = "<3.8", optional = true},
     {version = ">=1.6.0, <3.0.0", python = ">=3.8", optional = true}
 ]
+# There is a bug with `pytorch-lightning`:
+# `pytorch-lightning` depends on `lightning-utilities`,
+# which depends on `pkg_resources`, which is a part of `setuptools`.
+# In versions <=0.9.0 (0.9.0 is the latest when this comment is written)
+# `lightning-utilities` does not `setuptools` in requirements.
+# But it's going to be there in the next release. 
+setuptools = {version = "^68.2.2", python = ">=3.8", optional = true}
 
 
 [tool.poetry.extras]
 lightfm = ["lightfm"]
 nmslib = ["nmslib"]
-torch = ["torch", "pytorch-lightning"]
+torch = ["torch", "pytorch-lightning", "setuptools"]
 all = [
     "lightfm",
     "nmslib", 
-    "torch", "pytorch-lightning",
+    "torch", "pytorch-lightning", "setuptools"
 ]
 
 [tool.poetry.dev-dependencies]
