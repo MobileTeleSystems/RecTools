@@ -89,8 +89,8 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         object_factors: np.ndarray,
     ) -> None:
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3)
-        np.testing.assert_equal(actoal_recs, expected_recs)
+        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3)
+        np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
@@ -116,8 +116,8 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             ]
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, filter_so_csr=ui_csr)
-        np.testing.assert_equal(actoal_recs, expected_recs)
+        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, filter_so_csr=ui_csr)
+        np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
@@ -137,8 +137,8 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         object_factors: np.ndarray,
     ) -> None:
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actoal_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]))
-        np.testing.assert_equal(actoal_recs, expected_recs)
+        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]))
+        np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
@@ -164,10 +164,10 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             ]
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actoal_recs, actual_scores = ranker.rank(
+        _, actual_recs, actual_scores = ranker.rank(
             subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), filter_so_csr=ui_csr
         )
-        np.testing.assert_equal(actoal_recs, expected_recs)
+        np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
 
