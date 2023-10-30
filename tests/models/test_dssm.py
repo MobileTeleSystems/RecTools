@@ -279,7 +279,7 @@ class TestDSSMModel:
         if not filter_itself and whitelist is None:
             tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 1} if pd.__version__ < "1" else {"atol": 0.01}
             # actual is on the 2-nd place because of strange behaviour of assert function for pd.__version__ < "1"
-            pd.testing.assert_frame_equal(
+            pd.testing.assert_frame_equal(  # pylint: disable = unexpected-keyword-arg
                 pd.DataFrame(
                     {
                         Columns.TargetItem: target_items,
