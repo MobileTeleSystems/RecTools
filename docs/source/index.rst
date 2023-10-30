@@ -28,7 +28,7 @@ Train model and infer recommendations.
 
     from rectools import Columns
     from rectools.dataset import Dataset
-    from rectools.models import ImplicitItemKNNModel
+    from rectools.models import ImplicitItemKNNWrapperModel
 
     # Read the data
     ratings = pd.read_csv(
@@ -43,7 +43,7 @@ Train model and infer recommendations.
     dataset = Dataset.construct(ratings)
 
     # Fit model
-    model = ImplicitItemKNNModel(TFIDFRecommender(K=10))
+    model = ImplicitItemKNNWrapperModel(TFIDFRecommender(K=10))
     model.fit(dataset)
 
     # Make recommendations
@@ -65,6 +65,18 @@ Install from PyPi using pip
     $ pip install rectools
 
 RecTools is compatible with all operating systems and with Python 3.7+.
+The default version doesn't contain all the dependencies. Optional dependencies are the following:
+
+lightfm: adds wrapper for LightFM model,
+torch: adds models based on neural nets,
+nmslib: adds fast ANN recommenders.
+all: all extra dependencies
+
+Install RecTools with selected dependencies:
+
+.. code-block:: bash
+
+    $ pip install rectools[lightfm,torch]
 
 Why RecTools?
 -------------
