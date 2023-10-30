@@ -46,7 +46,7 @@ class Factors:
 
 class ImplicitRanker:
     """
-    Ranker for DOT and COSINE similarity distance which uses implicit library matrix factorization topk method
+    Ranker for vector-based models which uses implicit library matrix factorization topk method
 
     Parameters
     ----------
