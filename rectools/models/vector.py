@@ -180,7 +180,7 @@ class ImplicitRanker:
         if sorted_object_whitelist is not None:
             ids = sorted_object_whitelist[ids]
 
-        # filter neginf from implicit scores and apply norms for correct COSINE distance
+        # filter neginf from implicit scores and apply transformations to scores (for COSINE and EUCLIDEAN distances)
         all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(subject_ids, ids, scores)
 
         return all_target_ids, all_reco_ids, all_scores
