@@ -111,8 +111,8 @@ class Interactions:
 
         df = pd.DataFrame(
             {
-                Columns.User: interactions[Columns.User].map(user_id_map.to_internal),
-                Columns.Item: interactions[Columns.Item].map(item_id_map.to_internal),
+                Columns.User: user_id_map.convert_to_internal(interactions[Columns.User]),
+                Columns.Item: item_id_map.convert_to_internal(interactions[Columns.Item]),
             },
         )
         df[Columns.Weight] = interactions[Columns.Weight]

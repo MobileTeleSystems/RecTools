@@ -74,8 +74,8 @@ class TestTimeRangeSplitter:
         assert sorted(actual[0][1]) == to_shuffled([3, 4, 5, 6, 7])
         assert actual[0][2] == {
             "i_split": 0,
-            "start": pd.Timestamp("2021-09-03 00:00:00", freq="2D"),
-            "end": pd.Timestamp("2021-09-05 00:00:00", freq="2D"),
+            "start": pd.Timestamp("2021-09-03 00:00:00"),
+            "end": pd.Timestamp("2021-09-05 00:00:00"),
             "train": 3,
             "train_users": 2,
             "train_items": 2,
