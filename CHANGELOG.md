@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Updated attrs version ([#56](https://github.com/MobileTeleSystems/RecTools/pull/56))
+- Updated pandas, pytorch and pytorch-lightning versions ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
 - Optimized inference for vector models with EUCLIDEAN distance using `implicit` library topk method ([#57](https://github.com/MobileTeleSystems/RecTools/pull/57))
 
 ## [0.4.0] - 27.10.2023
