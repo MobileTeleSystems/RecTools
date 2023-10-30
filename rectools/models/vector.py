@@ -134,7 +134,7 @@ class ImplicitRanker:
         self,
         subject_ids: InternalIds,
         k: int,
-        filter_so_csr: tp.Optional[sparse.csr_matrix] = None,  # subect-object interactions, only relevant for u2i case
+        filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,  # subect-object interactions, relevant for u2i case
         sorted_object_whitelist: tp.Optional[np.ndarray] = None,
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
@@ -142,16 +142,16 @@ class ImplicitRanker:
         if sorted_object_whitelist is not None:
             object_factors = self.objects_factors[sorted_object_whitelist]
 
-            if filter_so_csr is not None:
+            if filter_pairs_csr is not None:
                 #  filter ui_csr_for_filter matrix to contain only whitelist objects
-                filter_query_items = filter_items_from_sparse_matrix(sorted_object_whitelist, filter_so_csr)
+                filter_query_items = filter_items_from_sparse_matrix(sorted_object_whitelist, filter_pairs_csr)
             else:
                 filter_query_items = None
 
         else:
             # keep all objects and full ui_csr_for_filter
             object_factors = self.objects_factors
-            filter_query_items = filter_so_csr
+            filter_query_items = filter_pairs_csr
 
         subject_factors = self.subjects_factors[subject_ids]
 
@@ -213,7 +213,7 @@ class VectorModel(ModelBase):
         return ranker.rank(
             subject_ids=user_ids,
             k=k,
-            filter_so_csr=ui_csr_for_filter,
+            filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
             num_threads=self.n_threads,
         )
@@ -232,7 +232,7 @@ class VectorModel(ModelBase):
         return ranker.rank(
             subject_ids=target_ids,
             k=k,
-            filter_so_csr=None,
+            filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
             num_threads=self.n_threads,
         )
