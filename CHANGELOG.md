@@ -8,9 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Added LightFM wrapper inference speed benchmark ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
+- Added iALS with features quality benchmark ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
+
 ### Changed
 - Updated attrs version ([#56](https://github.com/MobileTeleSystems/RecTools/pull/56))
 - Optimized inference for vector models with EUCLIDEAN distance using `implicit` library topk method ([#57](https://github.com/MobileTeleSystems/RecTools/pull/57))
+- Changed features processing example ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
+
 
 ## [0.4.0] - 27.10.2023
 
