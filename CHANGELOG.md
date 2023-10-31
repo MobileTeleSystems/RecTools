@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- Added LightFM wrapper inference speed benchmark ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
-- Added iALS with features quality benchmark ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
+- LightFM wrapper inference speed benchmark ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
+- iALS with features quality benchmark ([#60](https://github.com/MobileTeleSystems/RecTools/pull/60))
 
 ### Changed
 - Updated attrs version ([#56](https://github.com/MobileTeleSystems/RecTools/pull/56))
