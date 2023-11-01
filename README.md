@@ -93,20 +93,25 @@ new-installer = false
 ```
 
 ## Recommender Models
-The table below lists recommender models that are available in RecTools. All of the models follow the same interface.
+The table below lists recommender models that are available in RecTools. 
 
-| Model | Type | Description | RecTools features |
+| Model | Type | Description | Extra features |
 |----|----|------------|-----|
 | [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! [Check our boost to metrics](examples/5_benchmark_iALS_with_features.ipynb) |
-| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Collaborative Filtering | implicit lib itemKNN. Collaborative filtering algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
-| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | Hybrid matrix factorization algorithm which utilises user and item features | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
+| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Collaborative Filtering | Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
+| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
 | PureSVD | Matrix Factorization | Truncated Singular Value Decomposition of user-item interactions matrix | - |
-| DSSM | Deep Learning | Two-tower deep learning model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
+| DSSM | Neural Network | Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
 | Popular | Heuristic | Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
 | Popular in Category | Heuristic |  Model that computes poularity within category and applies mixing strategy to increase Diversity| Hyperparams (time window, pop computation, mixing/ratio strategy) |
 | Random |  Heuristic |Simple random algorithm useful to benchmark Novelty, Coverage, etc. | - |
 
-
+- All of the models follow the same interface. **No exceptions**
+- No need for manual creation of sparse matrixes or mapping ids. Preparing data for models is as simple as `dataset = Dataset.construct(interactions_df)`
+- Fitting any model is as simple as `model.fit(dataset)`
+- For getting recommendations `filter_viewed` and `items_to_recommend` options are available
+- For item-to-item recommendations use `recommend_to_items` method
+- For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
 
 
 ## Contribution
