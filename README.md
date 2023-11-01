@@ -93,20 +93,17 @@ new-installer = false
 ```
 
 ## Recommender Models
-The table below lists recommender models that are available in RecTools. 
-All of the models follow the same interface.
-
-Classic models
+The table below lists recommender models that are available in RecTools. All of the models follow the same interface.
 
 | Model | Type | Description | RecTools features |
 |----|----|------------|-----|
-| implicit ALS Wrapper | Matrix Factorization | Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! [Check our boost to metrics](examples/5_benchmark_iALS_with_features.ipynb) |
-| implicit ItemKNN Wrapper | Collaborative Filtering | implicit lib itemKNN. Collaborative filtering algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
-| LightFM Wrapper | Matrix Factorization | Hybrid matrix factorization algorithm which utilises user and item features | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
-| PureSVD | Matrix Factorization | Truncated Singular Value Decomposition of user-item interactions matrix | Optimized inference |
+| [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! [Check our boost to metrics](examples/5_benchmark_iALS_with_features.ipynb) |
+| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Collaborative Filtering | implicit lib itemKNN. Collaborative filtering algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
+| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | Hybrid matrix factorization algorithm which utilises user and item features | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
+| PureSVD | Matrix Factorization | Truncated Singular Value Decomposition of user-item interactions matrix | - |
 | DSSM | Deep Learning | Two-tower deep learning model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
 | Popular | Heuristic | Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
-| Popular in Category | Heuristic |  Model that computes poularity within category and applies mixing strategy to increase Diversity| Hyperparams (time window, pop computation) |
+| Popular in Category | Heuristic |  Model that computes poularity within category and applies mixing strategy to increase Diversity| Hyperparams (time window, pop computation, mixing/ratio strategy) |
 | Random |  Heuristic |Simple random algorithm useful to benchmark Novelty, Coverage, etc. | - |
 
 
