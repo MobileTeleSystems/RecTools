@@ -99,7 +99,7 @@ All of the models follow the same interface.
 Classic models
 
 | Model | Description | RecTools features |
-|-----------|------|-------------|---------|
+|----|------------|-----|
 | implicit ALS Wrapper | Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! |
 | implicit ItemKNN Wrapper | implicit lib itemKNN. Collaborative filtering algorithm that
 calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
@@ -109,13 +109,13 @@ calculates item-item similarity matrix using distances between item vectors in u
 Deep Learning  models
 
 | Model | Description | RecTools features |
-|-----------|------|-------------|---------|
+|----|------------|-----|
 | DSSM | Two-tower deep learning model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
 
 Heuristic models
 
 | Model | Description | RecTools features |
-|-----------|------|-------------|---------|
+|----|------------|-----|
 | Popular | Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
 | Popular in Category |  Model that computes poularity within category and applies mixing strategy to increase Diversity| Hyperparams (time window, pop computation) |
 | Random | Simple random algorithm useful to benchmark Novelty, Coverage, etc. | - |
