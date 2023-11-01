@@ -19,10 +19,6 @@ and model selection framework.
 The aim is to collect ready-to-use solutions and best practices in one place to make processes 
 of creating your first MVP and deploying model to production as fast and easy as possible.
 
-RecTools allows to work with dense and sparse features easily.
-There are a lot of useful features such as basic model which is based on random suggestions or popularity, and more advanced, e.g. LightFM.
-Also it contains a wide variety of metrics to choose from to better suit recommender system to your needs.
-
 For more details, see the [Documentation](https://rectools.readthedocs.io/) 
 and [Tutorials](https://github.com/MobileTeleSystems/RecTools/tree/main/examples).
 
@@ -95,6 +91,36 @@ pip install rectools[all]
 [experimental]
 new-installer = false
 ```
+
+## Recommender Models
+The table below lists recommender models that are available in RecTools. 
+All of the models follow the same interface.
+
+Classic models
+
+| Model | Description | RecTools features |
+|-----------|------|-------------|---------|
+| implicit ALS Wrapper | Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! |
+| implicit ItemKNN Wrapper | implicit lib itemKNN. Collaborative filtering algorithm that
+calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
+| LightFM Wrapper | Hybrid matrix factorization algorithm which utilises user and item features | 10-25 times faster inference! |
+| PureSVD | Truncated Singular Value Decomposition of user-item interactions matrix | Optimized inference |
+
+Deep Learning  models
+
+| Model | Description | RecTools features |
+|-----------|------|-------------|---------|
+| DSSM | Two-tower deep learning model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
+
+Heuristic models
+
+| Model | Description | RecTools features |
+|-----------|------|-------------|---------|
+| Popular | Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
+| Popular in Category |  Model that computes poularity within category and applies mixing strategy to increase Diversity| Hyperparams (time window, pop computation) |
+| Random | Simple random algorithm useful to benchmark Novelty, Coverage, etc. | - |
+
+
 
 
 ## Contribution
