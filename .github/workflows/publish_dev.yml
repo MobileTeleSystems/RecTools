@@ -1,0 +1,39 @@
+name: Publish to test PyPI
+
+on: 
+    workflow_dispatch:
+
+jobs:
+  
+  publish:
+    runs-on: ubuntu-22.04
+    permissions:
+        id-token: write
+    environment:
+        name: development
+        url: https://test.pypi.org/p/rectools
+
+    steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install poetry
+        run: pip install urllib3==1.26.15 poetry==1.4.0
+
+      - name: Install Dependencies
+        run: poetry install --no-dev
+
+      - name: Build
+        run: poetry build
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
