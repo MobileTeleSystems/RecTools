@@ -6,8 +6,15 @@ on:
       - created
 
 jobs:
+
   publish:
     runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+    environment:
+        name: production
+        url: https://pypi.org/p/rectools
+
     steps:
       - name: Dump GitHub context
         env:
@@ -31,4 +38,4 @@ jobs:
         run: poetry build
 
       - name: Publish
-        run: poetry publish -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+        uses: pypa/gh-action-pypi-publish@release/v1
