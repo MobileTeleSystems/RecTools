@@ -32,7 +32,9 @@ reports:
 
 .venv:
 	@echo "Creating virtualenv...\t\t"
-	poetry install -E all --no-root
+	poetry install -E torch -E nmslib --no-root
+	pip install setuptools wheel
+	pip install --no-use-pep517 lightfm==1.17
 	@echo "[Installed]"
 
 install: .venv reports
