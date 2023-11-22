@@ -1,19 +1,17 @@
-name: Publish
+name: Publish to test PyPI
 
-on:
-  release:
-    types:
-      - created
+on: 
+    workflow_dispatch:
 
 jobs:
-
+  
   publish:
     runs-on: ubuntu-22.04
     permissions:
-      id-token: write
+        id-token: write
     environment:
-        name: production
-        url: https://pypi.org/p/rectools
+        name: development
+        url: https://test.pypi.org/p/rectools
 
     steps:
       - name: Dump GitHub context
@@ -39,3 +37,5 @@ jobs:
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
+        with: 
+          repository-url: https://test.pypi.org/legacy/
