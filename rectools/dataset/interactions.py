@@ -125,8 +125,6 @@ class Interactions:
         """
         Form an user-item CSR matrix based on `interactions` attribute.
 
-        It is used `Interactions.get_user_item_matrix`, see its documentations for details.
-
         Parameters
         ----------
         include_weights : bool, default ``True``
@@ -152,3 +150,42 @@ class Interactions:
             ),
         )
         return csr
+
+    def to_raw(
+        self,
+        user_id_map: IdMap,
+        item_id_map: IdMap,
+        include_weight: bool = True,
+        include_datetime: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Convert itself to `pd.DataFrame` with replacing internal user and item ids to external ones.
+
+        Parameters
+        ----------
+        user_id_map : IdMap
+            User id map that has to be used for converting internal user ids to external ones.
+        item_id_map : IdMap
+            Item id map that has to be used for converting internal item ids to external ones.
+        include_weight : bool, default ``True``
+            Whether include weight column into resulting dataset or not.
+        include_datetime : bool, default ``True``
+            Whether include datetime column into resulting dataset or not.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        res = pd.DataFrame(
+            {
+                Columns.User: user_id_map.convert_to_external(self.df[Columns.User].values),
+                Columns.Item: item_id_map.convert_to_external(self.df[Columns.Item].values),
+            }
+        )
+
+        if include_weight:
+            res[Columns.Weight] = self.df[Columns.Weight]
+        if include_datetime:
+            res[Columns.Datetime] = self.df[Columns.Datetime]
+
+        return res
