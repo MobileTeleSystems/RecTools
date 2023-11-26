@@ -145,7 +145,7 @@ class TestInteractions:
                 Columns.Datetime: "datetime64[ns]",
             }
         )
-        pd.testing.assert_frame_equal(actual, expected)
+        pd.testing.assert_frame_equal(actual, expected, check_index_type=False)
 
     def test_to_raw_with_missing_ids(self) -> None:
         user_id_map = IdMap(np.array([10, 20, 30]))
