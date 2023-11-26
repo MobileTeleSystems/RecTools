@@ -19,7 +19,7 @@ import typing as tp
 import numpy as np
 import pandas as pd
 
-from rectools import Columns, ExternalIds, InternalIds
+from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
 
@@ -61,12 +61,14 @@ class ModelBase:
 
     def recommend(
         self,
-        users: ExternalIds,
+        users: AnyIds,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        items_to_recommend: tp.Optional[ExternalIds] = None,
+        items_to_recommend: tp.Optional[AnyIds] = None,
         add_rank_col: bool = True,
+        assume_internal_ids: bool = False,
+        return_internal_ids: bool = False,
     ) -> pd.DataFrame:
         r"""
         Recommend items for users.
@@ -75,8 +77,10 @@ class ModelBase:
 
         Parameters
         ----------
-        users : np.ndarray
-            Array of external user ids to recommend for.
+        users : array-like
+            Array of user ids to recommend for.
+            User ids are supposed to be external if `assume_internal_ids` is ``False`` (default).
+            Internal otherwise.
         dataset : Dataset
             Dataset with input data.
             Usually it's the same dataset that was used to fit model.
@@ -85,23 +89,32 @@ class ModelBase:
             Pay attention that in some cases real number of recommendations may be less than `k`.
         filter_viewed : bool
             Whether to filter from recommendations items that user has already interacted with.
-        items_to_recommend : np.ndarray, optional
-            Whitelist of item external ids.
+        items_to_recommend : array-like, optional, default None
+            Whitelist of item ids.
             If given, only these items will be used for recommendations.
             Otherwise all items from dataset will be used.
+            Item ids are supposed to be external if `assume_internal_ids` is `False`` (default).
+            Internal otherwise.
         add_rank_col : bool, default True
             Whether to add rank column to recommendations.
             If True column `Columns.Rank` will be added.
             This column contain integers from 1 to ``number of user recommendations``.
             In any case recommendations are sorted per rank for every user.
             The lesser the rank the more recommendation is relevant.
+        assume_internal_ids : bool, default False
+            When ``False`` all input user and item ids are supposed to be external.
+            Internal otherwise. Works faster with ``True``.
+        return_internal_ids : bool, default False
+            When ``False`` user and item ids in returning recommendations dataset will be external.
+            Internal otherwise. Works faster with ``True``.
 
         Returns
         -------
         pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Score`\ [, `Columns.Rank`]\.
-            1st column contains external user ids,
-            2nd - external ids of recommended items sorted for each user by relevance,
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`]\.
+            1st column contains external (internal if `return_internal_ids` is ``True``) user ids,
+            2nd - external (internal if `return_internal_ids` is ``True``) ids of recommended items
+                  sorted for each user by relevance,
             3rd - score that model gives for the user-item pair,
             4th (present only if `add_rank_col` is ``True``) - integers from ``1`` to number of user recommendations.
             Recommendations for every user are always sorted by relevance.
@@ -110,24 +123,25 @@ class ModelBase:
         ------
         NotFittedError
             If called for not fitted model.
-
+        TypeError, ValueError
+            If arguments have inappropriate type or value
         """
-        if not self.is_fitted:
-            raise NotFittedError(self.__class__.__name__)
+        self._check_is_fitted()
+        self._check_k(k)
 
-        if k <= 0:
-            raise ValueError("`k` must be positive integer")
-
-        try:
-            user_ids = dataset.user_id_map.convert_to_internal(users)
-        except KeyError:
-            raise KeyError("All given users must be present in `dataset.user_id_map`")
-
-        if items_to_recommend is not None:
-            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
-            sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
+        if assume_internal_ids:
+            user_ids = np.asarray(users)
+            if not np.issubdtype(user_ids.dtype, np.integer):
+                raise TypeError("Internal user ids are always integer")
         else:
-            sorted_item_ids_to_recommend = None
+            try:
+                user_ids = dataset.user_id_map.convert_to_internal(users)
+            except KeyError:
+                raise KeyError("All given users must be present in `dataset.user_id_map`")
+
+        sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
+            items_to_recommend, dataset, assume_internal_ids
+        )
 
         reco_user_ids, reco_item_ids, reco_scores = self._recommend_u2i(
             user_ids,
@@ -137,26 +151,23 @@ class ModelBase:
             sorted_item_ids_to_recommend,
         )
 
-        reco = pd.DataFrame(
-            {
-                Columns.User: dataset.user_id_map.convert_to_external(reco_user_ids),
-                Columns.Item: dataset.item_id_map.convert_to_external(reco_item_ids),
-                Columns.Score: reco_scores,
-            }
-        )
+        if not return_internal_ids:
+            reco_user_ids = dataset.user_id_map.convert_to_external(reco_user_ids)
+            reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
 
-        if add_rank_col:
-            reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
+        reco = self._make_reco_table(reco_user_ids, reco_item_ids, reco_scores, Columns.User, add_rank_col)
         return reco
 
     def recommend_to_items(
         self,
-        target_items: ExternalIds,
+        target_items: AnyIds,
         dataset: Dataset,
         k: int,
         filter_itself: bool = True,
-        items_to_recommend: tp.Optional[ExternalIds] = None,
+        items_to_recommend: tp.Optional[AnyIds] = None,
         add_rank_col: bool = True,
+        assume_internal_ids: bool = False,
+        return_internal_ids: bool = False,
     ) -> pd.DataFrame:
         """
         Recommend items for target items.
@@ -165,8 +176,10 @@ class ModelBase:
 
         Parameters
         ----------
-        target_items : np.ndarray
-            Array of external item ids to recommend for.
+        target_items : array-like
+            Array of item ids to recommend for.
+            Item ids are supposed to be external if `assume_internal_ids` is `False`` (default).
+            Internal otherwise.
         dataset : Dataset
             Dataset with input data.
             Usually it's the same dataset that was used to fit model.
@@ -175,23 +188,32 @@ class ModelBase:
             Pay attention that in some cases real number of recommendations may be less than `k`.
         filter_itself : bool, default True
             If True, item will be excluded from recommendations to itself.
-        items_to_recommend : np.ndarray, optional, default None
-             Whitelist of item external ids.
-             If given, only these items will be used for recommendations.
-             Otherwise all items from dataset will be used.
+        items_to_recommend : array-like, optional, default None
+            Whitelist of item ids.
+            If given, only these items will be used for recommendations.
+            Otherwise all items from dataset will be used.
+            Item ids are supposed to be external if `assume_internal_ids` is `False`` (default).
+            Internal otherwise.
         add_rank_col : bool, default True
              Whether to add rank column to recommendations.
              If True column `Columns.Rank` will be added.
              This column contain integers from 1 to ``number of item recommendations``.
              In any case recommendations are sorted per rank for every target item.
              Less rank means more relevant recommendation.
+        assume_internal_ids : bool, default False
+            When ``False`` all input item ids are supposed to be external.
+            Internal otherwise. Works faster with ``True``.
+        return_internal_ids : bool, default False
+            When ``False`` item ids in returning recommendations dataset will be external.
+            Internal otherwise. Works faster with ``True``.
 
         Returns
         -------
         pd.DataFrame
-            Recommendations table with columns `Columns.TargetItem`, `Columns.Item`, `Columns.Score`, [,`Columns.Rank`].
-            1st column contains external target item ids,
-            2nd - external ids of recommended items sorted for each target item by relevance,
+            Recommendations table with columns `Columns.TargetItem`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`].
+            1st column contains external (internal if `return_internal_ids` is ``True``) target item ids,
+            2nd - external (internal if `return_internal_ids` is ``True``) ids of recommended items
+                  sorted for each target item by relevance,
             3rd - score that model gives for the target-item pair,
             4th (present only if `add_rank_col` is ``True``) - integers from 1 to number of recommendations.
             Recommendations for every target item are always sorted by relevance.
@@ -200,24 +222,26 @@ class ModelBase:
         ------
         NotFittedError
             If called for not fitted model.
+        TypeError, ValueError
+            If arguments have inappropriate type or value
 
         """
-        if not self.is_fitted:
-            raise NotFittedError(self.__class__.__name__)
+        self._check_is_fitted()
+        self._check_k(k)
 
-        if k <= 0:
-            raise ValueError("`k` must be positive integer")
-
-        try:
-            target_ids = dataset.item_id_map.convert_to_internal(target_items)
-        except KeyError:
-            raise KeyError("All given target items must be present in `dataset.item_id_map`")
-
-        if items_to_recommend is not None:
-            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
-            sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
+        if assume_internal_ids:
+            target_ids = np.asarray(target_items)
+            if not np.issubdtype(target_ids.dtype, np.integer):
+                raise TypeError("Internal item ids are always integer")
         else:
-            sorted_item_ids_to_recommend = None
+            try:
+                target_ids = dataset.item_id_map.convert_to_internal(target_items)
+            except KeyError:
+                raise KeyError("All given target items must be present in `dataset.item_id_map`")
+
+        sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
+            items_to_recommend, dataset, assume_internal_ids
+        )
 
         requested_k = k + 1 if filter_itself else k
 
@@ -237,16 +261,11 @@ class ModelBase:
             )
             reco_target_ids, reco_item_ids, reco_scores = df_reco[["tid", "iid", "score"]].values.T
 
-        reco = pd.DataFrame(
-            {
-                Columns.TargetItem: dataset.item_id_map.convert_to_external(reco_target_ids),
-                Columns.Item: dataset.item_id_map.convert_to_external(reco_item_ids),
-                Columns.Score: reco_scores,
-            }
-        )
+        if not return_internal_ids:
+            reco_target_ids = dataset.item_id_map.convert_to_external(reco_target_ids)
+            reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
 
-        if add_rank_col:
-            reco[Columns.Rank] = reco.groupby(Columns.TargetItem, sort=False).cumcount() + 1
+        reco = self._make_reco_table(reco_target_ids, reco_item_ids, reco_scores, Columns.TargetItem, add_rank_col)
         return reco
 
     def _recommend_u2i(
@@ -267,3 +286,51 @@ class ModelBase:
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         raise NotImplementedError()
+
+    def _check_is_fitted(self) -> None:
+        if not self.is_fitted:
+            raise NotFittedError(self.__class__.__name__)
+
+    @classmethod
+    def _check_k(cls, k: int) -> None:
+        if k <= 0:
+            raise ValueError("`k` must be positive integer")
+
+    @classmethod
+    def _make_reco_table(
+        cls,
+        subject_ids: AnyIds,
+        item_ids: AnyIds,
+        scores: Scores,
+        subject_col: str,
+        add_rank_col: bool,
+    ) -> pd.DataFrame:
+        reco = pd.DataFrame(
+            {
+                subject_col: subject_ids,
+                Columns.Item: item_ids,
+                Columns.Score: scores,
+            }
+        )
+
+        if add_rank_col:
+            reco[Columns.Rank] = reco.groupby(subject_col, sort=False).cumcount() + 1
+
+        return reco
+
+    @classmethod
+    def _get_sorted_item_ids_to_recommend(
+        cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_internal_ids: bool
+    ) -> tp.Optional[np.ndarray]:
+        if items_to_recommend is None:
+            return None
+
+        if assume_internal_ids:
+            item_ids_to_recommend = np.asarray(items_to_recommend)
+            if not np.issubdtype(item_ids_to_recommend.dtype, np.integer):
+                raise TypeError("Internal ids are always integer")
+        else:
+            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
+        sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
+
+        return sorted_item_ids_to_recommend
