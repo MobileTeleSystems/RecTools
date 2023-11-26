@@ -1574,6 +1574,24 @@ toml = "*"
 testing = ["fields", "hunter", "process-tests", "pytest-xdist", "six", "virtualenv"]
 
 [[package]]
+name = "pytest-mock"
+version = "3.11.1"
+description = "Thin-wrapper around the mock package for easier use with pytest"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pytest-mock-3.11.1.tar.gz", hash = "sha256:7f6b125602ac6d743e523ae0bfa71e1a697a2f5534064528c6ff84c2f7c2fc7f"},
+    {file = "pytest_mock-3.11.1-py3-none-any.whl", hash = "sha256:21c279fff83d70763b05f8874cc9cfb3fcacd6d354247a976f9529d19f9acf39"},
+]
+
+[package.dependencies]
+pytest = ">=5.0"
+
+[package.extras]
+dev = ["pre-commit", "pytest-asyncio", "tox"]
+
+[[package]]
 name = "pytest-subtests"
 version = "0.8.0"
 description = "unittest subTest() support and subtests fixture"
@@ -2363,4 +2381,4 @@ torch = ["pytorch-lightning", "torch"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.7.2, <3.11"
-content-hash = "714d20685aed5242419b010c29b0d346020162a3f929fde73e8bb1655f218c06"
+content-hash = "828865cb13853596ba7e336b579e718e1063f33e29b0490c202738956247dd10"
