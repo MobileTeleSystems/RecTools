@@ -136,8 +136,9 @@ def test_recommend_from_internal_ids(mocker: MockerFixture) -> None:
         assume_internal_ids=True,
     )
 
-    assert list(spy.call_args.args[0]) == users
-    assert list(spy.call_args.args[4]) == items_to_recommend
+    args, _ = spy.call_args  # args and kwargs properties are unavailable in Python < 3.8
+    assert list(args[0]) == users
+    assert list(args[4]) == items_to_recommend
 
 
 @pytest.mark.parametrize(
@@ -200,8 +201,9 @@ def test_recommend_to_items_from_internal_ids(mocker: MockerFixture) -> None:
         assume_internal_ids=True,
     )
 
-    assert list(spy.call_args.args[0]) == target_items
-    assert list(spy.call_args.args[3]) == items_to_recommend
+    args, _ = spy.call_args  # args and kwargs properties are unavailable in Python < 3.8
+    assert list(args[0]) == target_items
+    assert list(args[3]) == items_to_recommend
 
 
 @pytest.mark.parametrize(
