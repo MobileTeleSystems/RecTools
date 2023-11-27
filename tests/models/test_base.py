@@ -133,7 +133,7 @@ def test_recommend_from_internal_ids(mocker: MockerFixture) -> None:
         k=2,
         filter_viewed=False,
         items_to_recommend=items_to_recommend,
-        assume_internal_ids=True,
+        assume_external_ids=False,
     )
 
     args, _ = spy.call_args  # args and kwargs properties are unavailable in Python < 3.8
@@ -159,7 +159,7 @@ def test_recommend_from_internal_ids_fails_when_not_integer_ids(users: AnyIds, i
             k=2,
             filter_viewed=False,
             items_to_recommend=items_to_recommend,
-            assume_internal_ids=True,
+            assume_external_ids=False,
         )
 
 
@@ -173,7 +173,7 @@ def test_recommend_returns_internal_ids() -> None:
         filter_viewed=False,
         items_to_recommend=[11, 12],
         add_rank_col=False,
-        return_internal_ids=True,
+        return_external_ids=False,
     )
 
     excepted = pd.DataFrame(
@@ -198,7 +198,7 @@ def test_recommend_to_items_from_internal_ids(mocker: MockerFixture) -> None:
         dataset=DATASET,
         k=2,
         items_to_recommend=items_to_recommend,
-        assume_internal_ids=True,
+        assume_external_ids=False,
     )
 
     args, _ = spy.call_args  # args and kwargs properties are unavailable in Python < 3.8
@@ -225,7 +225,7 @@ def test_recommend_to_items_from_internal_ids_fails_when_not_integer_ids(
             dataset=DATASET,
             k=2,
             items_to_recommend=items_to_recommend,
-            assume_internal_ids=True,
+            assume_external_ids=False,
         )
 
 
@@ -239,7 +239,7 @@ def test_recommend_to_items_returns_internal_ids() -> None:
         items_to_recommend=[11, 12],
         filter_itself=False,
         add_rank_col=False,
-        return_internal_ids=True,
+        return_external_ids=False,
     )
 
     excepted = pd.DataFrame(
