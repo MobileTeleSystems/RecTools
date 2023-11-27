@@ -105,19 +105,18 @@ class ModelBase:
             When ``True`` all input user and item ids are supposed to be external.
             Internal otherwise. Works faster with ``False``.
         return_external_ids : bool, default True
-            When ``True`` user and item ids in returning recommendations dataset will be external.
+            When ``True`` user and item ids in returning recommendations table will be external.
             Internal otherwise. Works faster with ``False``.
 
         Returns
         -------
         pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`]\.
-            1st column contains external (internal if `return_external_ids` is ``False``) user ids,
-            2nd - external (internal if `return_external_ids` is ``False``) ids of recommended items
-                  sorted for each user by relevance,
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`].
+            External user and item ids are used by default. For internal ids set `return_external_ids` to ``False``.
+            1st column contains user ids,
+            2nd - ids of recommended items sorted by relevance for each user,
             3rd - score that model gives for the user-item pair,
             4th (present only if `add_rank_col` is ``True``) - integers from ``1`` to number of user recommendations.
-            Recommendations for every user are always sorted by relevance.
 
         Raises
         ------
@@ -206,19 +205,18 @@ class ModelBase:
             When ``True`` all input item ids are supposed to be external.
             Internal otherwise. Works faster with ``False``.
         return_external_ids : bool, default True
-            When ``True`` item ids in returning recommendations dataset will be external.
+            When ``True`` item ids in returning recommendations table will be external.
             Internal otherwise. Works faster with ``False``.
 
         Returns
         -------
         pd.DataFrame
             Recommendations table with columns `Columns.TargetItem`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`].
-            1st column contains external (internal if `return_external_ids` is ``False``) target item ids,
-            2nd - external (internal if `return_external_ids` is ``False``) ids of recommended items
-                  sorted for each target item by relevance,
+            External item ids are used by default. For internal ids set `return_external_ids` to ``False``.
+            1st column contains target item ids,
+            2nd - ids of recommended items sorted by relevance for each target item,
             3rd - score that model gives for the target-item pair,
             4th (present only if `add_rank_col` is ``True``) - integers from 1 to number of recommendations.
-            Recommendations for every target item are always sorted by relevance.
 
         Raises
         ------
