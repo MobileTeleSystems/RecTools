@@ -27,6 +27,7 @@ Splitters
 `model_selection.TimeRangeSplit` - split interactions by time
 """
 
+from .cross_validate import cross_validate
 from .last_n_split import LastNSplitter
 from .random_split import RandomSplitter
 from .splitter import Splitter
@@ -37,4 +38,5 @@ __all__ = (
     "RandomSplitter",
     "LastNSplitter",
     "TimeRangeSplitter",
+    "cross_validate",
 )
