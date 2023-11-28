@@ -67,8 +67,8 @@ class ModelBase:
         filter_viewed: bool,
         items_to_recommend: tp.Optional[AnyIds] = None,
         add_rank_col: bool = True,
-        assume_internal_ids: bool = False,
-        return_internal_ids: bool = False,
+        assume_external_ids: bool = True,
+        return_external_ids: bool = True,
     ) -> pd.DataFrame:
         r"""
         Recommend items for users.
@@ -79,7 +79,7 @@ class ModelBase:
         ----------
         users : array-like
             Array of user ids to recommend for.
-            User ids are supposed to be external if `assume_internal_ids` is ``False`` (default).
+            User ids are supposed to be external if `assume_external_ids` is ``True`` (default).
             Internal otherwise.
         dataset : Dataset
             Dataset with input data.
@@ -93,7 +93,7 @@ class ModelBase:
             Whitelist of item ids.
             If given, only these items will be used for recommendations.
             Otherwise all items from dataset will be used.
-            Item ids are supposed to be external if `assume_internal_ids` is `False`` (default).
+            Item ids are supposed to be external if `assume_external_ids` is `True`` (default).
             Internal otherwise.
         add_rank_col : bool, default True
             Whether to add rank column to recommendations.
@@ -101,23 +101,22 @@ class ModelBase:
             This column contain integers from 1 to ``number of user recommendations``.
             In any case recommendations are sorted per rank for every user.
             The lesser the rank the more recommendation is relevant.
-        assume_internal_ids : bool, default False
-            When ``False`` all input user and item ids are supposed to be external.
-            Internal otherwise. Works faster with ``True``.
-        return_internal_ids : bool, default False
-            When ``False`` user and item ids in returning recommendations dataset will be external.
-            Internal otherwise. Works faster with ``True``.
+        assume_external_ids : bool, default True
+            When ``True`` all input user and item ids are supposed to be external.
+            Internal otherwise. Works faster with ``False``.
+        return_external_ids : bool, default True
+            When ``True`` user and item ids in returning recommendations table will be external.
+            Internal otherwise. Works faster with ``False``.
 
         Returns
         -------
         pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`]\.
-            1st column contains external (internal if `return_internal_ids` is ``True``) user ids,
-            2nd - external (internal if `return_internal_ids` is ``True``) ids of recommended items
-                  sorted for each user by relevance,
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`].
+            External user and item ids are used by default. For internal ids set `return_external_ids` to ``False``.
+            1st column contains user ids,
+            2nd - ids of recommended items sorted by relevance for each user,
             3rd - score that model gives for the user-item pair,
             4th (present only if `add_rank_col` is ``True``) - integers from ``1`` to number of user recommendations.
-            Recommendations for every user are always sorted by relevance.
 
         Raises
         ------
@@ -125,22 +124,24 @@ class ModelBase:
             If called for not fitted model.
         TypeError, ValueError
             If arguments have inappropriate type or value
+        KeyError
+            If some of given users are not in `dataset.user_id_map`
         """
         self._check_is_fitted()
         self._check_k(k)
 
-        if assume_internal_ids:
-            user_ids = np.asarray(users)
-            if not np.issubdtype(user_ids.dtype, np.integer):
-                raise TypeError("Internal user ids are always integer")
-        else:
+        if assume_external_ids:
             try:
                 user_ids = dataset.user_id_map.convert_to_internal(users)
             except KeyError:
                 raise KeyError("All given users must be present in `dataset.user_id_map`")
+        else:
+            user_ids = np.asarray(users)
+            if not np.issubdtype(user_ids.dtype, np.integer):
+                raise TypeError("Internal user ids are always integer")
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
-            items_to_recommend, dataset, assume_internal_ids
+            items_to_recommend, dataset, assume_external_ids
         )
 
         reco_user_ids, reco_item_ids, reco_scores = self._recommend_u2i(
@@ -151,7 +152,7 @@ class ModelBase:
             sorted_item_ids_to_recommend,
         )
 
-        if not return_internal_ids:
+        if return_external_ids:
             reco_user_ids = dataset.user_id_map.convert_to_external(reco_user_ids)
             reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
 
@@ -166,8 +167,8 @@ class ModelBase:
         filter_itself: bool = True,
         items_to_recommend: tp.Optional[AnyIds] = None,
         add_rank_col: bool = True,
-        assume_internal_ids: bool = False,
-        return_internal_ids: bool = False,
+        assume_external_ids: bool = True,
+        return_external_ids: bool = True,
     ) -> pd.DataFrame:
         """
         Recommend items for target items.
@@ -178,7 +179,7 @@ class ModelBase:
         ----------
         target_items : array-like
             Array of item ids to recommend for.
-            Item ids are supposed to be external if `assume_internal_ids` is `False`` (default).
+            Item ids are supposed to be external if `assume_external_ids` is `True`` (default).
             Internal otherwise.
         dataset : Dataset
             Dataset with input data.
@@ -192,7 +193,7 @@ class ModelBase:
             Whitelist of item ids.
             If given, only these items will be used for recommendations.
             Otherwise all items from dataset will be used.
-            Item ids are supposed to be external if `assume_internal_ids` is `False`` (default).
+            Item ids are supposed to be external if `assume_external_ids` is `True`` (default).
             Internal otherwise.
         add_rank_col : bool, default True
              Whether to add rank column to recommendations.
@@ -200,23 +201,22 @@ class ModelBase:
              This column contain integers from 1 to ``number of item recommendations``.
              In any case recommendations are sorted per rank for every target item.
              Less rank means more relevant recommendation.
-        assume_internal_ids : bool, default False
-            When ``False`` all input item ids are supposed to be external.
-            Internal otherwise. Works faster with ``True``.
-        return_internal_ids : bool, default False
-            When ``False`` item ids in returning recommendations dataset will be external.
-            Internal otherwise. Works faster with ``True``.
+        assume_external_ids : bool, default True
+            When ``True`` all input item ids are supposed to be external.
+            Internal otherwise. Works faster with ``False``.
+        return_external_ids : bool, default True
+            When ``True`` item ids in returning recommendations table will be external.
+            Internal otherwise. Works faster with ``False``.
 
         Returns
         -------
         pd.DataFrame
             Recommendations table with columns `Columns.TargetItem`, `Columns.Item`, `Columns.Score`[, `Columns.Rank`].
-            1st column contains external (internal if `return_internal_ids` is ``True``) target item ids,
-            2nd - external (internal if `return_internal_ids` is ``True``) ids of recommended items
-                  sorted for each target item by relevance,
+            External item ids are used by default. For internal ids set `return_external_ids` to ``False``.
+            1st column contains target item ids,
+            2nd - ids of recommended items sorted by relevance for each target item,
             3rd - score that model gives for the target-item pair,
             4th (present only if `add_rank_col` is ``True``) - integers from 1 to number of recommendations.
-            Recommendations for every target item are always sorted by relevance.
 
         Raises
         ------
@@ -224,23 +224,24 @@ class ModelBase:
             If called for not fitted model.
         TypeError, ValueError
             If arguments have inappropriate type or value
-
+        KeyError
+            If some of given target items are not in `dataset.item_id_map`
         """
         self._check_is_fitted()
         self._check_k(k)
 
-        if assume_internal_ids:
-            target_ids = np.asarray(target_items)
-            if not np.issubdtype(target_ids.dtype, np.integer):
-                raise TypeError("Internal item ids are always integer")
-        else:
+        if assume_external_ids:
             try:
                 target_ids = dataset.item_id_map.convert_to_internal(target_items)
             except KeyError:
                 raise KeyError("All given target items must be present in `dataset.item_id_map`")
+        else:
+            target_ids = np.asarray(target_items)
+            if not np.issubdtype(target_ids.dtype, np.integer):
+                raise TypeError("Internal item ids are always integer")
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
-            items_to_recommend, dataset, assume_internal_ids
+            items_to_recommend, dataset, assume_external_ids
         )
 
         requested_k = k + 1 if filter_itself else k
@@ -261,7 +262,7 @@ class ModelBase:
             )
             reco_target_ids, reco_item_ids, reco_scores = df_reco[["tid", "iid", "score"]].values.T
 
-        if not return_internal_ids:
+        if return_external_ids:
             reco_target_ids = dataset.item_id_map.convert_to_external(reco_target_ids)
             reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
 
@@ -320,17 +321,17 @@ class ModelBase:
 
     @classmethod
     def _get_sorted_item_ids_to_recommend(
-        cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_internal_ids: bool
+        cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
     ) -> tp.Optional[np.ndarray]:
         if items_to_recommend is None:
             return None
 
-        if assume_internal_ids:
+        if assume_external_ids:
+            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
+        else:
             item_ids_to_recommend = np.asarray(items_to_recommend)
             if not np.issubdtype(item_ids_to_recommend.dtype, np.integer):
                 raise TypeError("Internal ids are always integer")
-        else:
-            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
-        sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
 
+        sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
         return sorted_item_ids_to_recommend

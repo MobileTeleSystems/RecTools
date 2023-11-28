@@ -114,6 +114,6 @@ class LastNSplitter(Splitter):
             test_idx = idx[test_mask].values
             train_idx = idx[train_mask].values
 
-            split_info = {"i_split": i_split}
+            split_info = {"i_split": self.n_splits - i_split - 1}
 
             yield train_idx, test_idx, split_info
