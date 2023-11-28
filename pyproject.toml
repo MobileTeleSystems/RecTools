@@ -95,6 +95,7 @@ pytest-subtests = "0.8.0"
 flake8-docstrings = "1.6.0"
 pep8-naming = "0.12.1"
 pytest-cov = "2.12.1"
+pytest-mock = "3.11.1"
 
 
 [tool.black]
