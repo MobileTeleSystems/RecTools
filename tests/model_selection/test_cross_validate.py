@@ -3,15 +3,42 @@ import typing as tp
 import pandas as pd
 import pytest
 
-from rectools import Columns
+from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset
 from rectools.metrics import Precision, Recall
 from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
-from rectools.models import PopularModel, PureSVDModel
+from rectools.models import PopularModel, RandomModel
+
+a = pytest.approx
 
 
-def test_happy_path() -> None:
+@pytest.mark.parametrize(
+    "items_to_recommend, expected_metrics",
+    (
+        (
+            None,
+            [
+                {"model": "popular", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5},
+                {"model": "random", "i_split": 0, "precision@2": 0.25, "recall@1": 0.0},
+                {"model": "popular", "i_split": 1, "precision@2": 0.375, "recall@1": 0.25},
+                {"model": "random", "i_split": 1, "precision@2": 0.5, "recall@1": 0.5},
+            ],
+        ),
+        (
+            [11, 14],
+            [
+                {"model": "popular", "i_split": 0, "precision@2": 0.25, "recall@1": 0.5},
+                {"model": "random", "i_split": 0, "precision@2": 0.25, "recall@1": 0.5},
+                {"model": "popular", "i_split": 1, "precision@2": 0.125, "recall@1": 0.25},
+                {"model": "random", "i_split": 1, "precision@2": 0.25, "recall@1": 0.0},
+            ],
+        ),
+    ),
+)
+def test_happy_path(
+    items_to_recommend: tp.Optional[ExternalIds], expected_metrics: tp.List[tp.Dict[str, tp.Any]]
+) -> None:
     interactions_df = pd.DataFrame(
         [
             [10, 11, 1, 101],
@@ -38,7 +65,7 @@ def test_happy_path() -> None:
 
     models = {
         "popular": PopularModel(),
-        "pure_svd": PureSVDModel(factors=2),
+        "random": RandomModel(random_state=42),
     }
 
     actual = cross_validate(
@@ -48,21 +75,15 @@ def test_happy_path() -> None:
         models=models,
         k=2,
         filter_viewed=False,
-        items_to_recommend=None,
+        items_to_recommend=items_to_recommend,
     )
 
-    a = pytest.approx
     expected = {
         "splits": [
             {"i_split": 0, "test": 2, "test_items": 2, "test_users": 2, "train": 2, "train_items": 2, "train_users": 2},
             {"i_split": 1, "test": 4, "test_items": 3, "test_users": 4, "train": 6, "train_items": 2, "train_users": 4},
         ],
-        "metrics": [
-            {"i_split": 0, "model": "popular", "precision@2": a(0.5), "recall@1": a(0.5)},
-            {"i_split": 0, "model": "pure_svd", "precision@2": a(0.5), "recall@1": a(0.0)},
-            {"i_split": 1, "model": "popular", "precision@2": a(0.375), "recall@1": a(0.25)},
-            {"i_split": 1, "model": "pure_svd", "precision@2": a(0.125), "recall@1": a(0.25)},
-        ],
+        "metrics": expected_metrics,
     }
 
     assert actual == expected
