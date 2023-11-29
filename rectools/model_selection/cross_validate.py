@@ -2,6 +2,7 @@ import typing as tp
 
 from rectools.columns import Columns
 from rectools.dataset.dataset import Dataset
+from rectools.dataset.identifiers import IdMap
 from rectools.dataset.interactions import Interactions
 from rectools.metrics.base import MetricAtK
 from rectools.metrics.scoring import calc_metrics
@@ -40,7 +41,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     filter_viewed : bool
         Whether to filter from recommendations items that user has already interacted with.
     items_to_recommend : array-like, optional, default None
-        Whitelist of external item ids.
+        Whitelist of external item.
         If given, only these items will be used for recommendations.
 
     Returns
@@ -71,37 +72,43 @@ def cross_validate(  # pylint: disable=too-many-locals
     for train_ids, test_ids, split_info in split_iterator:
         split_infos.append(split_info)
 
-        interactions_df_train = interactions.df.iloc[train_ids]  # internal ids
+        interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
+
+        user_id_map = IdMap.from_values(interactions_df_train[Columns.User].values)  # 1x internal -> 2x internal
+        item_id_map = IdMap.from_values(interactions_df_train[Columns.Item].values)  # 1x internal -> 2x internal
+        interactions_train = Interactions.from_raw(interactions_df_train, user_id_map, item_id_map)  # 2x internal
+        user_features = item_features = None
+        if dataset.user_features is not None:
+            user_features = dataset.user_features.take(user_id_map.get_external_sorted_by_internal())  # 2x internal
+        if dataset.item_features is not None:
+            item_features = dataset.user_features.take(user_id_map.get_external_sorted_by_internal())  # 2x internal
         fold_dataset = Dataset(
-            user_id_map=dataset.user_id_map,
-            item_id_map=dataset.item_id_map,
-            interactions=Interactions(interactions_df_train),
-            user_features=dataset.user_features,
-            item_features=dataset.item_features,
+            user_id_map=user_id_map,
+            item_id_map=item_id_map,
+            interactions=interactions_train,
+            user_features=user_features,
+            item_features=item_features,
         )
 
-        interactions_df_test = interactions.df.iloc[test_ids]  # internal ids
-        test_users = interactions_df_test[Columns.User].unique()  # internal ids
-
-        catalog = interactions_df_train[Columns.Item].unique()  # internal ids
+        interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
+        test_users = interactions_df_test[Columns.User].unique()  # 1x internal
+        catalog = interactions_df_train[Columns.Item].unique()  # 1x internal
 
         if items_to_recommend is not None:
             item_ids_to_recommend = dataset.item_id_map.convert_to_internal(
                 items_to_recommend, strict=False
-            )  # internal ids
+            )  # 1x internal
         else:
             item_ids_to_recommend = None
 
         for model_name, model in models.items():
             model.fit(fold_dataset)
-            reco = model.recommend(  # internal ids
+            reco = model.recommend(  # 1x internal
                 users=test_users,
-                dataset=dataset,
+                dataset=fold_dataset,
                 k=k,
                 filter_viewed=filter_viewed,
                 items_to_recommend=item_ids_to_recommend,
-                assume_external_ids=False,
-                return_external_ids=False,
             )
             metric_values = calc_metrics(
                 metrics,
