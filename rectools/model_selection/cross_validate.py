@@ -19,7 +19,48 @@ def cross_validate(  # pylint: disable=too-many-locals
     filter_viewed: bool,
     items_to_recommend: tp.Optional[ExternalIds] = None,
 ) -> tp.Dict[str, tp.Any]:
-    """Return smth"""
+    """
+    Run cross validation on multiple models with multiple metrics.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Dataset with full data.
+    splitter : Splitter
+        Instance of any `rectools.model_selection.Splitter` subclasses.
+    metrics : dict(str -> MetricAtK)
+        Dict of initialized metric objects to calculate,
+        where key is metric name and value is metric object.
+    models : dict(str -> ModelBase)
+        Dict of initialized model objects to fit and measure quality,
+        where key is metric name and value is metric object.
+    k : int
+        Derived number of recommendations for every user.
+        For some models actual number of recommendations may be less than `k`.
+    filter_viewed : bool
+        Whether to filter from recommendations items that user has already interacted with.
+    items_to_recommend : array-like, optional, default None
+        Whitelist of external item ids.
+        If given, only these items will be used for recommendations.
+
+    Returns
+    -------
+    dict
+        Dictionary with structure
+        {
+            "splits": [
+                {"i_split": 1, <split_info>},
+                {"i_split": 2, <split_info>},
+                ...
+            ],
+            "metrics": [
+                {"model": "model_1", "i_split": 1, <metrics>},
+                {"model": "model_1", "i_split": 2, <metrics>},
+                {"model": "model_2", "i_split": 1, <metrics>},
+                ...
+            ]
+        }
+    """
     interactions = dataset.interactions
 
     split_iterator = splitter.split(interactions, collect_fold_stats=True)
