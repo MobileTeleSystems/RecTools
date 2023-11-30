@@ -1,3 +1,5 @@
+# pylint: disable=attribute-defined-outside-init
+
 import typing as tp
 
 import numpy as np
@@ -13,6 +15,7 @@ from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
 from rectools.model_selection.cross_validate import gen_2x_internal_ids_dataset
 from rectools.models import ImplicitALSWrapperModel, PopularModel, RandomModel
+from rectools.models.base import ModelBase
 from tests.testing_utils import assert_sparse_matrix_equal
 
 a = pytest.approx
@@ -73,6 +76,8 @@ class TestGen2xInternalIdsDataset:
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
         pd.testing.assert_frame_equal(dataset.interactions.df, self.expected_interactions_2x_internal_df)
+
+        assert dataset.user_features is not None and dataset.item_features is not None  # for mypy
         np.testing.assert_equal(dataset.user_features.values, user_features.values[[0, 3]])
         assert dataset.user_features.names == user_features.names
         assert_sparse_matrix_equal(dataset.item_features.values, item_features.values[[0, 1, 2]])
@@ -201,7 +206,7 @@ class TestCrossValidate:
     def test_happy_path_with_features(self) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
-        models = {
+        models: tp.Dict[str, ModelBase] = {
             "als": ImplicitALSWrapperModel(AlternatingLeastSquares(factors=2, iterations=2, random_state=42)),
         }
 
@@ -243,7 +248,7 @@ class TestCrossValidate:
 
         assert actual == expected
 
-    def test_fail_with_cold_users(self):
+    def test_fail_with_cold_users(self) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_users=False)
 
         with pytest.raises(KeyError):
