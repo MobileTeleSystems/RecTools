@@ -1,14 +1,41 @@
 import typing as tp
 
 from rectools.columns import Columns
-from rectools.dataset.dataset import Dataset
-from rectools.dataset.identifiers import IdMap
-from rectools.dataset.interactions import Interactions
+from rectools.dataset import Dataset, Features, IdMap, Interactions
+from rectools.metrics import calc_metrics
 from rectools.metrics.base import MetricAtK
-from rectools.metrics.scoring import calc_metrics
-from rectools.model_selection.splitter import Splitter
+from .splitter import Splitter
 from rectools.models.base import ModelBase
 from rectools.types import ExternalIds
+import pandas as pd
+
+
+def gen_2x_internal_ids_dataset(
+    interactions_internal_df: pd.DataFrame,
+    user_features: tp.Optional[Features],
+    item_features: tp.Optional[Features],
+) -> Dataset:
+    """
+    Make new dataset based on given interactions and features from base dataset.
+    Assume that interactions dataframe contains internal ids.
+    Returned dataset contains 2nd level of internal ids.
+    """
+    user_id_map = IdMap.from_values(interactions_internal_df[Columns.User].values)  # 1x internal -> 2x internal
+    item_id_map = IdMap.from_values(interactions_internal_df[Columns.Item].values)  # 1x internal -> 2x internal
+    interactions_train = Interactions.from_raw(interactions_internal_df, user_id_map, item_id_map)  # 2x internal
+    user_features_new = item_features_new = None
+    if user_features is not None:
+        user_features_new = user_features.take(user_id_map.get_external_sorted_by_internal())  # 2x internal
+    if item_features is not None:
+        item_features_new = item_features.take(item_id_map.get_external_sorted_by_internal())  # 2x internal
+    dataset = Dataset(
+        user_id_map=user_id_map,
+        item_id_map=item_id_map,
+        interactions=interactions_train,
+        user_features=user_features_new,
+        item_features=item_features_new,
+    )
+    return dataset
 
 
 def cross_validate(  # pylint: disable=too-many-locals
@@ -73,23 +100,8 @@ def cross_validate(  # pylint: disable=too-many-locals
         split_infos.append(split_info)
 
         interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
-
-        user_id_map = IdMap.from_values(interactions_df_train[Columns.User].values)  # 1x internal -> 2x internal
-        item_id_map = IdMap.from_values(interactions_df_train[Columns.Item].values)  # 1x internal -> 2x internal
-        interactions_train = Interactions.from_raw(interactions_df_train, user_id_map, item_id_map)  # 2x internal
-        user_features = item_features = None
-        if dataset.user_features is not None:
-            user_features = dataset.user_features.take(user_id_map.get_external_sorted_by_internal())  # 2x internal
-        if dataset.item_features is not None:
-            item_features = dataset.user_features.take(user_id_map.get_external_sorted_by_internal())  # 2x internal
-        fold_dataset = Dataset(
-            user_id_map=user_id_map,
-            item_id_map=item_id_map,
-            interactions=interactions_train,
-            user_features=user_features,
-            item_features=item_features,
-        )
-
+        fold_dataset = gen_2x_internal_ids_dataset(interactions_df_train, dataset.user_features, dataset.item_features)
+        
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
         catalog = interactions_df_train[Columns.Item].unique()  # 1x internal
