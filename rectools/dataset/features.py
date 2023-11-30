@@ -142,6 +142,19 @@ class DenseFeatures:
         return sparse.csr_matrix(self.values)
     
     def take(self, ids: InternalIds) -> "DenseFeatures":
+        """
+        Take a subset of features for given subject (user or item) ids.
+
+        Parameters
+        ----------
+        ids : array-like
+            Array of internal ids to select features for.
+
+        Returns
+        -------
+        DenseFeatures
+
+        """
         return DenseFeatures(
             values=self.values[ids],
             names=self.names,
@@ -413,6 +426,18 @@ class SparseFeatures:
         return self.values
     
     def take(self, ids: InternalIds) -> "SparseFeatures":
+        """
+        Take a subset of features for given subject (user or item) ids.
+
+        Parameters
+        ----------
+        ids : array-like
+            Array of internal ids to select features for.
+
+        Returns
+        -------
+        SparseFeatures
+        """
         return SparseFeatures(
             values=self.values[ids],
             names=self.names,
