@@ -1,13 +1,15 @@
 import typing as tp
 
+import pandas as pd
+
 from rectools.columns import Columns
 from rectools.dataset import Dataset, Features, IdMap, Interactions
 from rectools.metrics import calc_metrics
 from rectools.metrics.base import MetricAtK
-from .splitter import Splitter
 from rectools.models.base import ModelBase
 from rectools.types import ExternalIds
-import pandas as pd
+
+from .splitter import Splitter
 
 
 def gen_2x_internal_ids_dataset(
@@ -101,7 +103,7 @@ def cross_validate(  # pylint: disable=too-many-locals
 
         interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
         fold_dataset = gen_2x_internal_ids_dataset(interactions_df_train, dataset.user_features, dataset.item_features)
-        
+
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
         catalog = interactions_df_train[Columns.Item].unique()  # 1x internal

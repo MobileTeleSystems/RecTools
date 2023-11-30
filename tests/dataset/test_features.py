@@ -86,12 +86,11 @@ class TestDenseFeatures:
         actual = features.take(ids)
         np.testing.assert_equal(actual.values, self.values[ids])
         assert actual.names == self.names
-        
+
     def test_take_with_nonexistent_ids(self) -> None:
         features = DenseFeatures(self.values, self.names)
         with pytest.raises(IndexError):
             features.take([2, 3])
-        
 
 
 class TestSparseFeatures:

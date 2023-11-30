@@ -140,7 +140,7 @@ class DenseFeatures:
     def get_sparse(self) -> sparse.csr_matrix:
         """Return values in sparse format."""
         return sparse.csr_matrix(self.values)
-    
+
     def take(self, ids: InternalIds) -> "DenseFeatures":
         """
         Take a subset of features for given subject (user or item) ids.
@@ -159,7 +159,6 @@ class DenseFeatures:
             values=self.values[ids],
             names=self.names,
         )
-
 
 
 SparseFeatureName = tp.Tuple[str, tp.Any]
@@ -424,7 +423,7 @@ class SparseFeatures:
     def get_sparse(self) -> sparse.csr_matrix:
         """Return values in sparse format."""
         return self.values
-    
+
     def take(self, ids: InternalIds) -> "SparseFeatures":
         """
         Take a subset of features for given subject (user or item) ids.

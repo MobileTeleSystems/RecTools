@@ -1,7 +1,9 @@
 import typing as tp
 
+import numpy as np
 import pandas as pd
 import pytest
+from implicit.als import AlternatingLeastSquares
 from scipy import sparse
 
 from rectools import Columns, ExternalIds
@@ -9,19 +11,14 @@ from rectools.dataset import Dataset, DenseFeatures, SparseFeatures
 from rectools.metrics import Precision, Recall
 from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
-from rectools.models import PopularModel, RandomModel, ImplicitALSWrapperModel
-from implicit.als import AlternatingLeastSquares
 from rectools.model_selection.cross_validate import gen_2x_internal_ids_dataset
-import numpy as np
-
+from rectools.models import ImplicitALSWrapperModel, PopularModel, RandomModel
 from tests.testing_utils import assert_sparse_matrix_equal
 
 a = pytest.approx
 
 
-
 class TestGen2xInternalIdsDataset:
-
     def setup(self) -> None:
         self.interactions_internal_df = pd.DataFrame(
             [
@@ -47,7 +44,7 @@ class TestGen2xInternalIdsDataset:
 
     def test_without_features(self) -> None:
         dataset = gen_2x_internal_ids_dataset(self.interactions_internal_df, None, None)
-        
+
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
         pd.testing.assert_frame_equal(dataset.interactions.df, self.expected_interactions_2x_internal_df)
@@ -68,11 +65,11 @@ class TestGen2xInternalIdsDataset:
                     [1.0, 5, 1],
                 ],
             ),
-            names = (("f1", None), ("f2", 100), ("f2", 200)),
+            names=(("f1", None), ("f2", 100), ("f2", 200)),
         )
 
         dataset = gen_2x_internal_ids_dataset(self.interactions_internal_df, user_features, item_features)
-        
+
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
         pd.testing.assert_frame_equal(dataset.interactions.df, self.expected_interactions_2x_internal_df)
@@ -82,9 +79,7 @@ class TestGen2xInternalIdsDataset:
         assert dataset.item_features.names == item_features.names
 
 
-
 class TestCrossValidate:
-
     def setup(self) -> None:
         interactions_df = pd.DataFrame(
             [
@@ -139,7 +134,6 @@ class TestCrossValidate:
             "random": RandomModel(random_state=42),
         }
 
-
     @pytest.mark.parametrize(
         "items_to_recommend, expected_metrics",
         (
@@ -180,8 +174,24 @@ class TestCrossValidate:
 
         expected = {
             "splits": [
-                {"i_split": 0, "test": 2, "test_items": 2, "test_users": 2, "train": 2, "train_items": 2, "train_users": 2},
-                {"i_split": 1, "test": 4, "test_items": 3, "test_users": 4, "train": 6, "train_items": 2, "train_users": 4},
+                {
+                    "i_split": 0,
+                    "test": 2,
+                    "test_items": 2,
+                    "test_users": 2,
+                    "train": 2,
+                    "train_items": 2,
+                    "train_users": 2,
+                },
+                {
+                    "i_split": 1,
+                    "test": 4,
+                    "test_items": 3,
+                    "test_users": 4,
+                    "train": 6,
+                    "train_items": 2,
+                    "train_users": 4,
+                },
             ],
             "metrics": expected_metrics,
         }
@@ -206,8 +216,24 @@ class TestCrossValidate:
 
         expected = {
             "splits": [
-                {"i_split": 0, "test": 2, "test_items": 2, "test_users": 2, "train": 2, "train_items": 2, "train_users": 2},
-                {"i_split": 1, "test": 4, "test_items": 3, "test_users": 4, "train": 6, "train_items": 2, "train_users": 4},
+                {
+                    "i_split": 0,
+                    "test": 2,
+                    "test_items": 2,
+                    "test_users": 2,
+                    "train": 2,
+                    "train_items": 2,
+                    "train_users": 2,
+                },
+                {
+                    "i_split": 1,
+                    "test": 4,
+                    "test_items": 3,
+                    "test_users": 4,
+                    "train": 6,
+                    "train_items": 2,
+                    "train_users": 4,
+                },
             ],
             "metrics": [
                 {"model": "als", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0},
