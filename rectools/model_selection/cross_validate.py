@@ -1,4 +1,5 @@
 import typing as tp
+import warnings
 
 import pandas as pd
 
@@ -12,7 +13,7 @@ from rectools.types import ExternalIds
 from .splitter import Splitter
 
 
-def gen_2x_internal_ids_dataset(
+def _gen_2x_internal_ids_dataset(
     interactions_internal_df: pd.DataFrame,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
@@ -70,7 +71,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     filter_viewed : bool
         Whether to filter from recommendations items that user has already interacted with.
     items_to_recommend : array-like, optional, default None
-        Whitelist of external item.
+        Whitelist of external item ids.
         If given, only these items will be used for recommendations.
 
     Returns
@@ -79,18 +80,25 @@ def cross_validate(  # pylint: disable=too-many-locals
         Dictionary with structure
         {
             "splits": [
+                {"i_split": 0, <split_info>},
                 {"i_split": 1, <split_info>},
-                {"i_split": 2, <split_info>},
                 ...
             ],
             "metrics": [
+                {"model": "model_1", "i_split": 0, <metrics>},
+                {"model": "model_2", "i_split": 0, <metrics>},
                 {"model": "model_1", "i_split": 1, <metrics>},
-                {"model": "model_1", "i_split": 2, <metrics>},
-                {"model": "model_2", "i_split": 1, <metrics>},
                 ...
             ]
         }
     """
+    if not splitter.filter_cold_users:  # TODO: remove when cold users support added
+        warnings.warn(
+            "Currently models do not support recommendations for cold users. "
+            "Use `filter_cold_users` option only with custom models. "
+            "Otherwise you will get `KeyError`."
+        )
+
     interactions = dataset.interactions
 
     split_iterator = splitter.split(interactions, collect_fold_stats=True)
@@ -102,7 +110,9 @@ def cross_validate(  # pylint: disable=too-many-locals
         split_infos.append(split_info)
 
         interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
-        fold_dataset = gen_2x_internal_ids_dataset(interactions_df_train, dataset.user_features, dataset.item_features)
+        # We need to avoid fitting models on sparse matrices with all zero rows/columns =>
+        # => we need to create a fold dataset which contains only hot users and items for current training
+        fold_dataset = _gen_2x_internal_ids_dataset(interactions_df_train, dataset.user_features, dataset.item_features)
 
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
