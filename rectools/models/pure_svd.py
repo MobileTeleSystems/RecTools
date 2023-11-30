@@ -34,6 +34,12 @@ class PureSVDModel(VectorModel):
     ----------
     factors : int, default ``10``
         The number of latent factors to compute.
+    tol : float, default 0
+        Tolerance for singular values. Zero (default) means machine precision.
+    maxiter : int, optional, default ``None``
+        Maximum number of iterations.
+    random_state : int, optional, default ``None``
+        Pseudorandom number generator state used to generate resamples.
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
     """
@@ -41,17 +47,28 @@ class PureSVDModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
-    def __init__(self, factors: int = 10, verbose: int = 0):
+    def __init__(
+        self,
+        factors: int = 10,
+        tol: float = 0,
+        maxiter: tp.Optional[int] = None,
+        random_state: tp.Optional[int] = None,
+        verbose: int = 0,
+    ):
         super().__init__(verbose=verbose)
 
         self.factors = factors
+        self.tol = tol
+        self.maxiter = maxiter
+        self.random_state = random_state
+
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
 
-        u, sigma, vt = svds(ui_csr, k=self.factors)
+        u, sigma, vt = svds(ui_csr, k=self.factors, tol=self.tol, maxiter=self.maxiter, random_state=self.random_state)
 
         self.user_factors = u
         self.item_factors = (np.diag(sigma) @ vt).T
