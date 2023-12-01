@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Ability to pass internal ids to `recommend` and `recommend_to_items` methods and get internal ids back ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))
-- `rectools.model_selection.cross_validate` function ([#71](https://github.com/MobileTeleSystems/RecTools/pull/71)) (need examples update)
+- `rectools.model_selection.cross_validate` function ([#71](https://github.com/MobileTeleSystems/RecTools/pull/71), [#73](https://github.com/MobileTeleSystems/RecTools/pull/73))
 
 ### Changed
 - Loosened `lightfm` version, now it's possible to use 1.16 and 1.17 ([#72](https://github.com/MobileTeleSystems/RecTools/pull/72))

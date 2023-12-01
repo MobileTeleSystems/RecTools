@@ -25,6 +25,10 @@ Splitters
 `model_selection.KFoldSplitter` - split interactions randomly
 `model_selection.LastNSplitter` - split interactions by recent activity
 `model_selection.TimeRangeSplit` - split interactions by time
+
+Model selection tools
+---------------------
+`model_selection.cross_validate` - run cross validation on multiple models with multiple metrics
 """
 
 from .cross_validate import cross_validate
