@@ -45,8 +45,8 @@ class RandomModel(ModelBase):
 
     Parameters
     ----------
-    random_state : int, `RandomState` instance or ``None``, default ``None``
-        Pseudo-random number generator to control the sampling.
+    random_state : int, optional, default ``None``
+        Pseudorandom number generator state to control the sampling.
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
     """
