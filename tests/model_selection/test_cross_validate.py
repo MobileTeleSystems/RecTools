@@ -13,7 +13,7 @@ from rectools.dataset import Dataset, DenseFeatures, SparseFeatures
 from rectools.metrics import Precision, Recall
 from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
-from rectools.model_selection.cross_validate import gen_2x_internal_ids_dataset
+from rectools.model_selection.cross_validate import _gen_2x_internal_ids_dataset
 from rectools.models import ImplicitALSWrapperModel, PopularModel, RandomModel
 from rectools.models.base import ModelBase
 from tests.testing_utils import assert_sparse_matrix_equal
@@ -46,7 +46,7 @@ class TestGen2xInternalIdsDataset:
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
 
     def test_without_features(self) -> None:
-        dataset = gen_2x_internal_ids_dataset(self.interactions_internal_df, None, None)
+        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, None, None)
 
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
@@ -71,7 +71,7 @@ class TestGen2xInternalIdsDataset:
             names=(("f1", None), ("f2", 100), ("f2", 200)),
         )
 
-        dataset = gen_2x_internal_ids_dataset(self.interactions_internal_df, user_features, item_features)
+        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, user_features, item_features)
 
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
