@@ -95,7 +95,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     if not splitter.filter_cold_users:  # TODO: remove when cold users support added
         warnings.warn(
             "Currently models do not support recommendations for cold users. "
-            "Use `filter_cold_users` option only with custom models. "
+            "Set `filter_cold_users` to `False` only for custom models. "
             "Otherwise you will get `KeyError`."
         )
 
