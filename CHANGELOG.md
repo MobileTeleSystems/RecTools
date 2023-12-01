@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## Unreleased
+
+### Added
+- Ability to pass internal ids to `recommend` and `recommend_to_items` methods and get internal ids back ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))
+- `rectools.model_selection.cross_validate` function ([#71](https://github.com/MobileTeleSystems/RecTools/pull/71)) (need examples update)
+
+### Changed
+- Loosened `lightfm` version, now it's possible to use 1.16 and 1.17 ([#72](https://github.com/MobileTeleSystems/RecTools/pull/72))
+
+### Fixed
+- Small bug in `LastNSplitter` with incorrect `i_split` in info ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))
+
+
 ## [0.4.1] - 31.10.2023
 
 ### Added

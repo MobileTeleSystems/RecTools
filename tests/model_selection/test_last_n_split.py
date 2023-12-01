@@ -76,7 +76,7 @@ class TestLastNSplitter:
         assert sorted(actual[1][1]) == to_shuffled([3, 4, 6, 7, 8])
 
         assert actual[0][2] == {
-            "i_split": 1,
+            "i_split": 0,
             "train": 1,
             "train_users": 1,
             "train_items": 1,
