@@ -115,8 +115,8 @@ class Interactions:
                 Columns.Item: item_id_map.convert_to_internal(interactions[Columns.Item]),
             },
         )
-        df[Columns.Weight] = interactions[Columns.Weight]
-        df[Columns.Datetime] = interactions[Columns.Datetime]
+        df[Columns.Weight] = interactions[Columns.Weight].values
+        df[Columns.Datetime] = interactions[Columns.Datetime].values
         cls._convert_weight_and_datetime_types(df)
 
         return cls(df)

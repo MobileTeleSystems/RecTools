@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Loosened `pandas`, `torch` and `torch-light` versions for `python >= 3.8` ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
 
+### Fixed
+- Bug in `Interactions.from_raw` method ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
+
 
 ## [0.4.2] - 01.12.2023
 
