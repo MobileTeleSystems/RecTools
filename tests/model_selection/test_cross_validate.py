@@ -1,6 +1,7 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -252,11 +253,14 @@ class TestCrossValidate:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_users=False)
 
         with pytest.raises(KeyError):
-            cross_validate(
-                dataset=self.dataset,
-                splitter=splitter,
-                metrics=self.metrics,
-                models=self.models,
-                k=2,
-                filter_viewed=False,
-            )
+            with warnings.catch_warnings(record=True) as w:
+                cross_validate(
+                    dataset=self.dataset,
+                    splitter=splitter,
+                    metrics=self.metrics,
+                    models=self.models,
+                    k=2,
+                    filter_viewed=False,
+                )
+                assert len(w) == 1
+                assert "Currently models do not support recommendations for cold users" in str(w[-1].message)
