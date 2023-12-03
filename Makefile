@@ -22,12 +22,12 @@ COVERAGE=coverage
 BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
-REPORTS=reports
+REPORTS=.reports
 
 
 # Installation
 
-reports:
+.reports:
 	@mkdir ${REPORTS}
 
 .venv:
@@ -35,7 +35,7 @@ reports:
 	poetry install -E all --no-root
 	@echo "[Installed]"
 
-install: .venv reports
+install: .venv .reports
 
 
 # Linters
@@ -50,10 +50,9 @@ install: .venv reports
 	@${BLACK} --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
 	@echo "[Black checks finished]"
 
-.pylint: reports
+.pylint:
 	@echo "Running pylint checks..."
 	@${PYLINT} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@${PYLINT} ${SOURCES} ${TESTS} ${BENCHMARK} > ${REPORTS}/pylint.txt
 	@echo "[Pylint checks finished]"
 
 .mypy:
@@ -105,7 +104,7 @@ install: .venv reports
 	@echo "Running doctest checks...\t"
 	${PYTEST} --doctest-modules ${SOURCES}
 
-coverage: .venv reports
+coverage: .venv .reports
 	@echo "Running coverage..."
 	${COVERAGE} run --source ${SOURCES} --module pytest
 	${COVERAGE} report
