@@ -28,12 +28,10 @@ REPORTS=.reports
 # Installation
 
 .reports:
-	@mkdir ${REPORTS}
+	mkdir ${REPORTS}
 
 .venv:
-	@echo "Creating virtualenv...\t\t"
 	poetry install -E all --no-root
-	@echo "[Installed]"
 
 install: .venv .reports
 
@@ -41,71 +39,48 @@ install: .venv .reports
 # Linters
 
 .isort:
-	@echo "Running isort checks..."
-	@${ISORT} --check ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Isort checks finished]"
+	${ISORT} --check ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .black:
-	@echo "Running black checks..."
-	@${BLACK} --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Black checks finished]"
+	${BLACK} --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .pylint:
-	@echo "Running pylint checks..."
-	@${PYLINT} --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Pylint checks finished]"
+	${PYLINT} --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .mypy:
-	@echo "Running mypy checks..."
-	@${MYPY} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Mypy checks finished]"
+	${MYPY} ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .flake8:
-	@echo "Running flake8 checks...\t"
-	@${FLAKE} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Flake8 checks finished]"
+	${FLAKE} ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .bandit:
-	@echo "Running bandit checks...\t"
-	@${BANDIT} -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Bandit checks finished]"
+	${BANDIT} -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .codespell:
-	@echo "Running codespell checks...\t"
-	@${CODESPELL} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Codespell checks finished]"
+	${CODESPELL} ${SOURCES} ${TESTS} ${BENCHMARK}
 
 
 # Fixers & formatters
 
 .isort_fix:
-	@echo "Fixing isort..."
-	@${ISORT} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Isort fixed]"
+	${ISORT} ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .autopep8_fix:
-	@echo "Formatting with autopep8..."
-	@${AUTOPEP8} --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Autopep8 fixed]"
+	${AUTOPEP8} --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .black_fix:
-	@echo "Formatting with black..."
-	@${BLACK} -q  ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Black fixed]"
+	${BLACK} -q  ${SOURCES} ${TESTS} ${BENCHMARK}
 
 
 # Tests
 
 .pytest:
-	@echo "Running pytest checks...\t"
-	@PYTHONPATH=. ${PYTEST} ${TESTS} --cov=${SOURCES} --cov-report=xml
+	PYTHONPATH=. ${PYTEST} ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	@echo "Running doctest checks...\t"
 	${PYTEST} --doctest-modules ${SOURCES}
 
 coverage: .venv .reports
-	@echo "Running coverage..."
 	${COVERAGE} run --source ${SOURCES} --module pytest
 	${COVERAGE} report
 	${COVERAGE} html -d ${REPORTS}/coverage_html
@@ -127,10 +102,10 @@ test: .venv .test
 # Cleaning
 
 clean:
-	@rm -rf build dist .eggs *.egg-info
-	@rm -rf ${VENV}
-	@rm -rf ${REPORTS}
-	@find . -type d -name '.mypy_cache' -exec rm -rf {} +
-	@find . -type d -name '*pytest_cache*' -exec rm -rf {} +
+	rm -rf build dist .eggs *.egg-info
+	rm -rf ${VENV}
+	rm -rf ${REPORTS}
+	find . -type d -name '.mypy_cache' -exec rm -rf {} +
+	find . -type d -name '*pytest_cache*' -exec rm -rf {} +
 
 reinstall: clean install
