@@ -2428,4 +2428,4 @@ torch = ["pytorch-lightning", "pytorch-lightning", "torch", "torch"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.7.2, <3.11"
-content-hash = "4452a146022d91f0e0486438c7da64630c7619517b87231e2652f483deb65be8"
+content-hash = "2c9fb3410ebe1389dd96c84a65d43e2b0755a70835fb1f878369b1d88330d965"
