@@ -135,9 +135,9 @@ class TestImplicitALSWrapperModel:
                 N=3,
                 filter_already_liked_items=False,
             )
-            actual_ids = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Item].values
+            actual_ids = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Item].values
             actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
-            actual_scores = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Score].values
+            actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
             np.testing.assert_equal(actual_internal_ids, expected_ids)
             np.testing.assert_allclose(actual_scores, expected_scores, atol=0.01)
 
@@ -171,7 +171,7 @@ class TestImplicitALSWrapperModel:
             items_to_recommend=np.array([11, 13, 17]),
         )
         for uid in (10, 20):
-            assert set(actual.query(f"user_id == {uid}")["item_id"]) == expected[uid]
+            assert set(actual.loc[actual[Columns.User] == uid, Columns.Item]) == expected[uid]
 
     @pytest.mark.parametrize("filter_viewed", (True, False))
     def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool, use_gpu: bool) -> None:
