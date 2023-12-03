@@ -23,8 +23,16 @@ jobs:
       - name: Install poetry
         run: pip install urllib3==1.26.15 poetry==1.4.0
 
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+  
       - name: Install dependencies
-        run: make install
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: make install 
 
       - name: Static analysis
         run: make lint
@@ -52,8 +60,16 @@ jobs:
       - name: Install poetry
         run: pip install urllib3==1.26.15 poetry==1.4.0
 
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+  
       - name: Install dependencies
-        run: make install
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: make install 
 
       - name: Install old dependencies versions
         if: matrix.old-deps == 'true'
