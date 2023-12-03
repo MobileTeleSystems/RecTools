@@ -1,28 +1,10 @@
 VENV=.venv
-
-ifeq (${OS},Windows_NT)
-	BIN=${VENV}/Scripts
-else
-	BIN=${VENV}/bin
-endif
-
-export PATH := $(BIN):$(PATH)
-
-FLAKE=flake8
-MYPY=mypy
-PYLINT=pylint
-ISORT=isort
-AUTOPEP8=autopep8
-BLACK=black
-CODESPELL=codespell
-BANDIT=bandit
-PYTEST=pytest
-COVERAGE=coverage
+REPORTS=.reports
 
 BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
-REPORTS=.reports
+
 
 
 # Installation
@@ -39,52 +21,52 @@ install: .venv .reports
 # Linters
 
 .isort:
-	${ISORT} --check ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run isort --check ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .black:
-	${BLACK} --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run black --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .pylint:
-	${PYLINT} --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run pylint --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .mypy:
-	${MYPY} ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run mypy ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .flake8:
-	${FLAKE} ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run flake8 ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .bandit:
-	${BANDIT} -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run bandit -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .codespell:
-	${CODESPELL} ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run codespell ${SOURCES} ${TESTS} ${BENCHMARK}
 
 
 # Fixers & formatters
 
 .isort_fix:
-	${ISORT} ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run isort ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .autopep8_fix:
-	${AUTOPEP8} --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run autopep8 --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .black_fix:
-	${BLACK} -q  ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run black -q  ${SOURCES} ${TESTS} ${BENCHMARK}
 
 
 # Tests
 
 .pytest:
-	PYTHONPATH=. ${PYTEST} ${TESTS} --cov=${SOURCES} --cov-report=xml
+	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	${PYTEST} --doctest-modules ${SOURCES}
+	poetry run pytest --doctest-modules ${SOURCES}
 
 coverage: .venv .reports
-	${COVERAGE} run --source ${SOURCES} --module pytest
-	${COVERAGE} report
-	${COVERAGE} html -d ${REPORTS}/coverage_html
-	${COVERAGE} xml -o ${REPORTS}/coverage.xml -i
+	poetry run coverage run --source ${SOURCES} --module pytest
+	poetry run coverage report
+	poetry run coverage html -d ${REPORTS}/coverage_html
+	poetry run coverage xml -o ${REPORTS}/coverage.xml -i
 
 
 # Generalization
