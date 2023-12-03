@@ -52,7 +52,7 @@ install: .venv .reports
 
 .pylint:
 	@echo "Running pylint checks..."
-	@${PYLINT} ${SOURCES} ${TESTS} ${BENCHMARK}
+	@${PYLINT} --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
 	@echo "[Pylint checks finished]"
 
 .mypy:
