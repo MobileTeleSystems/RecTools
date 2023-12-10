@@ -56,6 +56,8 @@ class Dataset:
     user_id_map: IdMap = attr.ib()
     item_id_map: IdMap = attr.ib()
     interactions: Interactions = attr.ib()
+    n_hot_users: int = attr.ib()
+    n_hot_items: int = attr.ib()
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
 
@@ -112,7 +114,11 @@ class Dataset:
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
-        user_features = cls._make_features(
+
+        n_hot_users = user_id_map.size
+        n_hot_items = item_id_map.size
+
+        user_features, user_id_map = cls._make_features(
             user_features_df,
             cat_user_features,
             make_dense_user_features,
@@ -120,7 +126,7 @@ class Dataset:
             Columns.User,
             "user",
         )
-        item_features = cls._make_features(
+        item_features, item_id_map = cls._make_features(
             item_features_df,
             cat_item_features,
             make_dense_item_features,
@@ -128,7 +134,7 @@ class Dataset:
             Columns.Item,
             "item",
         )
-        return cls(user_id_map, item_id_map, interactions, user_features, item_features)
+        return cls(user_id_map, item_id_map, interactions, n_hot_users, n_hot_items, user_features, item_features)
 
     @staticmethod
     def _make_features(
@@ -138,15 +144,16 @@ class Dataset:
         id_map: IdMap,
         possible_id_col: str,
         feature_type: str,
-    ) -> tp.Optional[Features]:
+    ) -> tp.Tuple[tp.Optional[Features], IdMap]:
         if df is None:
-            return None
+            return None, id_map
 
         id_col = possible_id_col if possible_id_col in df else "id"
+        id_map = id_map.add_ids(df[id_col].values, raise_if_already_present=False)
 
         if make_dense:
             try:
-                return DenseFeatures.from_dataframe(df, id_map, id_col=id_col)
+                return DenseFeatures.from_dataframe(df, id_map, id_col=id_col), id_map
             except UnknownIdError:
                 raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
             except AbsentIdError:
@@ -156,8 +163,9 @@ class Dataset:
                 )
             except Exception as e:  # pragma: no cover
                 raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
+            
         try:
-            return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col)
+            return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col), id_map
         except UnknownIdError:
             raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
         except Exception as e:  # pragma: no cover
@@ -186,5 +194,5 @@ class Dataset:
             Resized user-item CSR matrix
         """
         matrix = self.interactions.get_user_item_matrix(include_weights)
-        matrix.resize(self.user_id_map.internal_ids.size, self.item_id_map.internal_ids.size)
+        matrix.resize(self.n_hot_users, self.n_hot_items)
         return matrix
