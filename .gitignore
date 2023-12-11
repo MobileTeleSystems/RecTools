@@ -41,7 +41,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-reports/
+.reports/
 
 # PyBuilder
 .pybuilder/
