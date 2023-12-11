@@ -35,6 +35,9 @@ class ModelBase:
     Use derived classes instead.
     """
 
+    allow_warm: bool = False
+    allow_cold: bool = False
+
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
