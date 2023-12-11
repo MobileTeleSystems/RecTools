@@ -194,9 +194,9 @@ class Dataset:
         Parameters
         ----------
         include_weight : bool, default ``True``
-            Whether include weight column into resulting dataset or not.
+            Whether to include weight column into resulting table or not.
         include_datetime : bool, default ``True``
-            Whether include datetime column into resulting dataset or not.
+            Whether to include datetime column into resulting table or not.
 
         Returns
         -------

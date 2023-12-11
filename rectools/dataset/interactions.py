@@ -27,7 +27,7 @@ from .identifiers import IdMap
 @attr.s(frozen=True, slots=True)
 class Interactions:
     """
-    Structure to storage info about user-item interactions.
+    Structure to store info about user-item interactions.
 
     Usually it's more convenient to use `from_raw` method instead of direct creating.
 
@@ -123,7 +123,7 @@ class Interactions:
 
     def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
         """
-        Form an user-item CSR matrix based on `interactions` attribute.
+        Form a user-item CSR matrix based on interactions data.
 
         Parameters
         ----------
@@ -168,9 +168,9 @@ class Interactions:
         item_id_map : IdMap
             Item id map that has to be used for converting internal item ids to external ones.
         include_weight : bool, default ``True``
-            Whether include weight column into resulting dataset or not.
+            Whether to include weight column into resulting table or not
         include_datetime : bool, default ``True``
-            Whether include datetime column into resulting dataset or not.
+            Whether to include datetime column into resulting table or not.
 
         Returns
         -------
