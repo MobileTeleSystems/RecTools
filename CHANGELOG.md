@@ -9,8 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-
 - Methods for conversion `Interactions` to raw form and for getting raw interactions from `Dataset` ([#69](https://github.com/MobileTeleSystems/RecTools/pull/69))
+
+### Changed
+- Loosened `pandas`, `torch` and `torch-light` versions for `python >= 3.8` ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
+
+### Fixed
+- Bug in `Interactions.from_raw` method ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
+
+
+## [0.4.2] - 01.12.2023
+
+### Added
+- Ability to pass internal ids to `recommend` and `recommend_to_items` methods and get internal ids back ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))
+- `rectools.model_selection.cross_validate` function ([#71](https://github.com/MobileTeleSystems/RecTools/pull/71), [#73](https://github.com/MobileTeleSystems/RecTools/pull/73))
+
+### Changed
+- Loosened `lightfm` version, now it's possible to use 1.16 and 1.17 ([#72](https://github.com/MobileTeleSystems/RecTools/pull/72))
+
+### Fixed
+- Small bug in `LastNSplitter` with incorrect `i_split` in info ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))
 
 
 ## [0.4.1] - 31.10.2023

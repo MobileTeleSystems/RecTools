@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "RecTools"
-version = "0.4.1"
+version = "0.4.2"
 description = "An easy-to-use Python library for building recommendation systems"
 license = "Apache-2.0"
 authors = [
@@ -53,7 +53,10 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.7.2, <3.11"
 numpy = ">=1.19.5, <2.0.0"
-pandas = ">=0.25.3, <2.0.0"
+pandas = [
+    {version = ">=0.25.3, <2.0.0", python = "<3.8"},
+    {version = ">=1.0.0, <3.0.0", python = ">=3.8"}
+]
 scipy = "^1.5.4"
 tqdm = "^4.27.0"
 implicit = "^0.7.1"
@@ -61,12 +64,18 @@ attrs = ">=19.1.0,<24.0.0"
 typeguard = "^2.0.1"
 
 
-lightfm = {version = "^1.17", optional = true}
+lightfm = {version = ">=1.16,<=1.17", optional = true}
 
 nmslib = {version = "^2.0.4", optional = true}
 
-torch = {version = "^1.6", optional = true}
-pytorch-lightning = {version = "^1.6", optional = true}
+torch = [
+    {version = ">=1.6.0, <2.0.0", python = "<3.8", optional = true},
+    {version = ">=1.6.0, <3.0.0", python = ">=3.8", optional = true}
+]
+pytorch-lightning = [
+    {version = ">=1.6.0, <2.0.0", python = "<3.8", optional = true},
+    {version = ">=1.6.0, <3.0.0", python = ">=3.8", optional = true}
+]
 
 
 [tool.poetry.extras]
@@ -79,11 +88,14 @@ all = [
     "torch", "pytorch-lightning",
 ]
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 black = "22.3.0"
 isort = "5.10.1"
 pylint = "2.17.6"
-mypy = "0.931"
+mypy = [
+    {version = "0.931", python = "<3.8"},  # not compatible with torch >= 2
+    {version = "1.6.1", python = ">=3.8"}  # not compatible with python 3.7
+]
 flake8 = "4.0.1"
 bandit = "1.7.4"
 pytest = "7.1.2"
@@ -95,6 +107,7 @@ pytest-subtests = "0.8.0"
 flake8-docstrings = "1.6.0"
 pep8-naming = "0.12.1"
 pytest-cov = "2.12.1"
+pytest-mock = "3.11.1"
 
 
 [tool.black]

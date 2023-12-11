@@ -20,4 +20,5 @@ ExternalId = tp.Hashable
 ExternalIds = tp.Union[tp.Sequence[ExternalId], np.ndarray]
 InternalId = int
 InternalIds = tp.Union[tp.Sequence[InternalId], np.ndarray]
+AnyIds = tp.Union[ExternalIds, InternalIds]
 AnySequence = tp.Union[tp.Sequence[tp.Any], np.ndarray]
