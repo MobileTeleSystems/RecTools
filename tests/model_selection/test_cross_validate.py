@@ -252,8 +252,8 @@ class TestCrossValidate:
     def test_fail_with_cold_users(self) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_users=False)
 
-        with pytest.raises(KeyError):
-            with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True) as w:
+            with pytest.raises(KeyError):
                 cross_validate(
                     dataset=self.dataset,
                     splitter=splitter,
@@ -262,5 +262,5 @@ class TestCrossValidate:
                     k=2,
                     filter_viewed=False,
                 )
-                assert len(w) == 1
-                assert "Currently models do not support recommendations for cold users" in str(w[-1].message)
+            assert len(w) == 1
+            assert "Currently models do not support recommendations for cold users" in str(w[-1].message)
