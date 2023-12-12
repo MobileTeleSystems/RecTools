@@ -151,7 +151,7 @@ class Interactions:
         )
         return csr
 
-    def to_raw(
+    def to_external(
         self,
         user_id_map: IdMap,
         item_id_map: IdMap,

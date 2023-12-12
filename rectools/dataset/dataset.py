@@ -202,4 +202,4 @@ class Dataset:
         -------
         pd.DataFrame
         """
-        return self.interactions.to_raw(self.user_id_map, self.item_id_map, include_weight, include_datetime)
+        return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)

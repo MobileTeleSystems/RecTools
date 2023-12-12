@@ -105,12 +105,12 @@ class TestInteractions:
 
     @pytest.mark.parametrize("include_weight", (True, False))
     @pytest.mark.parametrize("include_datetime", (True, False))
-    def test_to_raw(self, include_weight: bool, include_datetime: bool) -> None:
+    def test_to_external(self, include_weight: bool, include_datetime: bool) -> None:
         user_id_map = IdMap(np.array([10, 20, 30]))
         item_id_map = IdMap(np.array(["i1", "i2"]))
         interactions = Interactions(self.df)
 
-        actual = interactions.to_raw(user_id_map, item_id_map, include_weight, include_datetime)
+        actual = interactions.to_external(user_id_map, item_id_map, include_weight, include_datetime)
         expected = pd.DataFrame(
             [
                 [20, "i1"],
@@ -127,12 +127,12 @@ class TestInteractions:
 
         pd.testing.assert_frame_equal(actual, expected)
 
-    def test_to_raw_empty(self) -> None:
+    def test_to_external_empty(self) -> None:
         user_id_map = IdMap(np.array([10, 20, 30]))
         item_id_map = IdMap(np.array(["i1", "i2"]))
         interactions = Interactions(self.df.iloc[:0])
 
-        actual = interactions.to_raw(user_id_map, item_id_map)
+        actual = interactions.to_external(user_id_map, item_id_map)
         expected = pd.DataFrame(
             [],
             columns=Columns.Interactions,
@@ -147,10 +147,10 @@ class TestInteractions:
         )
         pd.testing.assert_frame_equal(actual, expected, check_index_type=False)
 
-    def test_to_raw_with_missing_ids(self) -> None:
+    def test_to_external_with_missing_ids(self) -> None:
         user_id_map = IdMap(np.array([10, 20, 30]))
         item_id_map = IdMap(np.array(["i1"]))
         interactions = Interactions(self.df)
 
         with pytest.raises(KeyError):
-            interactions.to_raw(user_id_map, item_id_map)
+            interactions.to_external(user_id_map, item_id_map)
