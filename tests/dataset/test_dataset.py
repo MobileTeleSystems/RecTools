@@ -195,3 +195,15 @@ class TestDataset:
                 item_features_df=item_features_df,
                 cat_item_features=["f2"],
             )
+
+    @pytest.mark.parametrize("include_weight", (True, False))
+    @pytest.mark.parametrize("include_datetime", (True, False))
+    def test_get_raw_interactions(self, include_weight: bool, include_datetime: bool) -> None:
+        dataset = Dataset.construct(self.interactions_df)
+        actual = dataset.get_raw_interactions(include_weight, include_datetime)
+        expected = self.interactions_df.astype({Columns.Weight: "float64", Columns.Datetime: "datetime64[ns]"})
+        if not include_weight:
+            expected.drop(columns=Columns.Weight, inplace=True)
+        if not include_datetime:
+            expected.drop(columns=Columns.Datetime, inplace=True)
+        pd.testing.assert_frame_equal(actual, expected)

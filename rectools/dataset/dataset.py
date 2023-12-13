@@ -167,8 +167,6 @@ class Dataset:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
 
-        `Interactions.get_user_item_matrix` is used, see its documentation for details.
-
         Return a resized user-item matrix.
         Resizing is done using `user_id_map` and `item_id_map`,
         hence if either a user or an item is not presented in interactions,
@@ -188,3 +186,20 @@ class Dataset:
         matrix = self.interactions.get_user_item_matrix(include_weights)
         matrix.resize(self.user_id_map.internal_ids.size, self.item_id_map.internal_ids.size)
         return matrix
+
+    def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:
+        """
+        Return iteractions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.
+
+        Parameters
+        ----------
+        include_weight : bool, default ``True``
+            Whether to include weight column into resulting table or not.
+        include_datetime : bool, default ``True``
+            Whether to include datetime column into resulting table or not.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
