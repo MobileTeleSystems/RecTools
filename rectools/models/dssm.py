@@ -19,13 +19,18 @@
 from __future__ import annotations
 
 import typing as tp
+import warnings
 from copy import deepcopy
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from pytorch_lightning import Callback, LightningModule, Trainer
-from pytorch_lightning.loggers import Logger
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    from pytorch_lightning import Callback, LightningModule, Trainer
+    from pytorch_lightning.loggers import Logger
+
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
