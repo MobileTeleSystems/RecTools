@@ -1,6 +1,6 @@
 name: Bug report
 description: Create a report to help us improve
-labels: [bug, optimization, good first issue]
+labels: [bug, good first issue]
 
 body:
   - type: markdown
@@ -32,3 +32,27 @@ body:
       description: Please provide any relevant logs or screenshots.
     validations:
       required: false
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you using?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rectools-version
+    attributes:
+      label: RecTools version
+      description: What version of RecTools are you using?
+    validations:
+      required: true

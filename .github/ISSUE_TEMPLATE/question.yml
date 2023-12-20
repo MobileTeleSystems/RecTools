@@ -1,0 +1,42 @@
+name: Question
+description: Ask a question about this project
+labels: [question]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to ask a question! Before you start, please check if someone else has already asked the same question.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Please write your question here.
+      placeholder: Write your question here.
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+    validations:
+      required: false
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you using?
+    validations:
+      required: false
+
+  - type: textarea
+    id: rectools-version
+    attributes:
+      label: RecTools version
+      description: What version of RecTools are you using?
+    validations:
+      required: false
