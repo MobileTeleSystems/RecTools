@@ -26,8 +26,13 @@ Please delete/mark options that are/aren't relevant
 - [ ] Optimization
 
 ## How Has This Been Tested?
+Before submitting a PR, please check yourself against the following list. It would save us quite a lot of time.
+- Have you read the contribution guide?
+- Have you updated the relevant docstrings? We're using Numpy format, please double-check yourself
+- Does your change require any new tests?
+- Have you updated the changelog file?
 
 <!--
 Should you feel your tests need an explanation or clarification, please put your description here. 
-Otherwise feel free to remove this section
+Otherwise feel free to remove this section.
 -->
