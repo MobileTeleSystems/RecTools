@@ -31,18 +31,18 @@ Pull Request Process
    on GitHub. See `this guide <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo>`_ if you have questions.
 #. Clone your fork from GitHub to your local disk.
 #. Create a virtual environment and install dependencies including all 
-   extras and development dependencies.
-   #. Make sure you have python3 and poetry==1.4.0 installed
+   extras and development dependencies. 
+   #. Make sure you have python3 and poetry==1.4.0 installed 
    #. Deactivate any active virtual environments. Deactivate conda base
-      environment if applicable
+      environment if applicable 
    #. Run ``make install`` command which will create a virtual env and
-      install everything that is needed with poetry
-#. Implement your changes. Check the following after you are done:
-   #. Code styling. Autoformat with ``make format``
+      install everything that is needed with poetry 
+#. Implement your changes. Check the following after you are done: 
+   #. Code styling. Autoformat with ``make format`` 
    #. Linters. Run checks with ``make lint`` 
    #. Tests. Make sure you've covered new features with tests. Check
       code correctness with ``make test``. 
-   #. Coverage. Check with ``make coverage``
+   #. Coverage. Check with ``make coverage`` 
    #. Docstrings. Please ensure that all new public classes and methods
       have docstrings. We use numpy style. Also check that examples are
       provided
