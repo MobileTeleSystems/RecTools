@@ -33,11 +33,11 @@ Pull Request Process
 #. Create a virtual environment and install dependencies including all 
    extras and development dependencies.
    
-   #. Make sure you have python3 and poetry==1.4.0 installed
-   #. Deactivate any active virtual environments. Deactivate conda base
+   #. Make sure you have ``python3`` and ``poetry==1.4.0`` installed
+   #. Deactivate any active virtual environments. Deactivate conda ``base``
       environment if applicable
    #. Run ``make install`` command which will create a virtual env and
-      install everything that is needed with poetry
+      install everything that is needed with poetry. See `poetry usage details <https://python-poetry.org/docs/basic-usage/#installing-with-poetrylock>`_
    
 #. Implement your changes. Check the following after you are done:
    
@@ -49,7 +49,7 @@ Pull Request Process
    #. Docstrings. Please ensure that all new public classes and methods
       have docstrings. We use numpy style. Also check that examples are
       provided
-   #. Changelog. Please describe you changes in CHANGELOG.MD
+   #. Changelog. Please describe you changes in `CHANGELOG.MD <https://github.com/MobileTeleSystems/RecTools/blob/main/CHANGELOG.md>`_
 
 #. Create a pull request from your fork. See `instructions <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork>`_
 
