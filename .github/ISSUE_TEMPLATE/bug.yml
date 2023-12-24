@@ -1,0 +1,58 @@
+name: Bug report
+description: Create a report to help us improve
+labels: [bug, good first issue]
+
+body:
+  - type: markdown
+    attributes:
+      value: 
+        Thanks for taking the time to report a bug! Before you start, please check if someone else has already reported the same issue.
+  
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Tell us what happened.
+      placeholder: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-you-expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs and/or screenshots
+      description: Please provide any relevant logs or screenshots.
+    validations:
+      required: false
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you using?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rectools-version
+    attributes:
+      label: RecTools version
+      description: What version of RecTools are you using?
+    validations:
+      required: true
