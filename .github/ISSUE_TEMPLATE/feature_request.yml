@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a new feature or enhancement
+labels: [feature, optimization, good first issue]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature! Before you start, please check if someone else has already suggested the same feature.
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: Tell us about the feature you would like to see.
+      placeholder: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-this-feature
+    attributes:
+      label: Why this feature?
+      description: Why do you want this feature? How will it help you?
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Any other context or screenshots about the feature request.
+    validations:
+      required: false
