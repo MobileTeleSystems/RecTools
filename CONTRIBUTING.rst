@@ -6,8 +6,8 @@ reports, improving documentation, submitting feature requests, reviewing
 new submissions, or contributing code that can be incorporated into the
 project.
 
-Please, don't use the issue tracker for support questions. Instead use:
-`Telegram Channel <https://t.me/RecTools_Support>`_.
+For support questions please use `Telegram Channel <https://t.me/RecTools_Support>`_
+or open an issue of type `Question`
 
 Feature Requests
 ----------------
@@ -41,14 +41,14 @@ Pull Request Process
    
 #. Implement your changes. Check the following after you are done:
    
+   #. Docstrings. Please ensure that all new public classes and methods
+      have docstrings. We use numpy style. Also check that examples are
+      provided
    #. Code styling. Autoformat with ``make format``
    #. Linters. Run checks with ``make lint``
    #. Tests. Make sure you've covered new features with tests. Check
       code correctness with ``make test``
    #. Coverage. Check with ``make coverage``
-   #. Docstrings. Please ensure that all new public classes and methods
-      have docstrings. We use numpy style. Also check that examples are
-      provided
    #. Changelog. Please describe you changes in `CHANGELOG.MD <https://github.com/MobileTeleSystems/RecTools/blob/main/CHANGELOG.md>`_
 
 #. Create a pull request from your fork. See `instructions <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork>`_
