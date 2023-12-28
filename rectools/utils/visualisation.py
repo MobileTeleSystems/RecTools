@@ -2,7 +2,6 @@
 
 import os
 import typing as tp
-# import warnings
 
 import ipywidgets as widgets
 import numpy as np
@@ -11,6 +10,8 @@ from IPython.display import display
 from ipywidgets.widgets import widget_selectioncontainer
 
 from rectools import Columns
+
+# import warnings
 
 
 # # Prevent widgets output from being collapsed
@@ -35,10 +36,8 @@ SHOWCASE_FOLDER_NAME = "showcase"
 # pd.set_option("display.max_colwidth", -1)
 
 
-class DataNames:
-    """
-    Fixed names for saving data files
-    """
+class FileNames:
+    """Fixed names for saving data files"""
 
     Interactions = "interactions.csv"
     Recos = "recos.csv"
@@ -46,19 +45,11 @@ class DataNames:
     Items = "items_data.csv"
 
 
-DATANAMES = DataNames()
-
-
 class ItemTypes:
-    """
-    Fixed names for item types
-    """
+    """Fixed names for item types"""
 
     Viewed = "viewed"
-    Recos = "recos"
-
-
-ITEMTYPES = ItemTypes()
+    Recommended = "recommended"
 
 
 class ShowcaseDataStorage:
@@ -128,8 +119,14 @@ class ShowcaseDataStorage:
         if remove_exceeding_data:
             self.remove_exceeding_data()
 
-
     def get_relevant_items(self) -> np.ndarray:
+        """_summary_
+
+        Returns
+        -------
+        np.ndarray
+            _description_
+        """
         inter_items = self.interactions[Columns.Item].unique()
         recos_items = self.recos[Columns.Item].unique()
         all_items = np.union1d(inter_items, recos_items)
@@ -139,16 +136,61 @@ class ShowcaseDataStorage:
         return all_items
 
     def get_request_names(self) -> tp.List[str]:
+        """_summary_
+
+        Returns
+        -------
+        tp.List[str]
+            _description_
+        """
         return [*self.requests_dict.keys()]
 
     def get_request_idx(self) -> tp.List[str]:
+        """_summary_
+
+        Returns
+        -------
+        tp.List[str]
+            _description_
+        """
         return [*self.requests_dict.values()]
 
     def get_viewed_items_for_request(self, request_id: tp.Any) -> np.ndarray:
+        """_summary_
+
+        Parameters
+        ----------
+        request_id : tp.Any
+            _description_
+
+        Returns
+        -------
+        np.ndarray
+            _description_
+        """
         request_interactions = self.interactions[self.interactions[self.request_colname] == request_id]
         return request_interactions[Columns.Item].unique()
 
     def get_recos_for_request(self, request_id: tp.Any, model_name: str) -> np.ndarray:
+        """_summary_
+
+        Parameters
+        ----------
+        request_id : tp.Any
+            _description_
+        model_name : str
+            _description_
+
+        Returns
+        -------
+        np.ndarray
+            _description_
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
         if model_name not in self.model_names:
             raise ValueError(f"{model_name} not in model names: {self.model_names}")
         model_recos = self.recos[
@@ -157,6 +199,18 @@ class ShowcaseDataStorage:
         return model_recos[Columns.Item].unique()
 
     def update_requests_with_random(self, n: int = 10) -> None:
+        """_summary_
+
+        Parameters
+        ----------
+        n : int, optional
+            _description_, by default 10
+
+        Raises
+        ------
+        TypeError
+            _description_
+        """
         if self.exceeding_data_removed:
             raise TypeError("Not possible to select more requests since exceeding data was removed")
         all_requests = self.recos[self.request_colname].unique()
@@ -165,6 +219,13 @@ class ShowcaseDataStorage:
         self.requests_dict.update(new_requests_dict)
 
     def remove_exceeding_data(self) -> None:
+        """_summary_
+
+        Raises
+        ------
+        TypeError
+            _description_
+        """
         relevant_requests = self.get_request_idx()
         self.interactions = self.interactions[self.interactions[self.request_colname].isin(relevant_requests)].copy()
         self.recos = self.recos[self.recos[self.request_colname].isin(relevant_requests)].copy()
@@ -193,10 +254,10 @@ class ShowcaseDataStorage:
                 raise ValueError(f"file {data_folder_name} already exists. Specify `force_overwrite=True` to overwrite")
         else:
             os.mkdir(data_folder_name)
-        self.interactions.to_csv(os.path.join(data_folder_name, DATANAMES.Interactions), index=False)
-        self.recos.to_csv(os.path.join(data_folder_name, DATANAMES.Recos), index=False)
+        self.interactions.to_csv(os.path.join(data_folder_name, FileNames.Interactions), index=False)
+        self.recos.to_csv(os.path.join(data_folder_name, FileNames.Recos), index=False)
         if isinstance(self.item_data, pd.DataFrame):
-            self.item_data.to_csv(os.path.join(data_folder_name, DATANAMES.Items), index=False)
+            self.item_data.to_csv(os.path.join(data_folder_name, FileNames.Items), index=False)
         # else:
         #     raise TypeError("Item data was not specified")
 
@@ -205,21 +266,19 @@ class ShowcaseDataStorage:
                 "request_name": self.requests_dict.keys(),
                 "request_id": self.requests_dict.values(),
             }
-        ).to_csv(os.path.join(data_folder_name, DATANAMES.RequestsDict), index=False)
+        ).to_csv(os.path.join(data_folder_name, FileNames.RequestsDict), index=False)
 
     @classmethod
     def load_data(cls, name: str, showcase_folder_name: str = SHOWCASE_FOLDER_NAME) -> "ShowcaseDataStorage":
-        """
-        Load Showcase from data in csv format
-        """
+        """Load Showcase from data in csv format"""
         data_folder_name = os.path.join(showcase_folder_name, name)
         interactions = pd.read_csv(
-            os.path.join(data_folder_name, DATANAMES.Interactions)
+            os.path.join(data_folder_name, FileNames.Interactions)
         )  # TODO: what if it is not specified
-        recos = pd.read_csv(os.path.join(data_folder_name, DATANAMES.Recos))
-        item_data = pd.read_csv(os.path.join(data_folder_name, DATANAMES.Items))
+        recos = pd.read_csv(os.path.join(data_folder_name, FileNames.Recos))
+        item_data = pd.read_csv(os.path.join(data_folder_name, FileNames.Items))
         requests_dict = pd.read_csv(
-            os.path.join(data_folder_name, DATANAMES.RequestsDict),
+            os.path.join(data_folder_name, FileNames.RequestsDict),
             header=None,
             index_col=0,
         )[1].to_dict()
@@ -324,9 +383,7 @@ class Showcase(ShowcaseDataStorage):
         request_id: tp.Optional[int],
         model_name: tp.Optional[str],
     ) -> str:
-        """
-        Returns html representation of info about items in `items_list` in string format
-        """
+        """Return html representation of info about items in `items_list` in string format"""
         if len(items_list) > 0:
             if isinstance(self.item_data, pd.DataFrame):
                 item_df = pd.DataFrame(items_list, columns=[Columns.Item])
@@ -339,12 +396,12 @@ class Showcase(ShowcaseDataStorage):
                     request_recos.set_index(Columns.Item, inplace=True)
                     request_recos = request_recos[self.reco_cols]
                     item_df = item_df.join(request_recos, on=Columns.Item, how="left")
-                    item_df_Columns = self.item_data_cols + self.reco_cols
+                    item_df_columns = self.item_data_cols + self.reco_cols
                 else:
-                    item_df_Columns = self.item_data_cols
+                    item_df_columns = self.item_data_cols
             else:
                 raise TypeError("Item data was not specified")
-            item_df = item_df[item_df_Columns]
+            item_df = item_df[item_df_columns]
             item_df.rename(columns=self.item_df_renaming, inplace=True)
             html_repr = (
                 item_df.to_html(
@@ -367,9 +424,7 @@ class Showcase(ShowcaseDataStorage):
         request_id: tp.Optional[int],
         model_name: tp.Optional[str],
     ) -> widget_selectioncontainer.Tab:
-        """
-        Returns visual Tab with info about items in `items_list`
-        """
+        """Get visual Tab with info about items in `items_list`"""
         items_tab = widgets.Tab()
         items_tab.children = [widgets.HTML(value=self._get_html_repr(items_list, request_id, model_name))]
         items_tab.set_title(index=0, title=title)
@@ -377,17 +432,17 @@ class Showcase(ShowcaseDataStorage):
 
     def _display_tab_for_request(self, request_name: str, items_type: str, model_name: str = "") -> None:
         """
-        Diplays visual Tab with info about items for `request_name` depeding on `items_type` from possible
+        Display visual Tab with info about items for `request_name` depending on `items_type` from possible
         options: `viewed` or `recos`
         """
         request_id = self.requests_dict[request_name]
-        if items_type == ITEMTYPES.Viewed:
+        if items_type == ItemTypes.Viewed:
             items_list = self.get_viewed_items_for_request(request_id)
-        elif items_type == ITEMTYPES.Recos:
+        elif items_type == ItemTypes.Recommended:
             items_list = self.get_recos_for_request(request_id, model_name)
         else:
             raise ValueError(f"Unknown items_type: {items_type}")
-        if self.reco_cols is not None and items_type == ITEMTYPES.Recos:
+        if self.reco_cols is not None and items_type == ItemTypes.Recommended:
             display(
                 self._get_items_tab(
                     items_list,
@@ -400,34 +455,24 @@ class Showcase(ShowcaseDataStorage):
             display(self._get_items_tab(items_list, title=items_type, request_id=None, model_name=None))
 
     def _display_viewed(self, request_name: str) -> None:
-        """
-        Displays viewed items for `request_name`
-        """
-        self._display_tab_for_request(request_name, items_type=ITEMTYPES.Viewed)
+        """Display viewed items for `request_name`"""
+        self._display_tab_for_request(request_name, items_type=ItemTypes.Viewed)
 
     def _display_recos(self, request_name: str, model_name: str) -> None:
-        """
-        Displays recommended items for `request_name` from model `model_name`
-        """
-        self._display_tab_for_request(request_name, items_type=ITEMTYPES.Recos, model_name=model_name)
+        """Display recommended items for `request_name` from model `model_name`"""
+        self._display_tab_for_request(request_name, items_type=ItemTypes.Recommended, model_name=model_name)
 
     def _display_request_id(self, request_name: str) -> None:
-        """
-        Displays request_id for `request_name`
-        """
+        """Display request_id for `request_name`"""
         request_id = self.requests_dict[request_name]
         display(widgets.HTML(value=f"{self.request_colname} {request_id}"))
 
     def _display_model_name(self, model_name: str) -> None:
-        """
-        Displays model_name
-        """
+        """Display model_name"""
         display(widgets.HTML(value=f"Model name: {model_name}"))
 
     def display(self) -> None:
-        """
-        Displays Showcase widget
-        """
+        """Display Showcase widget"""
         request = widgets.ToggleButtons(
             options=self.get_request_names(),
             description=f"Select request {self.request_colname}:",
