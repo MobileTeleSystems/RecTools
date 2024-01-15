@@ -4,6 +4,7 @@ import typing as tp
 
 import ipywidgets as widgets
 import pandas as pd
+import numpy as np
 from IPython.display import display
 
 from rectools import Columns
@@ -51,21 +52,29 @@ class AppDataStorage:
         for request_name, request_id in self.requests_dict.items():
             prepared_interactions[request_name] = (
                 self.interactions[self.interactions[self.request_colname] == request_id]
-                .merge(self.item_data, how="left", on=Columns.Item)
+                .merge(self.item_data, how="left", on=Columns.Item)  # is this correct for i2i?
                 .drop(columns=[self.request_colname])
             )
         return prepared_interactions
 
     def _process_recos(self) -> tp.Dict[tp.Hashable, tp.Dict[tp.Hashable, pd.DataFrame]]:
         prepared_recos = {}
+        item_data_cols = self.item_data.columns.to_list()
         for model_name, full_recos in self.recos.items():
             model_recos = {}
             for request_name, request_id in self.requests_dict.items():
-                model_recos[request_name] = (
+                df = (
                     full_recos[full_recos[self.request_colname] == request_id]
                     .merge(self.item_data, how="left", on=Columns.Item)
                     .drop(columns=[self.request_colname])
                 )
+
+                # Change ordering of columns: all item_data cols will go first
+                first_order_mask = np.array([col in item_data_cols for col in df.columns])
+                new_order = df.columns[first_order_mask].append(df.columns[~first_order_mask])
+                df = df.reindex(columns=new_order)
+
+                model_recos[request_name] = df
             prepared_recos[model_name] = model_recos
         return prepared_recos
 

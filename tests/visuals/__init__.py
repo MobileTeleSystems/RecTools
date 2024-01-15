@@ -11,26 +11,3 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
-import typing as tp
-
-import pytest
-
-from rectools.compat import (
-    DSSMModel,
-    ItemToItemAnnRecommender,
-    LightFMWrapperModel,
-    UserToItemAnnRecommender,
-    VisualApp,
-)
-
-
-@pytest.mark.parametrize(
-    "model",
-    (DSSMModel, ItemToItemAnnRecommender, UserToItemAnnRecommender, LightFMWrapperModel, VisualApp),
-)
-def test_raise_when_model_not_available(
-    model: tp.Any,
-) -> None:
-    with pytest.raises(ImportError):
-        model()

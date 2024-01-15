@@ -12,25 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import typing as tp
+"""
+Visualization tools (:mod:`rectools.visuals`)
+=======================================================
 
-import pytest
+Instruments to visualize recommender models performance
 
-from rectools.compat import (
-    DSSMModel,
-    ItemToItemAnnRecommender,
-    LightFMWrapperModel,
-    UserToItemAnnRecommender,
-    VisualApp,
-)
+Recos visualization
+---------
+`visuals.VisualApp` - Jupyter app for visual comparison of recommendations
+"""
 
+try:
+    from .visual_app import VisualApp
+except ImportError:  # pragma: no cover
+    from ..compat import VisualApp  # type: ignore
 
-@pytest.mark.parametrize(
-    "model",
-    (DSSMModel, ItemToItemAnnRecommender, UserToItemAnnRecommender, LightFMWrapperModel, VisualApp),
-)
-def test_raise_when_model_not_available(
-    model: tp.Any,
-) -> None:
-    with pytest.raises(ImportError):
-        model()
+__all__ = ("VisualApp",)
