@@ -153,9 +153,7 @@ class TestAppDataStorage:
 class TestVisualApp:
     @pytest.mark.parametrize("auto_display", (True, False))
     @pytest.mark.parametrize("formatters", (None, {"feature_1": lambda x: f"<b>{x}</b>"}))
-    def test_happy_path_u2i(
-        self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]
-    ) -> None:
+    def test_happy_path_u2i(self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]) -> None:
         VisualApp(
             recos=RECOS_U2I,
             item_data=ITEM_DATA,
@@ -168,9 +166,7 @@ class TestVisualApp:
 
     @pytest.mark.parametrize("auto_display", (True, False))
     @pytest.mark.parametrize("formatters", (None, {"feature_1": lambda x: f"<b>{x}</b>"}))
-    def test_happy_path_i2i(
-        self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]
-    ) -> None:
+    def test_happy_path_i2i(self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]) -> None:
         VisualApp(
             recos=RECOS_I2I,
             item_data=ITEM_DATA,
