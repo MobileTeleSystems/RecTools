@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- VisualApp widgets for visual comparison of recommendations ([#80](https://github.com/MobileTeleSystems/RecTools/pull/80))
+- VisualApp widgets for visual comparison of recommendations ([#80](https://github.com/MobileTeleSystems/RecTools/pull/80)) (Need examples and readme update)
 - Methods for conversion `Interactions` to raw form and for getting raw interactions from `Dataset` ([#69](https://github.com/MobileTeleSystems/RecTools/pull/69))
 
 ### Changed
