@@ -15,9 +15,7 @@
 """Popularity metrics."""
 
 import typing as tp
-from collections import Counter
 
-import attr
 import pandas as pd
 
 from rectools import Columns
@@ -25,8 +23,7 @@ from rectools.metrics.base import MetricAtK
 from rectools.utils import select_by_type
 
 
-@attr.s
-class ARP(MetricAtK):
+class AvgRecPopularity(MetricAtK):
     r"""
     Average Recommendations Popularity metric.
 
@@ -35,7 +32,7 @@ class ARP(MetricAtK):
     for this item.
 
     .. math::
-        ARP@k = \frac{1}{\left|U_{t}\right|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{\left | L_{u} \right |}
+        ARP@k = \frac{1}{\left|U_{t}\right|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{\left| L_{u} \right |}
 
     where
     :math:`\phi (i)` is the number of times item i has been rated in the training set.
@@ -62,9 +59,9 @@ class ARP(MetricAtK):
     ...         Columns.Item: [1, 2, 1, 3, 1, 2],
     ...     }
     ... )
-    >>> ARP(k=1).calc_per_user(reco, prev_interactions).values
+    >>> AvgRecPopularity(k=1).calc_per_user(reco, prev_interactions).values
     array([3., 1., 1.])
-    >>> ARP(k=3).calc_per_user(reco, prev_interactions).values
+    >>> AvgRecPopularity(k=3).calc_per_user(reco, prev_interactions).values
     array([2.5, 2. , 1.5])
     """
 
@@ -110,12 +107,13 @@ class ARP(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         pop_items = self.get_pop(prev_interactions)
-        arp = reco.groupby(Columns.User).apply(
-            lambda x: sum(pop_items[i] for i in x[Columns.Item][: self.k]) / len(x[Columns.Item][: self.k])
+        reco_prepared = reco.query(f"{Columns.Rank} <= @self.k")
+        arp = reco_prepared.groupby(Columns.User)[Columns.Item].agg(
+            lambda x: sum(pop_items[i] if i in pop_items else 0 for i in x) / x.nunique()
         )
         return arp
 
-    def get_pop(self, prev_interactions: pd.DataFrame) -> tp.Dict[int, int]:
+    def get_pop(self, prev_interactions: pd.DataFrame) -> pd.Series:
         """
         Calculate rating for each item in train set.
 
@@ -127,13 +125,14 @@ class ARP(MetricAtK):
 
         Returns
         -------
-        dict(int->int)
-            Set with items' popularity rating (key - item id, value - number of interactions with item in training set).
+        pd.Series
+            Series with items' popularity rating (index - item id,
+            value - number of interactions with item in training set).
         """
-        return Counter(prev_interactions[Columns.Item])
+        return prev_interactions[Columns.Item].value_counts()
 
 
-PopularityMetric = ARP
+PopularityMetric = AvgRecPopularity
 
 
 def calc_popularity_metrics(
@@ -167,7 +166,7 @@ def calc_popularity_metrics(
     results = {}
 
     # ARP
-    pop_metrics: tp.Dict[str, ARP] = select_by_type(metrics, ARP)
+    pop_metrics: tp.Dict[str, AvgRecPopularity] = select_by_type(metrics, AvgRecPopularity)
     if pop_metrics:
         for name, metric in pop_metrics.items():
             results[name] = metric.calc(reco, prev_interactions)

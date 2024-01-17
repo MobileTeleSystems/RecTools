@@ -31,7 +31,7 @@ Metrics
 `metrics.MRR`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
-`metrics.ARP`
+`metrics.AvgRecPopularity`
 `metrics.Serendipity`
 
 Tools
@@ -50,7 +50,7 @@ from .distances import (
 )
 from .diversity import IntraListDiversity
 from .novelty import MeanInvUserFreq
-from .popularity import ARP
+from .popularity import AvgRecPopularity
 from .ranking import MAP, MRR, NDCG
 from .scoring import calc_metrics
 from .serendipity import Serendipity
@@ -66,7 +66,7 @@ __all__ = (
     "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",
-    "ARP",
+    "AvgRecPopularity",
     "Serendipity",
     "calc_metrics",
     "PairwiseDistanceCalculator",

@@ -19,11 +19,11 @@ import pytest
 
 from rectools import Columns
 from rectools.metrics import (
-    ARP,
     MAP,
     MRR,
     NDCG,
     Accuracy,
+    AvgRecPopularity,
     IntraListDiversity,
     MeanInvUserFreq,
     PairwiseHammingDistanceCalculator,
@@ -77,7 +77,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "ndcg@1": NDCG(k=1, log_base=3),
             "mrr@1": MRR(k=1),
             "miuf": MeanInvUserFreq(k=3),
-            "arp": ARP(k=2),
+            "arp": AvgRecPopularity(k=2),
             "ild": IntraListDiversity(k=3, distance_calculator=self.calculator),
             "serendipity": Serendipity(k=3),
             "custom": MetricAtK(k=1),
@@ -106,7 +106,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (Precision(k=1), ["reco"]),
             (MAP(k=1), ["reco"]),
             (MeanInvUserFreq(k=1), ["reco"]),
-            (ARP(k=1), ["reco"]),
+            (AvgRecPopularity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco", "interactions"]),
             (Serendipity(k=1), ["reco", "interactions", "prev_interactions"]),
