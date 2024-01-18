@@ -106,30 +106,16 @@ class AvgRecPopularity(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        pop_items = self.get_pop(prev_interactions)
-        reco_prepared = reco.query(f"{Columns.Rank} <= @self.k")
-        arp = reco_prepared.groupby(Columns.User)[Columns.Item].agg(
-            lambda x: sum(pop_items[i] if i in pop_items else 0 for i in x) / x.nunique()
-        )
+        item_popularity = prev_interactions[Columns.Item].value_counts()
+        item_popularity.name = "popularity"
+
+        reco_k = reco.query(f"{Columns.Rank} <= @self.k")
+        reco_max_k = reco_k.groupby(Columns.User)[Columns.Rank].transform("count")
+        reco_prepared = reco_k.join(item_popularity, on=Columns.Item, how="left")
+        reco_prepared["popularity"] = reco_prepared["popularity"].fillna(0) / reco_max_k
+
+        arp = reco_prepared.groupby(Columns.User)["popularity"].sum()
         return arp
-
-    def get_pop(self, prev_interactions: pd.DataFrame) -> pd.Series:
-        """
-        Calculate rating for each item in train set.
-
-        Parameters
-        ----------
-        prev_interactions : pd.DataFrame
-            Table with previous user-item interactions,
-            with columns `Columns.User`, `Columns.Item`.
-
-        Returns
-        -------
-        pd.Series
-            Series with items' popularity rating (index - item id,
-            value - number of interactions with item in training set).
-        """
-        return prev_interactions[Columns.Item].value_counts()
 
 
 PopularityMetric = AvgRecPopularity
