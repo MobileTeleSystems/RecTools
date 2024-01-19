@@ -110,11 +110,9 @@ class AvgRecPopularity(MetricAtK):
         item_popularity.name = "popularity"
 
         reco_k = reco.query(f"{Columns.Rank} <= @self.k")
-        reco_max_k = reco_k.groupby(Columns.User)[Columns.Rank].transform("count")
-        reco_prepared = reco_k.join(item_popularity, on=Columns.Item, how="left")
-        reco_prepared["popularity"] = reco_prepared["popularity"].fillna(0) / reco_max_k
+        reco_prepared = reco_k.join(item_popularity, on=Columns.Item, how="left").fillna(0)
 
-        arp = reco_prepared.groupby(Columns.User)["popularity"].sum()
+        arp = reco_prepared.groupby(Columns.User)["popularity"].agg(lambda x: x.sum() / x.count())
         return arp
 
 
@@ -153,8 +151,7 @@ def calc_popularity_metrics(
 
     # ARP
     pop_metrics: tp.Dict[str, AvgRecPopularity] = select_by_type(metrics, AvgRecPopularity)
-    if pop_metrics:
-        for name, metric in pop_metrics.items():
-            results[name] = metric.calc(reco, prev_interactions)
+    for name, metric in pop_metrics.items():
+        results[name] = metric.calc(reco, prev_interactions)
 
     return results
