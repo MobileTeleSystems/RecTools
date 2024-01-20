@@ -28,16 +28,16 @@ class AvgRecPopularity(MetricAtK):
     Average Recommendations Popularity metric.
 
     Calculate the average popularity of the recommended items in each list,
-    where "popularity" of item is the average number of ratings (interactions)
-    for this item.
+    where "popularity" of an item is the number of previous interactions
+    with this item.
 
     .. math::
         ARP@k = \frac{1}{\left|U_{t}\right|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{\left| L_{u} \right |}
 
     where
-    :math:`\phi (i)` is the number of times item i has been rated in the training set.
+    :math:`\phi (i)` is the number of previous interactions with item i.
     :math:`|U_{t}|` is the number of users in the test set.
-    :math:`L_{u}` is the list of recommended items for user u.
+    :math:`L_{u}` is the list of top k recommended items for user u.
 
     Parameters
     ----------
@@ -110,9 +110,10 @@ class AvgRecPopularity(MetricAtK):
         item_popularity.name = "popularity"
 
         reco_k = reco.query(f"{Columns.Rank} <= @self.k")
-        reco_prepared = reco_k.join(item_popularity, on=Columns.Item, how="left").fillna(0)
+        reco_prepared = reco_k.join(item_popularity, on=Columns.Item, how="left")
+        reco_prepared["popularity"] = reco_prepared["popularity"].fillna(0)
 
-        arp = reco_prepared.groupby(Columns.User)["popularity"].agg(lambda x: x.sum() / x.count())
+        arp = reco_prepared.groupby(Columns.User)["popularity"].mean()
         return arp
 
 
