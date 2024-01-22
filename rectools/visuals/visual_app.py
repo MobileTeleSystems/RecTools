@@ -60,22 +60,18 @@ class AppDataStorage:
 
     def _process_recos(self) -> tp.Dict[tp.Hashable, tp.Dict[tp.Hashable, pd.DataFrame]]:
         prepared_recos = {}
-        item_data_cols = self.item_data.columns.to_list()
         for model_name, full_recos in self.recos.items():
             model_recos = {}
             for request_name, request_id in self.requests_dict.items():
-                df = (
-                    full_recos[full_recos[self.request_colname] == request_id]
-                    .merge(self.item_data, how="left", on=Columns.Item)
+                model_recos[request_name] = (
+                    self.item_data
+                    .merge(
+                        full_recos[full_recos[self.request_colname] == request_id],
+                        how="right", 
+                        on="item_id",
+                        suffixes=["_item", "_recos"])
                     .drop(columns=[self.request_colname])
                 )
-
-                # Change ordering of columns: all item_data cols will go first
-                first_order_mask = np.array([col in item_data_cols for col in df.columns])
-                new_order = df.columns[first_order_mask].append(df.columns[~first_order_mask])
-                df = df.reindex(columns=new_order)
-
-                model_recos[request_name] = df
             prepared_recos[model_name] = model_recos
         return prepared_recos
 
