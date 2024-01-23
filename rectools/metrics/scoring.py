@@ -25,6 +25,7 @@ from .base import Catalog, MetricAtK, merge_reco
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
 from .novelty import NoveltyMetric, calc_novelty_metrics
+from .popularity import PopularityMetric, calc_popularity_metrics
 from .ranking import RankingMetric, calc_ranking_metrics
 from .serendipity import SerendipityMetric, calc_serendipity_metrics
 
@@ -130,6 +131,14 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
             raise ValueError("For calculating novelty metrics it's necessary to set 'prev_interactions'")
         novelty_values = calc_novelty_metrics(novelty_metrics, reco, prev_interactions)
         results.update(novelty_values)
+
+    # Popularity
+    popularity_metrics = select_by_type(metrics, PopularityMetric)
+    if popularity_metrics:
+        if prev_interactions is None:
+            raise ValueError("For calculating popularity metrics it's necessary to set 'prev_interactions'")
+        popularity_values = calc_popularity_metrics(popularity_metrics, reco, prev_interactions)
+        results.update(popularity_values)
 
     # Diversity
     diversity_metrics = select_by_type(metrics, DiversityMetric)
