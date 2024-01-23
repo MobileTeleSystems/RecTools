@@ -1,7 +1,6 @@
 import typing as tp
 
 import ipywidgets as widgets
-import numpy as np
 import pandas as pd
 from IPython.display import display
 
@@ -38,40 +37,61 @@ class AppDataStorage:
         if interactions is None and is_u2i:
             raise ValueError("For u2i reco you must specify interactions")
         if interactions is not None and not is_u2i:
-            raise ValueError("For i2i reco you shouldn't specify interactions")
+            raise ValueError("For i2i reco you must not specify interactions")
         if not is_u2i:
             interactions = self._prepare_interactions_for_i2i()
         self.interactions: pd.DataFrame = interactions
 
         if not self.requests_dict:
             raise ValueError("`requests_dict` is empty")
-        self.processed_interactions = self._process_interactions()
-        self.processed_recos = self._process_recos()
+        self.processed_interactions = self._process_interactions(
+            interactions=self.interactions,
+            requests_dict=self.requests_dict,
+            request_colname=self.request_colname,
+            item_data=self.item_data,
+        )
+        self.processed_recos = self._process_recos(
+            recos=self.recos,
+            requests_dict=self.requests_dict,
+            request_colname=self.request_colname,
+            item_data=self.item_data,
+        )
 
-    def _process_interactions(self) -> tp.Dict[tp.Hashable, pd.DataFrame]:
+    @classmethod
+    def _process_interactions(
+        cls,
+        interactions: pd.DataFrame,
+        requests_dict: tp.Dict[tp.Hashable, tp.Hashable],
+        request_colname: str,
+        item_data: pd.DataFrame,
+    ) -> tp.Dict[tp.Hashable, pd.DataFrame]:
         prepared_interactions = {}
-        for request_name, request_id in self.requests_dict.items():
+        for request_name, request_id in requests_dict.items():
             prepared_interactions[request_name] = (
-                self.interactions[self.interactions[self.request_colname] == request_id]
-                .merge(self.item_data, how="left", on=Columns.Item)
-                .drop(columns=[self.request_colname])
+                interactions[interactions[request_colname] == request_id]
+                .merge(item_data, how="left", on=Columns.Item)
+                .drop(columns=[request_colname])
             )
         return prepared_interactions
 
-    def _process_recos(self) -> tp.Dict[tp.Hashable, tp.Dict[tp.Hashable, pd.DataFrame]]:
+    @classmethod
+    def _process_recos(
+        cls,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        requests_dict: tp.Dict[tp.Hashable, tp.Hashable],
+        request_colname: str,
+        item_data: pd.DataFrame,
+    ) -> tp.Dict[tp.Hashable, tp.Dict[tp.Hashable, pd.DataFrame]]:
         prepared_recos = {}
-        for model_name, full_recos in self.recos.items():
+        for model_name, full_recos in recos.items():
             model_recos = {}
-            for request_name, request_id in self.requests_dict.items():
-                model_recos[request_name] = (
-                    self.item_data
-                    .merge(
-                        full_recos[full_recos[self.request_colname] == request_id],
-                        how="right", 
-                        on="item_id",
-                        suffixes=["_item", "_recos"])
-                    .drop(columns=[self.request_colname])
-                )
+            for request_name, request_id in requests_dict.items():
+                model_recos[request_name] = item_data.merge(
+                    full_recos[full_recos[request_colname] == request_id],
+                    how="right",
+                    on="item_id",
+                    suffixes=["_item", "_recos"],
+                ).drop(columns=[request_colname])
             prepared_recos[model_name] = model_recos
         return prepared_recos
 
@@ -123,9 +143,9 @@ class VisualApp:
         Predefined requests that will be displayed in widgets. For u2i case specific users are
         considered as requests. For i2i case - specific items. Their names must be specified as keys
         of the dict and ids as values of the dict.
-    is_u2i : bool, optional
-        User-to-item recommendation case (opposed to item-to-item), by default True
-    interactions : tp.Optional[pd.DataFrame], optional
+    is_u2i : bool, optional, default ``True``
+        User-to-item recommendation case (opposed to item-to-item).
+    interactions : tp.Optional[pd.DataFrame], optional, default ``None``
         Table with interactions history for users. Only needed for u2i case. Supposed to be in form
         of pandas DataFrames with columns:
             - `Columns.User` - user id
@@ -133,18 +153,16 @@ class VisualApp:
         The original order of the rows will be preserved. Keep in mind to sort the rows correctly
         before visualizing. The most intuitive wy is to sort by date in descending order. If user
         has too many interactions the lest ones may not be displayed.
-        By default None.
-    auto_display : bool, optional
-        Display widgets right after initialization, by default True
-    formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional
+    auto_display : bool, optional, default ``True``
+        Display widgets right after initialization.
+    formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
         Formatter functions to apply to columns elements in the sections of interactions and recos.
         Keys of the dict must be columns names (item_data, interactions and recos columns can be
         specified here). Values bust be functions that will be applied to corresponding columns
         elements. The result of each function must be a unicode string that represents html code.
         Formatters can be used to format text, create links and display images with html.
-        By default None.
-    rows_limit : int, optional
-        Maximum number of rows to display in the sections of interactions and recos, by default 20
+    rows_limit : int, optional, default 20
+        Maximum number of rows to display in the sections of interactions and recos.
 
     Examples
     --------
