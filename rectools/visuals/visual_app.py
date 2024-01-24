@@ -234,7 +234,7 @@ class VisualApp(VisualAppBase):
             - `Columns.Item` - recommended item id
             - Any other columns that you wish to display in widgets (e.g. rank or score)
         The original order of the rows will be preserved. Keep in mind to sort the rows correctly
-        before visualizing. The most intuitive wy is to sort by rank in ascending order.
+        before visualizing. The most intuitive way is to sort by rank in ascending order.
     item_data : pd.DataFrame
         Data for items that is used for visualisation in both interactions and recos widgets.
         Supposed to be in form of a pandas DataFrame with columns:
@@ -249,7 +249,7 @@ class VisualApp(VisualAppBase):
             - `Columns.User` - user id
             - `Columns.Item` - item id
         The original order of the rows will be preserved. Keep in mind to sort the rows correctly
-        before visualizing. The most intuitive wy is to sort by date in descending order. If user
+        before visualizing. The most intuitive way is to sort by date in descending order. If user
         has too many interactions the lest ones may not be displayed.
     auto_display : bool, optional, default ``True``
         Display widgets right after initialization.
