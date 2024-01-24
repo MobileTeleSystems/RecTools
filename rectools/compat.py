@@ -57,6 +57,7 @@ class VisualApp(RequirementUnavailable):
 
     requirement = "ipywidgets"
 
+
 class ItemToItemVisualApp(RequirementUnavailable):
     """Dummy class, which is returned if there are no dependencies required for the model"""
 

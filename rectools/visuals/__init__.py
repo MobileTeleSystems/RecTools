@@ -24,8 +24,8 @@ Recos visualization
 """
 
 try:
-    from .visual_app import VisualApp, ItemToItemVisualApp
+    from .visual_app import ItemToItemVisualApp, VisualApp
 except ImportError:  # pragma: no cover
-    from ..compat import VisualApp, ItemToItemVisualApp  # type: ignore
+    from ..compat import ItemToItemVisualApp, VisualApp  # type: ignore
 
-__all__ = ("VisualApp","ItemToItemVisualApp")
+__all__ = ("VisualApp", "ItemToItemVisualApp")
