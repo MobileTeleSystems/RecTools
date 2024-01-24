@@ -21,6 +21,7 @@ Instruments to visualize recommender models performance
 Recos visualization
 ---------
 `visuals.VisualApp` - Jupyter app for visual comparison of recommendations
+`visuals.ItemToItemVisualApp` - Jupyter app for visual comparison of item-to-item recommendations
 """
 
 try:
