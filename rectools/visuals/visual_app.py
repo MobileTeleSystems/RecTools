@@ -110,7 +110,109 @@ class _AppDataStorage:
         return interactions
 
 
-class VisualApp:
+class VisualAppBase:
+    """
+    Base visual app class.
+    Warning: This class should not be used directly.
+    Use derived classes instead.
+    """
+
+    def __init__(
+        self,
+        *args: tp.Any,
+        auto_display: bool = True,
+        formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
+        rows_limit: int = 20,
+        **kwargs: tp.Any,
+    ) -> None:
+        self.rows_limit = rows_limit
+        self.formatters = formatters if formatters is not None else {}
+        self.data_storage: _AppDataStorage = self._create_data_storage(*args, **kwargs)
+        if auto_display:
+            self.display()
+
+    def _create_data_storage(self, *args: tp.Any, **kwargs: tp.Any) -> _AppDataStorage:
+        raise NotImplementedError()
+
+    def _convert_to_html(self, df: pd.DataFrame) -> str:
+        html_repr = (
+            df.to_html(
+                escape=False,
+                index=False,
+                formatters=self.formatters,
+                max_rows=self.rows_limit,
+                border=0,
+            )
+            .replace("<td>", '<td align="center">')
+            .replace("<th>", '<th style="text-align: center; min-width: 100px;">')
+        )
+        return html_repr
+
+    def _display_interactions(self, request_name: str) -> None:
+        """Display viewed items for `request_name`"""
+        items_tab = widgets.Tab()
+        df = self.data_storage.processed_interactions[request_name]
+        items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
+        items_tab.set_title(index=0, title="Interactions")
+        display(items_tab)
+
+    def _display_recos(self, request_name: str, model_name: str) -> None:
+        """Display recommended items for `request_name` from model `model_name`"""
+        items_tab = widgets.Tab()
+        df = self.data_storage.processed_recos[model_name][request_name]
+        items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
+        items_tab.set_title(index=0, title="Recommended")
+        display(items_tab)
+
+    def _display_request_id(self, request_name: str) -> None:
+        """Display request_id for `request_name`"""
+        request_id = self.data_storage.selected_requests[request_name]
+        display(widgets.HTML(value=f"{self.data_storage.request_colname}: {request_id}"))
+
+    def _display_model_name(self, model_name: str) -> None:
+        """Display model_name"""
+        display(widgets.HTML(value=f"Model name: {model_name}"))
+
+    def display(self) -> None:
+        """Display full VisualApp widget"""
+        request_name_selection = widgets.ToggleButtons(
+            options=self.data_storage.request_names,
+            description=f"Request {self.data_storage.request_colname}:",
+            disabled=False,
+            button_style="warning",
+        )
+        request_id_output = widgets.interactive_output(
+            self._display_request_id, {"request_name": request_name_selection}
+        )
+        interactions_output = widgets.interactive_output(
+            self._display_interactions, {"request_name": request_name_selection}
+        )
+        model_selection = widgets.ToggleButtons(
+            options=self.data_storage.model_names,
+            description="Model:",
+            disabled=False,
+            button_style="success",
+        )
+        model_name_output = widgets.interactive_output(self._display_model_name, {"model_name": model_selection})
+        recos_output = widgets.interactive_output(
+            self._display_recos, {"request_name": request_name_selection, "model_name": model_selection}
+        )
+
+        display(
+            widgets.VBox(
+                [
+                    request_name_selection,
+                    request_id_output,
+                    interactions_output,
+                    model_selection,
+                    model_name_output,
+                    recos_output,
+                ]
+            )
+        )
+
+
+class VisualApp(VisualAppBase):
     r"""
     Main tool for recommendations visualization. Creates Jupyter widgets for visual
     analysis and comparison of different models. Outputs both interactions history of the selected
@@ -196,97 +298,33 @@ class VisualApp:
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
     ) -> None:
-        self.data_storage = _AppDataStorage(
+        super().__init__(
+            recos=recos,
+            interactions=interactions,
+            item_data=item_data,
+            selected_users=selected_users,
+            auto_display=auto_display,
+            formatters=formatters,
+            rows_limit=rows_limit,
+        )
+
+    def _create_data_storage(
+        self,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        interactions: pd.DataFrame,
+        item_data: pd.DataFrame,
+        selected_users: tp.Dict[tp.Hashable, tp.Hashable],
+    ) -> _AppDataStorage:
+        return _AppDataStorage(
             interactions=interactions,
             recos=recos,
             selected_requests=selected_users,
             item_data=item_data,
             is_u2i=True,
         )
-        self.rows_limit = rows_limit
-        self.formatters = formatters if formatters is not None else {}
-        if auto_display:
-            self.display()
-
-    def _convert_to_html(self, df: pd.DataFrame) -> str:
-        html_repr = (
-            df.to_html(
-                escape=False,
-                index=False,
-                formatters=self.formatters,
-                max_rows=self.rows_limit,
-                border=0,
-            )
-            .replace("<td>", '<td align="center">')
-            .replace("<th>", '<th style="text-align: center; min-width: 100px;">')
-        )
-        return html_repr
-
-    def _display_interactions(self, request_name: str) -> None:
-        """Display viewed items for `request_name`"""
-        items_tab = widgets.Tab()
-        df = self.data_storage.processed_interactions[request_name]
-        items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
-        items_tab.set_title(index=0, title="Interactions")
-        display(items_tab)
-
-    def _display_recos(self, request_name: str, model_name: str) -> None:
-        """Display recommended items for `request_name` from model `model_name`"""
-        items_tab = widgets.Tab()
-        df = self.data_storage.processed_recos[model_name][request_name]
-        items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
-        items_tab.set_title(index=0, title="Recommended")
-        display(items_tab)
-
-    def _display_request_id(self, request_name: str) -> None:
-        """Display request_id for `request_name`"""
-        request_id = self.data_storage.selected_requests[request_name]
-        display(widgets.HTML(value=f"{self.data_storage.request_colname}: {request_id}"))
-
-    def _display_model_name(self, model_name: str) -> None:
-        """Display model_name"""
-        display(widgets.HTML(value=f"Model name: {model_name}"))
-
-    def display(self) -> None:
-        """Display full VisualApp widget"""
-        request_name_selection = widgets.ToggleButtons(
-            options=self.data_storage.request_names,
-            description=f"Request {self.data_storage.request_colname}:",
-            disabled=False,
-            button_style="warning",
-        )
-        request_id_output = widgets.interactive_output(
-            self._display_request_id, {"request_name": request_name_selection}
-        )
-        interactions_output = widgets.interactive_output(
-            self._display_interactions, {"request_name": request_name_selection}
-        )
-        model_selection = widgets.ToggleButtons(
-            options=self.data_storage.model_names,
-            description="Model:",
-            disabled=False,
-            button_style="success",
-        )
-        model_name_output = widgets.interactive_output(self._display_model_name, {"model_name": model_selection})
-        recos_output = widgets.interactive_output(
-            self._display_recos, {"request_name": request_name_selection, "model_name": model_selection}
-        )
-
-        display(
-            widgets.VBox(
-                [
-                    request_name_selection,
-                    request_id_output,
-                    interactions_output,
-                    model_selection,
-                    model_name_output,
-                    recos_output,
-                ]
-            )
-        )
 
 
-class ItemToItemVisualApp(VisualApp):
+class ItemToItemVisualApp(VisualAppBase):
     r"""
     Main tool for item-to-item recommendations visualization. Creates Jupyter widgets for visual
     analysis and comparison of different models. Outputs both target item data and recommended items
@@ -361,13 +399,24 @@ class ItemToItemVisualApp(VisualApp):
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
     ) -> None:
-        self.data_storage = _AppDataStorage(
+        super().__init__(
+            recos=recos,
+            item_data=item_data,
+            selected_items=selected_items,
+            auto_display=auto_display,
+            formatters=formatters,
+            rows_limit=rows_limit,
+        )
+
+    def _create_data_storage(
+        self,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        item_data: pd.DataFrame,
+        selected_items: tp.Dict[tp.Hashable, tp.Hashable],
+    ) -> _AppDataStorage:
+        return _AppDataStorage(
             recos=recos,
             selected_requests=selected_items,
             item_data=item_data,
             is_u2i=False,
         )
-        self.rows_limit = rows_limit
-        self.formatters = formatters if formatters is not None else {}
-        if auto_display:
-            self.display()
