@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.visuals.visual_app import AppDataStorage, VisualApp
+from rectools.visuals.visual_app import ItemToItemVisualApp, VisualApp, _AppDataStorage
 
 RECOS_U2I: tp.Dict[tp.Hashable, pd.DataFrame] = {
     "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
@@ -18,24 +18,24 @@ RECOS_I2I: tp.Dict[tp.Hashable, pd.DataFrame] = {
 
 ITEM_DATA = pd.DataFrame({Columns.Item: [3, 4, 5, 6, 7, 8], "feature_1": ["one", "two", "three", "five", "one", "two"]})
 INTERACTIONS = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
-REQUESTS_DICT_U2I: tp.Dict[tp.Hashable, tp.Hashable] = {"user_one": 1}
-REUQESTS_DICT_I2I: tp.Dict[tp.Hashable, tp.Hashable] = {"item_three": 3}
+SELECTED_REQUESTS_U2I: tp.Dict[tp.Hashable, tp.Hashable] = {"user_one": 1}
+SELECTED_REQUESTS_I2I: tp.Dict[tp.Hashable, tp.Hashable] = {"item_three": 3}
 
 
 class TestAppDataStorage:
     def test_u2i(self) -> None:
 
-        ads = AppDataStorage(
+        ads = _AppDataStorage(
             recos=RECOS_U2I,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
             is_u2i=True,
-            requests_dict=REQUESTS_DICT_U2I,
+            selected_requests=SELECTED_REQUESTS_U2I,
         )
 
         assert ads.is_u2i
         assert ads.request_colname == Columns.User
-        assert ads.requests_dict == REQUESTS_DICT_U2I
+        assert ads.selected_requests == SELECTED_REQUESTS_U2I
         assert ads.model_names == ["model1", "model2"]
         assert ads.request_names == ["user_one"]
 
@@ -54,11 +54,13 @@ class TestAppDataStorage:
                 pd.testing.assert_frame_equal(user_recos, ads.processed_recos[model_name][user_name])
 
     def test_i2i(self) -> None:
-        ads = AppDataStorage(recos=RECOS_I2I, item_data=ITEM_DATA, is_u2i=False, requests_dict=REUQESTS_DICT_I2I)
+        ads = _AppDataStorage(
+            recos=RECOS_I2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
+        )
 
         assert not ads.is_u2i
         assert ads.request_colname == Columns.TargetItem
-        assert ads.requests_dict == REUQESTS_DICT_I2I
+        assert ads.selected_requests == SELECTED_REQUESTS_I2I
         assert ads.model_names == ["model1", "model2"]
         assert ads.request_names == ["item_three"]
 
@@ -87,11 +89,11 @@ class TestAppDataStorage:
                 "model1": pd.DataFrame({Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]}),
             }
-            AppDataStorage(
+            _AppDataStorage(
                 recos=incorrect_u2i_recos,
                 item_data=ITEM_DATA,
                 is_u2i=True,
-                requests_dict=REQUESTS_DICT_U2I,
+                selected_requests=SELECTED_REQUESTS_U2I,
                 interactions=INTERACTIONS,
             )
 
@@ -101,77 +103,77 @@ class TestAppDataStorage:
                 "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Rank: [1, 1]}),
             }
-            AppDataStorage(
+            _AppDataStorage(
                 recos=incorrect_u2i_recos,
                 item_data=ITEM_DATA,
                 is_u2i=True,
-                requests_dict=REQUESTS_DICT_U2I,
+                selected_requests=SELECTED_REQUESTS_U2I,
                 interactions=INTERACTIONS,
             )
 
         # Missing `Columns.TargetItem` for i2i
         with pytest.raises(KeyError):
-            AppDataStorage(recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=False, requests_dict=REUQESTS_DICT_I2I)
+            _AppDataStorage(recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I)
 
         # Missing `Columns.Item` in item_data
         with pytest.raises(KeyError):
-            AppDataStorage(
+            _AppDataStorage(
                 recos=RECOS_U2I,
                 item_data=ITEM_DATA.drop(columns=[Columns.Item]),
                 interactions=INTERACTIONS,
                 is_u2i=True,
-                requests_dict=REQUESTS_DICT_U2I,
+                selected_requests=SELECTED_REQUESTS_U2I,
             )
 
     def test_incorrect_interactions_for_reco_case(self) -> None:
 
         # u2i without interactions
         with pytest.raises(ValueError):
-            AppDataStorage(recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=True, requests_dict=REQUESTS_DICT_U2I)
+            _AppDataStorage(recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=True, selected_requests=SELECTED_REQUESTS_U2I)
 
         # i2i with interactions
         with pytest.raises(ValueError):
-            AppDataStorage(
+            _AppDataStorage(
                 recos=RECOS_I2I,
                 item_data=ITEM_DATA,
                 is_u2i=False,
-                requests_dict=REUQESTS_DICT_I2I,
+                selected_requests=SELECTED_REQUESTS_I2I,
                 interactions=INTERACTIONS,
             )
 
     def test_empty_requests(self) -> None:
         with pytest.raises(ValueError):
-            AppDataStorage(
+            _AppDataStorage(
                 recos=RECOS_U2I,
                 item_data=ITEM_DATA,
                 interactions=INTERACTIONS,
                 is_u2i=True,
-                requests_dict={},
+                selected_requests={},
             )
 
 
 class TestVisualApp:
     @pytest.mark.parametrize("auto_display", (True, False))
     @pytest.mark.parametrize("formatters", (None, {"feature_1": lambda x: f"<b>{x}</b>"}))
-    def test_happy_path_u2i(self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]) -> None:
+    def test_happy_path(self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]) -> None:
         VisualApp(
             recos=RECOS_U2I,
             item_data=ITEM_DATA,
-            requests_dict=REQUESTS_DICT_U2I,
-            is_u2i=True,
+            selected_users=SELECTED_REQUESTS_U2I,
             interactions=INTERACTIONS,
             auto_display=auto_display,
             formatters=formatters,
         )
 
+
+class TestItemToItemVisualApp:
     @pytest.mark.parametrize("auto_display", (True, False))
     @pytest.mark.parametrize("formatters", (None, {"feature_1": lambda x: f"<b>{x}</b>"}))
-    def test_happy_path_i2i(self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]) -> None:
-        VisualApp(
+    def test_happy_path(self, auto_display: bool, formatters: tp.Optional[tp.Dict[str, tp.Callable]]) -> None:
+        ItemToItemVisualApp(
             recos=RECOS_I2I,
             item_data=ITEM_DATA,
-            requests_dict=REUQESTS_DICT_I2I,
-            is_u2i=False,
+            selected_items=SELECTED_REQUESTS_I2I,
             auto_display=auto_display,
             formatters=formatters,
         )
