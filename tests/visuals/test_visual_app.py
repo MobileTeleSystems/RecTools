@@ -4,14 +4,14 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.visuals.visual_app import ItemToItemVisualApp, VisualApp, _AppDataStorage
+from rectools.visuals.visual_app import ItemToItemVisualApp, TablesDict, VisualApp, _AppDataStorage
 
-RECOS_U2I: tp.Dict[tp.Hashable, pd.DataFrame] = {
+RECOS_U2I: TablesDict = {
     "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
     "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]}),
 }
 
-RECOS_I2I: tp.Dict[tp.Hashable, pd.DataFrame] = {
+RECOS_I2I: TablesDict = {
     "model1": pd.DataFrame({Columns.TargetItem: [3, 4], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
     "model2": pd.DataFrame({Columns.TargetItem: [3, 4], Columns.Item: [5, 6], Columns.Rank: [1, 1]}),
 }
@@ -85,7 +85,7 @@ class TestAppDataStorage:
 
         # Missing `Columns.User` for u2i
         with pytest.raises(KeyError):
-            incorrect_u2i_recos: tp.Dict[tp.Hashable, pd.DataFrame] = {
+            incorrect_u2i_recos: TablesDict = {
                 "model1": pd.DataFrame({Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]}),
             }

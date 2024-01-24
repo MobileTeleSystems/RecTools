@@ -6,6 +6,8 @@ from IPython.display import display
 
 from rectools import Columns
 
+TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
+
 
 class _AppDataStorage:
     """
@@ -15,7 +17,7 @@ class _AppDataStorage:
 
     def __init__(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: TablesDict,
         item_data: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         is_u2i: bool = True,
@@ -77,25 +79,25 @@ class _AppDataStorage:
     @classmethod
     def _process_recos(
         cls,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: TablesDict,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         request_colname: str,
         item_data: pd.DataFrame,
-    ) -> tp.Dict[tp.Hashable, tp.Dict[tp.Hashable, pd.DataFrame]]:
+    ) -> tp.Dict[tp.Hashable, TablesDict]:
         prepared_recos = {}
-        for model_name, full_recos in recos.items():
-            model_recos = {}
+        for model_name, model_recos in recos.items():
+            prepared_model_recos = {}
             for request_name, request_id in selected_requests.items():
-                model_recos[request_name] = item_data.merge(
-                    full_recos[full_recos[request_colname] == request_id],
+                prepared_model_recos[request_name] = item_data.merge(
+                    model_recos[model_recos[request_colname] == request_id],
                     how="right",
                     on="item_id",
                     suffixes=["_item", "_recos"],
                 ).drop(columns=[request_colname])
-            prepared_recos[model_name] = model_recos
+            prepared_recos[model_name] = prepared_model_recos
         return prepared_recos
 
-    def _check_columns_present_in_recos(self, recos: tp.Dict[tp.Hashable, pd.DataFrame]) -> None:
+    def _check_columns_present_in_recos(self, recos: TablesDict) -> None:
         required_columns = {Columns.User, Columns.Item} if self.is_u2i else {Columns.TargetItem, Columns.Item}
         for model_name, model_recos in recos.items():
             actual_columns = set(model_recos.columns)
@@ -226,7 +228,7 @@ class VisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : tp.Dict[tp.Hashable, pd.DataFrame]
+    recos : TablesDict
         Recommendations from different models in a form of a dict. Model names are supposed to be
         dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
         columns:
@@ -290,7 +292,7 @@ class VisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: TablesDict,
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -310,7 +312,7 @@ class VisualApp(VisualAppBase):
 
     def _create_data_storage(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: TablesDict,
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -338,7 +340,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : tp.Dict[tp.Hashable, pd.DataFrame]
+    recos : TablesDict
         Recommendations from different models in a form of a dict. Model names are supposed to be
         dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
         columns:
@@ -392,7 +394,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: TablesDict,
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         auto_display: bool = True,
@@ -410,7 +412,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def _create_data_storage(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: TablesDict,
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
     ) -> _AppDataStorage:
