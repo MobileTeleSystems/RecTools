@@ -186,6 +186,12 @@ class VisualAppBase:
             disabled=False,
             button_style="warning",
         )
+        # ToggleButtons in ipywidgets do have very limited support for styling.
+        # Picking specific background colors for buttons is not supported. Currently we are using
+        # the `button_style` option to pick the appearence of buttons from pre-defined styles.
+        # There are very limited options to choose from (e.g. `success`, `warning`, etc.)
+        # See https://ipywidgets.readthedocs.io/en/latest/examples/Widget%20Styling.html.
+
         request_id_output = widgets.interactive_output(
             self._display_request_id, {"request_name": request_name_selection}
         )
