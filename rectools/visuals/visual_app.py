@@ -46,13 +46,13 @@ class _AppDataStorage:
 
         if not self.selected_requests:
             raise ValueError("`selected_requests` is empty")
-        self.processed_interactions = self._process_interactions(
+        self.grouped_interactions = self._group_interactions(
             interactions=self.interactions,
             selected_requests=self.selected_requests,
             request_colname=self.request_colname,
             item_data=self.item_data,
         )
-        self.processed_recos = self._process_recos(
+        self.grouped_recos = self._group_recos(
             recos=self.recos,
             selected_requests=self.selected_requests,
             request_colname=self.request_colname,
@@ -60,24 +60,25 @@ class _AppDataStorage:
         )
 
     @classmethod
-    def _process_interactions(
+    def _group_interactions(
         cls,
         interactions: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         request_colname: str,
         item_data: pd.DataFrame,
     ) -> tp.Dict[tp.Hashable, pd.DataFrame]:
+        # request ids (e.g. user ids) are stored as values in `selected_requests`
+        selected_interactions = interactions[interactions[request_colname].isin(selected_requests.values())]
+        selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
         prepared_interactions = {}
         for request_name, request_id in selected_requests.items():
-            prepared_interactions[request_name] = (
-                interactions[interactions[request_colname] == request_id]
-                .merge(item_data, how="left", on=Columns.Item)
-                .drop(columns=[request_colname])
-            )
+            prepared_interactions[request_name] = selected_interactions[
+                selected_interactions[request_colname] == request_id
+            ].drop(columns=[request_colname])
         return prepared_interactions
 
     @classmethod
-    def _process_recos(
+    def _group_recos(
         cls,
         recos: TablesDict,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
@@ -86,10 +87,12 @@ class _AppDataStorage:
     ) -> tp.Dict[tp.Hashable, TablesDict]:
         prepared_recos = {}
         for model_name, model_recos in recos.items():
+            # request ids (e.g. user ids) are stored as values in `selected_requests`
+            selected_recos = model_recos[model_recos[request_colname].isin(selected_requests.values())]
             prepared_model_recos = {}
             for request_name, request_id in selected_requests.items():
                 prepared_model_recos[request_name] = item_data.merge(
-                    model_recos[model_recos[request_colname] == request_id],
+                    selected_recos[selected_recos[request_colname] == request_id],
                     how="right",
                     on="item_id",
                     suffixes=["_item", "_recos"],
@@ -153,7 +156,7 @@ class VisualAppBase:
     def _display_interactions(self, request_name: str) -> None:
         """Display viewed items for `request_name`"""
         items_tab = widgets.Tab()
-        df = self.data_storage.processed_interactions[request_name]
+        df = self.data_storage.grouped_interactions[request_name]
         items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
         items_tab.set_title(index=0, title="Interactions")
         display(items_tab)
@@ -161,7 +164,7 @@ class VisualAppBase:
     def _display_recos(self, request_name: str, model_name: str) -> None:
         """Display recommended items for `request_name` from model `model_name`"""
         items_tab = widgets.Tab()
-        df = self.data_storage.processed_recos[model_name][request_name]
+        df = self.data_storage.grouped_recos[model_name][request_name]
         items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
         items_tab.set_title(index=0, title="Recommended")
         display(items_tab)

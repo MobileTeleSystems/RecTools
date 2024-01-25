@@ -39,19 +39,19 @@ class TestAppDataStorage:
         assert ads.model_names == ["model1", "model2"]
         assert ads.request_names == ["user_one"]
 
-        assert list(ads.processed_interactions.keys()) == ["user_one"]
+        assert list(ads.grouped_interactions.keys()) == ["user_one"]
         expected_interactions = pd.DataFrame({Columns.Item: [3, 7], "feature_1": ["one", "one"]})
-        pd.testing.assert_frame_equal(ads.processed_interactions["user_one"], expected_interactions)
+        pd.testing.assert_frame_equal(ads.grouped_interactions["user_one"], expected_interactions)
 
-        expected_processed_recos = {
+        expected_grouped_recos = {
             "model1": {"user_one": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]})},
             "model2": {"user_one": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]})},
         }
-        assert expected_processed_recos.keys() == ads.processed_recos.keys()
-        for model_name, model_recos in expected_processed_recos.items():
-            assert model_recos.keys() == ads.processed_recos[model_name].keys()
+        assert expected_grouped_recos.keys() == ads.grouped_recos.keys()
+        for model_name, model_recos in expected_grouped_recos.items():
+            assert model_recos.keys() == ads.grouped_recos[model_name].keys()
             for user_name, user_recos in model_recos.items():
-                pd.testing.assert_frame_equal(user_recos, ads.processed_recos[model_name][user_name])
+                pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
 
     def test_i2i(self) -> None:
         ads = _AppDataStorage(
@@ -67,19 +67,19 @@ class TestAppDataStorage:
         expected_i2i_interactions = pd.DataFrame({Columns.TargetItem: [3, 4], Columns.Item: [3, 4]})
         pd.testing.assert_frame_equal(expected_i2i_interactions, ads.interactions, check_like=True)
 
-        assert list(ads.processed_interactions.keys()) == ["item_three"]
+        assert list(ads.grouped_interactions.keys()) == ["item_three"]
         expected_interactions = pd.DataFrame({Columns.Item: [3], "feature_1": ["one"]})
-        pd.testing.assert_frame_equal(ads.processed_interactions["item_three"], expected_interactions)
+        pd.testing.assert_frame_equal(ads.grouped_interactions["item_three"], expected_interactions)
 
-        expected_processed_recos = {
+        expected_grouped_recos = {
             "model1": {"item_three": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]})},
             "model2": {"item_three": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]})},
         }
-        assert expected_processed_recos.keys() == ads.processed_recos.keys()
-        for model_name, model_recos in expected_processed_recos.items():
-            assert model_recos.keys() == ads.processed_recos[model_name].keys()
+        assert expected_grouped_recos.keys() == ads.grouped_recos.keys()
+        for model_name, model_recos in expected_grouped_recos.items():
+            assert model_recos.keys() == ads.grouped_recos[model_name].keys()
             for user_name, user_recos in model_recos.items():
-                pd.testing.assert_frame_equal(user_recos, ads.processed_recos[model_name][user_name])
+                pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
 
     def test_missing_columns_validation(self) -> None:
 
