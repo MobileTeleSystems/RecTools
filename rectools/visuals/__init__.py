@@ -18,7 +18,7 @@ Visualization tools (:mod:`rectools.visuals`)
 
 Instruments to visualize recommender models performance
 
-Recos visualization
+Recommendations visualization
 ---------
 `visuals.VisualApp` - Jupyter app for visual comparison of recommendations
 `visuals.ItemToItemVisualApp` - Jupyter app for visual comparison of item-to-item recommendations
