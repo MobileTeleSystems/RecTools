@@ -74,3 +74,6 @@ Oops, yeah, can't forget about them.
 
 
 .. include:: tools.rst
+
+
+.. include:: visuals.rst
