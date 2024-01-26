@@ -13,3 +13,4 @@ API
    rectools.model_selection
    rectools.models
    rectools.tools
+   rectools.visuals
