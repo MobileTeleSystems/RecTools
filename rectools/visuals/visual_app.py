@@ -1,10 +1,12 @@
 import typing as tp
 
 import ipywidgets as widgets
+import numpy as np
 import pandas as pd
 from IPython.display import display
 
 from rectools import Columns
+from rectools.utils import fast_isin
 
 TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 
@@ -21,14 +23,21 @@ class _AppDataStorage:
         item_data: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         is_u2i: bool = True,
+        n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
     ) -> None:
         self.request_colname = Columns.User if is_u2i else Columns.TargetItem
         self.is_u2i = is_u2i
-        self.selected_requests = selected_requests
-        self.model_names = list(recos.keys())
-        self.request_names = list(selected_requests.keys())
 
+        if n_random_requests > 0:
+            self.selected_requests = self._fill_requests_with_random(
+                selected_requests=selected_requests, n_random_requests=n_random_requests, is_u2i=is_u2i, recos=recos
+            )
+        else:
+            self.selected_requests = selected_requests
+        self.request_names = list(self.selected_requests.keys())
+
+        self.model_names = list(recos.keys())
         self._check_columns_present_in_recos(recos)
         self.recos = recos
 
@@ -58,6 +67,31 @@ class _AppDataStorage:
             request_colname=self.request_colname,
             item_data=self.item_data,
         )
+
+    @classmethod
+    def _fill_requests_with_random(
+        cls,
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        n_random_requests: int,
+        is_u2i: bool,
+        recos: TablesDict,
+    ) -> tp.Dict[tp.Hashable, tp.Hashable]:
+
+        id_col = Columns.User if is_u2i else Columns.TargetItem
+
+        # leave only those ids that were not predefined by user
+        # request ids (e.g. user ids) are stored as values in `selected_requests`
+        all_ids: pd.Series = pd.concat([model_recos[id_col] for model_recos in recos.values()])
+        all_ids = all_ids.drop_duplicates()
+        selected_ids = np.array(list((selected_requests.values())))
+        selected_mask = fast_isin(all_ids.values, selected_ids)
+        selecting_from = all_ids[~selected_mask]
+
+        num_selecting = min(len(selecting_from), n_random_requests)
+        new_ids = np.random.choice(selecting_from, num_selecting, replace=False)
+        upd: tp.Dict[tp.Hashable, tp.Hashable] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
+        upd.update(selected_requests)
+        return upd
 
     @classmethod
     def _group_interactions(
@@ -128,11 +162,15 @@ class VisualAppBase:
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
+        min_widht: int = 100,
         **kwargs: tp.Any,
     ) -> None:
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
         self.data_storage: _AppDataStorage = self._create_data_storage(*args, **kwargs)
+        if min_widht < 10:
+            raise ValueError(f"`min_width` must be greater then 10. {min_widht} specified")
+        self.min_widht = min_widht
         if auto_display:
             self.display()
 
@@ -149,7 +187,7 @@ class VisualAppBase:
                 border=0,
             )
             .replace("<td>", '<td align="center">')
-            .replace("<th>", '<th style="text-align: center; min-width: 100px;">')
+            .replace("<th>", f'<th style="text-align: center; min-width: {self.min_widht}px;">')
         )
         return html_repr
 
@@ -249,6 +287,14 @@ class VisualApp(VisualAppBase):
             - Any other columns that you wish to display in widgets (e.g. rank or score)
         The original order of the rows will be preserved. Keep in mind to sort the rows correctly
         before visualizing. The most intuitive way is to sort by rank in ascending order.
+    interactions : pd.DataFrame
+        Table with interactions history for users. Only needed for u2i case. Supposed to be in form
+        of pandas DataFrames with columns:
+            - `Columns.User` - user id
+            - `Columns.Item` - item id
+        The original order of the rows will be preserved. Keep in mind to sort the rows correctly
+        before visualizing. The most intuitive way is to sort by date in descending order. If user
+        has too many interactions the lest ones may not be displayed.
     item_data : pd.DataFrame
         Data for items that is used for visualisation in both interactions and recos widgets.
         Supposed to be in form of a pandas DataFrame with columns:
@@ -257,14 +303,8 @@ class VisualApp(VisualAppBase):
     selected_users : tp.Dict[tp.Hashable, tp.Hashable]
         Predefined users that will be displayed in widgets. User names must be specified as keys
         of the dict and user ids as values of the dict.
-    interactions : tp.Optional[pd.DataFrame], optional, default ``None``
-        Table with interactions history for users. Only needed for u2i case. Supposed to be in form
-        of pandas DataFrames with columns:
-            - `Columns.User` - user id
-            - `Columns.Item` - item id
-        The original order of the rows will be preserved. Keep in mind to sort the rows correctly
-        before visualizing. The most intuitive way is to sort by date in descending order. If user
-        has too many interactions the lest ones may not be displayed.
+    n_random_users : int, default 0
+        Number of random users to add for visualization from users in recommendation tables.
     auto_display : bool, optional, default ``True``
         Display widgets right after initialization.
     formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
@@ -275,6 +315,9 @@ class VisualApp(VisualAppBase):
         Formatters can be used to format text, create links and display images with html.
     rows_limit : int, optional, default 20
         Maximum number of rows to display in the sections of interactions and recos.
+    min_width : int, optional, default 100
+        Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
+        10.
 
     Examples
     --------
@@ -308,18 +351,22 @@ class VisualApp(VisualAppBase):
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
+        n_random_users: int = 0,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
+        min_widht: int = 100,
     ) -> None:
         super().__init__(
             recos=recos,
             interactions=interactions,
             item_data=item_data,
             selected_users=selected_users,
+            n_random_users=n_random_users,
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
+            min_widht=min_widht,
         )
 
     def _create_data_storage(
@@ -328,6 +375,7 @@ class VisualApp(VisualAppBase):
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
+        n_random_users: int,
     ) -> _AppDataStorage:
         return _AppDataStorage(
             interactions=interactions,
@@ -335,6 +383,7 @@ class VisualApp(VisualAppBase):
             selected_requests=selected_users,
             item_data=item_data,
             is_u2i=True,
+            n_random_requests=n_random_users,
         )
 
 
@@ -369,6 +418,8 @@ class ItemToItemVisualApp(VisualAppBase):
     selected_items : tp.Dict[tp.Hashable, tp.Hashable]
         Predefined items that will be displayed in widgets. Item names must be specified as keys
         of the dict and item ids as values of the dict.
+    n_random_items : int, default 0
+        Number of random items to add for visualization from target items in recommendation tables.
     auto_display : bool, optional, default ``True``
         Display widgets right after initialization.
     formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
@@ -379,6 +430,9 @@ class ItemToItemVisualApp(VisualAppBase):
         Formatters can be used to format text, create links and display images with html.
     rows_limit : int, optional, default 20
         Maximum number of rows to display in the sections of interactions and recos.
+    min_width : int, optional, default 100
+        Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
+        10.
 
     Examples
     --------
@@ -409,17 +463,21 @@ class ItemToItemVisualApp(VisualAppBase):
         recos: TablesDict,
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
+        n_random_items: int = 0,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
+        min_widht: int = 100,
     ) -> None:
         super().__init__(
             recos=recos,
             item_data=item_data,
             selected_items=selected_items,
+            n_random_items=n_random_items,
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
+            min_widht=min_widht,
         )
 
     def _create_data_storage(
@@ -427,10 +485,12 @@ class ItemToItemVisualApp(VisualAppBase):
         recos: TablesDict,
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
+        n_random_items: int,
     ) -> _AppDataStorage:
         return _AppDataStorage(
             recos=recos,
             selected_requests=selected_items,
             item_data=item_data,
             is_u2i=False,
+            n_random_requests=n_random_items,
         )
