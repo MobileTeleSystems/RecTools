@@ -254,7 +254,7 @@ class TestVisualApp:
                 interactions=INTERACTIONS,
                 auto_display=True,
                 n_random_users=0,
-                min_widht=5,
+                min_width=5,
             )
 
 
@@ -282,5 +282,5 @@ class TestItemToItemVisualApp:
                 selected_items=SELECTED_REQUESTS_I2I,
                 auto_display=True,
                 n_random_items=0,
-                min_widht=-10,
+                min_width=-10,
             )

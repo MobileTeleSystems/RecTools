@@ -162,15 +162,15 @@ class VisualAppBase:
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
-        min_widht: int = 100,
+        min_width: int = 100,
         **kwargs: tp.Any,
     ) -> None:
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
         self.data_storage: _AppDataStorage = self._create_data_storage(*args, **kwargs)
-        if min_widht < 10:
-            raise ValueError(f"`min_width` must be greater then 10. {min_widht} specified")
-        self.min_widht = min_widht
+        if min_width < 10:
+            raise ValueError(f"`min_width` must be greater then 10. {min_width} specified")
+        self.min_width = min_width
         if auto_display:
             self.display()
 
@@ -187,7 +187,7 @@ class VisualAppBase:
                 border=0,
             )
             .replace("<td>", '<td align="center">')
-            .replace("<th>", f'<th style="text-align: center; min-width: {self.min_widht}px;">')
+            .replace("<th>", f'<th style="text-align: center; min-width: {self.min_width}px;">')
         )
         return html_repr
 
@@ -355,7 +355,7 @@ class VisualApp(VisualAppBase):
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
-        min_widht: int = 100,
+        min_width: int = 100,
     ) -> None:
         super().__init__(
             recos=recos,
@@ -366,7 +366,7 @@ class VisualApp(VisualAppBase):
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
-            min_widht=min_widht,
+            min_width=min_width,
         )
 
     def _create_data_storage(
@@ -467,7 +467,7 @@ class ItemToItemVisualApp(VisualAppBase):
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
-        min_widht: int = 100,
+        min_width: int = 100,
     ) -> None:
         super().__init__(
             recos=recos,
@@ -477,7 +477,7 @@ class ItemToItemVisualApp(VisualAppBase):
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
-            min_widht=min_widht,
+            min_width=min_width,
         )
 
     def _create_data_storage(
