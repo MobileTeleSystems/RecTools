@@ -39,7 +39,7 @@ class TestAppDataStorage:
         )
 
         assert ads.is_u2i
-        assert ads.request_colname == Columns.User
+        assert ads.id_col == Columns.User
         assert ads.selected_requests == SELECTED_REQUESTS_U2I
         assert ads.model_names == ["model1", "model2"]
         assert ads.request_names == ["user_one"]
@@ -64,7 +64,7 @@ class TestAppDataStorage:
         )
 
         assert not ads.is_u2i
-        assert ads.request_colname == Columns.TargetItem
+        assert ads.id_col == Columns.TargetItem
         assert ads.selected_requests == SELECTED_REQUESTS_I2I
         assert ads.model_names == ["model1", "model2"]
         assert ads.request_names == ["item_three"]

@@ -10,6 +10,8 @@ from rectools.utils import fast_isin
 
 TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 
+MIN_WIDTH_LIMIT = 10
+
 
 class _AppDataStorage:
     """
@@ -26,18 +28,19 @@ class _AppDataStorage:
         n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
     ) -> None:
-        self.request_colname = Columns.User if is_u2i else Columns.TargetItem
+        self.id_col = Columns.User if is_u2i else Columns.TargetItem
         self.is_u2i = is_u2i
 
         if n_random_requests > 0:
             self.selected_requests = self._fill_requests_with_random(
-                selected_requests=selected_requests, n_random_requests=n_random_requests, is_u2i=is_u2i, recos=recos
+                selected_requests=selected_requests,
+                n_random_requests=n_random_requests,
+                id_col=self.id_col,
+                recos=recos,
             )
         else:
             self.selected_requests = selected_requests
-        self.request_names = list(self.selected_requests.keys())
 
-        self.model_names = list(recos.keys())
         self._check_columns_present_in_recos(recos)
         self.recos = recos
 
@@ -58,57 +61,64 @@ class _AppDataStorage:
         self.grouped_interactions = self._group_interactions(
             interactions=self.interactions,
             selected_requests=self.selected_requests,
-            request_colname=self.request_colname,
+            id_col=self.id_col,
             item_data=self.item_data,
         )
         self.grouped_recos = self._group_recos(
             recos=self.recos,
             selected_requests=self.selected_requests,
-            request_colname=self.request_colname,
+            id_col=self.id_col,
             item_data=self.item_data,
         )
+
+    @property
+    def request_names(self) -> tp.List[tp.Hashable]:
+        return list(self.selected_requests.keys())
+
+    @property
+    def model_names(self) -> tp.List[tp.Hashable]:
+        return list(self.grouped_recos.keys())
 
     @classmethod
     def _fill_requests_with_random(
         cls,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_requests: int,
-        is_u2i: bool,
+        id_col: str,
         recos: TablesDict,
     ) -> tp.Dict[tp.Hashable, tp.Hashable]:
 
-        id_col = Columns.User if is_u2i else Columns.TargetItem
-
-        # leave only those ids that were not predefined by user
-        # request ids (e.g. user ids) are stored as values in `selected_requests`
-        all_ids: pd.Series = pd.concat([model_recos[id_col] for model_recos in recos.values()])
-        all_ids = all_ids.drop_duplicates()
-        selected_ids = np.array(list((selected_requests.values())))
-        selected_mask = fast_isin(all_ids.values, selected_ids)
-        selecting_from = all_ids[~selected_mask]
+        # Leave only those ids that were not predefined by user
+        # Request ids (e.g. user ids) are stored as values in `selected_requests`
+        all_ids = [model_recos[id_col].unique() for model_recos in recos.values()]
+        unique_ids = np.unique(np.hstack(all_ids))
+        selected_ids = np.array(list(selected_requests.values()))
+        selected_mask = fast_isin(unique_ids, selected_ids)
+        selecting_from = unique_ids[~selected_mask]
 
         num_selecting = min(len(selecting_from), n_random_requests)
         new_ids = np.random.choice(selecting_from, num_selecting, replace=False)
-        upd: tp.Dict[tp.Hashable, tp.Hashable] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
-        upd.update(selected_requests)
-        return upd
+        res = selected_requests.copy()
+        new_requests: tp.Dict[tp.Hashable, tp.Hashable] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
+        res.update(new_requests)
+        return res
 
     @classmethod
     def _group_interactions(
         cls,
         interactions: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
-        request_colname: str,
+        id_col: str,
         item_data: pd.DataFrame,
     ) -> tp.Dict[tp.Hashable, pd.DataFrame]:
-        # request ids (e.g. user ids) are stored as values in `selected_requests`
-        selected_interactions = interactions[interactions[request_colname].isin(selected_requests.values())]
+        # Request ids (e.g. user ids) are stored as values in `selected_requests`
+        selected_interactions = interactions[interactions[id_col].isin(selected_requests.values())]
         selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
         prepared_interactions = {}
         for request_name, request_id in selected_requests.items():
             prepared_interactions[request_name] = selected_interactions[
-                selected_interactions[request_colname] == request_id
-            ].drop(columns=[request_colname])
+                selected_interactions[id_col] == request_id
+            ].drop(columns=[id_col])
         return prepared_interactions
 
     @classmethod
@@ -116,26 +126,26 @@ class _AppDataStorage:
         cls,
         recos: TablesDict,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
-        request_colname: str,
+        id_col: str,
         item_data: pd.DataFrame,
     ) -> tp.Dict[tp.Hashable, TablesDict]:
         prepared_recos = {}
         for model_name, model_recos in recos.items():
-            # request ids (e.g. user ids) are stored as values in `selected_requests`
-            selected_recos = model_recos[model_recos[request_colname].isin(selected_requests.values())]
+            # Request ids (e.g. user ids) are stored as values in `selected_requests`
+            selected_recos = model_recos[model_recos[id_col].isin(selected_requests.values())]
             prepared_model_recos = {}
             for request_name, request_id in selected_requests.items():
                 prepared_model_recos[request_name] = item_data.merge(
-                    selected_recos[selected_recos[request_colname] == request_id],
+                    selected_recos[selected_recos[id_col] == request_id],
                     how="right",
                     on="item_id",
                     suffixes=["_item", "_recos"],
-                ).drop(columns=[request_colname])
+                ).drop(columns=[id_col])
             prepared_recos[model_name] = prepared_model_recos
         return prepared_recos
 
     def _check_columns_present_in_recos(self, recos: TablesDict) -> None:
-        required_columns = {Columns.User, Columns.Item} if self.is_u2i else {Columns.TargetItem, Columns.Item}
+        required_columns = {self.id_col, Columns.Item}
         for model_name, model_recos in recos.items():
             actual_columns = set(model_recos.columns)
             if not actual_columns >= required_columns:
@@ -168,8 +178,8 @@ class VisualAppBase:
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
         self.data_storage: _AppDataStorage = self._create_data_storage(*args, **kwargs)
-        if min_width < 10:
-            raise ValueError(f"`min_width` must be greater then 10. {min_width} specified")
+        if min_width <= MIN_WIDTH_LIMIT:
+            raise ValueError(f"`min_width` must be greater then {MIN_WIDTH_LIMIT}. {min_width} specified")
         self.min_width = min_width
         if auto_display:
             self.display()
@@ -210,7 +220,7 @@ class VisualAppBase:
     def _display_request_id(self, request_name: str) -> None:
         """Display request_id for `request_name`"""
         request_id = self.data_storage.selected_requests[request_name]
-        display(widgets.HTML(value=f"{self.data_storage.request_colname}: {request_id}"))
+        display(widgets.HTML(value=f"{self.data_storage.id_col}: {request_id}"))
 
     def _display_model_name(self, model_name: str) -> None:
         """Display model_name"""
@@ -220,7 +230,7 @@ class VisualAppBase:
         """Display full VisualApp widget"""
         request_name_selection = widgets.ToggleButtons(
             options=self.data_storage.request_names,
-            description=f"Request {self.data_storage.request_colname}:",
+            description=f"Request {self.data_storage.id_col}:",
             disabled=False,
             button_style="warning",
         )
