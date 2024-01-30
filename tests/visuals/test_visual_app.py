@@ -69,9 +69,6 @@ class TestAppDataStorage:
         assert ads.model_names == ["model1", "model2"]
         assert ads.request_names == ["item_three"]
 
-        expected_i2i_interactions = pd.DataFrame({Columns.TargetItem: [3, 4, 5], Columns.Item: [3, 4, 5]})
-        pd.testing.assert_frame_equal(expected_i2i_interactions, ads.interactions, check_like=True)
-
         assert list(ads.grouped_interactions.keys()) == ["item_three"]
         expected_interactions = pd.DataFrame({Columns.Item: [3], "feature_1": ["one"]})
         pd.testing.assert_frame_equal(ads.grouped_interactions["item_three"], expected_interactions)
@@ -85,6 +82,11 @@ class TestAppDataStorage:
             assert model_recos.keys() == ads.grouped_recos[model_name].keys()
             for user_name, user_recos in model_recos.items():
                 pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
+
+    def test_i2i_interactions(self) -> None:
+        expected_i2i_interactions = pd.DataFrame({Columns.TargetItem: [3, 4, 5], Columns.Item: [3, 4, 5]})
+        actual = _AppDataStorage._prepare_interactions_for_i2i(recos=RECOS_I2I)  # pylint: disable=protected-access
+        pd.testing.assert_frame_equal(expected_i2i_interactions, actual, check_like=True)
 
     def test_missing_columns_validation(self) -> None:
 

@@ -42,33 +42,30 @@ class _AppDataStorage:
             self.selected_requests = selected_requests
 
         self._check_columns_present_in_recos(recos)
-        self.recos = recos
 
         if Columns.Item not in item_data:
             raise KeyError(f"Missed {Columns.Item} column in item_data")
-        self.item_data = item_data
 
-        if interactions is None and is_u2i:
-            raise ValueError("For u2i reco you must specify interactions")
         if interactions is not None and not is_u2i:
             raise ValueError("For i2i reco you must not specify interactions")
-        if not is_u2i:
-            interactions = self._prepare_interactions_for_i2i()
-        self.interactions: pd.DataFrame = interactions
+        if interactions is None:
+            if is_u2i:
+                raise ValueError("For u2i reco you must specify interactions")
+            interactions = self._prepare_interactions_for_i2i(recos=recos)
 
         if not self.selected_requests:
             raise ValueError("`selected_requests` is empty")
         self.grouped_interactions = self._group_interactions(
-            interactions=self.interactions,
+            interactions=interactions,
             selected_requests=self.selected_requests,
             id_col=self.id_col,
-            item_data=self.item_data,
+            item_data=item_data,
         )
         self.grouped_recos = self._group_recos(
-            recos=self.recos,
+            recos=recos,
             selected_requests=self.selected_requests,
             id_col=self.id_col,
-            item_data=self.item_data,
+            item_data=item_data,
         )
 
     @property
@@ -151,9 +148,10 @@ class _AppDataStorage:
             if not actual_columns >= required_columns:
                 raise KeyError(f"Missed columns {required_columns - actual_columns} in {model_name} recommendations df")
 
-    def _prepare_interactions_for_i2i(self) -> pd.DataFrame:
+    @classmethod
+    def _prepare_interactions_for_i2i(cls, recos: TablesDict) -> pd.DataFrame:
         request_ids = set()
-        for recos_df in self.recos.values():
+        for recos_df in recos.values():
             request_ids.update(set(recos_df[Columns.TargetItem].unique()))
         interactions = pd.DataFrame({Columns.TargetItem: list(request_ids), Columns.Item: list(request_ids)})
         return interactions
