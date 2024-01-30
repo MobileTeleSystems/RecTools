@@ -91,7 +91,7 @@ class _AppDataStorage:
         # Leave only those ids that were not predefined by user
         # Request ids (e.g. user ids) are stored as values in `selected_requests`
         all_ids = [model_recos[id_col].unique() for model_recos in recos.values()]
-        unique_ids = np.unique(np.hstack(all_ids))
+        unique_ids = pd.unique(np.hstack(all_ids))
         selected_ids = np.array(list(selected_requests.values()))
         selected_mask = fast_isin(unique_ids, selected_ids)
         selecting_from = unique_ids[~selected_mask]
