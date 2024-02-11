@@ -1,6 +1,7 @@
 import typing as tp
 from pathlib import Path
 
+import attr
 import ipywidgets as widgets
 import numpy as np
 import pandas as pd
@@ -15,32 +16,25 @@ MIN_WIDTH_LIMIT = 10
 
 
 class StorageFiles:
-    """Fixed file names for _AppDataStorage saving and loading."""
+    """Fixed file names for `AppDataStorage` saving and loading."""
 
     Interactions = "interactions.csv"
     Recos = "recos.csv"
     Requests = "requests.csv"
 
 
-class _AppDataStorage:
+@attr.s(slots=True)
+class AppDataStorage:
     """
     Storage and processing of data for `VisualApp` widgets. This class is not meant to be used
     directly. Use `VisualApp` or `ItemToItemVisualApp` class instead
     """
 
-    def __init__(
-        self,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
-        is_u2i: bool,
-        id_col: str,
-        grouped_interactions: TablesDict,
-        grouped_recos: tp.Dict[tp.Hashable, TablesDict],
-    ) -> None:
-        self.id_col = id_col
-        self.is_u2i = is_u2i
-        self.selected_requests = selected_requests
-        self.grouped_interactions = grouped_interactions
-        self.grouped_recos = grouped_recos
+    is_u2i: bool = attr.ib()
+    id_col: str = attr.ib()
+    selected_requests: tp.Dict[tp.Hashable, tp.Hashable] = attr.ib()
+    grouped_interactions: TablesDict = attr.ib()
+    grouped_recos: tp.Dict[tp.Hashable, TablesDict] = attr.ib()
 
     @classmethod
     def from_raw(
@@ -51,9 +45,33 @@ class _AppDataStorage:
         is_u2i: bool = True,
         n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
-    ) -> "_AppDataStorage":
+    ) -> "AppDataStorage":
+        r"""Create data storage for VisualApp from raw data. This class is not meant to be used
+        directly. Use `VisualApp` or `ItemToItemVisualApp` class instead.
+
+        Parameters
+        ----------
+        recos : TablesDict
+            Recommendations from different models in a form of a dict. Model names are supposed to
+            be dict keys.
+        item_data : pd.DataFrame
+            Data for items that is used for visualisation in both interactions and recos widgets.
+        selected_requests : tp.Dict[tp.Hashable, tp.Hashable]
+            Predefined requests (users or items) that will be displayed in widgets. Request names
+            must be specified as keys of the dict and ids as values of the dict.
+        is_u2i : bool, default ``True``
+            Is this a user-to-item recommendation case (opposite to item-to-item).
+        n_random_requests : int, default 0
+            Number of random requests to add for visualization from targets in recommendation tables.
+        interactions : tp.Optional[pd.DataFrame], default ``None``
+            Table with interactions history for users. Only needed for u2i case.
+
+        Returns
+        -------
+        AppDataStorage
+            Data storage class for visualisation widgets.
+        """
         id_col = Columns.User if is_u2i else Columns.TargetItem
-        # is_u2i
 
         if n_random_requests > 0:
             selected_requests = cls._fill_requests_with_random(
@@ -89,7 +107,7 @@ class _AppDataStorage:
             id_col=id_col,
             item_data=item_data,
         )
-        return _AppDataStorage(
+        return AppDataStorage(
             id_col=id_col,
             is_u2i=is_u2i,
             selected_requests=selected_requests,
@@ -99,10 +117,12 @@ class _AppDataStorage:
 
     @property
     def request_names(self) -> tp.List[tp.Hashable]:
+        """Names of selected requests for comparison"""
         return list(self.selected_requests.keys())
 
     @property
     def model_names(self) -> tp.List[tp.Hashable]:
+        """Names of recommendation models for comparison"""
         return list(self.grouped_recos.keys())
 
     @classmethod
@@ -184,7 +204,7 @@ class _AppDataStorage:
                 df[id_col] = selected_requests[request_name]
                 df["model"] = model_name
                 res.append(df)
-        return pd.condat(res, axis=0)
+        return pd.concat(res, axis=0)
 
     @classmethod
     def _ungroup_interactions(
@@ -198,7 +218,7 @@ class _AppDataStorage:
             df = request_interactions.copy()
             df[id_col] = selected_requests[request_name]
             res.append(df)
-        return pd.condat(res, axis=0)
+        return pd.concat(res, axis=0)
 
     @classmethod
     def _check_columns_present_in_recos(cls, recos: TablesDict, id_col: str) -> None:
@@ -234,6 +254,16 @@ class _AppDataStorage:
         return df
 
     def save(self, folder_name: str, overwrite: bool = False) -> None:
+        """Save stored data for `VisualApp` widgets. This method is not meant to be used
+        directly. Use `VisualApp` or `ItemToItemVisualApp` class methods instead.
+
+        Parameters
+        ----------
+        folder_name : str
+            Destination folder for data.
+        overwrite : bool, default ``False``
+            Allow to overwrite in the folder files if they already exist.
+        """
         interactions_df = self._ungroup_interactions(
             grouped_interactions=self.grouped_interactions, selected_requests=self.selected_requests, id_col=self.id_col
         )
@@ -242,20 +272,34 @@ class _AppDataStorage:
         )
         requests_df = self._create_requests_df(self.selected_requests)
 
+        Path(folder_name).mkdir(parents=True, exist_ok=True)
         mode = "w" if overwrite else "x"
         interactions_df.to_csv(Path(folder_name, StorageFiles.Interactions), index=False, mode=mode)
         recos_df.to_csv(Path(folder_name, StorageFiles.Recos), index=False, mode=mode)
         requests_df.to_csv(Path(folder_name, StorageFiles.Requests), index=False, mode=mode)
 
     @classmethod
-    def from_saved(cls, folder_name: str) -> "_AppDataStorage":
+    def from_saved(cls, folder_name: str) -> "AppDataStorage":
+        r"""Load prepared data for VisualApp widgets. This method is not meant to be used
+        directly. Use `VisualApp` or `ItemToItemVisualApp` class methods instead.
+
+        Parameters
+        ----------
+        folder_name : str
+            Folder where data was saved earlier.
+
+        Returns
+        -------
+        AppDataStorage
+            Data storage class for visualisation widgets.
+        """
         interactions = pd.read_csv(Path(folder_name, StorageFiles.Interactions))
         recos = pd.read_csv(Path(folder_name, StorageFiles.Recos))
-        selected_requests = pd.read_csv(
-            Path(folder_name, StorageFiles.Requests),
-            header=None,
-            index_col=0,
-        )[1].to_dict()
+        selected_requests = dict(
+            pd.read_csv(
+                Path(folder_name, StorageFiles.Requests),
+            ).values
+        )
 
         if Columns.TargetItem in interactions.columns and Columns.User in interactions.columns:
             raise ValueError(
@@ -285,7 +329,7 @@ class _AppDataStorage:
             recos=recos_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
         )
 
-        return _AppDataStorage(
+        return AppDataStorage(
             selected_requests=selected_requests,
             is_u2i=is_u2i,
             id_col=id_col,
@@ -308,7 +352,7 @@ class VisualAppBase:
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
-        data_storage: tp.Optional[_AppDataStorage] = None,
+        data_storage: tp.Optional[AppDataStorage] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.rows_limit = rows_limit
@@ -316,7 +360,7 @@ class VisualAppBase:
 
         if data_storage is None:
             data_storage = self._create_data_storage(*args, **kwargs)
-        self.data_storage: _AppDataStorage = data_storage
+        self.data_storage: AppDataStorage = data_storage
 
         if min_width <= MIN_WIDTH_LIMIT:
             raise ValueError(f"`min_width` must be greater then {MIN_WIDTH_LIMIT}. {min_width} specified")
@@ -324,7 +368,7 @@ class VisualAppBase:
         if auto_display:
             self.display()
 
-    def _create_data_storage(self, *args: tp.Any, **kwargs: tp.Any) -> _AppDataStorage:
+    def _create_data_storage(self, *args: tp.Any, **kwargs: tp.Any) -> AppDataStorage:
         raise NotImplementedError()
 
     def _convert_to_html(self, df: pd.DataFrame) -> str:
@@ -414,47 +458,56 @@ class VisualAppBase:
         )
 
     def save(self, folder_name: str, overwrite: bool = False) -> None:
-        """_summary_
+        """Save stored data to re-create widgets when necessary. Use `VisualAppBase.load`
+        class method for re-creation or any other child classes (`VisualApp`, `ItemToItemVisualApp`).
 
         Parameters
         ----------
         folder_name : str
-            _description_
-        overwrite : bool, optional
-            _description_, by default False
+            Destination folder for data.
+        overwrite : bool, default ``False``
+            Allow to overwrite in the folder files if they already exist.
         """
         self.data_storage.save(folder_name, overwrite)
 
     @classmethod
-    def from_saved(
+    def load(
         cls,
         folder_name: str,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
-    ) -> "VisualAppBase":  # todo: make different types of app
-        """_summary_
+    ) -> "VisualAppBase":
+        """Create widgets from data that was saved earlier.
 
         Parameters
         ----------
         folder_name : str
-            _description_
-        auto_display : bool, optional
-            _description_, by default True
-        formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional
-            _description_, by default None
-        rows_limit : int, optional
-            _description_, by default 20
-        min_width : int, optional
-            _description_, by default 100
+            Destination folder for data.
+        auto_display : bool, optional, default ``True``
+            Display widgets right after initialization.
+        formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
+            Formatter functions to apply to columns elements in the sections of interactions and recos.
+            Keys of the dict must be columns names (item_data, interactions and recos columns can be
+            specified here). Values bust be functions that will be applied to corresponding columns
+            elements. The result of each function must be a unicode string that represents html code.
+            Formatters can be used to format text, create links and display images with html.
+        rows_limit : int, optional, default 20
+            Maximum number of rows to display in the sections of interactions and recos.
+        min_width : int, optional, default 100
+            Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
+            10.
 
         Returns
         -------
         VisualApp
-            _description_
+            Jupyter widgets for recommendations visualization.
         """
-        data_storage = _AppDataStorage.from_saved(folder_name=folder_name)
+        data_storage = AppDataStorage.from_saved(folder_name=folder_name)
+
+        # todo: make different types of app based on data.storage.is_u2i?
+
         return VisualAppBase(
             auto_display=auto_display,
             formatters=formatters,
@@ -478,7 +531,7 @@ class VisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : TablesDict
+    recos : tp.Dict[tp.Hashable, pd.DataFrame]
         Recommendations from different models in a form of a dict. Model names are supposed to be
         dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
         columns:
@@ -547,7 +600,7 @@ class VisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: TablesDict,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -576,8 +629,8 @@ class VisualApp(VisualAppBase):
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_users: int,
-    ) -> _AppDataStorage:
-        return _AppDataStorage.from_raw(
+    ) -> AppDataStorage:
+        return AppDataStorage.from_raw(
             interactions=interactions,
             recos=recos,
             selected_requests=selected_users,
@@ -601,7 +654,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : TablesDict
+    recos : tp.Dict[tp.Hashable, pd.DataFrame]
         Recommendations from different models in a form of a dict. Model names are supposed to be
         dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
         columns:
@@ -660,7 +713,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: TablesDict,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int = 0,
@@ -686,8 +739,8 @@ class ItemToItemVisualApp(VisualAppBase):
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int,
-    ) -> _AppDataStorage:
-        return _AppDataStorage.from_raw(
+    ) -> AppDataStorage:
+        return AppDataStorage.from_raw(
             recos=recos,
             selected_requests=selected_items,
             item_data=item_data,
