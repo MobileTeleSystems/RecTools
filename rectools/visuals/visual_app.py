@@ -202,7 +202,7 @@ class AppDataStorage:
             for request_name, request_recos in prepared_model_recos.items():
                 df = request_recos.copy()
                 df[id_col] = selected_requests[request_name]
-                df["model"] = model_name
+                df[Columns.Model] = model_name
                 res.append(df)
         return pd.concat(res, axis=0)
 
@@ -240,7 +240,7 @@ class AppDataStorage:
     def _df_to_tables_dict(cls, df: pd.DataFrame, colname: str) -> TablesDict:
         res = {}
         for value in df[colname].unique():
-            res[value] = df[df[colname] == value]
+            res[value] = df[df[colname] == value].drop(columns=[colname])
         return res
 
     @classmethod
@@ -324,7 +324,7 @@ class AppDataStorage:
             interactions=interactions, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
         )
 
-        recos_dict = cls._df_to_tables_dict(recos, "model")
+        recos_dict = cls._df_to_tables_dict(recos, Columns.Model)
         grouped_recos = cls._group_recos(
             recos=recos_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
         )
