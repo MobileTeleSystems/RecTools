@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.visuals.visual_app import ItemToItemVisualApp, TablesDict, VisualApp, _AppDataStorage
+from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, TablesDict, VisualApp
 
 RECOS_U2I: TablesDict = {
     "model1": pd.DataFrame(
@@ -30,7 +30,7 @@ SELECTED_REQUESTS_I2I: tp.Dict[tp.Hashable, tp.Hashable] = {"item_three": 3}
 class TestAppDataStorage:
     def test_u2i(self) -> None:
 
-        ads = _AppDataStorage(
+        ads = AppDataStorage.from_raw(
             recos=RECOS_U2I,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
@@ -59,7 +59,7 @@ class TestAppDataStorage:
                 pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
 
     def test_i2i(self) -> None:
-        ads = _AppDataStorage(
+        ads = AppDataStorage.from_raw(
             recos=RECOS_I2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
         )
 
@@ -86,6 +86,11 @@ class TestAppDataStorage:
             for user_name, user_recos in model_recos.items():
                 pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
 
+    def test_i2i_interactions(self) -> None:
+        expected_i2i_interactions = pd.DataFrame({Columns.TargetItem: [3, 4, 5], Columns.Item: [3, 4, 5]})
+        actual = AppDataStorage._prepare_interactions_for_i2i(recos=RECOS_I2I)  # pylint: disable=protected-access
+        pd.testing.assert_frame_equal(expected_i2i_interactions, actual, check_like=True)
+
     def test_missing_columns_validation(self) -> None:
 
         # Missing `Columns.User` for u2i
@@ -94,7 +99,7 @@ class TestAppDataStorage:
                 "model1": pd.DataFrame({Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]}),
             }
-            _AppDataStorage(
+            AppDataStorage.from_raw(
                 recos=incorrect_u2i_recos,
                 item_data=ITEM_DATA,
                 is_u2i=True,
@@ -108,7 +113,7 @@ class TestAppDataStorage:
                 "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Rank: [1, 1]}),
             }
-            _AppDataStorage(
+            AppDataStorage.from_raw(
                 recos=incorrect_u2i_recos,
                 item_data=ITEM_DATA,
                 is_u2i=True,
@@ -118,11 +123,13 @@ class TestAppDataStorage:
 
         # Missing `Columns.TargetItem` for i2i
         with pytest.raises(KeyError):
-            _AppDataStorage(recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I)
+            AppDataStorage.from_raw(
+                recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
+            )
 
         # Missing `Columns.Item` in item_data
         with pytest.raises(KeyError):
-            _AppDataStorage(
+            AppDataStorage.from_raw(
                 recos=RECOS_U2I,
                 item_data=ITEM_DATA.drop(columns=[Columns.Item]),
                 interactions=INTERACTIONS,
@@ -134,11 +141,13 @@ class TestAppDataStorage:
 
         # u2i without interactions
         with pytest.raises(ValueError):
-            _AppDataStorage(recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=True, selected_requests=SELECTED_REQUESTS_U2I)
+            AppDataStorage.from_raw(
+                recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=True, selected_requests=SELECTED_REQUESTS_U2I
+            )
 
         # i2i with interactions
         with pytest.raises(ValueError):
-            _AppDataStorage(
+            AppDataStorage.from_raw(
                 recos=RECOS_I2I,
                 item_data=ITEM_DATA,
                 is_u2i=False,
@@ -148,7 +157,7 @@ class TestAppDataStorage:
 
     def test_empty_requests(self) -> None:
         with pytest.raises(ValueError):
-            _AppDataStorage(
+            AppDataStorage.from_raw(
                 recos=RECOS_U2I,
                 item_data=ITEM_DATA,
                 interactions=INTERACTIONS,
@@ -158,7 +167,7 @@ class TestAppDataStorage:
 
     @pytest.mark.parametrize("n_random_requests", (1, 5))
     def test_u2i_with_random_requests(self, n_random_requests: int) -> None:
-        ads = _AppDataStorage(
+        ads = AppDataStorage.from_raw(
             recos=RECOS_U2I,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
@@ -193,7 +202,7 @@ class TestAppDataStorage:
 
     @pytest.mark.parametrize("n_random_requests", (2, 5))
     def test_i2i_with_random_requests(self, n_random_requests: int) -> None:
-        ads = _AppDataStorage(
+        ads = AppDataStorage.from_raw(
             recos=RECOS_I2I,
             item_data=ITEM_DATA,
             is_u2i=False,

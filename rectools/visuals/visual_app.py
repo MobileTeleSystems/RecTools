@@ -1,5 +1,7 @@
 import typing as tp
+from pathlib import Path
 
+import attr
 import ipywidgets as widgets
 import numpy as np
 import pandas as pd
@@ -13,63 +15,139 @@ TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 MIN_WIDTH_LIMIT = 10
 
 
-class _AppDataStorage:
+class StorageFiles:
+    """Fixed file names for `AppDataStorage` saving and loading."""
+
+    Interactions = "interactions.csv"
+    Recos = "recos.csv"
+    Requests = "requests.csv"
+
+
+@attr.s(slots=True)
+class AppDataStorage:
     """
     Storage and processing of data for `VisualApp` widgets. This class is not meant to be used
     directly. Use `VisualApp` or `ItemToItemVisualApp` class instead
     """
 
-    def __init__(
-        self,
+    is_u2i: bool = attr.ib()
+    id_col: str = attr.ib()
+    selected_requests: tp.Dict[tp.Hashable, tp.Hashable] = attr.ib()
+    grouped_interactions: TablesDict = attr.ib()
+    grouped_recos: tp.Dict[tp.Hashable, TablesDict] = attr.ib()
+
+    @classmethod
+    def from_raw(
+        cls,
         recos: TablesDict,
         item_data: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         is_u2i: bool = True,
         n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
-    ) -> None:
-        self.id_col = Columns.User if is_u2i else Columns.TargetItem
-        self.is_u2i = is_u2i
+    ) -> "AppDataStorage":
+        r"""Create data storage for VisualApp from raw data. This class is not meant to be used
+        directly. Use `VisualApp` or `ItemToItemVisualApp` class instead.
+
+        Parameters
+        ----------
+        recos : TablesDict
+            Recommendations from different models in a form of a dict. Model names are supposed to
+            be dict keys.
+        item_data : pd.DataFrame
+            Data for items that is used for visualisation in both interactions and recos widgets.
+        selected_requests : tp.Dict[tp.Hashable, tp.Hashable]
+            Predefined requests (users or items) that will be displayed in widgets. Request names
+            must be specified as keys of the dict and ids as values of the dict.
+        is_u2i : bool, default ``True``
+            Is this a user-to-item recommendation case (opposite to item-to-item).
+        n_random_requests : int, default 0
+            Number of random requests to add for visualization from targets in recommendation tables.
+        interactions : tp.Optional[pd.DataFrame], default ``None``
+            Table with interactions history for users. Only needed for u2i case.
+
+        Returns
+        -------
+        AppDataStorage
+            Data storage class for visualisation widgets.
+        """
+        id_col = Columns.User if is_u2i else Columns.TargetItem
 
         if n_random_requests > 0:
-            self.selected_requests = self._fill_requests_with_random(
+            selected_requests = cls._fill_requests_with_random(
                 selected_requests=selected_requests,
                 n_random_requests=n_random_requests,
-                id_col=self.id_col,
+                id_col=id_col,
                 recos=recos,
             )
-        else:
-            self.selected_requests = selected_requests
-
-        self._check_columns_present_in_recos(recos)
-        self.recos = recos
+        cls._check_columns_present_in_recos(recos=recos, id_col=id_col)
 
         if Columns.Item not in item_data:
             raise KeyError(f"Missed {Columns.Item} column in item_data")
-        self.item_data = item_data
 
-        if interactions is None and is_u2i:
-            raise ValueError("For u2i reco you must specify interactions")
         if interactions is not None and not is_u2i:
             raise ValueError("For i2i reco you must not specify interactions")
-        if not is_u2i:
-            interactions = self._prepare_interactions_for_i2i()
-        self.interactions: pd.DataFrame = interactions
+        if interactions is None:
+            if is_u2i:
+                raise ValueError("For u2i reco you must specify interactions")
+            interactions = cls._prepare_interactions_for_i2i(recos=recos)
 
-        if not self.selected_requests:
+        if not selected_requests:
             raise ValueError("`selected_requests` is empty")
-        self.grouped_interactions = self._group_interactions(
-            interactions=self.interactions,
-            selected_requests=self.selected_requests,
-            id_col=self.id_col,
-            item_data=self.item_data,
+
+        grouped_interactions = cls._group_interactions(
+            interactions=interactions,
+            selected_requests=selected_requests,
+            id_col=id_col,
+            item_data=item_data,
         )
-        self.grouped_recos = self._group_recos(
-            recos=self.recos,
-            selected_requests=self.selected_requests,
-            id_col=self.id_col,
-            item_data=self.item_data,
+        grouped_recos = cls._group_recos(
+            recos=recos,
+            selected_requests=selected_requests,
+            id_col=id_col,
+            item_data=item_data,
         )
+        return AppDataStorage(
+            id_col=id_col,
+            is_u2i=is_u2i,
+            selected_requests=selected_requests,
+            grouped_interactions=grouped_interactions,
+            grouped_recos=grouped_recos,
+        )
+
+    @property
+    def request_names(self) -> tp.List[tp.Hashable]:
+        """Names of selected requests for comparison"""
+        return list(self.selected_requests.keys())
+
+    @property
+    def model_names(self) -> tp.List[tp.Hashable]:
+        """Names of recommendation models for comparison"""
+        return list(self.grouped_recos.keys())
+
+    @classmethod
+    def _fill_requests_with_random(
+        cls,
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        n_random_requests: int,
+        id_col: str,
+        recos: TablesDict,
+    ) -> tp.Dict[tp.Hashable, tp.Hashable]:
+
+        # Leave only those ids that were not predefined by user
+        # Request ids (e.g. user ids) are stored as values in `selected_requests`
+        all_ids = [model_recos[id_col].unique() for model_recos in recos.values()]
+        unique_ids = np.unique(np.hstack(all_ids))
+        selected_ids = np.array(list(selected_requests.values()))
+        selected_mask = fast_isin(unique_ids, selected_ids)
+        selecting_from = unique_ids[~selected_mask]
+
+        num_selecting = min(len(selecting_from), n_random_requests)
+        new_ids = np.random.choice(selecting_from, num_selecting, replace=False)
+        res = selected_requests.copy()
+        new_requests: tp.Dict[tp.Hashable, tp.Hashable] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
+        res.update(new_requests)
+        return res
 
     @property
     def request_names(self) -> tp.List[tp.Hashable]:
@@ -110,7 +188,7 @@ class _AppDataStorage:
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         id_col: str,
         item_data: pd.DataFrame,
-    ) -> tp.Dict[tp.Hashable, pd.DataFrame]:
+    ) -> TablesDict:
         # Request ids (e.g. user ids) are stored as values in `selected_requests`
         selected_interactions = interactions[interactions[id_col].isin(selected_requests.values())]
         selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
@@ -144,19 +222,152 @@ class _AppDataStorage:
             prepared_recos[model_name] = prepared_model_recos
         return prepared_recos
 
-    def _check_columns_present_in_recos(self, recos: TablesDict) -> None:
-        required_columns = {self.id_col, Columns.Item}
+    @classmethod
+    def _ungroup_recos(
+        cls,
+        grouped_recos: tp.Dict[tp.Hashable, TablesDict],
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        id_col: str,
+    ) -> pd.DataFrame:
+        res = []
+        for model_name, prepared_model_recos in grouped_recos.items():
+            for request_name, request_recos in prepared_model_recos.items():
+                df = request_recos.copy()
+                df[id_col] = selected_requests[request_name]
+                df["model"] = model_name
+                res.append(df)
+        return pd.concat(res, axis=0)
+
+    @classmethod
+    def _ungroup_interactions(
+        cls,
+        grouped_interactions: TablesDict,
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        id_col: str,
+    ) -> pd.DataFrame:
+        res = []
+        for request_name, request_interactions in grouped_interactions.items():
+            df = request_interactions.copy()
+            df[id_col] = selected_requests[request_name]
+            res.append(df)
+        return pd.concat(res, axis=0)
+
+    @classmethod
+    def _check_columns_present_in_recos(cls, recos: TablesDict, id_col: str) -> None:
+        required_columns = {id_col, Columns.Item}
         for model_name, model_recos in recos.items():
             actual_columns = set(model_recos.columns)
             if not actual_columns >= required_columns:
                 raise KeyError(f"Missed columns {required_columns - actual_columns} in {model_name} recommendations df")
 
-    def _prepare_interactions_for_i2i(self) -> pd.DataFrame:
+    @classmethod
+    def _prepare_interactions_for_i2i(cls, recos: TablesDict) -> pd.DataFrame:
         request_ids = set()
-        for recos_df in self.recos.values():
+        for recos_df in recos.values():
             request_ids.update(set(recos_df[Columns.TargetItem].unique()))
         interactions = pd.DataFrame({Columns.TargetItem: list(request_ids), Columns.Item: list(request_ids)})
         return interactions
+
+    @classmethod
+    def _df_to_tables_dict(cls, df: pd.DataFrame, colname: str) -> TablesDict:
+        res = {}
+        for value in df[colname].unique():
+            res[value] = df[df[colname] == value]
+        return res
+
+    @classmethod
+    def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, tp.Hashable]) -> pd.DataFrame:
+        df = pd.DataFrame(
+            {
+                "request_name": selected_requests.keys(),
+                "request_id": selected_requests.values(),
+            }
+        )
+        return df
+
+    def save(self, folder_name: str, overwrite: bool = False) -> None:
+        """Save stored data for `VisualApp` widgets. This method is not meant to be used
+        directly. Use `VisualApp` or `ItemToItemVisualApp` class methods instead.
+
+        Parameters
+        ----------
+        folder_name : str
+            Destination folder for data.
+        overwrite : bool, default ``False``
+            Allow to overwrite in the folder files if they already exist.
+        """
+        interactions_df = self._ungroup_interactions(
+            grouped_interactions=self.grouped_interactions, selected_requests=self.selected_requests, id_col=self.id_col
+        )
+        recos_df = self._ungroup_recos(
+            grouped_recos=self.grouped_recos, selected_requests=self.selected_requests, id_col=self.id_col
+        )
+        requests_df = self._create_requests_df(self.selected_requests)
+
+        Path(folder_name).mkdir(parents=True, exist_ok=True)
+        mode = "w" if overwrite else "x"
+        interactions_df.to_csv(Path(folder_name, StorageFiles.Interactions), index=False, mode=mode)
+        recos_df.to_csv(Path(folder_name, StorageFiles.Recos), index=False, mode=mode)
+        requests_df.to_csv(Path(folder_name, StorageFiles.Requests), index=False, mode=mode)
+
+    @classmethod
+    def from_saved(cls, folder_name: str) -> "AppDataStorage":
+        r"""Load prepared data for VisualApp widgets. This method is not meant to be used
+        directly. Use `VisualApp` or `ItemToItemVisualApp` class methods instead.
+
+        Parameters
+        ----------
+        folder_name : str
+            Folder where data was saved earlier.
+
+        Returns
+        -------
+        AppDataStorage
+            Data storage class for visualisation widgets.
+        """
+        interactions = pd.read_csv(Path(folder_name, StorageFiles.Interactions))
+        recos = pd.read_csv(Path(folder_name, StorageFiles.Recos))
+        selected_requests = dict(
+            pd.read_csv(
+                Path(folder_name, StorageFiles.Requests),
+            ).values
+        )
+
+        if Columns.TargetItem in interactions.columns and Columns.User in interactions.columns:
+            raise ValueError(
+                """Unable to create VisualApp. Saved interactions have both columns:
+                {Columns.TargetItem} and {Columns.User}"""
+            )
+
+        if Columns.User in interactions.columns:
+            is_u2i = True
+            id_col = Columns.User
+        elif Columns.TargetItem in interactions.columns:
+            is_u2i = False
+            id_col = Columns.TargetItem
+        else:
+            raise ValueError(
+                """Unable to create VisualApp. Saved interactions don't have any of the columns:
+                {Columns.TargetItem} or {Columns.User}"""
+            )
+
+        dummy_item_data = pd.DataFrame(columns=[Columns.Item])
+        grouped_interactions = cls._group_interactions(
+            interactions=interactions, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+        )
+
+        recos_dict = cls._df_to_tables_dict(recos, "model")
+        grouped_recos = cls._group_recos(
+            recos=recos_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+        )
+
+        return AppDataStorage(
+            selected_requests=selected_requests,
+            is_u2i=is_u2i,
+            id_col=id_col,
+            grouped_interactions=grouped_interactions,
+            grouped_recos=grouped_recos,
+        )
 
 
 class VisualAppBase:
@@ -173,18 +384,23 @@ class VisualAppBase:
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
+        data_storage: tp.Optional[AppDataStorage] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
-        self.data_storage: _AppDataStorage = self._create_data_storage(*args, **kwargs)
+
+        if data_storage is None:
+            data_storage = self._create_data_storage(*args, **kwargs)
+        self.data_storage: AppDataStorage = data_storage
+
         if min_width <= MIN_WIDTH_LIMIT:
             raise ValueError(f"`min_width` must be greater then {MIN_WIDTH_LIMIT}. {min_width} specified")
         self.min_width = min_width
         if auto_display:
             self.display()
 
-    def _create_data_storage(self, *args: tp.Any, **kwargs: tp.Any) -> _AppDataStorage:
+    def _create_data_storage(self, *args: tp.Any, **kwargs: tp.Any) -> AppDataStorage:
         raise NotImplementedError()
 
     def _convert_to_html(self, df: pd.DataFrame) -> str:
@@ -273,6 +489,65 @@ class VisualAppBase:
             )
         )
 
+    def save(self, folder_name: str, overwrite: bool = False) -> None:
+        """Save stored data to re-create widgets when necessary. Use `VisualAppBase.load`
+        class method for re-creation or any other child classes (`VisualApp`, `ItemToItemVisualApp`).
+
+        Parameters
+        ----------
+        folder_name : str
+            Destination folder for data.
+        overwrite : bool, default ``False``
+            Allow to overwrite in the folder files if they already exist.
+        """
+        self.data_storage.save(folder_name, overwrite)
+
+    @classmethod
+    def load(
+        cls,
+        folder_name: str,
+        auto_display: bool = True,
+        formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
+        rows_limit: int = 20,
+        min_width: int = 100,
+    ) -> "VisualAppBase":
+        """Create widgets from data that was saved earlier.
+
+        Parameters
+        ----------
+        folder_name : str
+            Destination folder for data.
+        auto_display : bool, optional, default ``True``
+            Display widgets right after initialization.
+        formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
+            Formatter functions to apply to columns elements in the sections of interactions and recos.
+            Keys of the dict must be columns names (item_data, interactions and recos columns can be
+            specified here). Values bust be functions that will be applied to corresponding columns
+            elements. The result of each function must be a unicode string that represents html code.
+            Formatters can be used to format text, create links and display images with html.
+        rows_limit : int, optional, default 20
+            Maximum number of rows to display in the sections of interactions and recos.
+        min_width : int, optional, default 100
+            Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
+            10.
+
+        Returns
+        -------
+        VisualApp
+            Jupyter widgets for recommendations visualization.
+        """
+        data_storage = AppDataStorage.from_saved(folder_name=folder_name)
+
+        # todo: make different types of app based on data.storage.is_u2i?
+
+        return VisualAppBase(
+            auto_display=auto_display,
+            formatters=formatters,
+            rows_limit=rows_limit,
+            min_width=min_width,
+            data_storage=data_storage,
+        )
+
 
 class VisualApp(VisualAppBase):
     r"""
@@ -288,7 +563,7 @@ class VisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : TablesDict
+    recos : tp.Dict[tp.Hashable, pd.DataFrame]
         Recommendations from different models in a form of a dict. Model names are supposed to be
         dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
         columns:
@@ -357,7 +632,7 @@ class VisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: TablesDict,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -386,8 +661,8 @@ class VisualApp(VisualAppBase):
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_users: int,
-    ) -> _AppDataStorage:
-        return _AppDataStorage(
+    ) -> AppDataStorage:
+        return AppDataStorage.from_raw(
             interactions=interactions,
             recos=recos,
             selected_requests=selected_users,
@@ -411,7 +686,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : TablesDict
+    recos : tp.Dict[tp.Hashable, pd.DataFrame]
         Recommendations from different models in a form of a dict. Model names are supposed to be
         dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
         columns:
@@ -470,7 +745,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: TablesDict,
+        recos: tp.Dict[tp.Hashable, pd.DataFrame],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int = 0,
@@ -496,8 +771,8 @@ class ItemToItemVisualApp(VisualAppBase):
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int,
-    ) -> _AppDataStorage:
-        return _AppDataStorage(
+    ) -> AppDataStorage:
+        return AppDataStorage.from_raw(
             recos=recos,
             selected_requests=selected_items,
             item_data=item_data,
