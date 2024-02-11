@@ -39,7 +39,7 @@ class AppDataStorage:
     @classmethod
     def from_raw(
         cls,
-        recos: TablesDict,
+        recos: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         is_u2i: bool = True,
@@ -51,9 +51,10 @@ class AppDataStorage:
 
         Parameters
         ----------
-        recos : TablesDict
-            Recommendations from different models in a form of a dict. Model names are supposed to
-            be dict keys.
+        recos : tp.Union[pd.DataFrame, TablesDict]
+            Recommendations from different models in a form of a pd.DataFrame or a dict.
+            In DataFrame form model names must be specified in `Columns.Model` column. In dict form
+            model names are supposed to be dict keys.
         item_data : pd.DataFrame
             Data for items that is used for visualisation in both interactions and recos widgets.
         selected_requests : tp.Dict[tp.Hashable, tp.Hashable]
@@ -80,6 +81,10 @@ class AppDataStorage:
                 id_col=id_col,
                 recos=recos,
             )
+        if isinstance(recos, pd.DataFrame):
+            if Columns.Model not in recos.columns:
+                raise ValueError("Missing `{Columns.Model}` column in recos DataFrame")
+            recos = cls._df_to_tables_dict(recos, Columns.Model)
         cls._check_columns_present_in_recos(recos=recos, id_col=id_col)
 
         if Columns.Item not in item_data:
@@ -531,10 +536,13 @@ class VisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : tp.Dict[tp.Hashable, pd.DataFrame]
-        Recommendations from different models in a form of a dict. Model names are supposed to be
-        dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
-        columns:
+    recos : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
+        Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
+        form model names are supposed to be dict keys, and recommendations from different models are
+        supposed to be pd.DataFrames as dict values.
+        In the DataFrame form all recommendations must be specified in one DataFrame with
+        `Columns.Model` column to separate different models.
+        Other required columns for both forms are:
             - `Columns.User` - user id
             - `Columns.Item` - recommended item id
             - Any other columns that you wish to display in widgets (e.g. rank or score)
@@ -600,7 +608,7 @@ class VisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -624,7 +632,7 @@ class VisualApp(VisualAppBase):
 
     def _create_data_storage(
         self,
-        recos: TablesDict,
+        recos: tp.Union[pd.DataFrame, TablesDict],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -654,10 +662,13 @@ class ItemToItemVisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : tp.Dict[tp.Hashable, pd.DataFrame]
-        Recommendations from different models in a form of a dict. Model names are supposed to be
-        dict keys. Recommendations from models are supposed to be in form of pandas DataFrames with
-        columns:
+    recos : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
+        Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
+        form model names are supposed to be dict keys, and recommendations from different models are
+        supposed to be pd.DataFrames as dict values.
+        In the DataFrame form all recommendations must be specified in one DataFrame with
+        `Columns.Model` column to separate different models.
+        Other required columns for both forms are:
             - `Columns.TargetItem` - target item id
             - `Columns.Item` - recommended item id
             - Any other columns that you wish to display in widgets (e.g. rank or score)
@@ -713,7 +724,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: tp.Dict[tp.Hashable, pd.DataFrame],
+        recos: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int = 0,
@@ -735,7 +746,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def _create_data_storage(
         self,
-        recos: TablesDict,
+        recos: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int,
