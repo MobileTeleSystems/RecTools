@@ -137,38 +137,6 @@ class AppDataStorage:
         # Leave only those ids that were not predefined by user
         # Request ids (e.g. user ids) are stored as values in `selected_requests`
         all_ids = [model_recos[id_col].unique() for model_recos in recos.values()]
-        unique_ids = np.unique(np.hstack(all_ids))
-        selected_ids = np.array(list(selected_requests.values()))
-        selected_mask = fast_isin(unique_ids, selected_ids)
-        selecting_from = unique_ids[~selected_mask]
-
-        num_selecting = min(len(selecting_from), n_random_requests)
-        new_ids = np.random.choice(selecting_from, num_selecting, replace=False)
-        res = selected_requests.copy()
-        new_requests: tp.Dict[tp.Hashable, tp.Hashable] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
-        res.update(new_requests)
-        return res
-
-    @property
-    def request_names(self) -> tp.List[tp.Hashable]:
-        return list(self.selected_requests.keys())
-
-    @property
-    def model_names(self) -> tp.List[tp.Hashable]:
-        return list(self.grouped_recos.keys())
-
-    @classmethod
-    def _fill_requests_with_random(
-        cls,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
-        n_random_requests: int,
-        id_col: str,
-        recos: TablesDict,
-    ) -> tp.Dict[tp.Hashable, tp.Hashable]:
-
-        # Leave only those ids that were not predefined by user
-        # Request ids (e.g. user ids) are stored as values in `selected_requests`
-        all_ids = [model_recos[id_col].unique() for model_recos in recos.values()]
         unique_ids = pd.unique(np.hstack(all_ids))
         selected_ids = np.array(list(selected_requests.values()))
         selected_mask = fast_isin(unique_ids, selected_ids)
