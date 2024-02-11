@@ -1,4 +1,5 @@
 import typing as tp
+from pathlib import Path
 
 import ipywidgets as widgets
 import numpy as np
@@ -13,6 +14,14 @@ TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 MIN_WIDTH_LIMIT = 10
 
 
+class StorageFiles:
+    """Fixed file names for _AppDataStorage saving and loading."""
+
+    Interactions = "interactions.csv"
+    Recos = "recos.csv"
+    Requests = "requests.csv"
+
+
 class _AppDataStorage:
     """
     Storage and processing of data for `VisualApp` widgets. This class is not meant to be used
@@ -21,27 +30,39 @@ class _AppDataStorage:
 
     def __init__(
         self,
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        is_u2i: bool,
+        id_col: str,
+        grouped_interactions: TablesDict,
+        grouped_recos: tp.Dict[tp.Hashable, TablesDict],
+    ) -> None:
+        self.id_col = id_col
+        self.is_u2i = is_u2i
+        self.selected_requests = selected_requests
+        self.grouped_interactions = grouped_interactions
+        self.grouped_recos = grouped_recos
+
+    @classmethod
+    def from_raw(
+        cls,
         recos: TablesDict,
         item_data: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         is_u2i: bool = True,
         n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
-    ) -> None:
-        self.id_col = Columns.User if is_u2i else Columns.TargetItem
-        self.is_u2i = is_u2i
+    ) -> "_AppDataStorage":
+        id_col = Columns.User if is_u2i else Columns.TargetItem
+        # is_u2i
 
         if n_random_requests > 0:
-            self.selected_requests = self._fill_requests_with_random(
+            selected_requests = cls._fill_requests_with_random(
                 selected_requests=selected_requests,
                 n_random_requests=n_random_requests,
-                id_col=self.id_col,
+                id_col=id_col,
                 recos=recos,
             )
-        else:
-            self.selected_requests = selected_requests
-
-        self._check_columns_present_in_recos(recos)
+        cls._check_columns_present_in_recos(recos=recos, id_col=id_col)
 
         if Columns.Item not in item_data:
             raise KeyError(f"Missed {Columns.Item} column in item_data")
@@ -51,21 +72,29 @@ class _AppDataStorage:
         if interactions is None:
             if is_u2i:
                 raise ValueError("For u2i reco you must specify interactions")
-            interactions = self._prepare_interactions_for_i2i(recos=recos)
+            interactions = cls._prepare_interactions_for_i2i(recos=recos)
 
-        if not self.selected_requests:
+        if not selected_requests:
             raise ValueError("`selected_requests` is empty")
-        self.grouped_interactions = self._group_interactions(
+
+        grouped_interactions = cls._group_interactions(
             interactions=interactions,
-            selected_requests=self.selected_requests,
-            id_col=self.id_col,
+            selected_requests=selected_requests,
+            id_col=id_col,
             item_data=item_data,
         )
-        self.grouped_recos = self._group_recos(
+        grouped_recos = cls._group_recos(
             recos=recos,
-            selected_requests=self.selected_requests,
-            id_col=self.id_col,
+            selected_requests=selected_requests,
+            id_col=id_col,
             item_data=item_data,
+        )
+        return _AppDataStorage(
+            id_col=id_col,
+            is_u2i=is_u2i,
+            selected_requests=selected_requests,
+            grouped_interactions=grouped_interactions,
+            grouped_recos=grouped_recos,
         )
 
     @property
@@ -107,7 +136,7 @@ class _AppDataStorage:
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         id_col: str,
         item_data: pd.DataFrame,
-    ) -> tp.Dict[tp.Hashable, pd.DataFrame]:
+    ) -> TablesDict:
         # Request ids (e.g. user ids) are stored as values in `selected_requests`
         selected_interactions = interactions[interactions[id_col].isin(selected_requests.values())]
         selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
@@ -141,8 +170,39 @@ class _AppDataStorage:
             prepared_recos[model_name] = prepared_model_recos
         return prepared_recos
 
-    def _check_columns_present_in_recos(self, recos: TablesDict) -> None:
-        required_columns = {self.id_col, Columns.Item}
+    @classmethod
+    def _ungroup_recos(
+        cls,
+        grouped_recos: tp.Dict[tp.Hashable, TablesDict],
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        id_col: str,
+    ) -> pd.DataFrame:
+        res = []
+        for model_name, prepared_model_recos in grouped_recos.items():
+            for request_name, request_recos in prepared_model_recos.items():
+                df = request_recos.copy()
+                df[id_col] = selected_requests[request_name]
+                df["model"] = model_name
+                res.append(df)
+        return pd.condat(res, axis=0)
+
+    @classmethod
+    def _ungroup_interactions(
+        cls,
+        grouped_interactions: TablesDict,
+        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        id_col: str,
+    ) -> pd.DataFrame:
+        res = []
+        for request_name, request_interactions in grouped_interactions.items():
+            df = request_interactions.copy()
+            df[id_col] = selected_requests[request_name]
+            res.append(df)
+        return pd.condat(res, axis=0)
+
+    @classmethod
+    def _check_columns_present_in_recos(cls, recos: TablesDict, id_col: str) -> None:
+        required_columns = {id_col, Columns.Item}
         for model_name, model_recos in recos.items():
             actual_columns = set(model_recos.columns)
             if not actual_columns >= required_columns:
@@ -155,6 +215,83 @@ class _AppDataStorage:
             request_ids.update(set(recos_df[Columns.TargetItem].unique()))
         interactions = pd.DataFrame({Columns.TargetItem: list(request_ids), Columns.Item: list(request_ids)})
         return interactions
+
+    @classmethod
+    def _df_to_tables_dict(cls, df: pd.DataFrame, colname: str) -> TablesDict:
+        res = {}
+        for value in df[colname].unique():
+            res[value] = df[df[colname] == value]
+        return res
+
+    @classmethod
+    def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, tp.Hashable]) -> pd.DataFrame:
+        df = pd.DataFrame(
+            {
+                "request_name": selected_requests.keys(),
+                "request_id": selected_requests.values(),
+            }
+        )
+        return df
+
+    def save(self, folder_name: str, overwrite: bool = False) -> None:
+        interactions_df = self._ungroup_interactions(
+            grouped_interactions=self.grouped_interactions, selected_requests=self.selected_requests, id_col=self.id_col
+        )
+        recos_df = self._ungroup_recos(
+            grouped_recos=self.grouped_recos, selected_requests=self.selected_requests, id_col=self.id_col
+        )
+        requests_df = self._create_requests_df(self.selected_requests)
+
+        mode = "w" if overwrite else "x"
+        interactions_df.to_csv(Path(folder_name, StorageFiles.Interactions), index=False, mode=mode)
+        recos_df.to_csv(Path(folder_name, StorageFiles.Recos), index=False, mode=mode)
+        requests_df.to_csv(Path(folder_name, StorageFiles.Requests), index=False, mode=mode)
+
+    @classmethod
+    def from_saved(cls, folder_name: str) -> "_AppDataStorage":
+        interactions = pd.read_csv(Path(folder_name, StorageFiles.Interactions))
+        recos = pd.read_csv(Path(folder_name, StorageFiles.Recos))
+        selected_requests = pd.read_csv(
+            Path(folder_name, StorageFiles.Requests),
+            header=None,
+            index_col=0,
+        )[1].to_dict()
+
+        if Columns.TargetItem in interactions.columns and Columns.User in interactions.columns:
+            raise ValueError(
+                """Unable to create VisualApp. Saved interactions have both columns:
+                {Columns.TargetItem} and {Columns.User}"""
+            )
+
+        if Columns.User in interactions.columns:
+            is_u2i = True
+            id_col = Columns.User
+        elif Columns.TargetItem in interactions.columns:
+            is_u2i = False
+            id_col = Columns.TargetItem
+        else:
+            raise ValueError(
+                """Unable to create VisualApp. Saved interactions don't have any of the columns:
+                {Columns.TargetItem} or {Columns.User}"""
+            )
+
+        dummy_item_data = pd.DataFrame(columns=[Columns.Item])
+        grouped_interactions = cls._group_interactions(
+            interactions=interactions, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+        )
+
+        recos_dict = cls._df_to_tables_dict(recos, "model")
+        grouped_recos = cls._group_recos(
+            recos=recos_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+        )
+
+        return _AppDataStorage(
+            selected_requests=selected_requests,
+            is_u2i=is_u2i,
+            id_col=id_col,
+            grouped_interactions=grouped_interactions,
+            grouped_recos=grouped_recos,
+        )
 
 
 class VisualAppBase:
@@ -171,11 +308,16 @@ class VisualAppBase:
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
+        data_storage: tp.Optional[_AppDataStorage] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
-        self.data_storage: _AppDataStorage = self._create_data_storage(*args, **kwargs)
+
+        if data_storage is None:
+            data_storage = self._create_data_storage(*args, **kwargs)
+        self.data_storage: _AppDataStorage = data_storage
+
         if min_width <= MIN_WIDTH_LIMIT:
             raise ValueError(f"`min_width` must be greater then {MIN_WIDTH_LIMIT}. {min_width} specified")
         self.min_width = min_width
@@ -269,6 +411,56 @@ class VisualAppBase:
                     recos_output,
                 ]
             )
+        )
+
+    def save(self, folder_name: str, overwrite: bool = False) -> None:
+        """_summary_
+
+        Parameters
+        ----------
+        folder_name : str
+            _description_
+        overwrite : bool, optional
+            _description_, by default False
+        """
+        self.data_storage.save(folder_name, overwrite)
+
+    @classmethod
+    def from_saved(
+        cls,
+        folder_name: str,
+        auto_display: bool = True,
+        formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
+        rows_limit: int = 20,
+        min_width: int = 100,
+    ) -> "VisualAppBase":  # todo: make different types of app
+        """_summary_
+
+        Parameters
+        ----------
+        folder_name : str
+            _description_
+        auto_display : bool, optional
+            _description_, by default True
+        formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional
+            _description_, by default None
+        rows_limit : int, optional
+            _description_, by default 20
+        min_width : int, optional
+            _description_, by default 100
+
+        Returns
+        -------
+        VisualApp
+            _description_
+        """
+        data_storage = _AppDataStorage.from_saved(folder_name=folder_name)
+        return VisualAppBase(
+            auto_display=auto_display,
+            formatters=formatters,
+            rows_limit=rows_limit,
+            min_width=min_width,
+            data_storage=data_storage,
         )
 
 
@@ -385,7 +577,7 @@ class VisualApp(VisualAppBase):
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_users: int,
     ) -> _AppDataStorage:
-        return _AppDataStorage(
+        return _AppDataStorage.from_raw(
             interactions=interactions,
             recos=recos,
             selected_requests=selected_users,
@@ -495,7 +687,7 @@ class ItemToItemVisualApp(VisualAppBase):
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int,
     ) -> _AppDataStorage:
-        return _AppDataStorage(
+        return _AppDataStorage.from_raw(
             recos=recos,
             selected_requests=selected_items,
             item_data=item_data,
