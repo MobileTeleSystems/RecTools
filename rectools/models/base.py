@@ -21,6 +21,7 @@ import pandas as pd
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
+from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 
 T = tp.TypeVar("T", bound="ModelBase")
@@ -92,6 +93,7 @@ class ModelBase:
             Pay attention that in some cases real number of recommendations may be less than `k`.
         filter_viewed : bool
             Whether to filter from recommendations items that user has already interacted with.
+            Works only for "hot" users.
         items_to_recommend : array-like, optional, default None
             Whitelist of item ids.
             If given, only these items will be used for recommendations.
@@ -127,33 +129,59 @@ class ModelBase:
             If called for not fitted model.
         TypeError, ValueError
             If arguments have inappropriate type or value
-        KeyError
-            If some of given users are not in `dataset.user_id_map`
+        ValueError
+            If some of given users are warm/cold and model doesn't support such type of users.
         """
         self._check_is_fitted()
         self._check_k(k)
 
-        if assume_external_ids:
-            try:
-                user_ids = dataset.user_id_map.convert_to_internal(users)
-            except KeyError:
-                raise KeyError("All given users must be present in `dataset.user_id_map`")
-        else:
-            user_ids = np.asarray(users)
-            if not np.issubdtype(user_ids.dtype, np.integer):
-                raise TypeError("Internal user ids are always integer")
+        # FIXME: this comment is incorrect for cold users
+        # Here `_ids` suffix means that array contains internal ids.
+        # If there is no such suffix, array contains external ids.
 
+        # Given list of items to recommend can contain hot and warm items.
+        # Cold items cannot be there since we don't know anything about them.
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
             items_to_recommend, dataset, assume_external_ids
         )
 
-        reco_user_ids, reco_item_ids, reco_scores = self._recommend_u2i(
-            user_ids,
-            dataset,
-            k,
-            filter_viewed,
-            sorted_item_ids_to_recommend,
+        hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
+            users, dataset.user_id_map, dataset.n_hot_users, assume_external_ids
         )
+        
+        reco_hot = reco_warm = reco_cold = None
+
+        if cold_user_ids.size > 0:
+            if not self.allow_cold: 
+                raise ValueError(
+                    f"Model `{self.__class__}` doesn't support recommendations for cold users, "
+                    "but some of given users are cold: they aren't present in `dataset.user_id_map`"
+                )
+            else:
+                reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
+        
+        if warm_user_ids.size > 0:
+            if not self.allow_warm:
+                if not self.allow_cold:
+                    raise ValueError(
+                        f"Model `{self.__class__}` doesn't support recommendations for warm users, "
+                        "but some of given users are warm: they aren't present in the interactions"
+                    )
+                else:
+                    # If model doesn't support warm users, but cold users are allowed,
+                    # we use cold recommendations for warm users.
+                    reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)
+            else:
+                reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
+
+        if hot_user_ids.size > 0:
+            reco_user_ids, reco_item_ids, reco_scores = self._recommend_u2i(
+                hot_user_ids,
+                dataset,
+                k,
+                filter_viewed,
+                sorted_item_ids_to_recommend,
+            )
 
         if return_external_ids:
             reco_user_ids = dataset.user_id_map.convert_to_external(reco_user_ids)
@@ -272,6 +300,36 @@ class ModelBase:
         reco = self._make_reco_table(reco_target_ids, reco_item_ids, reco_scores, Columns.TargetItem, add_rank_col)
         return reco
 
+    def _recommend_cold(
+        self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
+        # Common function for U2I and I2I cold recommendations
+        # Is it correct? Do we ever need separate functions for U2I and I2I?
+        
+        # 1. Get cold reco and scores list
+        # 2. Filter items_to_recommend and cut by k
+        # 3. Use np.tile and np.repeat to get reco arrays
+
+        cold_reco_items, cold_reco_scores = self._get_cold_reco()
+
+        return reco_target_ids, reco_item_ids, reco_scores
+    
+    def _get_cold_reco(self) -> tp.Tuple[InternalIds, Scores]:
+        # Do we need `k` parameter here?
+        # Maybe even `sorted_item_ids_to_recommend`?
+        raise NotImplementedError()
+    
+    def _recommend_u2i_warm(
+        self,
+        user_ids: np.ndarray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
+        # For many models we can use the same code for warm and hot users
+        # Is it ok to fix it in the base model?
+        return self._recommend_u2i(user_ids, dataset, k, False, sorted_item_ids_to_recommend)
+
     def _recommend_u2i(
         self,
         user_ids: np.ndarray,
@@ -332,9 +390,37 @@ class ModelBase:
         if assume_external_ids:
             item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
         else:
-            item_ids_to_recommend = np.asarray(items_to_recommend)
-            if not np.issubdtype(item_ids_to_recommend.dtype, np.integer):
-                raise TypeError("Internal ids are always integer")
+            item_ids_to_recommend = cls._ensure_internal_ids_valid(items_to_recommend)
 
         sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
         return sorted_item_ids_to_recommend
+
+    @classmethod
+    def _split_targets_by_hot_warm_cold(
+        cls, 
+        targets: np.ndarray,  # users for U2I or target items for I2I
+        id_map: IdMap,
+        n_hot: int,
+        assume_external_ids: bool
+    ) -> tp.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if assume_external_ids:
+            known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
+        else:
+            target_ids = cls._ensure_internal_ids_valid(targets)
+            known_mask = target_ids < id_map.size
+            known_ids = target_ids[known_mask]
+            cold_ids = target_ids[~known_mask]
+            
+        hot_mask = known_ids < n_hot
+        hot_ids = known_ids[hot_mask]
+        warm_ids = known_ids[~hot_mask]
+        return hot_ids, warm_ids, cold_ids
+    
+    @classmethod
+    def _ensure_internal_ids_valid(cls, internal_ids: AnyIds) -> np.ndarray:
+        ids = np.asarray(internal_ids)
+        if not np.issubdtype(ids.dtype, np.integer):
+            raise TypeError("Internal ids are always integer")
+        if ids.min() < 0:
+            raise ValueError("Internal ids should be non-negative integers")
+        return ids
