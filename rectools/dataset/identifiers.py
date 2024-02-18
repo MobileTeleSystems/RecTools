@@ -15,6 +15,7 @@
 """Mapping between external and internal ids."""
 
 import typing as tp
+import warnings
 
 import attr
 import numpy as np
@@ -80,7 +81,11 @@ class IdMap:
         order = np.argsort(internal_ids)
         internal_ids_sorted = internal_ids[order]
 
-        internals_incorrect = internal_ids_sorted != np.arange(internal_ids_sorted.size)
+        with warnings.catch_warnings():
+            # When comparing numeric vs. non-numeric array returns scalar, will change in the future
+            warnings.simplefilter("ignore", FutureWarning)
+            internals_incorrect = internal_ids_sorted != np.arange(internal_ids_sorted.size)
+
         if internals_incorrect is True or internals_incorrect.any():
             raise ValueError("Internal ids must be integers from 0 to n_objects-1")
 

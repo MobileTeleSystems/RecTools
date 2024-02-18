@@ -102,3 +102,55 @@ class TestInteractions:
             Interactions.from_raw(df, IdMap.from_values(df[Columns.User]), IdMap.from_values(df[Columns.Item]))
         err_text = e.value.args[0]
         assert Columns.Datetime in err_text.lower()
+
+    @pytest.mark.parametrize("include_weight", (True, False))
+    @pytest.mark.parametrize("include_datetime", (True, False))
+    def test_to_external(self, include_weight: bool, include_datetime: bool) -> None:
+        user_id_map = IdMap(np.array([10, 20, 30]))
+        item_id_map = IdMap(np.array(["i1", "i2"]))
+        interactions = Interactions(self.df)
+
+        actual = interactions.to_external(user_id_map, item_id_map, include_weight, include_datetime)
+        expected = pd.DataFrame(
+            [
+                [20, "i1"],
+                [30, "i2"],
+                [20, "i1"],
+                [20, "i2"],
+            ],
+            columns=Columns.UserItem,
+        )
+        if include_weight:
+            expected[Columns.Weight] = self.df[Columns.Weight]
+        if include_datetime:
+            expected[Columns.Datetime] = self.df[Columns.Datetime]
+
+        pd.testing.assert_frame_equal(actual, expected)
+
+    def test_to_external_empty(self) -> None:
+        user_id_map = IdMap(np.array([10, 20, 30]))
+        item_id_map = IdMap(np.array(["i1", "i2"]))
+        interactions = Interactions(self.df.iloc[:0])
+
+        actual = interactions.to_external(user_id_map, item_id_map)
+        expected = pd.DataFrame(
+            [],
+            columns=Columns.Interactions,
+        )
+        expected = expected.astype(
+            {
+                Columns.User: np.int64,
+                Columns.Item: "object",
+                Columns.Weight: np.float64,
+                Columns.Datetime: "datetime64[ns]",
+            }
+        )
+        pd.testing.assert_frame_equal(actual, expected, check_index_type=False)
+
+    def test_to_external_with_missing_ids(self) -> None:
+        user_id_map = IdMap(np.array([10, 20, 30]))
+        item_id_map = IdMap(np.array(["i1"]))
+        interactions = Interactions(self.df)
+
+        with pytest.raises(KeyError):
+            interactions.to_external(user_id_map, item_id_map)

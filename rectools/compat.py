@@ -50,3 +50,15 @@ class UserToItemAnnRecommender(RequirementUnavailable):
     """Dummy class, which is returned if there are no dependencies required for the model"""
 
     requirement = "nmslib"
+
+
+class VisualApp(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "ipywidgets"
+
+
+class ItemToItemVisualApp(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "ipywidgets"

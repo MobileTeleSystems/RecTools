@@ -115,12 +115,16 @@ The table below lists recommender models that are available in RecTools.
 
 
 ## Contribution
+[Contributing guide](CONTRIBUTING.rst)
 
-To install all requirements run
+To install all requirements
+- you must have `python3` and `poetry==1.4.0` installed
+- make sure you have no active virtual environments (deactivate conda `base` if applicable)
+- run
 ```
 make install
 ```
-You must have `python3` and `poetry==1.4.0` installed.
+
 
 For autoformatting run 
 ```
