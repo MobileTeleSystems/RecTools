@@ -154,8 +154,6 @@ class Dataset:
         if make_dense:
             try:
                 return DenseFeatures.from_dataframe(df, id_map, id_col=id_col), id_map
-            except UnknownIdError:
-                raise ValueError(f"Some ids from {feature_type} features table aren't present in interactions")
             except AbsentIdError:
                 raise ValueError(
                     f"An error has occurred while constructing {feature_type} features: "
@@ -166,8 +164,6 @@ class Dataset:
             
         try:
             return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col), id_map
-        except UnknownIdError:
-            raise ValueError(f"Some ids from {feature_type} features table aren't present in interactions")
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
