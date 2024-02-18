@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from typing import Tuple, Union
 import numpy as np
 import pandas as pd
 
@@ -61,7 +62,7 @@ def get_element_ids(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarr
     return ids
 
 
-def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool = True) -> np.ndarray:
+def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool = True, return_missing: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """
     Get values from pd.Series by index.
 
@@ -78,16 +79,24 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
     strict : bool, default True
         - if True, raise KeyError if at least one element of `ids` not in `s.index`;
         - if False, skip nonexistent `ids` and return values only for existent.
+    return_missing : bool, default False
+        If True, return a tuple of 2 arrays: values and missing indices.
+        Works only if `strict` is False.
 
     Returns
     -------
     np.ndarray
         Array of values.
+    np.ndarray, np.ndarray
+        Tuple of 2 arrays: values and missing indices.
+        Only if `strict` is False and `return_missing` is True.
 
     Raises
     ------
     KeyError
         If `strict` is ``True`` and at least one element of `ids` not in `s.index`.
+    ValueError
+        If `strict` and `return_missing` are both ``True``.
 
     Examples
     --------
@@ -102,12 +111,23 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
 
     >>> get_from_series_by_index(s, [3, 7, 4], strict=False)
     array([30, 40])
+
+    >>> get_from_series_by_index(s, [3, 7, 4], strict=False, return_missing=True)
+    (array([30, 40]), array([7]))
     """
+    if strict and return_missing:
+        raise ValueError("You can't use `strict` and `return_missing` together")
+    
     r = series.reindex(ids)
     if strict:
         if r.isna().any():
             raise KeyError("Some indices do not exist")
     else:
+        if return_missing:
+            missing = r[r.isna()].index.values
         r.dropna(inplace=True)
     selected = r.astype(series.dtype).values
+    
+    if return_missing:
+        return selected, missing
     return selected
