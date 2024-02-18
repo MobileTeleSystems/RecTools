@@ -155,11 +155,11 @@ class Dataset:
             try:
                 return DenseFeatures.from_dataframe(df, id_map, id_col=id_col), id_map
             except UnknownIdError:
-                raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
+                raise ValueError(f"Some ids from {feature_type} features table aren't present in interactions")
             except AbsentIdError:
                 raise ValueError(
                     f"An error has occurred while constructing {feature_type} features: "
-                    "When using dense features all ids from interactions must present in features table"
+                    "When using dense features all ids from interactions must be present in features table"
                 )
             except Exception as e:  # pragma: no cover
                 raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
@@ -167,7 +167,7 @@ class Dataset:
         try:
             return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col), id_map
         except UnknownIdError:
-            raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
+            raise ValueError(f"Some ids from {feature_type} features table aren't present in interactions")
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 

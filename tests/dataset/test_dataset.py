@@ -212,7 +212,7 @@ class TestDataset:
             ],
             columns=["user_id", "f1", "f2"],
         )
-        with pytest.raises(ValueError, match=".+user.+all ids from interactions must present in features table"):
+        with pytest.raises(ValueError, match=".+user.+all ids from interactions must be present in features table"):
             Dataset.construct(
                 self.interactions_df,
                 user_features_df=user_features_df,
