@@ -82,6 +82,11 @@ class TestIdMap:
         expected = np.array([0, 2, 2])
         np.testing.assert_equal(actual, expected)
 
+    def test_convert_to_internal_with_return_missing(self) -> None:
+        values, missing = self.id_map.convert_to_internal(["b", "a", "e", "a"], strict=False, return_missing=True)
+        np.testing.assert_equal(values, np.array([0, 2, 2]))
+        np.testing.assert_equal(missing, np.array(["e"]))
+
     def test_convert_to_external(self) -> None:
         with pytest.raises(KeyError):
             self.id_map.convert_to_external([0, 2, 4, 2])
@@ -90,6 +95,11 @@ class TestIdMap:
         actual = self.id_map.convert_to_external([0, 2, 4, 2], strict=False)
         expected = np.array(["b", "a", "a"])
         np.testing.assert_equal(actual, expected)
+
+    def test_convert_to_external_with_return_missing(self) -> None:
+        values, missing = self.id_map.convert_to_external([0, 2, 4, 2], strict=False, return_missing=True)
+        np.testing.assert_equal(values, np.array(["b", "a", "a"]))
+        np.testing.assert_equal(missing, np.array([4]))
 
     def test_add_ids(self) -> None:
         new_id_map = self.id_map.add_ids(["d", "e", "c", "d"])

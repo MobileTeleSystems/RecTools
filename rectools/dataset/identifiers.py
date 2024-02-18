@@ -115,7 +115,7 @@ class IdMap:
         """Return array of external ids sorted by internal ids."""
         return self.external_ids
 
-    def convert_to_internal(self, external: ExternalIds, strict: bool = True) -> np.ndarray:
+    def convert_to_internal(self, external: ExternalIds, strict: bool = True, return_missing: bool = False) -> tp.Union[np.ndarray, tp.Tuple[np.ndarray, np.ndarray]]:
         """
         Convert any sequence of external ids to array of internal ids (map external -> internal).
 
@@ -127,21 +127,29 @@ class IdMap:
              Defines behaviour when some of given external ids do not exist in mapping.
                 - If ``True``, `KeyError` will be raised;
                 - If ``False``, nonexistent ids will be skipped.
+        return_missing : bool, default ``False``
+            If True, return a tuple of 2 arrays: internal ids and missing ids (that are not in map).
+            Works only if `strict` is False.
 
         Returns
         -------
         np.ndarray
             Array of internal ids.
+        np.ndarray, np.ndarray
+            Tuple of 2 arrays: internal ids and missing ids.
+            Only if `strict` is False and `return_missing` is True.
 
         Raises
         ------
         KeyError
             If some of given external ids do not exist in mapping and `strict` flag is ``True``.
+        ValueError
+            If `strict` and `return_missing` are both ``True``.
         """
-        internal = get_from_series_by_index(self.to_internal, external, strict)
-        return internal
+        result = get_from_series_by_index(self.to_internal, external, strict, return_missing)
+        return result
 
-    def convert_to_external(self, internal: InternalIds, strict: bool = True) -> np.ndarray:
+    def convert_to_external(self, internal: InternalIds, strict: bool = True, return_missing: bool = False) -> tp.Union[np.ndarray, tp.Tuple[np.ndarray, np.ndarray]]:
         """
         Convert any sequence of internal ids to array of external ids (map internal -> external).
 
@@ -153,19 +161,27 @@ class IdMap:
              Defines behaviour when some of given internal ids do not exist in mapping.
                 - If ``True``, `KeyError` will be raised;
                 - If ``False``, nonexistent ids will be skipped.
+        return_missing : bool, default ``False``
+            If True, return a tuple of 2 arrays: external ids and missing ids (that are not in map).
+            Works only if `strict` is False.
 
         Returns
         -------
         np.ndarray
             Array of external ids.
+        np.ndarray, np.ndarray
+            Tuple of 2 arrays: external ids and missing ids.
+            Only if `strict` is False and `return_missing` is True.
 
         Raises
         ------
         KeyError
             If some of given internal ids do not exist in mapping and `strict` flag is True.
+        ValueError
+            If `strict` and `return_missing` are both ``True``.
         """
-        external = get_from_series_by_index(self.to_external, internal, strict)
-        return external
+        result = get_from_series_by_index(self.to_external, internal, strict, return_missing)
+        return result
 
     def add_ids(self, values: ExternalIds, raise_if_already_present: bool = False) -> "IdMap":
         """
