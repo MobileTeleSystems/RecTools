@@ -27,6 +27,10 @@ from rectools.exceptions import NotFittedError
 T = tp.TypeVar("T", bound="ModelBase")
 Scores = tp.Union[tp.Sequence[float], np.ndarray]
 
+RecoInternalTriplet = tp.Tuple[InternalIds, InternalIds, Scores]
+RecoSemiInternalTriplet = tp.Tuple[AnyIds, InternalIds, Scores]
+RecoTriplet = tp.Tuple[AnyIds, AnyIds, Scores]
+
 
 class ModelBase:
     """
@@ -132,60 +136,40 @@ class ModelBase:
         self._check_is_fitted()
         self._check_k(k)
 
-        # FIXME: this comment is incorrect for cold users
-        # Here `_ids` suffix means that array contains internal ids.
-        # If there is no such suffix, array contains external ids.
-
-        # Given list of items to recommend can contain hot and warm items.
-        # Cold items cannot be there since we don't know anything about them.
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
             items_to_recommend, dataset, assume_external_ids
         )
 
+        # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
             users, dataset.user_id_map, dataset.n_hot_users, assume_external_ids
         )
         
-        reco_hot = reco_warm = reco_cold = None
+        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
 
-        if cold_user_ids.size > 0:
-            if not self.allow_cold: 
-                raise ValueError(
-                    f"Model `{self.__class__}` doesn't support recommendations for cold users, "
-                    "but some of given users are cold: they aren't present in `dataset.user_id_map`"
-                )
-            else:
-                reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
+        if hot_user_ids.size > 0:
+            reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
         
         if warm_user_ids.size > 0:
             if not self.allow_warm:
-                if not self.allow_cold:
-                    raise ValueError(
-                        f"Model `{self.__class__}` doesn't support recommendations for warm users, "
-                        "but some of given users are warm: they aren't present in the interactions"
-                    )
-                else:
-                    # If model doesn't support warm users, but cold users are allowed,
-                    # we use cold recommendations for warm users.
-                    reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)
+                self._check_cold_allowed("user", "warm")
+                reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)
             else:
                 reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
 
-        if hot_user_ids.size > 0:
-            reco_user_ids, reco_item_ids, reco_scores = self._recommend_u2i(
-                hot_user_ids,
-                dataset,
-                k,
-                filter_viewed,
-                sorted_item_ids_to_recommend,
-            )
+        if cold_user_ids.size > 0:
+            self._check_cold_allowed("user", "cold")
+            reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
 
         if assume_external_ids:
-            reco_user_ids = dataset.user_id_map.convert_to_external(reco_user_ids)
-            reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
+            reco_hot = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
+            reco_warm = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
+            reco_cold = self._reco_items_to_external(reco_cold, dataset.item_id_map)
 
-        reco = self._make_reco_table(reco_user_ids, reco_item_ids, reco_scores, Columns.User, add_rank_col)
-        return reco
+        reco_all = self._concat_reco((reco_hot, reco_warm, reco_cold))
+        del reco_hot, reco_warm, reco_cold
+        reco_df = self._make_reco_table(reco_all, Columns.User, add_rank_col)
+        return reco_df
 
     def recommend_to_items(
         self,
@@ -255,93 +239,50 @@ class ModelBase:
         self._check_is_fitted()
         self._check_k(k)
 
-        if assume_external_ids:
-            try:
-                target_ids = dataset.item_id_map.convert_to_internal(target_items)
-            except KeyError:
-                raise KeyError("All given target items must be present in `dataset.item_id_map`")
-        else:
-            target_ids = np.asarray(target_items)
-            if not np.issubdtype(target_ids.dtype, np.integer):
-                raise TypeError("Internal item ids are always integer")
-
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
             items_to_recommend, dataset, assume_external_ids
         )
 
+        # Here for hot and warm we get internal ids, for cold we keep given ids
+        hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
+            target_items, dataset.item_id_map, dataset.n_hot_items, assume_external_ids
+        )
+        
+        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
         requested_k = k + 1 if filter_itself else k
 
-        reco_target_ids, reco_item_ids, reco_scores = self._recommend_i2i(
-            target_ids,
-            dataset,
-            requested_k,
-            sorted_item_ids_to_recommend,
-        )
+        if hot_target_ids.size > 0:
+            reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+        
+        if warm_target_ids.size > 0:
+            if not self.allow_warm:
+                self._check_cold_allowed("item", "warm")
+                reco_warm = self._recommend_cold(warm_target_ids, requested_k, sorted_item_ids_to_recommend)
+            else:
+                reco_warm = self._recommend_i2i_warm(warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
 
-        if filter_itself:
-            df_reco = (
-                pd.DataFrame({"tid": reco_target_ids, "iid": reco_item_ids, "score": reco_scores})
-                .query("tid != iid")
-                .groupby("tid", sort=False)
-                .head(k)
-            )
-            reco_target_ids, reco_item_ids, reco_scores = df_reco[["tid", "iid", "score"]].values.T
+        if cold_target_ids.size > 0:
+            self._check_cold_allowed("item", "cold")
+            reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
 
         if assume_external_ids:
-            reco_target_ids = dataset.item_id_map.convert_to_external(reco_target_ids)
-            reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
+            # We have to do it before filtering item itself.
+            # We do it for cold reco only, since it's faster to filter internal ids than external ones.
+            reco_cold = self._reco_items_to_external(reco_cold, dataset.item_id_map)
 
-        reco = self._make_reco_table(reco_target_ids, reco_item_ids, reco_scores, Columns.TargetItem, add_rank_col)
-        return reco
+        if filter_itself:
+            reco_hot = self._filter_item_itself_from_i2i_reco(reco_hot, k)
+            reco_warm = self._filter_item_itself_from_i2i_reco(reco_warm, k)
+            reco_cold = self._filter_item_itself_from_i2i_reco(reco_cold, k)
 
-    def _recommend_cold(
-        self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        # Common function for U2I and I2I cold recommendations
-        # Is it correct? Do we ever need separate functions for U2I and I2I?
-        
-        # 1. Get cold reco and scores list
-        # 2. Filter items_to_recommend and cut by k
-        # 3. Use np.tile and np.repeat to get reco arrays
+        if assume_external_ids:
+            reco_hot = self._reco_to_external(reco_hot, dataset.item_id_map, dataset.item_id_map)
+            reco_warm = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
 
-        cold_reco_items, cold_reco_scores = self._get_cold_reco()
-
-        return reco_target_ids, reco_item_ids, reco_scores
-    
-    def _get_cold_reco(self) -> tp.Tuple[InternalIds, Scores]:
-        # Do we need `k` parameter here?
-        # Maybe even `sorted_item_ids_to_recommend`?
-        raise NotImplementedError()
-    
-    def _recommend_u2i_warm(
-        self,
-        user_ids: np.ndarray,
-        dataset: Dataset,
-        k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        # For many models we can use the same code for warm and hot users
-        # Is it ok to fix it in the base model?
-        return self._recommend_u2i(user_ids, dataset, k, False, sorted_item_ids_to_recommend)
-
-    def _recommend_u2i(
-        self,
-        user_ids: np.ndarray,
-        dataset: Dataset,
-        k: int,
-        filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        raise NotImplementedError()
-
-    def _recommend_i2i(
-        self,
-        target_ids: np.ndarray,
-        dataset: Dataset,
-        k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        raise NotImplementedError()
+        reco_all = self._concat_reco((reco_hot, reco_warm, reco_cold))
+        del reco_hot, reco_warm, reco_cold
+        reco_df = self._make_reco_table(reco_all, Columns.TargetItem, add_rank_col)
+        return reco_df
 
     def _check_is_fitted(self) -> None:
         if not self.is_fitted:
@@ -351,29 +292,11 @@ class ModelBase:
     def _check_k(cls, k: int) -> None:
         if k <= 0:
             raise ValueError("`k` must be positive integer")
-
+        
     @classmethod
-    def _make_reco_table(
-        cls,
-        subject_ids: AnyIds,
-        item_ids: AnyIds,
-        scores: Scores,
-        subject_col: str,
-        add_rank_col: bool,
-    ) -> pd.DataFrame:
-        reco = pd.DataFrame(
-            {
-                subject_col: subject_ids,
-                Columns.Item: item_ids,
-                Columns.Score: scores,
-            }
-        )
-
-        if add_rank_col:
-            reco[Columns.Rank] = reco.groupby(subject_col, sort=False).cumcount() + 1
-
-        return reco
-
+    def _init_reco_triplet(cls) -> RecoInternalTriplet:
+        return [], [], []
+    
     @classmethod
     def _get_sorted_item_ids_to_recommend(
         cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
@@ -418,3 +341,130 @@ class ModelBase:
         if ids.min() < 0:
             raise ValueError("Internal ids should be non-negative integers")
         return ids
+
+    @classmethod
+    def _check_cold_allowed(cls, entity: tp.Literal["user", "item"], originally_required: tp.Literal["warm", "cold"]) -> None:
+        if originally_required == "warm":
+            error_text = (
+                f"Model `{cls}` doesn't support recommendations for warm {entity}s, "
+                f"but some of given {entity}s are warm: they aren't present in the interactions"
+            )
+        elif originally_required == "cold":
+            error_text = (
+                f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
+                f"but some of given {entity}s are cold: they aren't present in `dataset.{entity}_id_map`"
+            )
+        else:
+            raise ValueError("`originally_required` must be 'warm' or 'cold'")
+        
+        if not cls.allow_cold:
+            raise ValueError(error_text)
+        
+    @classmethod
+    def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoInternalTriplet:
+        target_ids, item_ids, scores = reco
+        df_reco = (
+            pd.DataFrame({"tid": target_ids, "iid": item_ids, "score": scores})
+            .query("tid != iid")
+            .groupby("tid", sort=False)
+            .head(k)
+        )
+        filtered = df_reco[["tid", "iid", "score"]].values.T
+        return filtered
+
+    @classmethod
+    def _reco_to_external(cls, reco: RecoInternalTriplet, target_id_map: IdMap, item_id_map: IdMap) -> RecoTriplet:
+        target_ids, item_ids, scores = reco
+        target_ids = target_id_map.convert_to_external(target_ids)
+        item_ids = item_id_map.convert_to_external(item_ids)
+        return target_ids, item_ids, scores
+    
+    @classmethod
+    def _reco_items_to_external(cls, reco: RecoSemiInternalTriplet, item_id_map: IdMap) -> RecoTriplet:
+        target_ids, item_ids, scores = reco
+        item_ids = item_id_map.convert_to_external(item_ids)
+        return target_ids, item_ids, scores
+    
+    @classmethod
+    def _concat_reco(cls, parts: tp.Tuple[RecoTriplet, ...]) -> pd.DataFrame:
+        targets = np.concatenate([part[0] for part in parts])
+        items = np.concatenate([part[1] for part in parts])
+        scores = np.concatenate([part[2] for part in parts])
+        return targets, items, scores
+
+    @classmethod
+    def _make_reco_table(cls, reco: RecoTriplet, target_col: str, add_rank_col: bool) -> pd.DataFrame:
+        target_ids, item_ids, scores = reco
+        df = pd.DataFrame(
+            {
+                target_col: target_ids,
+                Columns.Item: item_ids,
+                Columns.Score: scores,
+            }
+        )
+
+        if add_rank_col:
+            df[Columns.Rank] = df.groupby(target_col, sort=False).cumcount() + 1
+
+        return df
+
+    def _recommend_cold(
+        self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+    ) -> RecoSemiInternalTriplet:
+        # Common function for U2I and I2I cold recommendations
+        # Is it correct? Do we ever need separate functions for U2I and I2I?
+        
+        # 1. Get cold reco and scores list
+        # 2. Filter items_to_recommend and cut by k
+        # 3. Use np.tile and np.repeat to get reco arrays
+
+        cold_reco_items, cold_reco_scores = self._get_cold_reco()
+
+        return reco_target_ids, reco_item_ids, reco_scores
+    
+    def _get_cold_reco(self) -> tp.Tuple[InternalIds, Scores]:
+        # Do we need `k` parameter here?
+        # Maybe even `sorted_item_ids_to_recommend`?
+        raise NotImplementedError()
+    
+    def _recommend_u2i_warm(
+        self,
+        user_ids: np.ndarray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+    ) -> RecoInternalTriplet:
+        # For many models we can use the same code for warm and hot users
+        # Is it ok to fix it in the base model?
+        return self._recommend_u2i(user_ids, dataset, k, False, sorted_item_ids_to_recommend)
+    
+    def _recommend_i2i_warm(
+        self,
+        user_ids: np.ndarray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+    ) -> RecoInternalTriplet:
+        # For many models we can use the same code for warm and hot items
+        # Is it ok to fix it in the base model?
+        return self._recommend_i2i(user_ids, dataset, k, sorted_item_ids_to_recommend)
+
+    def _recommend_u2i(
+        self,
+        user_ids: np.ndarray,
+        dataset: Dataset,
+        k: int,
+        filter_viewed: bool,
+        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+    ) -> RecoInternalTriplet:
+        raise NotImplementedError()
+
+    def _recommend_i2i(
+        self,
+        target_ids: np.ndarray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+    ) -> RecoInternalTriplet:
+        raise NotImplementedError()
+
