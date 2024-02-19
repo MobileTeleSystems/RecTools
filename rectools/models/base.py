@@ -72,7 +72,6 @@ class ModelBase:
         items_to_recommend: tp.Optional[AnyIds] = None,
         add_rank_col: bool = True,
         assume_external_ids: bool = True,
-        return_external_ids: bool = True,
     ) -> pd.DataFrame:
         r"""
         Recommend items for users.
@@ -107,10 +106,8 @@ class ModelBase:
             In any case recommendations are sorted per rank for every user.
             The lesser the rank the more recommendation is relevant.
         assume_external_ids : bool, default True
-            When ``True`` all input user and item ids are supposed to be external.
-            Internal otherwise. Works faster with ``False``.
-        return_external_ids : bool, default True
-            When ``True`` user and item ids in returning recommendations table will be external.
+            When ``True`` all input user and item ids are supposed to be external. 
+            Ids in returning recommendations table will be external as well.
             Internal otherwise. Works faster with ``False``.
 
         Returns
@@ -183,7 +180,7 @@ class ModelBase:
                 sorted_item_ids_to_recommend,
             )
 
-        if return_external_ids:
+        if assume_external_ids:
             reco_user_ids = dataset.user_id_map.convert_to_external(reco_user_ids)
             reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
 
@@ -199,7 +196,6 @@ class ModelBase:
         items_to_recommend: tp.Optional[AnyIds] = None,
         add_rank_col: bool = True,
         assume_external_ids: bool = True,
-        return_external_ids: bool = True,
     ) -> pd.DataFrame:
         """
         Recommend items for target items.
@@ -233,10 +229,8 @@ class ModelBase:
              In any case recommendations are sorted per rank for every target item.
              Less rank means more relevant recommendation.
         assume_external_ids : bool, default True
-            When ``True`` all input item ids are supposed to be external.
-            Internal otherwise. Works faster with ``False``.
-        return_external_ids : bool, default True
-            When ``True`` item ids in returning recommendations table will be external.
+            When ``True`` all input item ids are supposed to be external. 
+            Ids in returning recommendations table will be external as well.
             Internal otherwise. Works faster with ``False``.
 
         Returns
@@ -293,7 +287,7 @@ class ModelBase:
             )
             reco_target_ids, reco_item_ids, reco_scores = df_reco[["tid", "iid", "score"]].values.T
 
-        if return_external_ids:
+        if assume_external_ids:
             reco_target_ids = dataset.item_id_map.convert_to_external(reco_target_ids)
             reco_item_ids = dataset.item_id_map.convert_to_external(reco_item_ids)
 
