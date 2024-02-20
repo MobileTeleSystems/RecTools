@@ -77,15 +77,19 @@ pytorch-lightning = [
     {version = ">=1.6.0, <3.0.0", python = ">=3.8", optional = true}
 ]
 
+ipywidgets = {version = ">=7.7,<8.2", optional = true}
+
 
 [tool.poetry.extras]
 lightfm = ["lightfm"]
 nmslib = ["nmslib"]
 torch = ["torch", "pytorch-lightning"]
+visuals = ["ipywidgets"]
 all = [
     "lightfm",
     "nmslib", 
     "torch", "pytorch-lightning",
+    "ipywidgets"
 ]
 
 [tool.poetry.group.dev.dependencies]

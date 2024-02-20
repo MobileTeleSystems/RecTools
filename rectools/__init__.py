@@ -31,6 +31,7 @@ Subpackages
     model_selection - Cross-validation
     models - Recommendation models
     tools - Useful instruments
+    visuals - Visualization apps
 """
 
 from .columns import Columns
