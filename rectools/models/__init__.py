@@ -26,6 +26,7 @@ implementations.
 Models
 ------
 `models.DSSMModel`
+`models.EASE`
 `models.ImplicitALSWrapperModel`
 `models.ImplicitItemKNNWrapperModel`
 `models.LightFMWrapperModel`
@@ -35,6 +36,7 @@ Models
 `models.RandomModel`
 """
 
+from .ease import EASEModel
 from .implicit_als import ImplicitALSWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
 from .popular import PopularModel
@@ -54,6 +56,7 @@ except ImportError:  # pragma: no cover
 
 
 __all__ = (
+    "EASEModel",
     "ImplicitALSWrapperModel",
     "ImplicitItemKNNWrapperModel",
     "LightFMWrapperModel",

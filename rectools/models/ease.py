@@ -28,7 +28,7 @@ from .vector import Distance, ImplicitRanker
 from .utils import get_viewed_item_ids, recommend_from_scores
 
 
-class EASE(ModelBase):
+class EASEModel(ModelBase):
     """
     Embarrassingly Shallow Autoencoders for Sparse Data model.
 
@@ -51,7 +51,7 @@ class EASE(ModelBase):
     ):
         super().__init__(verbose=verbose)
         self.regularization = regularization
-        self.weight: np.matrix
+        self.weight: np.ndarray
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
@@ -62,7 +62,7 @@ class EASE(ModelBase):
 
         gram_matrix_inv = np.linalg.inv(gram_matrix)
 
-        self.weight = gram_matrix / (-np.diag(gram_matrix_inv))
+        self.weight = np.array(gram_matrix / (-np.diag(gram_matrix_inv)))
         np.fill_diagonal(self.weight, 0.0)
 
     def _recommend_u2i(
@@ -78,7 +78,7 @@ class EASE(ModelBase):
         ranker = ImplicitRanker(
             distance=self.u2i_dist,
             subjects_factors=user_items,
-            objects_factors=np.array(self.weight),
+            objects_factors=self.weight,
         )
         ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
 
@@ -92,25 +92,6 @@ class EASE(ModelBase):
 
         return all_user_ids, all_reco_ids, all_scores
 
-    def _recommend_for_user(
-        self,
-        user_id: int,
-        user_items: sparse.csr_matrix,
-        k: int,
-        filter_viewed: bool,
-        sorted_item_ids: tp.Optional[np.ndarray],
-    ) -> tp.Tuple[InternalIds, Scores]:
-        if filter_viewed:
-            viewed_ids = get_viewed_item_ids(user_items, user_id)  # sorted
-        else:
-            viewed_ids = np.array([], dtype=int)
-        
-        scores = (user_items[user_id] @ self.weight).getA1()
-        reco_ids, reco_scores = recommend_from_scores(
-            scores=scores, k=k, sorted_blacklist=viewed_ids, sorted_whitelist=sorted_item_ids
-        )
-        return reco_ids, reco_scores
-
     def _recommend_i2i(
         self,
         target_ids: np.ndarray,
@@ -118,18 +99,18 @@ class EASE(ModelBase):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        similarity = self.weight[target_ids]
+        similarity = self.weight
+        if sorted_item_ids_to_recommend is not None:
+            similarity = similarity[:, sorted_item_ids_to_recommend]
 
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
-
         for target_id in tqdm(target_ids, disable=self.verbose == 0):
             reco_ids, reco_scores = self._recommend_for_item(
                 similarity=similarity,
                 target_id=target_id,
                 k=k,
-                sorted_item_ids=sorted_item_ids_to_recommend,
             )
             all_target_ids.extend([target_id] * len(reco_ids))
             all_reco_ids.append(reco_ids)
@@ -144,11 +125,10 @@ class EASE(ModelBase):
 
     @staticmethod
     def _recommend_for_item(
-        similarity: sparse.csr_matrix,
+        similarity: np.ndarray,
         target_id: int,
         k: int,
-        sorted_item_ids: tp.Optional[np.ndarray],
     ) -> tp.Tuple[np.ndarray, np.ndarray]:
         similar_item_scores = similarity[target_id]
-        reco_ids, reco_scores = recommend_from_scores(scores=similar_item_scores, k=k, sorted_whitelist=sorted_item_ids)
+        reco_ids, reco_scores = recommend_from_scores(scores=similar_item_scores, k=k)
         return reco_ids, reco_scores
