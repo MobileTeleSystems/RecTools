@@ -24,8 +24,8 @@ from rectools import InternalIds
 from rectools.dataset import Dataset
 
 from .base import ModelBase, Scores
+from .utils import recommend_from_scores
 from .vector import Distance, ImplicitRanker
-from .utils import get_viewed_item_ids, recommend_from_scores
 
 
 class EASEModel(ModelBase):

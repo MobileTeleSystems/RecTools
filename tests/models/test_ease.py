@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import typing as tp
-from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -31,7 +30,7 @@ class TestEASEModel:
     @pytest.fixture
     def dataset(self) -> Dataset:
         return DATASET
-    
+
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -41,7 +40,7 @@ class TestEASEModel:
                     {
                         Columns.User: [10, 10, 20, 20],
                         Columns.Item: [17, 13, 17, 15],
-                        Columns.Score: np.array([-503.96243, -1006.93286,  -503.96243, -1510.8953], dtype=np.float32),
+                        Columns.Score: np.array([-503.96243, -1006.93286, -503.96243, -1510.8953], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -52,14 +51,14 @@ class TestEASEModel:
                     {
                         Columns.User: [10, 10, 20, 20],
                         Columns.Item: [17, 13, 17, 13],
-                        Columns.Score: np.array([-503.96243, -1006.93286,  -503.96243, -1006.93286], dtype=np.float32),
+                        Columns.Score: np.array([-503.96243, -1006.93286, -503.96243, -1006.93286], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
         ),
     )
-    def test_basic(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame):
+    def test_basic(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
         model = EASEModel(regularization=500).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
@@ -79,7 +78,7 @@ class TestEASEModel:
                     {
                         Columns.User: [10, 10, 20, 20],
                         Columns.Item: [17, 15, 17, 15],
-                        Columns.Score: np.array([-503.96243, -2012.8776,  -503.96243, -1510.8953], dtype=np.float32),
+                        Columns.Score: np.array([-503.96243, -2012.8776, -503.96243, -1510.8953], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -90,14 +89,14 @@ class TestEASEModel:
                     {
                         Columns.User: [10, 10, 20, 20],
                         Columns.Item: [17, 15, 17, 15],
-                        Columns.Score: np.array([-503.96243, -2012.8776,  -503.96243, -1510.8953], dtype=np.float32),
+                        Columns.Score: np.array([-503.96243, -2012.8776, -503.96243, -1510.8953], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame):
+    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
         model = EASEModel(regularization=500).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
@@ -110,7 +109,7 @@ class TestEASEModel:
         pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)  # pylint: disable = unexpected-keyword-arg
 
     @pytest.mark.parametrize("filter_viewed", (True, False))
-    def test_raises_when_new_user(self, dataset, filter_viewed):
+    def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool) -> None:
         model = EASEModel(regularization=500).fit(dataset)
         with pytest.raises(KeyError):
             model.recommend(
@@ -178,5 +177,3 @@ class TestEASEModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = EASEModel()
         assert_second_fit_refits_model(model, dataset)
-    
-
