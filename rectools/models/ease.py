@@ -24,6 +24,7 @@ from rectools import InternalIds
 from rectools.dataset import Dataset
 
 from .base import ModelBase, Scores
+from .vector import Distance, ImplicitRanker
 from .utils import get_viewed_item_ids, recommend_from_scores
 
 
@@ -40,6 +41,8 @@ class EASE(ModelBase):
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
     """
+
+    u2i_dist = Distance.DOT
 
     def __init__(
         self,
@@ -72,20 +75,20 @@ class EASE(ModelBase):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         user_items = dataset.get_user_item_matrix(include_weights=True)
 
-        all_user_ids = []
-        all_reco_ids: tp.List[int] = []
-        all_scores: tp.List[float] = []
-        for user_id in tqdm(user_ids, disable=self.verbose == 0):
-            reco_ids, reco_scores = self._recommend_for_user(
-                user_id,
-                user_items,
-                k,
-                filter_viewed,
-                sorted_item_ids_to_recommend,
-            )
-            all_user_ids.extend([user_id] * len(reco_ids))
-            all_reco_ids.extend(reco_ids)
-            all_scores.extend(reco_scores)
+        ranker = ImplicitRanker(
+            distance=self.u2i_dist,
+            subjects_factors=user_items,
+            objects_factors=np.array(self.weight),
+        )
+        ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
+
+        all_user_ids, all_reco_ids, all_scores = ranker.rank(
+            subject_ids=user_ids,
+            k=k,
+            filter_pairs_csr=ui_csr_for_filter,
+            sorted_object_whitelist=sorted_item_ids_to_recommend,
+            num_threads=0,
+        )
 
         return all_user_ids, all_reco_ids, all_scores
 
