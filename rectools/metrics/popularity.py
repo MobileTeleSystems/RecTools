@@ -16,6 +16,7 @@
 
 import typing as tp
 
+import attr
 import pandas as pd
 
 from rectools import Columns
@@ -23,6 +24,7 @@ from rectools.metrics.base import MetricAtK
 from rectools.utils import select_by_type
 
 
+@attr.s
 class AvgRecPopularity(MetricAtK):
     r"""
     Average Recommendations Popularity metric.
@@ -43,6 +45,8 @@ class AvgRecPopularity(MetricAtK):
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
+    normalized: bool
+        Flag, which says whether to normalize metric or not.
 
     Examples
     --------
@@ -63,7 +67,11 @@ class AvgRecPopularity(MetricAtK):
     array([3., 1., 1.])
     >>> AvgRecPopularity(k=3).calc_per_user(reco, prev_interactions).values
     array([2.5, 2. , 1.5])
+    >>> AvgRecPopularity(k=3, normalized=True).calc_per_user(reco, prev_interactions).values
+    array([0.41666667, 0.33333333, 0.25        ])
     """
+
+    normalized: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, prev_interactions: pd.DataFrame) -> float:
         """
@@ -106,7 +114,7 @@ class AvgRecPopularity(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        item_popularity = prev_interactions[Columns.Item].value_counts()
+        item_popularity = prev_interactions[Columns.Item].value_counts(normalize=self.normalized)
         item_popularity.name = "popularity"
 
         reco_k = reco.query(f"{Columns.Rank} <= @self.k")
