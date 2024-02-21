@@ -19,7 +19,7 @@ class StorageFiles:
     """Fixed file names for `AppDataStorage` saving and loading."""
 
     Interactions = "interactions.csv"
-    Recos = "recos.csv"
+    Recommendations = "recommendations.csv"
     Requests = "requests.csv"
 
 
@@ -34,12 +34,12 @@ class AppDataStorage:
     id_col: str = attr.ib()
     selected_requests: tp.Dict[tp.Hashable, tp.Hashable] = attr.ib()
     grouped_interactions: TablesDict = attr.ib()
-    grouped_recos: tp.Dict[tp.Hashable, TablesDict] = attr.ib()
+    grouped_reco: tp.Dict[tp.Hashable, TablesDict] = attr.ib()
 
     @classmethod
     def from_raw(
         cls,
-        recos: tp.Union[pd.DataFrame, TablesDict],
+        reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         is_u2i: bool = True,
@@ -51,12 +51,13 @@ class AppDataStorage:
 
         Parameters
         ----------
-        recos : tp.Union[pd.DataFrame, TablesDict]
+        reco : tp.Union[pd.DataFrame, TablesDict]
             Recommendations from different models in a form of a pd.DataFrame or a dict.
             In DataFrame form model names must be specified in `Columns.Model` column. In dict form
             model names are supposed to be dict keys.
         item_data : pd.DataFrame
-            Data for items that is used for visualisation in both interactions and recos widgets.
+            Data for items that is used for visualisation in both interactions and recommendations
+            widgets.
         selected_requests : tp.Dict[tp.Hashable, tp.Hashable]
             Predefined requests (users or items) that will be displayed in widgets. Request names
             must be specified as keys of the dict and ids as values of the dict.
@@ -79,13 +80,13 @@ class AppDataStorage:
                 selected_requests=selected_requests,
                 n_random_requests=n_random_requests,
                 id_col=id_col,
-                recos=recos,
+                reco=reco,
             )
-        if isinstance(recos, pd.DataFrame):
-            if Columns.Model not in recos.columns:
-                raise ValueError("Missing `{Columns.Model}` column in recos DataFrame")
-            recos = cls._df_to_tables_dict(recos, Columns.Model)
-        cls._check_columns_present_in_recos(recos=recos, id_col=id_col)
+        if isinstance(reco, pd.DataFrame):
+            if Columns.Model not in reco.columns:
+                raise ValueError("Missing `{Columns.Model}` column in `reco` DataFrame")
+            reco = cls._df_to_tables_dict(reco, Columns.Model)
+        cls._check_columns_present_in_reco(reco=reco, id_col=id_col)
 
         if Columns.Item not in item_data:
             raise KeyError(f"Missed {Columns.Item} column in item_data")
@@ -95,7 +96,7 @@ class AppDataStorage:
         if interactions is None:
             if is_u2i:
                 raise ValueError("For u2i reco you must specify interactions")
-            interactions = cls._prepare_interactions_for_i2i(recos=recos)
+            interactions = cls._prepare_interactions_for_i2i(reco=reco)
 
         if not selected_requests:
             raise ValueError("`selected_requests` is empty")
@@ -106,18 +107,18 @@ class AppDataStorage:
             id_col=id_col,
             item_data=item_data,
         )
-        grouped_recos = cls._group_recos(
-            recos=recos,
+        grouped_reco = cls._group_reco(
+            reco=reco,
             selected_requests=selected_requests,
             id_col=id_col,
             item_data=item_data,
         )
-        return AppDataStorage(
+        return cls(
             id_col=id_col,
             is_u2i=is_u2i,
             selected_requests=selected_requests,
             grouped_interactions=grouped_interactions,
-            grouped_recos=grouped_recos,
+            grouped_reco=grouped_reco,
         )
 
     @property
@@ -128,7 +129,7 @@ class AppDataStorage:
     @property
     def model_names(self) -> tp.List[tp.Hashable]:
         """Names of recommendation models for comparison"""
-        return list(self.grouped_recos.keys())
+        return list(self.grouped_reco.keys())
 
     @classmethod
     def _fill_requests_with_random(
@@ -136,12 +137,12 @@ class AppDataStorage:
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_requests: int,
         id_col: str,
-        recos: TablesDict,
+        reco: TablesDict,
     ) -> tp.Dict[tp.Hashable, tp.Hashable]:
 
         # Leave only those ids that were not predefined by user
         # Request ids (e.g. user ids) are stored as values in `selected_requests`
-        all_ids = [model_recos[id_col].unique() for model_recos in recos.values()]
+        all_ids = [model_reco[id_col].unique() for model_reco in reco.values()]
         unique_ids = pd.unique(np.hstack(all_ids))
         selected_ids = np.array(list(selected_requests.values()))
         selected_mask = fast_isin(unique_ids, selected_ids)
@@ -173,39 +174,39 @@ class AppDataStorage:
         return prepared_interactions
 
     @classmethod
-    def _group_recos(
+    def _group_reco(
         cls,
-        recos: TablesDict,
+        reco: TablesDict,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         id_col: str,
         item_data: pd.DataFrame,
     ) -> tp.Dict[tp.Hashable, TablesDict]:
-        prepared_recos = {}
-        for model_name, model_recos in recos.items():
+        prepared_reco = {}
+        for model_name, model_reco in reco.items():
             # Request ids (e.g. user ids) are stored as values in `selected_requests`
-            selected_recos = model_recos[model_recos[id_col].isin(selected_requests.values())]
-            prepared_model_recos = {}
+            selected_reco = model_reco[model_reco[id_col].isin(selected_requests.values())]
+            prepared_model_reco = {}
             for request_name, request_id in selected_requests.items():
-                prepared_model_recos[request_name] = item_data.merge(
-                    selected_recos[selected_recos[id_col] == request_id],
+                prepared_model_reco[request_name] = item_data.merge(
+                    selected_reco[selected_reco[id_col] == request_id],
                     how="right",
                     on="item_id",
-                    suffixes=["_item", "_recos"],
+                    suffixes=["_item", "_reco"],
                 ).drop(columns=[id_col])
-            prepared_recos[model_name] = prepared_model_recos
-        return prepared_recos
+            prepared_reco[model_name] = prepared_model_reco
+        return prepared_reco
 
     @classmethod
-    def _ungroup_recos(
+    def _ungroup_reco(
         cls,
-        grouped_recos: tp.Dict[tp.Hashable, TablesDict],
+        grouped_reco: tp.Dict[tp.Hashable, TablesDict],
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         id_col: str,
     ) -> pd.DataFrame:
         res = []
-        for model_name, prepared_model_recos in grouped_recos.items():
-            for request_name, request_recos in prepared_model_recos.items():
-                df = request_recos.copy()
+        for model_name, prepared_model_reco in grouped_reco.items():
+            for request_name, request_reco in prepared_model_reco.items():
+                df = request_reco.copy()
                 df[id_col] = selected_requests[request_name]
                 df[Columns.Model] = model_name
                 res.append(df)
@@ -226,26 +227,26 @@ class AppDataStorage:
         return pd.concat(res, axis=0)
 
     @classmethod
-    def _check_columns_present_in_recos(cls, recos: TablesDict, id_col: str) -> None:
+    def _check_columns_present_in_reco(cls, reco: TablesDict, id_col: str) -> None:
         required_columns = {id_col, Columns.Item}
-        for model_name, model_recos in recos.items():
-            actual_columns = set(model_recos.columns)
+        for model_name, model_reco in reco.items():
+            actual_columns = set(model_reco.columns)
             if not actual_columns >= required_columns:
                 raise KeyError(f"Missed columns {required_columns - actual_columns} in {model_name} recommendations df")
 
     @classmethod
-    def _prepare_interactions_for_i2i(cls, recos: TablesDict) -> pd.DataFrame:
+    def _prepare_interactions_for_i2i(cls, reco: TablesDict) -> pd.DataFrame:
         request_ids = set()
-        for recos_df in recos.values():
-            request_ids.update(set(recos_df[Columns.TargetItem].unique()))
+        for reco_df in reco.values():
+            request_ids.update(set(reco_df[Columns.TargetItem].unique()))
         interactions = pd.DataFrame({Columns.TargetItem: list(request_ids), Columns.Item: list(request_ids)})
         return interactions
 
     @classmethod
-    def _df_to_tables_dict(cls, df: pd.DataFrame, colname: str) -> TablesDict:
+    def _df_to_tables_dict(cls, df: pd.DataFrame, key_col: str) -> TablesDict:
         res = {}
-        for value in df[colname].unique():
-            res[value] = df[df[colname] == value].drop(columns=[colname])
+        for key, grouped_df in df.groupby(key_col):
+            res[key] = grouped_df.drop(columns=[key_col])
         return res
 
     @classmethod
@@ -272,19 +273,19 @@ class AppDataStorage:
         interactions_df = self._ungroup_interactions(
             grouped_interactions=self.grouped_interactions, selected_requests=self.selected_requests, id_col=self.id_col
         )
-        recos_df = self._ungroup_recos(
-            grouped_recos=self.grouped_recos, selected_requests=self.selected_requests, id_col=self.id_col
+        reco_df = self._ungroup_reco(
+            grouped_reco=self.grouped_reco, selected_requests=self.selected_requests, id_col=self.id_col
         )
         requests_df = self._create_requests_df(self.selected_requests)
 
         Path(folder_name).mkdir(parents=True, exist_ok=True)
         mode = "w" if overwrite else "x"
         interactions_df.to_csv(Path(folder_name, StorageFiles.Interactions), index=False, mode=mode)
-        recos_df.to_csv(Path(folder_name, StorageFiles.Recos), index=False, mode=mode)
+        reco_df.to_csv(Path(folder_name, StorageFiles.Recommendations), index=False, mode=mode)
         requests_df.to_csv(Path(folder_name, StorageFiles.Requests), index=False, mode=mode)
 
     @classmethod
-    def from_saved(cls, folder_name: str) -> "AppDataStorage":
+    def load(cls, folder_name: str) -> "AppDataStorage":
         r"""Load prepared data for VisualApp widgets. This method is not meant to be used
         directly. Use `VisualApp` or `ItemToItemVisualApp` class methods instead.
 
@@ -299,7 +300,7 @@ class AppDataStorage:
             Data storage class for visualisation widgets.
         """
         interactions = pd.read_csv(Path(folder_name, StorageFiles.Interactions))
-        recos = pd.read_csv(Path(folder_name, StorageFiles.Recos))
+        reco = pd.read_csv(Path(folder_name, StorageFiles.Recommendations))
         selected_requests = dict(
             pd.read_csv(
                 Path(folder_name, StorageFiles.Requests),
@@ -329,17 +330,17 @@ class AppDataStorage:
             interactions=interactions, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
         )
 
-        recos_dict = cls._df_to_tables_dict(recos, Columns.Model)
-        grouped_recos = cls._group_recos(
-            recos=recos_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+        reco_dict = cls._df_to_tables_dict(reco, Columns.Model)
+        grouped_reco = cls._group_reco(
+            reco=reco_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
         )
 
-        return AppDataStorage(
+        return cls(
             selected_requests=selected_requests,
             is_u2i=is_u2i,
             id_col=id_col,
             grouped_interactions=grouped_interactions,
-            grouped_recos=grouped_recos,
+            grouped_reco=grouped_reco,
         )
 
 
@@ -398,10 +399,10 @@ class VisualAppBase:
         items_tab.set_title(index=0, title="Interactions")
         display(items_tab)
 
-    def _display_recos(self, request_name: str, model_name: str) -> None:
+    def _display_recommendations(self, request_name: str, model_name: str) -> None:
         """Display recommended items for `request_name` from model `model_name`"""
         items_tab = widgets.Tab()
-        df = self.data_storage.grouped_recos[model_name][request_name]
+        df = self.data_storage.grouped_reco[model_name][request_name]
         items_tab.children = [widgets.HTML(value=self._convert_to_html(df))]
         items_tab.set_title(index=0, title="Recommended")
         display(items_tab)
@@ -445,8 +446,8 @@ class VisualAppBase:
             button_style="success",
         )
         model_name_output = widgets.interactive_output(self._display_model_name, {"model_name": model_selection})
-        recos_output = widgets.interactive_output(
-            self._display_recos, {"request_name": request_name_selection, "model_name": model_selection}
+        reco_output = widgets.interactive_output(
+            self._display_recommendations, {"request_name": request_name_selection, "model_name": model_selection}
         )
 
         display(
@@ -457,7 +458,7 @@ class VisualAppBase:
                     interactions_output,
                     model_selection,
                     model_name_output,
-                    recos_output,
+                    reco_output,
                 ]
             )
         )
@@ -493,27 +494,26 @@ class VisualAppBase:
         auto_display : bool, optional, default ``True``
             Display widgets right after initialization.
         formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
-            Formatter functions to apply to columns elements in the sections of interactions and recos.
-            Keys of the dict must be columns names (item_data, interactions and recos columns can be
-            specified here). Values bust be functions that will be applied to corresponding columns
-            elements. The result of each function must be a unicode string that represents html code.
-            Formatters can be used to format text, create links and display images with html.
+            Formatter functions to apply to columns elements in the sections of interactions and
+            recommendations. Keys of the dict must be columns names (item_data, interactions and
+            recommendations columns can be specified here). Values bust be functions that will be
+            applied to corresponding columns elements. The result of each function must be a unicode
+            string that represents html code. Formatters can be used to format text, create links
+            and display images with html.
         rows_limit : int, optional, default 20
-            Maximum number of rows to display in the sections of interactions and recos.
+            Maximum number of rows to display in the sections of interactions and recommendations.
         min_width : int, optional, default 100
-            Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
-            10.
+            Minimum column width in pixels for dataframe columns in widgets output. Must be greater
+            then 10.
 
         Returns
         -------
         VisualApp
             Jupyter widgets for recommendations visualization.
         """
-        data_storage = AppDataStorage.from_saved(folder_name=folder_name)
+        data_storage = AppDataStorage.load(folder_name=folder_name)
 
-        # todo: make different types of app based on data.storage.is_u2i?
-
-        return VisualAppBase(
+        return cls(
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
@@ -528,7 +528,7 @@ class VisualApp(VisualAppBase):
     analysis and comparison of different models. Outputs both interactions history of the selected
     users and their recommended items from different models along with items data.
 
-    Models for comparison will be listed from the `recos` dictionary keys.
+    Models for comparison will be listed from the `reco` dictionary keys.
     Users display names for comparison will be listed from the `selected_users` keys and ids will be
     taken from `selected_users` values.
 
@@ -536,7 +536,7 @@ class VisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
+    reco : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
         Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
         form model names are supposed to be dict keys, and recommendations from different models are
         supposed to be pd.DataFrames as dict values.
@@ -557,7 +557,7 @@ class VisualApp(VisualAppBase):
         before visualizing. The most intuitive way is to sort by date in descending order. If user
         has too many interactions the lest ones may not be displayed.
     item_data : pd.DataFrame
-        Data for items that is used for visualisation in both interactions and recos widgets.
+        Data for items that is used for visualisation in both interactions and recommendations widgets.
         Supposed to be in form of a pandas DataFrame with columns:
             - `Columns.Item` - item id
             - Any other columns with item data (e.g. name, category, popularity, image link)
@@ -569,20 +569,21 @@ class VisualApp(VisualAppBase):
     auto_display : bool, optional, default ``True``
         Display widgets right after initialization.
     formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
-        Formatter functions to apply to columns elements in the sections of interactions and recos.
-        Keys of the dict must be columns names (item_data, interactions and recos columns can be
-        specified here). Values bust be functions that will be applied to corresponding columns
-        elements. The result of each function must be a unicode string that represents html code.
-        Formatters can be used to format text, create links and display images with html.
+        Formatter functions to apply to columns elements in the sections of interactions and
+        recommendations. Keys of the dict must be columns names (item_data, interactions and
+        recommendations columns can be specified here). Values bust be functions that will be
+        applied to corresponding columns elements. The result of each function must be a unicode
+        string that represents html code. Formatters can be used to format text, create links
+        and display images with html.
     rows_limit : int, optional, default 20
-        Maximum number of rows to display in the sections of interactions and recos.
+        Maximum number of rows to display in the sections of interactions and recommendations.
     min_width : int, optional, default 100
         Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
         10.
 
     Examples
     --------
-    >>> recos = {
+    >>> reco = {
     ...     "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
     ...     "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]})
     ... }
@@ -597,7 +598,7 @@ class VisualApp(VisualAppBase):
     >>> formatters = {"item_id": lambda x: f"<b>{x}</b>"}
     >>>
     >>> widgets = VisualApp(
-    ...     recos=recos,
+    ...     reco=reco,
     ...     item_data=item_data,
     ...     interactions=interactions,
     ...     selected_users=selected_users,
@@ -608,7 +609,7 @@ class VisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
+        reco: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -619,7 +620,7 @@ class VisualApp(VisualAppBase):
         min_width: int = 100,
     ) -> None:
         super().__init__(
-            recos=recos,
+            reco=reco,
             interactions=interactions,
             item_data=item_data,
             selected_users=selected_users,
@@ -632,7 +633,7 @@ class VisualApp(VisualAppBase):
 
     def _create_data_storage(
         self,
-        recos: tp.Union[pd.DataFrame, TablesDict],
+        reco: tp.Union[pd.DataFrame, TablesDict],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, tp.Hashable],
@@ -640,7 +641,7 @@ class VisualApp(VisualAppBase):
     ) -> AppDataStorage:
         return AppDataStorage.from_raw(
             interactions=interactions,
-            recos=recos,
+            reco=reco,
             selected_requests=selected_users,
             item_data=item_data,
             is_u2i=True,
@@ -654,7 +655,7 @@ class ItemToItemVisualApp(VisualAppBase):
     analysis and comparison of different models. Outputs both target item data and recommended items
     data from different models for all of the selected items.
 
-    Models for comparison will be listed from the `recos` dictionary keys.
+    Models for comparison will be listed from the `reco` dictionary keys.
     Items display names for comparison will be listed from the `selected_items` keys and ids will be
     taken from `selected_items` values.
 
@@ -662,7 +663,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     Parameters
     ----------
-    recos : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
+    reco : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
         Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
         form model names are supposed to be dict keys, and recommendations from different models are
         supposed to be pd.DataFrames as dict values.
@@ -675,7 +676,7 @@ class ItemToItemVisualApp(VisualAppBase):
         The original order of the rows will be preserved. Keep in mind to sort the rows correctly
         before visualizing. The most intuitive way is to sort by rank in ascending order.
     item_data : pd.DataFrame
-        Data for items that is used for visualisation in both interactions and recos widgets.
+        Data for items that is used for visualisation in both interactions and recommendations widgets.
         Supposed to be in form of a pandas DataFrame with columns:
             - `Columns.Item` - item id
             - Any other columns with item data (e.g. name, category, popularity, image link)
@@ -687,20 +688,21 @@ class ItemToItemVisualApp(VisualAppBase):
     auto_display : bool, optional, default ``True``
         Display widgets right after initialization.
     formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
-        Formatter functions to apply to columns elements in the sections of interactions and recos.
-        Keys of the dict must be columns names (item_data, interactions and recos columns can be
-        specified here). Values bust be functions that will be applied to corresponding columns
-        elements. The result of each function must be a unicode string that represents html code.
-        Formatters can be used to format text, create links and display images with html.
+        Formatter functions to apply to columns elements in the sections of interactions and
+        recommendations. Keys of the dict must be columns names (item_data, interactions and
+        recommendations columns can be specified here). Values bust be functions that will be
+        applied to corresponding columns elements. The result of each function must be a unicode
+        string that represents html code. Formatters can be used to format text, create links
+        and display images with html.
     rows_limit : int, optional, default 20
-        Maximum number of rows to display in the sections of interactions and recos.
+        Maximum number of rows to display in the sections of interactions and recommendations.
     min_width : int, optional, default 100
         Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
         10.
 
     Examples
     --------
-    >>> recos = {
+    >>> reco = {
     ...     "model1": pd.DataFrame({Columns.TargetItem: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
     ...     "model2": pd.DataFrame({Columns.TargetItem: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]})
     ... }
@@ -714,7 +716,7 @@ class ItemToItemVisualApp(VisualAppBase):
     >>> formatters = {"item_id": lambda x: f"<b>{x}</b>"}
     >>>
     >>> widgets = ItemToItemVisualApp(
-    ...     recos=recos,
+    ...     reco=reco,
     ...     item_data=item_data,
     ...     selected_items=selected_items,
     ...     formatters=formatters,
@@ -724,7 +726,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def __init__(
         self,
-        recos: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
+        reco: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int = 0,
@@ -734,7 +736,7 @@ class ItemToItemVisualApp(VisualAppBase):
         min_width: int = 100,
     ) -> None:
         super().__init__(
-            recos=recos,
+            reco=reco,
             item_data=item_data,
             selected_items=selected_items,
             n_random_items=n_random_items,
@@ -746,13 +748,13 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def _create_data_storage(
         self,
-        recos: tp.Union[pd.DataFrame, TablesDict],
+        reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, tp.Hashable],
         n_random_items: int,
     ) -> AppDataStorage:
         return AppDataStorage.from_raw(
-            recos=recos,
+            reco=reco,
             selected_requests=selected_items,
             item_data=item_data,
             is_u2i=False,

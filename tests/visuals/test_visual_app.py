@@ -7,14 +7,14 @@ import pytest
 from rectools import Columns
 from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, TablesDict, VisualApp
 
-RECOS_U2I: TablesDict = {
+RECO_U2I: TablesDict = {
     "model1": pd.DataFrame(
         {Columns.User: [1, 2, 3, 4], Columns.Item: [3, 4, 3, 4], Columns.Score: [0.99, 0.9, 0.5, 0.5]}
     ),
     "model2": pd.DataFrame({Columns.User: [1, 2, 3, 4], Columns.Item: [5, 6, 5, 6], Columns.Rank: [1, 1, 1, 1]}),
 }
 
-RECOS_I2I: TablesDict = {
+RECO_I2I: TablesDict = {
     "model1": pd.DataFrame(
         {Columns.TargetItem: [3, 4, 5, 5], Columns.Item: [3, 4, 7, 8], Columns.Score: [0.99, 0.9, 0.7, 0.5]}
     ),
@@ -31,7 +31,7 @@ class TestAppDataStorage:
     def test_u2i(self) -> None:
 
         ads = AppDataStorage.from_raw(
-            recos=RECOS_U2I,
+            reco=RECO_U2I,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
             is_u2i=True,
@@ -48,19 +48,19 @@ class TestAppDataStorage:
         expected_interactions = pd.DataFrame({Columns.Item: [3, 7], "feature_1": ["one", "one"]})
         pd.testing.assert_frame_equal(ads.grouped_interactions["user_one"], expected_interactions)
 
-        expected_grouped_recos = {
+        expected_grouped_reco = {
             "model1": {"user_one": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]})},
             "model2": {"user_one": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]})},
         }
-        assert expected_grouped_recos.keys() == ads.grouped_recos.keys()
-        for model_name, model_recos in expected_grouped_recos.items():
-            assert model_recos.keys() == ads.grouped_recos[model_name].keys()
-            for user_name, user_recos in model_recos.items():
-                pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
+        assert expected_grouped_reco.keys() == ads.grouped_reco.keys()
+        for model_name, model_reco in expected_grouped_reco.items():
+            assert model_reco.keys() == ads.grouped_reco[model_name].keys()
+            for user_name, user_reco in model_reco.items():
+                pd.testing.assert_frame_equal(user_reco, ads.grouped_reco[model_name][user_name])
 
     def test_i2i(self) -> None:
         ads = AppDataStorage.from_raw(
-            recos=RECOS_I2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
+            reco=RECO_I2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
         )
 
         assert not ads.is_u2i
@@ -73,31 +73,31 @@ class TestAppDataStorage:
         expected_interactions = pd.DataFrame({Columns.Item: [3], "feature_1": ["one"]})
         pd.testing.assert_frame_equal(ads.grouped_interactions["item_three"], expected_interactions)
 
-        expected_grouped_recos = {
+        expected_grouped_reco = {
             "model1": {"item_three": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]})},
             "model2": {"item_three": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]})},
         }
-        assert expected_grouped_recos.keys() == ads.grouped_recos.keys()
-        for model_name, model_recos in expected_grouped_recos.items():
-            assert model_recos.keys() == ads.grouped_recos[model_name].keys()
-            for user_name, user_recos in model_recos.items():
-                pd.testing.assert_frame_equal(user_recos, ads.grouped_recos[model_name][user_name])
+        assert expected_grouped_reco.keys() == ads.grouped_reco.keys()
+        for model_name, model_reco in expected_grouped_reco.items():
+            assert model_reco.keys() == ads.grouped_reco[model_name].keys()
+            for user_name, user_reco in model_reco.items():
+                pd.testing.assert_frame_equal(user_reco, ads.grouped_reco[model_name][user_name])
 
     def test_i2i_interactions(self) -> None:
         expected_i2i_interactions = pd.DataFrame({Columns.TargetItem: [3, 4, 5], Columns.Item: [3, 4, 5]})
-        actual = AppDataStorage._prepare_interactions_for_i2i(recos=RECOS_I2I)  # pylint: disable=protected-access
+        actual = AppDataStorage._prepare_interactions_for_i2i(reco=RECO_I2I)  # pylint: disable=protected-access
         pd.testing.assert_frame_equal(expected_i2i_interactions, actual, check_like=True)
 
     def test_missing_columns_validation(self) -> None:
 
         # Missing `Columns.User` for u2i
         with pytest.raises(KeyError):
-            incorrect_u2i_recos: TablesDict = {
+            incorrect_u2i_reco: TablesDict = {
                 "model1": pd.DataFrame({Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]}),
             }
             AppDataStorage.from_raw(
-                recos=incorrect_u2i_recos,
+                reco=incorrect_u2i_reco,
                 item_data=ITEM_DATA,
                 is_u2i=True,
                 selected_requests=SELECTED_REQUESTS_U2I,
@@ -106,12 +106,12 @@ class TestAppDataStorage:
 
         # Missing `Columns.Item`
         with pytest.raises(KeyError):
-            incorrect_u2i_recos = {
+            incorrect_u2i_reco = {
                 "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
                 "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Rank: [1, 1]}),
             }
             AppDataStorage.from_raw(
-                recos=incorrect_u2i_recos,
+                reco=incorrect_u2i_reco,
                 item_data=ITEM_DATA,
                 is_u2i=True,
                 selected_requests=SELECTED_REQUESTS_U2I,
@@ -121,13 +121,13 @@ class TestAppDataStorage:
         # Missing `Columns.TargetItem` for i2i
         with pytest.raises(KeyError):
             AppDataStorage.from_raw(
-                recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
+                reco=RECO_U2I, item_data=ITEM_DATA, is_u2i=False, selected_requests=SELECTED_REQUESTS_I2I
             )
 
         # Missing `Columns.Item` in item_data
         with pytest.raises(KeyError):
             AppDataStorage.from_raw(
-                recos=RECOS_U2I,
+                reco=RECO_U2I,
                 item_data=ITEM_DATA.drop(columns=[Columns.Item]),
                 interactions=INTERACTIONS,
                 is_u2i=True,
@@ -139,13 +139,13 @@ class TestAppDataStorage:
         # u2i without interactions
         with pytest.raises(ValueError):
             AppDataStorage.from_raw(
-                recos=RECOS_U2I, item_data=ITEM_DATA, is_u2i=True, selected_requests=SELECTED_REQUESTS_U2I
+                reco=RECO_U2I, item_data=ITEM_DATA, is_u2i=True, selected_requests=SELECTED_REQUESTS_U2I
             )
 
         # i2i with interactions
         with pytest.raises(ValueError):
             AppDataStorage.from_raw(
-                recos=RECOS_I2I,
+                reco=RECO_I2I,
                 item_data=ITEM_DATA,
                 is_u2i=False,
                 selected_requests=SELECTED_REQUESTS_I2I,
@@ -155,7 +155,7 @@ class TestAppDataStorage:
     def test_empty_requests(self) -> None:
         with pytest.raises(ValueError):
             AppDataStorage.from_raw(
-                recos=RECOS_U2I,
+                reco=RECO_U2I,
                 item_data=ITEM_DATA,
                 interactions=INTERACTIONS,
                 is_u2i=True,
@@ -165,7 +165,7 @@ class TestAppDataStorage:
     @pytest.mark.parametrize("n_random_requests", (1, 5))
     def test_u2i_with_random_requests(self, n_random_requests: int) -> None:
         ads = AppDataStorage.from_raw(
-            recos=RECOS_U2I,
+            reco=RECO_U2I,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
             is_u2i=True,
@@ -173,20 +173,20 @@ class TestAppDataStorage:
             n_random_requests=n_random_requests,
         )
         assert "user_one" in ads.request_names
-        corrected_n_random_requests = min(n_random_requests, 3)  # only 3 users in recos can be selected from
+        corrected_n_random_requests = min(n_random_requests, 3)  # only 3 users in reco can be selected from
 
         for i in range(1, corrected_n_random_requests + 1):
             random_name = f"random_{i}"
             random_id = ads.selected_requests[random_name]
             assert random_name in ads.request_names
             assert random_id != 1  # random id is not same as predefined by user
-            total_recos = 0
+            total_reco = 0
             for model_name in ["model1", "model2"]:
-                expected_recos = RECOS_U2I[model_name].query(f"{Columns.User} == @random_id")["item_id"].sort_values()
-                actual_recos = ads.grouped_recos[model_name][random_name]["item_id"].sort_values()
-                total_recos += expected_recos.shape[0]
-                assert np.array_equal(actual_recos, expected_recos)
-            assert total_recos > 0  # random user has recos at least from one model
+                expected_reco = RECO_U2I[model_name].query(f"{Columns.User} == @random_id")["item_id"].sort_values()
+                actual_reco = ads.grouped_reco[model_name][random_name]["item_id"].sort_values()
+                total_reco += expected_reco.shape[0]
+                assert np.array_equal(actual_reco, expected_reco)
+            assert total_reco > 0  # random user has reco at least from one model
 
         # correct names in selected_requests
         all_selected_names = set(ads.selected_requests.keys())
@@ -200,29 +200,29 @@ class TestAppDataStorage:
     @pytest.mark.parametrize("n_random_requests", (2, 5))
     def test_i2i_with_random_requests(self, n_random_requests: int) -> None:
         ads = AppDataStorage.from_raw(
-            recos=RECOS_I2I,
+            reco=RECO_I2I,
             item_data=ITEM_DATA,
             is_u2i=False,
             selected_requests=SELECTED_REQUESTS_I2I,
             n_random_requests=n_random_requests,
         )
         assert "item_three" in ads.request_names
-        corrected_n_random_requests = min(n_random_requests, 2)  # only 2 target items in recos can be selected from
+        corrected_n_random_requests = min(n_random_requests, 2)  # only 2 target items in reco can be selected from
 
         for i in range(1, corrected_n_random_requests + 1):
             random_name = f"random_{i}"
             random_id = ads.selected_requests[random_name]
             assert random_name in ads.request_names
             assert random_id != 3  # random id is not same as predefined by user
-            total_recos = 0
+            total_reco = 0
             for model_name in ["model1", "model2"]:
-                expected_recos = (
-                    RECOS_I2I[model_name].query(f"{Columns.TargetItem} == @random_id")["item_id"].sort_values()
+                expected_reco = (
+                    RECO_I2I[model_name].query(f"{Columns.TargetItem} == @random_id")["item_id"].sort_values()
                 )
-                actual_recos = ads.grouped_recos[model_name][random_name]["item_id"].sort_values()
-                total_recos += expected_recos.shape[0]
-                assert np.array_equal(actual_recos, expected_recos)
-            assert total_recos > 0  # random item has recos at least from one model
+                actual_reco = ads.grouped_reco[model_name][random_name]["item_id"].sort_values()
+                total_reco += expected_reco.shape[0]
+                assert np.array_equal(actual_reco, expected_reco)
+            assert total_reco > 0  # random item has reco at least from one model
 
         # correct names in selected_requests
         all_selected_names = set(ads.selected_requests.keys())
@@ -242,7 +242,7 @@ class TestVisualApp:
         self, auto_display: bool, n_random_users: int, formatters: tp.Optional[tp.Dict[str, tp.Callable]]
     ) -> None:
         VisualApp(
-            recos=RECOS_U2I,
+            reco=RECO_U2I,
             item_data=ITEM_DATA,
             selected_users=SELECTED_REQUESTS_U2I,
             interactions=INTERACTIONS,
@@ -254,7 +254,7 @@ class TestVisualApp:
     def test_incorrect_min_width(self) -> None:
         with pytest.raises(ValueError):
             VisualApp(
-                recos=RECOS_U2I,
+                reco=RECO_U2I,
                 item_data=ITEM_DATA,
                 selected_users=SELECTED_REQUESTS_U2I,
                 interactions=INTERACTIONS,
@@ -272,7 +272,7 @@ class TestItemToItemVisualApp:
         self, auto_display: bool, n_random_items: int, formatters: tp.Optional[tp.Dict[str, tp.Callable]]
     ) -> None:
         ItemToItemVisualApp(
-            recos=RECOS_I2I,
+            reco=RECO_I2I,
             item_data=ITEM_DATA,
             selected_items=SELECTED_REQUESTS_I2I,
             auto_display=auto_display,
@@ -283,7 +283,7 @@ class TestItemToItemVisualApp:
     def test_incorrect_min_width(self) -> None:
         with pytest.raises(ValueError):
             ItemToItemVisualApp(
-                recos=RECOS_I2I,
+                reco=RECO_I2I,
                 item_data=ITEM_DATA,
                 selected_items=SELECTED_REQUESTS_I2I,
                 auto_display=True,
