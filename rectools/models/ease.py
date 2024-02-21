@@ -101,8 +101,8 @@ class EASE(ModelBase):
             viewed_ids = get_viewed_item_ids(user_items, user_id)  # sorted
         else:
             viewed_ids = np.array([], dtype=int)
-
-        scores = user_items[user_id].dot(self.weight).getA1()
+        
+        scores = (user_items[user_id] @ self.weight).getA1()
         reco_ids, reco_scores = recommend_from_scores(
             scores=scores, k=k, sorted_blacklist=viewed_ids, sorted_whitelist=sorted_item_ids
         )
