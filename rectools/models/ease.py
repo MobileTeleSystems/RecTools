@@ -62,7 +62,7 @@ class EASEModel(ModelBase):
 
         gram_matrix_inv = np.linalg.inv(gram_matrix)
 
-        self.weight = np.array(gram_matrix / (-np.diag(gram_matrix_inv)))
+        self.weight = np.array(gram_matrix_inv / (-np.diag(gram_matrix_inv)))
         np.fill_diagonal(self.weight, 0.0)
 
     def _recommend_u2i(
