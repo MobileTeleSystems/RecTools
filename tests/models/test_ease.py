@@ -40,7 +40,7 @@ class TestEASEModel:
                     {
                         Columns.User: [10, 10, 20, 20],
                         Columns.Item: [15, 13, 14, 15],
-                        Columns.Score: np.array([0.00788948, 0.0039526 , 0.00789337, 0.00590922], dtype=np.float32),
+                        Columns.Score: np.array([0.00788948, 0.0039526, 0.00789337, 0.00590922], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
