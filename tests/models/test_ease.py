@@ -39,8 +39,8 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 13, 17, 15],
-                        Columns.Score: np.array([-503.96243, -1006.93286, -503.96243, -1510.8953], dtype=np.float32),
+                        Columns.Item: [15, 13, 14, 15],
+                        Columns.Score: np.array([0.00788948, 0.0039526 , 0.00789337, 0.00590922], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -50,8 +50,8 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 13, 17, 13],
-                        Columns.Score: np.array([-503.96243, -1006.93286, -503.96243, -1006.93286], dtype=np.float32),
+                        Columns.Item: [12, 11, 12, 11],
+                        Columns.Score: np.array([0.00988546, 0.00986199, 0.00791307, 0.00789747], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -77,8 +77,8 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 15, 17, 15],
-                        Columns.Score: np.array([-503.96243, -2012.8776, -503.96243, -1510.8953], dtype=np.float32),
+                        Columns.Item: [15, 17, 15, 17],
+                        Columns.Score: np.array([0.00788948, 0.00196058, 0.00590922, 0.00196845], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -88,8 +88,8 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 15, 17, 15],
-                        Columns.Score: np.array([-503.96243, -2012.8776, -503.96243, -1510.8953], dtype=np.float32),
+                        Columns.Item: [11, 15, 11, 15],
+                        Columns.Score: np.array([0.00986199, 0.00788948, 0.00789747, 0.00590922], dtype=np.float32),
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -128,7 +128,7 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [11, 13, 17, 12],
+                        Columns.Item: [12, 15, 11, 14],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -139,7 +139,7 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [13, 17, 17, 13],
+                        Columns.Item: [12, 15, 11, 14],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -150,7 +150,7 @@ class TestEASEModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [11, 13, 13, 14],
+                        Columns.Item: [14, 13, 11, 14],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
