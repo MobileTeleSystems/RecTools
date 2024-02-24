@@ -324,13 +324,21 @@ class ModelBase:
 
         if warm_targets.size > 0:
             if not cls.allow_warm:
-                cls._check_cold_allowed(entity, "warm")
+                if not cls.allow_cold:
+                    raise ValueError(
+                        f"Model `{cls}` doesn't support recommendations for warm and cold {entity}s, "
+                        f"but some of given {entity}s are warm: they are not in the interactions"
+                    )
                 cold_reco_targets = np.append(cold_reco_targets, warm_targets)
         else:
             warm_reco_targets = warm_targets
 
         if cold_targets.size > 0:
-            cls._check_cold_allowed(entity, "cold")
+            if not cls.allow_cold:
+                raise ValueError(
+                    f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
+                    f"but some of given {entity}s are cold: they are not in the `dataset.{entity}_id_map`"
+                )
             cold_reco_targets = np.append(cold_reco_targets, cold_targets)
 
         return hot_reco_targets, warm_reco_targets, cold_reco_targets
@@ -343,24 +351,6 @@ class ModelBase:
         if ids.min() < 0:
             raise ValueError("Internal ids should be non-negative integers")
         return ids
-
-    @classmethod
-    def _check_cold_allowed(cls, entity: tp.Literal["user", "item"], originally_required: tp.Literal["warm", "cold"]) -> None:
-        if originally_required == "warm":
-            error_text = (
-                f"Model `{cls}` doesn't support recommendations for warm {entity}s, "
-                f"but some of given {entity}s are warm: they aren't present in the interactions"
-            )
-        elif originally_required == "cold":
-            error_text = (
-                f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
-                f"but some of given {entity}s are cold: they aren't present in `dataset.{entity}_id_map`"
-            )
-        else:
-            raise ValueError("`originally_required` must be 'warm' or 'cold'")
-        
-        if not cls.allow_cold:
-            raise ValueError(error_text)
         
     @classmethod
     def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoInternalTriplet:
