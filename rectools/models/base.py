@@ -141,25 +141,16 @@ class ModelBase:
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
-        hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
+        hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_type(
             users, dataset.user_id_map, dataset.n_hot_users, assume_external_ids
         )
+        hot_reco_user_ids, warm_reco_user_ids, cold_reco_user_ids = self._split_targets_by_reco_type(
+            hot_user_ids, warm_user_ids, cold_user_ids, "user"
+        )
         
-        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
-
-        if hot_user_ids.size > 0:
-            reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
-        
-        if warm_user_ids.size > 0:
-            if not self.allow_warm:
-                self._check_cold_allowed("user", "warm")
-                reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)
-            else:
-                reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
-
-        if cold_user_ids.size > 0:
-            self._check_cold_allowed("user", "cold")
-            reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
+        reco_hot = self._recommend_u2i(hot_reco_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
+        reco_warm = self._recommend_u2i_warm(warm_reco_user_ids, dataset, k, sorted_item_ids_to_recommend)
+        reco_cold = self._recommend_cold(cold_reco_user_ids, k, sorted_item_ids_to_recommend)
 
         if assume_external_ids:
             reco_hot = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
@@ -244,29 +235,21 @@ class ModelBase:
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
-        hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
+        hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_type(
             target_items, dataset.item_id_map, dataset.n_hot_items, assume_external_ids
         )
+        hot_reco_target_ids, warm_reco_target_ids, cold_reco_target_ids = self._split_targets_by_reco_type(
+            hot_target_ids, warm_target_ids, cold_target_ids, "item"
+        )
         
-        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
         requested_k = k + 1 if filter_itself else k
 
-        if hot_target_ids.size > 0:
-            reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+        reco_hot = self._recommend_i2i(hot_reco_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+        reco_warm = self._recommend_i2i_warm(warm_reco_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+        reco_cold = self._recommend_cold(cold_reco_target_ids, requested_k, sorted_item_ids_to_recommend)
         
-        if warm_target_ids.size > 0:
-            if not self.allow_warm:
-                self._check_cold_allowed("item", "warm")
-                reco_warm = self._recommend_cold(warm_target_ids, requested_k, sorted_item_ids_to_recommend)
-            else:
-                reco_warm = self._recommend_i2i_warm(warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
-
-        if cold_target_ids.size > 0:
-            self._check_cold_allowed("item", "cold")
-            reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
-
         if assume_external_ids:
-            # We have to do it before filtering item itself.
+            # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
             # We do it for cold reco only, since it's faster to filter internal ids than external ones.
             reco_cold = self._reco_items_to_external(reco_cold, dataset.item_id_map)
 
@@ -313,7 +296,7 @@ class ModelBase:
         return sorted_item_ids_to_recommend
 
     @classmethod
-    def _split_targets_by_hot_warm_cold(
+    def _split_targets_by_type(
         cls, 
         targets: np.ndarray,  # users for U2I or target items for I2I
         id_map: IdMap,
@@ -332,6 +315,25 @@ class ModelBase:
         hot_ids = known_ids[hot_mask]
         warm_ids = known_ids[~hot_mask]
         return hot_ids, warm_ids, cold_ids
+    
+    @classmethod
+    def _split_targets_by_reco_type(cls, hot_targets: np.ndarray, warm_targets: np.ndarray, cold_targets: np.ndarray, entity: tp.Literal["user", "item"]) -> tp.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        hot_reco_targets = hot_targets
+        warm_reco_targets = np.empty(0, dtype=warm_targets.dtype)
+        cold_reco_targets = np.empty(0, dtype=cold_targets.dtype)
+
+        if warm_targets.size > 0:
+            if not cls.allow_warm:
+                cls._check_cold_allowed(entity, "warm")
+                cold_reco_targets = np.append(cold_reco_targets, warm_targets)
+        else:
+            warm_reco_targets = warm_targets
+
+        if cold_targets.size > 0:
+            cls._check_cold_allowed(entity, "cold")
+            cold_reco_targets = np.append(cold_reco_targets, cold_targets)
+
+        return hot_reco_targets, warm_reco_targets, cold_reco_targets
     
     @classmethod
     def _ensure_internal_ids_valid(cls, internal_ids: AnyIds) -> np.ndarray:
@@ -386,7 +388,7 @@ class ModelBase:
         return target_ids, item_ids, scores
     
     @classmethod
-    def _concat_reco(cls, parts: tp.Tuple[RecoTriplet, ...]) -> pd.DataFrame:
+    def _concat_reco(cls, parts: tp.Sequence[RecoTriplet]) -> RecoTriplet:
         targets = np.concatenate([part[0] for part in parts])
         items = np.concatenate([part[1] for part in parts])
         scores = np.concatenate([part[2] for part in parts])
@@ -411,20 +413,15 @@ class ModelBase:
     def _recommend_cold(
         self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
     ) -> RecoSemiInternalTriplet:
-        # Common function for U2I and I2I cold recommendations
-        # Is it correct? Do we ever need separate functions for U2I and I2I?
-        
-        # 1. Get cold reco and scores list
-        # 2. Filter items_to_recommend and cut by k
-        # 3. Use np.tile and np.repeat to get reco arrays
-
-        cold_reco_items, cold_reco_scores = self._get_cold_reco()
+        """Common method for U2I and I2I cold recommendations"""
+        item_ids, scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
+        reco_target_ids = np.repeat(target_ids, len(item_ids))
+        reco_item_ids = np.tile(item_ids, len(target_ids))
+        reco_scores = np.tile(scores, len(target_ids))
 
         return reco_target_ids, reco_item_ids, reco_scores
     
-    def _get_cold_reco(self) -> tp.Tuple[InternalIds, Scores]:
-        # Do we need `k` parameter here?
-        # Maybe even `sorted_item_ids_to_recommend`?
+    def _get_cold_reco(self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]) -> tp.Tuple[InternalIds, Scores]:
         raise NotImplementedError()
     
     def _recommend_u2i_warm(
@@ -434,9 +431,7 @@ class ModelBase:
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> RecoInternalTriplet:
-        # For many models we can use the same code for warm and hot users
-        # Is it ok to fix it in the base model?
-        return self._recommend_u2i(user_ids, dataset, k, False, sorted_item_ids_to_recommend)
+        raise NotImplementedError()
     
     def _recommend_i2i_warm(
         self,
@@ -445,9 +440,7 @@ class ModelBase:
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> RecoInternalTriplet:
-        # For many models we can use the same code for warm and hot items
-        # Is it ok to fix it in the base model?
-        return self._recommend_i2i(user_ids, dataset, k, sorted_item_ids_to_recommend)
+        raise NotImplementedError()
 
     def _recommend_u2i(
         self,
