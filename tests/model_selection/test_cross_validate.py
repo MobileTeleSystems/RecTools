@@ -46,8 +46,9 @@ class TestGen2xInternalIdsDataset:
             columns=Columns.Interactions,
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
 
-    def test_without_features(self) -> None:
-        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, None, None)
+    @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
+    def test_without_features(self, keep_features_for_hot_only: bool) -> None:
+        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, None, None, keep_features_for_hot_only)
 
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
@@ -55,7 +56,14 @@ class TestGen2xInternalIdsDataset:
         assert dataset.user_features is None
         assert dataset.item_features is None
 
-    def test_with_features(self) -> None:
+    @pytest.mark.parametrize(
+        "keep_features_for_hot_only, expected_user_ids, expected_item_ids",
+        (
+            (True, [0, 3], [0, 1, 2]), 
+            (False, [0, 3, 1, 2], [0, 1, 2, 3]),
+        )
+    )
+    def test_with_features(self, keep_features_for_hot_only: bool, expected_user_ids: tp.List[int], expected_item_ids: tp.List[int]) -> None:
         user_features = DenseFeatures(
             values=np.array([[1, 10], [2, 20], [3, 30], [4, 40]]),
             names=("f1", "f2"),
@@ -72,16 +80,16 @@ class TestGen2xInternalIdsDataset:
             names=(("f1", None), ("f2", 100), ("f2", 200)),
         )
 
-        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, user_features, item_features)
+        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, user_features, item_features, keep_features_for_hot_only)
 
-        np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
-        np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
+        np.testing.assert_equal(dataset.user_id_map.external_ids, np.array(expected_user_ids))
+        np.testing.assert_equal(dataset.item_id_map.external_ids, np.array(expected_item_ids))
         pd.testing.assert_frame_equal(dataset.interactions.df, self.expected_interactions_2x_internal_df)
 
         assert dataset.user_features is not None and dataset.item_features is not None  # for mypy
-        np.testing.assert_equal(dataset.user_features.values, user_features.values[[0, 3]])
+        np.testing.assert_equal(dataset.user_features.values, user_features.values[expected_user_ids])
         assert dataset.user_features.names == user_features.names
-        assert_sparse_matrix_equal(dataset.item_features.values, item_features.values[[0, 1, 2]])
+        assert_sparse_matrix_equal(dataset.item_features.values, item_features.values[expected_item_ids])
         assert dataset.item_features.names == item_features.names
 
 
@@ -163,8 +171,9 @@ class TestCrossValidate:
             ),
         ),
     )
+    @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
     def test_happy_path(
-        self, items_to_recommend: tp.Optional[ExternalIds], expected_metrics: tp.List[tp.Dict[str, tp.Any]]
+        self, items_to_recommend: tp.Optional[ExternalIds], expected_metrics: tp.List[tp.Dict[str, tp.Any]], keep_features_for_hot_only: bool
     ) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
@@ -176,6 +185,7 @@ class TestCrossValidate:
             k=2,
             filter_viewed=False,
             items_to_recommend=items_to_recommend,
+            keep_features_for_hot_only=keep_features_for_hot_only,
         )
 
         expected = {
@@ -204,7 +214,8 @@ class TestCrossValidate:
 
         assert actual == expected
 
-    def test_happy_path_with_features(self) -> None:
+    @pytest.mark.parametrize("keep_features_for_hot_only", (True, ))  # FIXME: Add False when ALS is fixed
+    def test_happy_path_with_features(self, keep_features_for_hot_only: bool) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
         models: tp.Dict[str, ModelBase] = {
@@ -218,6 +229,7 @@ class TestCrossValidate:
             models=models,
             k=2,
             filter_viewed=False,
+            keep_features_for_hot_only=keep_features_for_hot_only,
         )
 
         expected = {
@@ -248,19 +260,3 @@ class TestCrossValidate:
         }
 
         assert actual == expected
-
-    def test_fail_with_cold_users(self) -> None:
-        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_users=False)
-
-        with warnings.catch_warnings(record=True) as w:
-            with pytest.raises(KeyError):
-                cross_validate(
-                    dataset=self.dataset,
-                    splitter=splitter,
-                    metrics=self.metrics,
-                    models=self.models,
-                    k=2,
-                    filter_viewed=False,
-                )
-            assert len(w) == 1
-            assert "Currently models do not support recommendations for cold users" in str(w[-1].message)

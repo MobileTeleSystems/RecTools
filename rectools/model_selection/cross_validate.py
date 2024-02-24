@@ -1,4 +1,5 @@
 import typing as tp
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -39,8 +40,8 @@ def _gen_2x_internal_ids_dataset(
         features = features.take(id_map.get_external_sorted_by_internal())  # 2x internal
         return features, id_map
 
-    user_features_new = _handle_features(user_features, user_id_map)
-    item_features_new = _handle_features(item_features, item_id_map)
+    user_features_new, user_id_map = _handle_features(user_features, user_id_map)
+    item_features_new, item_id_map = _handle_features(item_features, item_id_map)
 
     dataset = Dataset(
         user_id_map=user_id_map,
@@ -107,6 +108,12 @@ def cross_validate(  # pylint: disable=too-many-locals
             ]
         }
     """
+    if not keep_features_for_hot_only:
+        warnings.warn(
+            f"Be careful with using `keep_features_for_hot_only = False`"
+            "It may lead to incorrect model results or model failure"
+        )
+
     interactions = dataset.interactions
 
     split_iterator = splitter.split(interactions, collect_fold_stats=True)
