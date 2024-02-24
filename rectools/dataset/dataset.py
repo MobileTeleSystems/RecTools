@@ -80,6 +80,18 @@ class Dataset:
         """
         return self.interactions.df[Columns.Item].max() + 1
 
+    def get_hot_user_features(self) -> tp.Optional[Features]:
+        """User features for hot users."""
+        if self.user_features is None:
+            return None
+        return self.user_features.take(range(self.n_hot_users))
+    
+    def get_hot_item_features(self) -> tp.Optional[Features]:
+        """Item features for hot items."""
+        if self.item_features is None:
+            return None
+        return self.item_features.take(range(self.n_hot_items))
+
     @classmethod
     def construct(
         cls,

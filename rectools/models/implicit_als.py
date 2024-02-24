@@ -73,16 +73,16 @@ class ImplicitALSWrapperModel(VectorModel):
             fit_als_with_features_together_inplace(
                 self.model,
                 ui_csr,
-                dataset.user_features,
-                dataset.item_features,
+                dataset.get_hot_user_features(),
+                dataset.get_hot_item_features(),
                 self.verbose,
             )
         else:
             fit_als_with_features_separately_inplace(
                 self.model,
                 ui_csr,
-                dataset.user_features,
-                dataset.item_features,
+                dataset.get_hot_user_features(),
+                dataset.get_hot_item_features(),
                 self.verbose,
             )
 

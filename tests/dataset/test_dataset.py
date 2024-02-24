@@ -74,16 +74,8 @@ class TestDataset:
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, self.expected_interactions)
-        if expected_user_features is None:
-            assert actual.user_features is None
-        else:
-            assert actual.user_features is not None
-            assert_feature_set_equal(actual.user_features, expected_user_features)
-        if expected_item_features is None:
-            assert actual.item_features is None
-        else:
-            assert actual.item_features is not None
-            assert_feature_set_equal(actual.item_features, expected_item_features)
+        assert_feature_set_equal(actual.user_features, expected_user_features)
+        assert_feature_set_equal(actual.item_features, expected_item_features)
 
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
@@ -128,6 +120,9 @@ class TestDataset:
         self.assert_dataset_equal_to_expected(dataset, expected_user_features, expected_item_features)
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
+
+        assert_feature_set_equal(dataset.get_hot_user_features(), expected_user_features)
+        assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features)
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -178,6 +173,9 @@ class TestDataset:
         )
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
+
+        assert_feature_set_equal(dataset.get_hot_user_features(), expected_user_features.take([0, 1, 2]))
+        assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features.take([0, 1, 2]))
 
     @pytest.mark.parametrize(
         "include_warm, expected",
