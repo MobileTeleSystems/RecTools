@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 from typing import Tuple, Union
+
 import numpy as np
 import pandas as pd
 
@@ -62,7 +63,9 @@ def get_element_ids(elements: np.ndarray, test_elements: np.ndarray) -> np.ndarr
     return ids
 
 
-def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool = True, return_missing: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+def get_from_series_by_index(
+    series: pd.Series, ids: AnySequence, strict: bool = True, return_missing: bool = False
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """
     Get values from pd.Series by index.
 
@@ -117,7 +120,7 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
     """
     if strict and return_missing:
         raise ValueError("You can't use `strict` and `return_missing` together")
-    
+
     r = series.reindex(ids)
     if strict:
         if r.isna().any():
@@ -127,7 +130,7 @@ def get_from_series_by_index(series: pd.Series, ids: AnySequence, strict: bool =
             missing = r[r.isna()].index.values
         r.dropna(inplace=True)
     selected = r.astype(series.dtype).values
-    
+
     if return_missing:
         return selected, missing
     return selected

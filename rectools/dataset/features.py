@@ -159,7 +159,7 @@ class DenseFeatures:
             values=self.values[ids],
             names=self.names,
         )
-    
+
     def __len__(self) -> int:
         """Return number of objects."""
         return self.values.shape[0]

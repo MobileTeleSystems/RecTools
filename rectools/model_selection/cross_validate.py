@@ -27,21 +27,21 @@ def _gen_2x_internal_ids_dataset(
     user_id_map = IdMap.from_values(interactions_internal_df[Columns.User].values)  # 1x internal -> 2x internal
     item_id_map = IdMap.from_values(interactions_internal_df[Columns.Item].values)  # 1x internal -> 2x internal
     interactions_train = Interactions.from_raw(interactions_internal_df, user_id_map, item_id_map)  # 2x internal
-    
+
     def _handle_features(features: tp.Optional[Features], id_map: IdMap) -> tp.Tuple[tp.Optional[Features], IdMap]:
         if features is None:
             return None, id_map
-        
+
         if not keep_features_for_hot_only:
-            all_features_ids = np.arange(len(features))  # 1x internal 
+            all_features_ids = np.arange(len(features))  # 1x internal
             id_map = id_map.add_ids(all_features_ids, raise_if_already_present=False)
 
         features = features.take(id_map.get_external_sorted_by_internal())  # 2x internal
         return features, id_map
-    
+
     user_features_new = _handle_features(user_features, user_id_map)
-    item_features_new = _handle_features(item_features, item_id_map)    
-    
+    item_features_new = _handle_features(item_features, item_id_map)
+
     dataset = Dataset(
         user_id_map=user_id_map,
         item_id_map=item_id_map,
@@ -117,7 +117,9 @@ def cross_validate(  # pylint: disable=too-many-locals
         interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
         # We need to avoid fitting models on sparse matrices with all zero rows/columns =>
         # => we need to create a fold dataset which contains only hot users and items for current training
-        fold_dataset = _gen_2x_internal_ids_dataset(interactions_df_train, dataset.user_features, dataset.item_features, keep_features_for_hot_only)
+        fold_dataset = _gen_2x_internal_ids_dataset(
+            interactions_df_train, dataset.user_features, dataset.item_features, keep_features_for_hot_only
+        )
 
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal

@@ -120,7 +120,9 @@ class IdMap:
         """Return array of external ids sorted by internal ids."""
         return self.external_ids
 
-    def convert_to_internal(self, external: ExternalIds, strict: bool = True, return_missing: bool = False) -> tp.Union[np.ndarray, tp.Tuple[np.ndarray, np.ndarray]]:
+    def convert_to_internal(
+        self, external: ExternalIds, strict: bool = True, return_missing: bool = False
+    ) -> tp.Union[np.ndarray, tp.Tuple[np.ndarray, np.ndarray]]:
         """
         Convert any sequence of external ids to array of internal ids (map external -> internal).
 
@@ -154,7 +156,9 @@ class IdMap:
         result = get_from_series_by_index(self.to_internal, external, strict, return_missing)
         return result
 
-    def convert_to_external(self, internal: InternalIds, strict: bool = True, return_missing: bool = False) -> tp.Union[np.ndarray, tp.Tuple[np.ndarray, np.ndarray]]:
+    def convert_to_external(
+        self, internal: InternalIds, strict: bool = True, return_missing: bool = False
+    ) -> tp.Union[np.ndarray, tp.Tuple[np.ndarray, np.ndarray]]:
         """
         Convert any sequence of internal ids to array of external ids (map internal -> external).
 

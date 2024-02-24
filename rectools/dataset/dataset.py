@@ -63,23 +63,23 @@ class Dataset:
     @property
     def n_hot_users(self) -> int:
         """
-            Number of hot users in dataset.
-            Users with internal ids from `0` to `n_hot_users - 1` are hot (they present in interactions).
-            Users with internal ids from `n_hot_users` to `dataset.user_id_map.size - 1` are warm 
-            (they don't present in interactions, but they have features).
+        Number of hot users in dataset.
+        Users with internal ids from `0` to `n_hot_users - 1` are hot (they present in interactions).
+        Users with internal ids from `n_hot_users` to `dataset.user_id_map.size - 1` are warm
+        (they don't present in interactions, but they have features).
         """
         return self.interactions[Columns.User].max() + 1
-    
+
     @property
     def n_hot_items(self) -> int:
         """
-            Number of hot items in dataset.
-            Items with internal ids from `0` to `n_hot_items - 1` are hot (they present in interactions).
-            Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm 
-            (they don't present in interactions, but they have features).
+        Number of hot items in dataset.
+        Items with internal ids from `0` to `n_hot_items - 1` are hot (they present in interactions).
+        Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm
+        (they don't present in interactions, but they have features).
         """
         return self.interactions[Columns.Item].max() + 1
-    
+
     @classmethod
     def construct(
         cls,
@@ -177,7 +177,7 @@ class Dataset:
                 )
             except Exception as e:  # pragma: no cover
                 raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
-            
+
         try:
             return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col), id_map
         except Exception as e:  # pragma: no cover

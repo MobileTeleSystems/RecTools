@@ -141,7 +141,7 @@ class TestDataset:
         )
         expected_user_id_map = self.expected_user_id_map.add_ids(["u4"])
         expected_user_features = DenseFeatures.from_dataframe(user_features_df, expected_user_id_map, user_id_col)
-        
+
         item_features_df = pd.DataFrame(
             [
                 ["i2", "f1", 3],
@@ -168,8 +168,8 @@ class TestDataset:
             cat_item_features=["f2"],
         )
         self.assert_dataset_equal_to_expected(
-            dataset, 
-            expected_user_features, 
+            dataset,
+            expected_user_features,
             expected_item_features,
             expected_user_id_map,
             expected_item_id_map,

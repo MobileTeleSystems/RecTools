@@ -110,7 +110,7 @@ class ModelBase:
             In any case recommendations are sorted per rank for every user.
             The lesser the rank the more recommendation is relevant.
         assume_external_ids : bool, default True
-            When ``True`` all input user and item ids are supposed to be external. 
+            When ``True`` all input user and item ids are supposed to be external.
             Ids in returning recommendations table will be external as well.
             Internal otherwise. Works faster with ``False``.
 
@@ -144,10 +144,8 @@ class ModelBase:
         hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
             users, dataset.user_id_map, dataset.n_hot_users, assume_external_ids
         )
-        self._check_targets_are_valid(
-            hot_user_ids, warm_user_ids, cold_user_ids, "user"
-        )
-        
+        self._check_targets_are_valid(hot_user_ids, warm_user_ids, cold_user_ids, "user")
+
         reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
         if hot_user_ids.size > 0:
             reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
@@ -211,7 +209,7 @@ class ModelBase:
              In any case recommendations are sorted per rank for every target item.
              Less rank means more relevant recommendation.
         assume_external_ids : bool, default True
-            When ``True`` all input item ids are supposed to be external. 
+            When ``True`` all input item ids are supposed to be external.
             Ids in returning recommendations table will be external as well.
             Internal otherwise. Works faster with ``False``.
 
@@ -245,10 +243,8 @@ class ModelBase:
         hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
             target_items, dataset.item_id_map, dataset.n_hot_items, assume_external_ids
         )
-        self._check_targets_are_valid(
-            hot_target_ids, warm_target_ids, cold_target_ids, "item"
-        )
-        
+        self._check_targets_are_valid(hot_target_ids, warm_target_ids, cold_target_ids, "item")
+
         requested_k = k + 1 if filter_itself else k
 
         reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
@@ -256,12 +252,14 @@ class ModelBase:
             reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
         if warm_target_ids.size > 0:
             if self.allow_warm:
-                reco_warm = self._recommend_i2i_warm(warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+                reco_warm = self._recommend_i2i_warm(
+                    warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend
+                )
             else:
                 reco_warm = self._recommend_cold(warm_target_ids, requested_k, sorted_item_ids_to_recommend)
         if cold_target_ids.size > 0:
             reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
-        
+
         if assume_external_ids:
             # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
             # We do it for cold reco only, since it's faster to filter internal ids than external ones.
@@ -289,11 +287,11 @@ class ModelBase:
     def _check_k(cls, k: int) -> None:
         if k <= 0:
             raise ValueError("`k` must be positive integer")
-        
+
     @classmethod
     def _init_reco_triplet(cls) -> RecoInternalTriplet:
         return [], [], []
-    
+
     @classmethod
     def _get_sorted_item_ids_to_recommend(
         cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
@@ -311,11 +309,11 @@ class ModelBase:
 
     @classmethod
     def _split_targets_by_hot_warm_cold(
-        cls, 
+        cls,
         targets: np.ndarray,  # users for U2I or target items for I2I
         id_map: IdMap,
         n_hot: int,
-        assume_external_ids: bool
+        assume_external_ids: bool,
     ) -> tp.Tuple[np.ndarray, np.ndarray, np.ndarray]:
         if assume_external_ids:
             known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
@@ -324,14 +322,20 @@ class ModelBase:
             known_mask = target_ids < id_map.size
             known_ids = target_ids[known_mask]
             cold_ids = target_ids[~known_mask]
-            
+
         hot_mask = known_ids < n_hot
         hot_ids = known_ids[hot_mask]
         warm_ids = known_ids[~hot_mask]
         return hot_ids, warm_ids, cold_ids
-    
+
     @classmethod
-    def _check_targets_are_valid(cls, hot_targets: np.ndarray, warm_targets: np.ndarray, cold_targets: np.ndarray, entity: tp.Literal["user", "item"]) -> None:
+    def _check_targets_are_valid(
+        cls,
+        hot_targets: np.ndarray,
+        warm_targets: np.ndarray,
+        cold_targets: np.ndarray,
+        entity: tp.Literal["user", "item"],
+    ) -> None:
         if warm_targets.size > 0 and not cls.allow_warm and not cls.allow_cold:
             raise ValueError(
                 f"Model `{cls}` doesn't support recommendations for warm and cold {entity}s, "
@@ -343,7 +347,7 @@ class ModelBase:
                 f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
                 f"but some of given {entity}s are cold: they are not in the `dataset.{entity}_id_map`"
             )
-    
+
     @classmethod
     def _ensure_internal_ids_valid(cls, internal_ids: AnyIds) -> np.ndarray:
         ids = np.asarray(internal_ids)
@@ -352,7 +356,7 @@ class ModelBase:
         if ids.min() < 0:
             raise ValueError("Internal ids should be non-negative integers")
         return ids
-        
+
     @classmethod
     def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoInternalTriplet:
         target_ids, item_ids, scores = reco
@@ -371,13 +375,13 @@ class ModelBase:
         target_ids = target_id_map.convert_to_external(target_ids)
         item_ids = item_id_map.convert_to_external(item_ids)
         return target_ids, item_ids, scores
-    
+
     @classmethod
     def _reco_items_to_external(cls, reco: RecoSemiInternalTriplet, item_id_map: IdMap) -> RecoTriplet:
         target_ids, item_ids, scores = reco
         item_ids = item_id_map.convert_to_external(item_ids)
         return target_ids, item_ids, scores
-    
+
     @classmethod
     def _concat_reco(cls, parts: tp.Sequence[RecoTriplet]) -> RecoTriplet:
         targets = np.concatenate([part[0] for part in parts])
@@ -411,10 +415,12 @@ class ModelBase:
         reco_scores = np.tile(scores, len(target_ids))
 
         return reco_target_ids, reco_item_ids, reco_scores
-    
-    def _get_cold_reco(self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]) -> tp.Tuple[InternalIds, Scores]:
+
+    def _get_cold_reco(
+        self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+    ) -> tp.Tuple[InternalIds, Scores]:
         raise NotImplementedError()
-    
+
     def _recommend_u2i_warm(
         self,
         user_ids: np.ndarray,
@@ -423,7 +429,7 @@ class ModelBase:
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> RecoInternalTriplet:
         raise NotImplementedError()
-    
+
     def _recommend_i2i_warm(
         self,
         user_ids: np.ndarray,
@@ -451,4 +457,3 @@ class ModelBase:
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> RecoInternalTriplet:
         raise NotImplementedError()
-

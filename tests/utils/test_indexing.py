@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 from typing import List
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -49,7 +50,9 @@ class TestGetFromSeriesByIndex:
         np.testing.assert_equal(actual, expected)
 
     @pytest.mark.parametrize("s_index, s_values", (([4, 2], [40, 20]), ([], [])))
-    def test_raises_when_unknown_object(self, index_type: str, value_type: str, s_index: List[int], s_values: List[int]) -> None:
+    def test_raises_when_unknown_object(
+        self, index_type: str, value_type: str, s_index: List[int], s_values: List[int]
+    ) -> None:
         s = pd.Series(s_values, index=np.array(s_index, dtype=index_type), dtype=value_type)
         ids = np.array([1, 2, 4], dtype=index_type)
         with pytest.raises(KeyError):
@@ -76,7 +79,7 @@ class TestGetFromSeriesByIndex:
         ids = np.array([2, 4, 1], dtype=index_type)
         with pytest.raises(ValueError):
             get_from_series_by_index(s, ids, return_missing=True)
-    
+
     @pytest.mark.parametrize("s_index, s_values", (([4, 2], [40, 20]), ([], [])))
     def test_with_empty_ids(self, index_type: str, value_type: str, s_index: List[int], s_values: List[int]) -> None:
         s = pd.Series(s_values, index=np.array(s_index, dtype=index_type), dtype=value_type)
