@@ -74,8 +74,6 @@ class TestDataset:
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, self.expected_interactions)
-        assert actual.n_hot_users == self.interactions_df[Columns.User].nunique()
-        assert actual.n_hot_items == self.interactions_df[Columns.Item].nunique()
         if expected_user_features is None:
             assert actual.user_features is None
         else:
@@ -90,6 +88,8 @@ class TestDataset:
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
         self.assert_dataset_equal_to_expected(dataset, None, None)
+        assert dataset.n_hot_users == 3
+        assert dataset.n_hot_items == 3
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -126,6 +126,8 @@ class TestDataset:
             cat_item_features=["f2"],
         )
         self.assert_dataset_equal_to_expected(dataset, expected_user_features, expected_item_features)
+        assert dataset.n_hot_users == 3
+        assert dataset.n_hot_items == 3
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -174,9 +176,18 @@ class TestDataset:
             expected_user_id_map,
             expected_item_id_map,
         )
+        assert dataset.n_hot_users == 3
+        assert dataset.n_hot_items == 3
 
-    def test_get_user_item_matrix(self) -> None:
-        user_id_map = IdMap.from_values(["u1", "u2", "u3", "u4"])
+    @pytest.mark.parametrize(
+        "include_warm, expected",
+        (
+            (False, [[0, 0, 0], [1, 0, 5]]),
+            (True, [[0, 0, 0], [1, 0, 5], [0, 0, 0]]),
+        )
+    )
+    def test_get_user_item_matrix(self, include_warm: bool, expected: tp.List[tp.List[int]]) -> None:
+        user_id_map = IdMap.from_values(["u1", "u2", "u3"])
         item_id_map = IdMap.from_values(["i1", "i2", "i5"])
         interactions_df = pd.DataFrame(
             [
@@ -186,15 +197,9 @@ class TestDataset:
             columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
         )
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
-        dataset = Dataset(user_id_map, item_id_map, interactions, 3, 3)
-        user_item_matrix = dataset.get_user_item_matrix()
-        expected_user_item_matrix = sparse.csr_matrix(
-            [
-                [0, 0, 0],
-                [1, 0, 5],
-                [0, 0, 0],
-            ]
-        )
+        dataset = Dataset(user_id_map, item_id_map, interactions)
+        user_item_matrix = dataset.get_user_item_matrix(include_warm=include_warm)
+        expected_user_item_matrix = sparse.csr_matrix(expected)
         assert_sparse_matrix_equal(user_item_matrix, expected_user_item_matrix)
 
     @pytest.mark.parametrize("column", Columns.Interactions)

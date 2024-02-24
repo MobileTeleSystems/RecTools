@@ -68,7 +68,7 @@ class Dataset:
         Users with internal ids from `n_hot_users` to `dataset.user_id_map.size - 1` are warm
         (they don't present in interactions, but they have features).
         """
-        return self.interactions[Columns.User].max() + 1
+        return self.interactions.df[Columns.User].max() + 1
 
     @property
     def n_hot_items(self) -> int:
@@ -78,7 +78,7 @@ class Dataset:
         Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm
         (they don't present in interactions, but they have features).
         """
-        return self.interactions[Columns.Item].max() + 1
+        return self.interactions.df[Columns.Item].max() + 1
 
     @classmethod
     def construct(
@@ -183,7 +183,7 @@ class Dataset:
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
-    def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
+    def get_user_item_matrix(self, include_weights: bool = True, include_warm: bool = False) -> sparse.csr_matrix:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
 
@@ -197,6 +197,10 @@ class Dataset:
         include_weights : bool, default ``True``
              Whether include interaction weights in matrix or not.
              If False, all values in returned matrix will be equal to ``1``.
+        include_warm : bool, default ``False``
+            Whether to include warm users and items into the matrix or not.
+            Rows and columns for warm users and items will be added to the end of matrix,
+            they will contain only zeros.
 
         Returns
         -------
@@ -204,7 +208,8 @@ class Dataset:
             Resized user-item CSR matrix
         """
         matrix = self.interactions.get_user_item_matrix(include_weights)
-        matrix.resize(self.n_hot_users, self.n_hot_items)
+        if include_warm:
+            matrix.resize(self.user_id_map.size, self.item_id_map.size)
         return matrix
 
     def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:
