@@ -21,6 +21,7 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
+from rectools.types import ExternalIds
 
 from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures, UnknownIdError
 from .identifiers import IdMap
@@ -36,8 +37,8 @@ class Dataset:
     user-item interactions, user and item features
     in special `rectools` structures for convenient future usage.
 
-    This is data class, so you can create it explicitly, but
-    it's recommended to use `construct` method.
+    WARNING: It's highly not recommended to create `Dataset` object directly.
+    Use `construct` class method instead.
 
     Parameters
     ----------
@@ -56,11 +57,29 @@ class Dataset:
     user_id_map: IdMap = attr.ib()
     item_id_map: IdMap = attr.ib()
     interactions: Interactions = attr.ib()
-    n_hot_users: int = attr.ib()
-    n_hot_items: int = attr.ib()
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
 
+    @property
+    def n_hot_users(self) -> int:
+        """
+            Number of hot users in dataset.
+            Users with internal ids from `0` to `n_hot_users - 1` are hot (they present in interactions).
+            Users with internal ids from `n_hot_users` to `dataset.user_id_map.size - 1` are warm 
+            (they don't present in interactions, but they have features).
+        """
+        return self.interactions[Columns.User].max() + 1
+    
+    @property
+    def n_hot_items(self) -> int:
+        """
+            Number of hot items in dataset.
+            Items with internal ids from `0` to `n_hot_items - 1` are hot (they present in interactions).
+            Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm 
+            (they don't present in interactions, but they have features).
+        """
+        return self.interactions[Columns.Item].max() + 1
+    
     @classmethod
     def construct(
         cls,
@@ -115,9 +134,6 @@ class Dataset:
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
 
-        n_hot_users = user_id_map.size
-        n_hot_items = item_id_map.size
-
         user_features, user_id_map = cls._make_features(
             user_features_df,
             cat_user_features,
@@ -134,7 +150,7 @@ class Dataset:
             Columns.Item,
             "item",
         )
-        return cls(user_id_map, item_id_map, interactions, n_hot_users, n_hot_items, user_features, item_features)
+        return cls(user_id_map, item_id_map, interactions, user_features, item_features)
 
     @staticmethod
     def _make_features(
