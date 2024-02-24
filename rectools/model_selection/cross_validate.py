@@ -108,12 +108,6 @@ def cross_validate(  # pylint: disable=too-many-locals
             ]
         }
     """
-    if not keep_features_for_hot_only:
-        warnings.warn(
-            f"Be careful with using `keep_features_for_hot_only = False`"
-            "It may lead to incorrect model results or model failure"
-        )
-
     interactions = dataset.interactions
 
     split_iterator = splitter.split(interactions, collect_fold_stats=True)

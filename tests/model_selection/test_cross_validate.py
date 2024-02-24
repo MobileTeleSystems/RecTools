@@ -214,7 +214,7 @@ class TestCrossValidate:
 
         assert actual == expected
 
-    @pytest.mark.parametrize("keep_features_for_hot_only", (True, ))  # FIXME: Add False when ALS is fixed
+    @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
     def test_happy_path_with_features(self, keep_features_for_hot_only: bool) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
