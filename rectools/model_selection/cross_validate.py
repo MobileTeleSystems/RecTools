@@ -85,6 +85,9 @@ def cross_validate(  # pylint: disable=too-many-locals
     items_to_recommend : array-like, optional, default None
         Whitelist of external item ids.
         If given, only these items will be used for recommendations.
+    keep_features_for_hot_only : bool, default False
+        Whether to keep features only for hot items and users on each split.
+        If False, features will be kept as is.
 
     Returns
     -------
