@@ -141,16 +141,23 @@ class ModelBase:
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
-        hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_type(
+        hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
             users, dataset.user_id_map, dataset.n_hot_users, assume_external_ids
         )
-        hot_reco_user_ids, warm_reco_user_ids, cold_reco_user_ids = self._split_targets_by_reco_type(
+        self._check_targets_are_valid(
             hot_user_ids, warm_user_ids, cold_user_ids, "user"
         )
         
-        reco_hot = self._recommend_u2i(hot_reco_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
-        reco_warm = self._recommend_u2i_warm(warm_reco_user_ids, dataset, k, sorted_item_ids_to_recommend)
-        reco_cold = self._recommend_cold(cold_reco_user_ids, k, sorted_item_ids_to_recommend)
+        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
+        if hot_user_ids.size > 0:
+            reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
+        if warm_user_ids.size > 0:
+            if self.allow_warm:
+                reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
+            else:
+                reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)
+        if cold_user_ids.size > 0:
+            reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
 
         if assume_external_ids:
             reco_hot = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
@@ -235,18 +242,25 @@ class ModelBase:
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
-        hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_type(
+        hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
             target_items, dataset.item_id_map, dataset.n_hot_items, assume_external_ids
         )
-        hot_reco_target_ids, warm_reco_target_ids, cold_reco_target_ids = self._split_targets_by_reco_type(
+        self._check_targets_are_valid(
             hot_target_ids, warm_target_ids, cold_target_ids, "item"
         )
         
         requested_k = k + 1 if filter_itself else k
 
-        reco_hot = self._recommend_i2i(hot_reco_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
-        reco_warm = self._recommend_i2i_warm(warm_reco_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
-        reco_cold = self._recommend_cold(cold_reco_target_ids, requested_k, sorted_item_ids_to_recommend)
+        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
+        if hot_target_ids.size > 0:
+            reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+        if warm_target_ids.size > 0:
+            if self.allow_warm:
+                reco_warm = self._recommend_i2i_warm(warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
+            else:
+                reco_warm = self._recommend_cold(warm_target_ids, requested_k, sorted_item_ids_to_recommend)
+        if cold_target_ids.size > 0:
+            reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
         
         if assume_external_ids:
             # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
@@ -296,7 +310,7 @@ class ModelBase:
         return sorted_item_ids_to_recommend
 
     @classmethod
-    def _split_targets_by_type(
+    def _split_targets_by_hot_warm_cold(
         cls, 
         targets: np.ndarray,  # users for U2I or target items for I2I
         id_map: IdMap,
@@ -317,31 +331,18 @@ class ModelBase:
         return hot_ids, warm_ids, cold_ids
     
     @classmethod
-    def _split_targets_by_reco_type(cls, hot_targets: np.ndarray, warm_targets: np.ndarray, cold_targets: np.ndarray, entity: tp.Literal["user", "item"]) -> tp.Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        hot_reco_targets = hot_targets
-        warm_reco_targets = np.empty(0, dtype=warm_targets.dtype)
-        cold_reco_targets = np.empty(0, dtype=cold_targets.dtype)
+    def _check_targets_are_valid(cls, hot_targets: np.ndarray, warm_targets: np.ndarray, cold_targets: np.ndarray, entity: tp.Literal["user", "item"]) -> None:
+        if warm_targets.size > 0 and not cls.allow_warm and not cls.allow_cold:
+            raise ValueError(
+                f"Model `{cls}` doesn't support recommendations for warm and cold {entity}s, "
+                f"but some of given {entity}s are warm: they are not in the interactions"
+            )
 
-        if warm_targets.size > 0:
-            if not cls.allow_warm:
-                if not cls.allow_cold:
-                    raise ValueError(
-                        f"Model `{cls}` doesn't support recommendations for warm and cold {entity}s, "
-                        f"but some of given {entity}s are warm: they are not in the interactions"
-                    )
-                cold_reco_targets = np.append(cold_reco_targets, warm_targets)
-        else:
-            warm_reco_targets = warm_targets
-
-        if cold_targets.size > 0:
-            if not cls.allow_cold:
-                raise ValueError(
-                    f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
-                    f"but some of given {entity}s are cold: they are not in the `dataset.{entity}_id_map`"
-                )
-            cold_reco_targets = np.append(cold_reco_targets, cold_targets)
-
-        return hot_reco_targets, warm_reco_targets, cold_reco_targets
+        if cold_targets.size > 0 and not cls.allow_cold:
+            raise ValueError(
+                f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
+                f"but some of given {entity}s are cold: they are not in the `dataset.{entity}_id_map`"
+            )
     
     @classmethod
     def _ensure_internal_ids_valid(cls, internal_ids: AnyIds) -> np.ndarray:
