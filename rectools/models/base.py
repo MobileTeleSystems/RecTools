@@ -471,7 +471,7 @@ class ModelBase:
 
     def _recommend_i2i_warm(
         self,
-        user_ids: np.ndarray,
+        target_ids: np.ndarray,
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
