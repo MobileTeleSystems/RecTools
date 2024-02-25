@@ -128,13 +128,13 @@ class IdMap:
     @tp.overload
     def convert_to_internal(  # noqa: D102
         self, external: ExternalIds, strict: bool = ..., return_missing: tp.Literal[False] = False
-    ) -> np.ndarray:
+    ) -> np.ndarray:  # pragma: no cover
         ...
 
     @tp.overload
     def convert_to_internal(  # noqa: D102
         self, external: ExternalIds, strict: bool = ..., *, return_missing: tp.Literal[True]
-    ) -> tp.Tuple[np.ndarray, np.ndarray]:
+    ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
         ...
 
     def convert_to_internal(
@@ -176,13 +176,13 @@ class IdMap:
     @tp.overload
     def convert_to_external(  # noqa: D102
         self, internal: InternalIds, strict: bool = ..., return_missing: tp.Literal[False] = False
-    ) -> np.ndarray:
+    ) -> np.ndarray:  # pragma: no cover
         ...
 
     @tp.overload
     def convert_to_external(  # noqa: D102
         self, internal: InternalIds, strict: bool = ..., *, return_missing: tp.Literal[True]
-    ) -> tp.Tuple[np.ndarray, np.ndarray]:
+    ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
         ...
 
     def convert_to_external(

@@ -326,10 +326,6 @@ class ModelBase:
         return [], [], []
 
     @classmethod
-    def _init_reco_triplet(cls) -> RecoTriplet:
-        return [], [], []
-
-    @classmethod
     def _get_sorted_item_ids_to_recommend(
         cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
     ) -> tp.Optional[np.ndarray]:
