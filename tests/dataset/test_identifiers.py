@@ -49,6 +49,14 @@ class TestIdMap:
     def test_size(self) -> None:
         assert self.id_map.size == 3
 
+    @pytest.mark.parametrize("external_ids", (np.array(["a", "b"]), np.array([1, 2]), np.array([1, 2], dtype="O")))
+    def test_external_dtype(self, external_ids: np.ndarray) -> None:
+        id_map = IdMap(external_ids)
+        assert id_map.external_dtype == external_ids.dtype
+        
+        id_map = IdMap.from_values(external_ids)
+        assert id_map.external_dtype == external_ids.dtype
+
     def test_to_internal(self) -> None:
         actual = self.id_map.to_internal
         expected = pd.Series([0, 1, 2], index=self.external_ids)

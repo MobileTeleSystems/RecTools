@@ -157,6 +157,10 @@ class ModelBase:
         if cold_user_ids.size > 0:
             reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
 
+        reco_hot = self._adjust_internal_types(reco_hot)
+        reco_warm = self._adjust_internal_types(reco_warm)
+        reco_cold = self._adjust_internal_types(reco_cold, target_type=dataset.user_id_map.external_dtype)
+
         if assume_external_ids:
             reco_hot = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
             reco_warm = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
@@ -260,6 +264,10 @@ class ModelBase:
         if cold_target_ids.size > 0:
             reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
 
+        reco_hot = self._adjust_internal_types(reco_hot)
+        reco_warm = self._adjust_internal_types(reco_warm)
+        reco_cold = self._adjust_internal_types(reco_cold, target_type=dataset.item_id_map.external_dtype)
+        
         if assume_external_ids:
             # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
             # We do it for cold reco only, since it's faster to filter internal ids than external ones.
@@ -358,7 +366,17 @@ class ModelBase:
         return ids
 
     @classmethod
-    def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoInternalTriplet:
+    def _adjust_internal_types(
+        cls, reco: RecoInternalTriplet, target_type: tp.Type = np.int64
+    ) -> RecoInternalTriplet:
+        target_ids, item_ids, scores = reco
+        target_ids = np.asarray(target_ids, dtype=target_type)
+        item_ids = np.asarray(item_ids, dtype=np.int64)
+        scores = np.asarray(scores, dtype=np.float32)
+        return target_ids, item_ids, scores
+    
+    @classmethod
+    def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoTriplet:
         target_ids, item_ids, scores = reco
         df_reco = (
             pd.DataFrame({"tid": target_ids, "iid": item_ids, "score": scores})
@@ -366,8 +384,7 @@ class ModelBase:
             .groupby("tid", sort=False)
             .head(k)
         )
-        filtered = df_reco[["tid", "iid", "score"]].values.T
-        return filtered
+        return df_reco["tid"].values, df_reco["iid"].values, df_reco["score"].values
 
     @classmethod
     def _reco_to_external(cls, reco: RecoInternalTriplet, target_id_map: IdMap, item_id_map: IdMap) -> RecoTriplet:
