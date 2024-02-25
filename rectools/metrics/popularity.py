@@ -34,11 +34,13 @@ class AvgRecPopularity(MetricAtK):
     with this item.
 
     .. math::
-        ARP@k = \frac{1}{\left|U_{t}\right|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{\left| L_{u} \right |}
+        ARP@k = \frac{1}{|U_{t}|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{|L_{u}|}
+        Normalized ARP@k = \frac{1}{|U_{t}|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\frac{\phi(i)}{|I|}}{|L_{u}|}
 
     where
     :math:`\phi (i)` is the number of previous interactions with item i.
     :math:`|U_{t}|` is the number of users in the test set.
+    :math:`|I|` is the overall number of previous interactions.
     :math:`L_{u}` is the list of top k recommended items for user u.
 
     Parameters
@@ -47,6 +49,7 @@ class AvgRecPopularity(MetricAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     normalized: bool
         Flag, which says whether to normalize metric or not.
+        Normalized version helps to interpret metric's values better given that the distribution is known.
 
     Examples
     --------
