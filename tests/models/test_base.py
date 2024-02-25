@@ -24,7 +24,7 @@ from pytest_mock import MockerFixture
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models.base import InternalRecoTriplet, ModelBase, Scores, SemiInternalRecoTriplet
+from rectools.models.base import InternalRecoTriplet, ModelBase, Scores
 from rectools.types import AnyIds, ExternalIds, InternalIds
 
 from .data import DATASET, INTERACTIONS
@@ -317,9 +317,7 @@ class TestHotWarmCold:
         self.warms = {"u2i": [50], "i2i": [16]}
         self.colds = {"u2i": [60], "i2i": [18]}
 
-    def _get_reco(
-        self, targers: ExternalIds, model_key: str, dataset_key: str, kind: str
-    ) -> pd.DataFrame:
+    def _get_reco(self, targers: ExternalIds, model_key: str, dataset_key: str, kind: str) -> pd.DataFrame:
         model = self.models[model_key]
         if kind == "u2i":
             reco = model.recommend(
