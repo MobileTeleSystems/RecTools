@@ -18,6 +18,7 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
@@ -367,7 +368,7 @@ class ModelBase:
         hot_targets: np.ndarray,
         warm_targets: np.ndarray,
         cold_targets: np.ndarray,
-        entity: tp.Literal["user", "item"],
+        entity: tpe.Literal["user", "item"],
     ) -> None:
         if warm_targets.size > 0 and not cls.allow_warm and not cls.allow_cold:
             raise ValueError(
