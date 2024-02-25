@@ -53,7 +53,7 @@ class TestIdMap:
     def test_external_dtype(self, external_ids: np.ndarray) -> None:
         id_map = IdMap(external_ids)
         assert id_map.external_dtype == external_ids.dtype
-        
+
         id_map = IdMap.from_values(external_ids)
         assert id_map.external_dtype == external_ids.dtype
 

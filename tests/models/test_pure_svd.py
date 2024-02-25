@@ -238,7 +238,7 @@ class TestPureSVDModel:
                     }
                 ),
                 "doesn't support recommendations for warm and cold items",
-            )
+            ),
         ),
     )
     def test_i2i_with_warm_and_cold_items(self, item_features: tp.Optional[pd.DataFrame], error_match: str) -> None:

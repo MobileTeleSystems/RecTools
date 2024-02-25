@@ -267,7 +267,7 @@ class ModelBase:
         reco_hot = self._adjust_internal_types(reco_hot)
         reco_warm = self._adjust_internal_types(reco_warm)
         reco_cold = self._adjust_internal_types(reco_cold, target_type=dataset.item_id_map.external_dtype)
-        
+
         if assume_external_ids:
             # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
             # We do it for cold reco only, since it's faster to filter internal ids than external ones.
@@ -366,15 +366,13 @@ class ModelBase:
         return ids
 
     @classmethod
-    def _adjust_internal_types(
-        cls, reco: RecoInternalTriplet, target_type: tp.Type = np.int64
-    ) -> RecoInternalTriplet:
+    def _adjust_internal_types(cls, reco: RecoInternalTriplet, target_type: tp.Type = np.int64) -> RecoInternalTriplet:
         target_ids, item_ids, scores = reco
         target_ids = np.asarray(target_ids, dtype=target_type)
         item_ids = np.asarray(item_ids, dtype=np.int64)
         scores = np.asarray(scores, dtype=np.float32)
         return target_ids, item_ids, scores
-    
+
     @classmethod
     def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoTriplet:
         target_ids, item_ids, scores = reco

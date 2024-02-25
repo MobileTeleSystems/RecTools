@@ -96,7 +96,7 @@ class IdMap:
     def size(self) -> int:
         """Return number of ids in map."""
         return self.external_ids.size
-    
+
     @property
     def external_dtype(self) -> tp.Type:
         """Return dtype of external ids."""

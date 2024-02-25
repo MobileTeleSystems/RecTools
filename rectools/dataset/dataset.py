@@ -85,7 +85,7 @@ class Dataset:
         if self.user_features is None:
             return None
         return self.user_features.take(range(self.n_hot_users))
-    
+
     def get_hot_item_features(self) -> tp.Optional[Features]:
         """Item features for hot items."""
         if self.item_features is None:

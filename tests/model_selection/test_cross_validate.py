@@ -59,11 +59,13 @@ class TestGen2xInternalIdsDataset:
     @pytest.mark.parametrize(
         "keep_features_for_hot_only, expected_user_ids, expected_item_ids",
         (
-            (True, [0, 3], [0, 1, 2]), 
+            (True, [0, 3], [0, 1, 2]),
             (False, [0, 3, 1, 2], [0, 1, 2, 3]),
-        )
+        ),
     )
-    def test_with_features(self, keep_features_for_hot_only: bool, expected_user_ids: tp.List[int], expected_item_ids: tp.List[int]) -> None:
+    def test_with_features(
+        self, keep_features_for_hot_only: bool, expected_user_ids: tp.List[int], expected_item_ids: tp.List[int]
+    ) -> None:
         user_features = DenseFeatures(
             values=np.array([[1, 10], [2, 20], [3, 30], [4, 40]]),
             names=("f1", "f2"),
@@ -80,7 +82,9 @@ class TestGen2xInternalIdsDataset:
             names=(("f1", None), ("f2", 100), ("f2", 200)),
         )
 
-        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, user_features, item_features, keep_features_for_hot_only)
+        dataset = _gen_2x_internal_ids_dataset(
+            self.interactions_internal_df, user_features, item_features, keep_features_for_hot_only
+        )
 
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array(expected_user_ids))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array(expected_item_ids))
@@ -173,7 +177,10 @@ class TestCrossValidate:
     )
     @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
     def test_happy_path(
-        self, items_to_recommend: tp.Optional[ExternalIds], expected_metrics: tp.List[tp.Dict[str, tp.Any]], keep_features_for_hot_only: bool
+        self,
+        items_to_recommend: tp.Optional[ExternalIds],
+        expected_metrics: tp.List[tp.Dict[str, tp.Any]],
+        keep_features_for_hot_only: bool,
     ) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 

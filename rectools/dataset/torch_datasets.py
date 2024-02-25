@@ -70,13 +70,13 @@ class DSSMDataset(TorchDataset[tp.Any]):
     @classmethod
     def from_dataset(cls: tp.Type[DD], dataset: Dataset) -> DD:
         ui_matrix = dataset.get_user_item_matrix()
-        
+
         # We take hot here since this dataset is used for fit only
         item_features = dataset.get_hot_item_features().get_sparse()
         user_features = dataset.get_hot_user_features().get_sparse()
         if item_features is None:
             raise AttributeError("Item features attribute of dataset could not be None")
-        
+
         if user_features is None:
             raise AttributeError("User features attribute of dataset could not be None")
         return cls(items=item_features, users=user_features, interactions=ui_matrix)

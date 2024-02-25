@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+
 import numpy as np
 import pandas as pd
 from scipy import sparse
@@ -38,7 +39,7 @@ def assert_interactions_set_equal(actual: Interactions, expected: Interactions) 
 def assert_feature_set_equal(actual: tp.Optional[Features], expected: tp.Optional[Features]) -> None:
     if actual is None and expected is None:
         return
-    
+
     assert isinstance(actual, type(expected))
 
     if isinstance(actual, DenseFeatures) and isinstance(expected, DenseFeatures):

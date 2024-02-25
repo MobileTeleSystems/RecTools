@@ -48,6 +48,7 @@ def test_raise_when_recommend_i2i_from_not_fitted() -> None:
             k=5,
         )
 
+
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
     model = ModelBase()
@@ -97,7 +98,7 @@ class TestRecommendWithInternalIds:
                 sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
             ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
                 return [0, 0, 1], [0, 1, 2], [0.1, 0.2, 0.3]
-    
+
         self.model = SomeModel().fit(DATASET)
 
     def test_u2i_success(self, mocker: MockerFixture) -> None:
@@ -176,7 +177,6 @@ class TestRecommendWithInternalIds:
             }
         )
         pd.testing.assert_frame_equal(reco, excepted.astype({Columns.Score: np.float32}))
-
 
     @pytest.mark.parametrize(
         "target_items, items_to_recommend",

@@ -182,7 +182,7 @@ class TestDataset:
         (
             (False, [[0, 0, 0], [1, 0, 5]]),
             (True, [[0, 0, 0], [1, 0, 5], [0, 0, 0]]),
-        )
+        ),
     )
     def test_get_user_item_matrix(self, include_warm: bool, expected: tp.List[tp.List[int]]) -> None:
         user_id_map = IdMap.from_values(["u1", "u2", "u3"])
