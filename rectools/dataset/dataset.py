@@ -21,9 +21,8 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.types import ExternalIds
 
-from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures, UnknownIdError
+from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
 from .identifiers import IdMap
 from .interactions import Interactions
 
@@ -63,7 +62,7 @@ class Dataset:
     @property
     def n_hot_users(self) -> int:
         """
-        Number of hot users in dataset.
+        Return number of hot users in dataset.
         Users with internal ids from `0` to `n_hot_users - 1` are hot (they present in interactions).
         Users with internal ids from `n_hot_users` to `dataset.user_id_map.size - 1` are warm
         (they don't present in interactions, but they have features).
@@ -73,7 +72,7 @@ class Dataset:
     @property
     def n_hot_items(self) -> int:
         """
-        Number of hot items in dataset.
+        Return number of hot items in dataset.
         Items with internal ids from `0` to `n_hot_items - 1` are hot (they present in interactions).
         Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm
         (they don't present in interactions, but they have features).

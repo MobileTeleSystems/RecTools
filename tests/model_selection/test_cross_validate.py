@@ -1,7 +1,6 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
-import warnings
 
 import numpy as np
 import pandas as pd

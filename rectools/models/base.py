@@ -27,9 +27,11 @@ from rectools.exceptions import NotFittedError
 T = tp.TypeVar("T", bound="ModelBase")
 Scores = tp.Union[tp.Sequence[float], np.ndarray]
 
-RecoInternalTriplet = tp.Tuple[InternalIds, InternalIds, Scores]
-RecoSemiInternalTriplet = tp.Tuple[AnyIds, InternalIds, Scores]
+InternalRecoTriplet = tp.Tuple[InternalIds, InternalIds, Scores]
+SemiInternalRecoTriplet = tp.Tuple[AnyIds, InternalIds, Scores]
 RecoTriplet = tp.Tuple[AnyIds, AnyIds, Scores]
+
+RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, RecoTriplet)
 
 
 class ModelBase:
@@ -146,32 +148,39 @@ class ModelBase:
         )
         self._check_targets_are_valid(hot_user_ids, warm_user_ids, cold_user_ids, "user")
 
-        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
+        reco_hot = self._init_internal_reco_triplet()
+        reco_warm = self._init_internal_reco_triplet()
+        reco_cold = self._init_semi_internal_reco_triplet()
+
         if hot_user_ids.size > 0:
             reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
         if warm_user_ids.size > 0:
             if self.allow_warm:
                 reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
             else:
-                reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)
+                # TODO: use correct types for numpy arrays and stop ignoring
+                reco_warm = self._recommend_cold(warm_user_ids, k, sorted_item_ids_to_recommend)  # type: ignore
         if cold_user_ids.size > 0:
             reco_cold = self._recommend_cold(cold_user_ids, k, sorted_item_ids_to_recommend)
 
-        reco_hot = self._adjust_internal_types(reco_hot)
-        reco_warm = self._adjust_internal_types(reco_warm)
-        reco_cold = self._adjust_internal_types(reco_cold, target_type=dataset.user_id_map.external_dtype)
+        reco_hot = self._adjust_reco_types(reco_hot)
+        reco_warm = self._adjust_reco_types(reco_warm)
+        reco_cold = self._adjust_reco_types(reco_cold, target_type=dataset.user_id_map.external_dtype)
 
         if assume_external_ids:
-            reco_hot = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
-            reco_warm = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
-            reco_cold = self._reco_items_to_external(reco_cold, dataset.item_id_map)
-
-        reco_all = self._concat_reco((reco_hot, reco_warm, reco_cold))
+            reco_hot_final = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
+            reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
+            reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+        else:
+            reco_hot_final, reco_warm_final, reco_cold_final = reco_hot, reco_warm, reco_cold
         del reco_hot, reco_warm, reco_cold
+
+        reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
+        del reco_hot_final, reco_warm_final, reco_cold_final
         reco_df = self._make_reco_table(reco_all, Columns.User, add_rank_col)
         return reco_df
 
-    def recommend_to_items(
+    def recommend_to_items(  # pylint: disable=too-many-branches
         self,
         target_items: AnyIds,
         dataset: Dataset,
@@ -251,7 +260,10 @@ class ModelBase:
 
         requested_k = k + 1 if filter_itself else k
 
-        reco_hot, reco_warm, reco_cold = [self._init_reco_triplet() for _ in range(3)]
+        reco_hot = self._init_internal_reco_triplet()
+        reco_warm = self._init_internal_reco_triplet()
+        reco_cold = self._init_semi_internal_reco_triplet()
+
         if hot_target_ids.size > 0:
             reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
         if warm_target_ids.size > 0:
@@ -260,30 +272,39 @@ class ModelBase:
                     warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend
                 )
             else:
-                reco_warm = self._recommend_cold(warm_target_ids, requested_k, sorted_item_ids_to_recommend)
+                # TODO: use correct types for numpy arrays and stop ignoring
+                reco_warm = self._recommend_cold(
+                    warm_target_ids, requested_k, sorted_item_ids_to_recommend
+                )  # type: ignore
         if cold_target_ids.size > 0:
             reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
 
-        reco_hot = self._adjust_internal_types(reco_hot)
-        reco_warm = self._adjust_internal_types(reco_warm)
-        reco_cold = self._adjust_internal_types(reco_cold, target_type=dataset.item_id_map.external_dtype)
+        reco_hot = self._adjust_reco_types(reco_hot)
+        reco_warm = self._adjust_reco_types(reco_warm)
+        reco_cold = self._adjust_reco_types(reco_cold, target_type=dataset.item_id_map.external_dtype)
 
         if assume_external_ids:
             # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
             # We do it for cold reco only, since it's faster to filter internal ids than external ones.
-            reco_cold = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+            reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+        else:
+            reco_cold_final = reco_cold
+        del reco_cold
 
         if filter_itself:
             reco_hot = self._filter_item_itself_from_i2i_reco(reco_hot, k)
             reco_warm = self._filter_item_itself_from_i2i_reco(reco_warm, k)
-            reco_cold = self._filter_item_itself_from_i2i_reco(reco_cold, k)
+            reco_cold_final = self._filter_item_itself_from_i2i_reco(reco_cold_final, k)
 
         if assume_external_ids:
-            reco_hot = self._reco_to_external(reco_hot, dataset.item_id_map, dataset.item_id_map)
-            reco_warm = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
+            reco_hot_final = self._reco_to_external(reco_hot, dataset.item_id_map, dataset.item_id_map)
+            reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
+        else:
+            reco_hot_final, reco_warm_final = reco_hot, reco_warm
+        del reco_hot, reco_warm
 
-        reco_all = self._concat_reco((reco_hot, reco_warm, reco_cold))
-        del reco_hot, reco_warm, reco_cold
+        reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
+        del reco_hot_final, reco_warm_final, reco_cold_final
         reco_df = self._make_reco_table(reco_all, Columns.TargetItem, add_rank_col)
         return reco_df
 
@@ -297,7 +318,15 @@ class ModelBase:
             raise ValueError("`k` must be positive integer")
 
     @classmethod
-    def _init_reco_triplet(cls) -> RecoInternalTriplet:
+    def _init_semi_internal_reco_triplet(cls) -> SemiInternalRecoTriplet:
+        return [], [], []
+
+    @classmethod
+    def _init_internal_reco_triplet(cls) -> InternalRecoTriplet:
+        return [], [], []
+
+    @classmethod
+    def _init_reco_triplet(cls) -> RecoTriplet:
         return [], [], []
 
     @classmethod
@@ -318,7 +347,7 @@ class ModelBase:
     @classmethod
     def _split_targets_by_hot_warm_cold(
         cls,
-        targets: np.ndarray,  # users for U2I or target items for I2I
+        targets: AnyIds,  # users for U2I or target items for I2I
         id_map: IdMap,
         n_hot: int,
         assume_external_ids: bool,
@@ -366,7 +395,7 @@ class ModelBase:
         return ids
 
     @classmethod
-    def _adjust_internal_types(cls, reco: RecoInternalTriplet, target_type: tp.Type = np.int64) -> RecoInternalTriplet:
+    def _adjust_reco_types(cls, reco: RecoTriplet_T, target_type: tp.Type = np.int64) -> RecoTriplet_T:
         target_ids, item_ids, scores = reco
         target_ids = np.asarray(target_ids, dtype=target_type)
         item_ids = np.asarray(item_ids, dtype=np.int64)
@@ -374,7 +403,7 @@ class ModelBase:
         return target_ids, item_ids, scores
 
     @classmethod
-    def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet, k: int) -> RecoTriplet:
+    def _filter_item_itself_from_i2i_reco(cls, reco: RecoTriplet_T, k: int) -> RecoTriplet_T:
         target_ids, item_ids, scores = reco
         df_reco = (
             pd.DataFrame({"tid": target_ids, "iid": item_ids, "score": scores})
@@ -385,14 +414,14 @@ class ModelBase:
         return df_reco["tid"].values, df_reco["iid"].values, df_reco["score"].values
 
     @classmethod
-    def _reco_to_external(cls, reco: RecoInternalTriplet, target_id_map: IdMap, item_id_map: IdMap) -> RecoTriplet:
+    def _reco_to_external(cls, reco: InternalRecoTriplet, target_id_map: IdMap, item_id_map: IdMap) -> RecoTriplet:
         target_ids, item_ids, scores = reco
         target_ids = target_id_map.convert_to_external(target_ids)
         item_ids = item_id_map.convert_to_external(item_ids)
         return target_ids, item_ids, scores
 
     @classmethod
-    def _reco_items_to_external(cls, reco: RecoSemiInternalTriplet, item_id_map: IdMap) -> RecoTriplet:
+    def _reco_items_to_external(cls, reco: SemiInternalRecoTriplet, item_id_map: IdMap) -> RecoTriplet:
         target_ids, item_ids, scores = reco
         item_ids = item_id_map.convert_to_external(item_ids)
         return target_ids, item_ids, scores
@@ -422,8 +451,7 @@ class ModelBase:
 
     def _recommend_cold(
         self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
-    ) -> RecoSemiInternalTriplet:
-        """Common method for U2I and I2I cold recommendations"""
+    ) -> tp.Union[SemiInternalRecoTriplet, InternalRecoTriplet]:
         item_ids, scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
         reco_target_ids = np.repeat(target_ids, len(item_ids))
         reco_item_ids = np.tile(item_ids, len(target_ids))
@@ -442,7 +470,7 @@ class ModelBase:
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> RecoInternalTriplet:
+    ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_i2i_warm(
@@ -451,7 +479,7 @@ class ModelBase:
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> RecoInternalTriplet:
+    ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_u2i(
@@ -461,7 +489,7 @@ class ModelBase:
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> RecoInternalTriplet:
+    ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_i2i(
@@ -470,5 +498,5 @@ class ModelBase:
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
-    ) -> RecoInternalTriplet:
+    ) -> InternalRecoTriplet:
         raise NotImplementedError()

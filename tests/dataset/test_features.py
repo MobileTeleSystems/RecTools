@@ -288,5 +288,5 @@ class TestSparseFeatures:
             features.take([2, 4])
 
     def test_len(self) -> None:
-        features = DenseFeatures(self.values, self.names)
+        features = SparseFeatures(self.values, self.names)
         assert len(features) == 4
