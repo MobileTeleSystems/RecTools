@@ -35,13 +35,14 @@ class AvgRecPopularity(MetricAtK):
 
     .. math::
         ARP@k = \frac{1}{|U_{t}|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{|L_{u}|}
+    .. math::
         Normalized ARP@k = \frac{1}{|U_{t}|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\frac{\phi(i)}{|I|}}{|L_{u}|}
 
     where
-    :math:`\phi (i)` is the number of previous interactions with item i.
-    :math:`|U_{t}|` is the number of users in the test set.
-    :math:`|I|` is the overall number of previous interactions.
-    :math:`L_{u}` is the list of top k recommended items for user u.
+        - :math:`\phi (i)` is the number of previous interactions with item i.
+        - :math:`|U_{t}|` is the number of users in the test set.
+        - :math:`|I|` is the overall number of previous interactions.
+        - :math:`L_{u}` is the list of top k recommended items for user u.
 
     Parameters
     ----------
