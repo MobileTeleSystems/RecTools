@@ -25,7 +25,8 @@ from rectools.dataset import Dataset
 
 from .base import ModelBase, Scores
 from .utils import recommend_from_scores
-from .vector import Distance, ImplicitRanker
+from .vector import Distance,
+from .rank import ImplicitRanker
 
 
 class EASEModel(ModelBase):
@@ -36,10 +37,12 @@ class EASEModel(ModelBase):
 
     Parameters
     ----------
-    weight : np.matrix
-        The Item-Item weight-matrix.
+    regularization : float
+        The regularization factor of the weights
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
+    num_threads: int, default 1
+        Will be used as `num_threads` parameter for `ImplicitRanker.rank`.
     """
 
     u2i_dist = Distance.DOT
@@ -47,11 +50,13 @@ class EASEModel(ModelBase):
     def __init__(
         self,
         regularization: float = 500.0,
+        num_threads: int = 1,
         verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
-        self.regularization = regularization
         self.weight: np.ndarray
+        self.regularization = regularization
+        self.n_threads = num_threads
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
@@ -87,7 +92,7 @@ class EASEModel(ModelBase):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=0,
+            num_threads=self.n_threads,
         )
 
         return all_user_ids, all_reco_ids, all_scores
@@ -99,36 +104,25 @@ class EASEModel(ModelBase):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        similarity = self.weight
+        similarity = self.weight[target_ids]
         if sorted_item_ids_to_recommend is not None:
             similarity = similarity[:, sorted_item_ids_to_recommend]
 
-        all_target_ids = []
-        all_reco_ids: tp.List[np.ndarray] = []
-        all_scores: tp.List[np.ndarray] = []
-        for target_id in tqdm(target_ids, disable=self.verbose == 0):
-            reco_ids, reco_scores = self._recommend_for_item(
-                similarity=similarity,
-                target_id=target_id,
-                k=k,
-            )
-            all_target_ids.extend([target_id] * len(reco_ids))
-            all_reco_ids.append(reco_ids)
-            all_scores.append(reco_scores)
+        n_reco = min(k, similarity.shape[1])
+        unsorted_reco_positions = similarity.argpartition(-n_reco, axis=1)[:, -n_reco:]
+        unsorted_reco_scores = np.take_along_axis(similarity, unsorted_reco_positions, axis=1)
 
-        all_reco_ids_arr = np.concatenate(all_reco_ids)
+        all_reco_scores = np.take_along_axis(
+            unsorted_reco_scores, unsorted_reco_scores.argsort()[:, ::-1], axis=1
+        )
+        all_reco_ids = np.take_along_axis(
+            unsorted_reco_positions, unsorted_reco_scores.argsort()[:, ::-1], axis=1
+        )
+
+        all_target_ids = np.repeat(target_ids, n_reco)
+        all_reco_ids_1d = np.concatenate(all_reco_ids)
 
         if sorted_item_ids_to_recommend is not None:
-            all_reco_ids_arr = sorted_item_ids_to_recommend[all_reco_ids_arr]
+            all_reco_ids_1d = sorted_item_ids_to_recommend[all_reco_ids_1d]
 
-        return all_target_ids, all_reco_ids_arr, np.concatenate(all_scores)
-
-    @staticmethod
-    def _recommend_for_item(
-        similarity: np.ndarray,
-        target_id: int,
-        k: int,
-    ) -> tp.Tuple[np.ndarray, np.ndarray]:
-        similar_item_scores = similarity[target_id]
-        reco_ids, reco_scores = recommend_from_scores(scores=similar_item_scores, k=k)
-        return reco_ids, reco_scores
+        return all_target_ids, all_reco_ids_1d, np.concatenate(all_reco_scores)
