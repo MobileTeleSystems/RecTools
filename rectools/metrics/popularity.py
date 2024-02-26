@@ -50,7 +50,7 @@ class AvgRecPopularity(MetricAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     normalized: bool
         Flag, which says whether to normalize metric or not.
-        Normalized version helps to interpret metric's values better given that the distribution is known.
+        Normalized version helps to interpret metric's values better given that the distribution boundaries are known.
 
     Examples
     --------
