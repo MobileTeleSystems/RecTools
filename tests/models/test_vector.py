@@ -14,14 +14,14 @@
 
 import typing as tp
 
-import implicit.cpu
 import numpy as np
 import pandas as pd
 import pytest
 
 from rectools import Columns
 from rectools.dataset import Dataset
-from rectools.models.vector import Distance, Factors, VectorModel
+from rectools.models.rank import Distance
+from rectools.models.vector import Factors, VectorModel
 
 T = tp.TypeVar("T")
 

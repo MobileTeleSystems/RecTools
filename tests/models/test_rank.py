@@ -19,8 +19,7 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from rectools.models.rank import ImplicitRanker
-from rectools.models.vector import Distance
+from rectools.models.rank import Distance, ImplicitRanker
 
 T = tp.TypeVar("T")
 
@@ -50,7 +49,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         ),
     )
     def test_neginf_score(self, subject_factors: np.ndarray, object_factors: np.ndarray, dense: bool) -> None:
-        if not danse:
+        if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
@@ -73,7 +72,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
     def test_mask_for_correct_scores(
         self, subject_factors: np.ndarray, object_factors: np.ndarray, dense: bool
     ) -> None:
-        if not danse:
+        if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
@@ -99,8 +98,6 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             (Distance.COSINE, [0, 1, 2, 2, 1, 0], [1, 0, -1 / (5 * 3**0.5), 0, 0, 0], True),
             (Distance.EUCLIDEAN, [0, 1, 2, 1, 2, 0], [0, 5, 30**0.5, 0, 3**0.5, 5], True),
             (Distance.DOT, [0, 1, 2, 2, 1, 0], [25, 0, -1, 0, 0, 0], False),
-            (Distance.COSINE, [0, 1, 2, 2, 1, 0], [1, 0, -1 / (5 * 3**0.5), 0, 0, 0], False),
-            (Distance.EUCLIDEAN, [0, 1, 2, 1, 2, 0], [0, 5, 30**0.5, 0, 3**0.5, 5], False),
         ),
     )
     def test_rank(
@@ -112,7 +109,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         object_factors: np.ndarray,
         dense: bool,
     ) -> None:
-        if not danse:
+        if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
@@ -127,8 +124,6 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             (Distance.COSINE, [0, 2, 2, 1, 0], [1, -1 / (5 * 3**0.5), 0, 0, 0], True),
             (Distance.EUCLIDEAN, [0, 2, 1, 2, 0], [0, 30**0.5, 0, 3**0.5, 5], True),
             (Distance.DOT, [0, 2, 2, 1, 0], [25, -1, 0, 0, 0], False),
-            (Distance.COSINE, [0, 2, 2, 1, 0], [1, -1 / (5 * 3**0.5), 0, 0, 0], False),
-            (Distance.EUCLIDEAN, [0, 2, 1, 2, 0], [0, 30**0.5, 0, 3**0.5, 5], False),
         ),
     )
     def test_rank_with_filtering_viewed_items(
@@ -140,7 +135,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         object_factors: np.ndarray,
         dense: bool,
     ) -> None:
-        if not danse:
+        if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         ui_csr = sparse.csr_matrix(
@@ -161,8 +156,6 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             (Distance.COSINE, [0, 2, 2, 0], [1, -1 / (5 * 3**0.5), 0, 0], True),
             (Distance.EUCLIDEAN, [0, 2, 2, 0], [0, 30**0.5, 3**0.5, 5], True),
             (Distance.DOT, [0, 2, 2, 0], [25, -1, 0, 0], False),
-            (Distance.COSINE, [0, 2, 2, 0], [1, -1 / (5 * 3**0.5), 0, 0], False),
-            (Distance.EUCLIDEAN, [0, 2, 2, 0], [0, 30**0.5, 3**0.5, 5], False),
         ),
     )
     def test_rank_with_objects_whitelist(
@@ -174,7 +167,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         object_factors: np.ndarray,
         dense: bool,
     ) -> None:
-        if not danse:
+        if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
@@ -190,8 +183,6 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             (Distance.COSINE, [2, 2, 0], [-1 / (5 * 3**0.5), 0, 0], True),
             (Distance.EUCLIDEAN, [2, 2, 0], [30**0.5, 3**0.5, 5], True),
             (Distance.DOT, [2, 2, 0], [-1, 0, 0], False),
-            (Distance.COSINE, [2, 2, 0], [-1 / (5 * 3**0.5), 0, 0], False),
-            (Distance.EUCLIDEAN, [2, 2, 0], [30**0.5, 3**0.5, 5], False),
         ),
     )
     def test_rank_with_objects_whitelist_and_filtering_viewed_items(
@@ -203,7 +194,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         object_factors: np.ndarray,
         dense: bool,
     ) -> None:
-        if not danse:
+        if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         ui_csr = sparse.csr_matrix(
@@ -218,3 +209,9 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         )
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
+
+    @pytest.mark.parametrize("distance", (Distance.COSINE, Distance.EUCLIDEAN))
+    def test_raises(self, subject_factors: np.ndarray, object_factors: np.ndarray, distance: Distance) -> None:
+        subject_factors = sparse.csr_matrix(subject_factors)
+        with pytest.raises(ValueError):
+            ImplicitRanker(distance=distance, subjects_factors=subject_factors, objects_factors=object_factors)

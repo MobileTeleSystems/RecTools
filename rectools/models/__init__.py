@@ -26,7 +26,7 @@ implementations.
 Models
 ------
 `models.DSSMModel`
-`models.EASE`
+`models.EASEModel`
 `models.ImplicitALSWrapperModel`
 `models.ImplicitItemKNNWrapperModel`
 `models.LightFMWrapperModel`

@@ -15,25 +15,15 @@
 """Base classes for vector models."""
 
 import typing as tp
-from enum import Enum
 
 import attr
-import implicit.cpu
 import numpy as np
-from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
-from scipy import sparse
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
 from rectools.models.base import ModelBase, Scores
 
-
-class Distance(Enum):
-    """Distance metric"""
-
-    DOT = 1  # Bigger value means closer vectors
-    COSINE = 2  # Bigger value means closer vectors
-    EUCLIDEAN = 3  # Smaller value means closer vectors
+from .rank import Distance, ImplicitRanker
 
 
 @attr.s(auto_attribs=True)

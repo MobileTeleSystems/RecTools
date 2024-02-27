@@ -18,15 +18,12 @@ import typing as tp
 
 import numpy as np
 from scipy import sparse
-from tqdm import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
 
 from .base import ModelBase, Scores
-from .utils import recommend_from_scores
-from .vector import Distance,
-from .rank import ImplicitRanker
+from .rank import Distance, ImplicitRanker
 
 
 class EASEModel(ModelBase):
@@ -38,7 +35,7 @@ class EASEModel(ModelBase):
     Parameters
     ----------
     regularization : float
-        The regularization factor of the weights
+        The regularization factor of the weights.
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
     num_threads: int, default 1
@@ -112,12 +109,8 @@ class EASEModel(ModelBase):
         unsorted_reco_positions = similarity.argpartition(-n_reco, axis=1)[:, -n_reco:]
         unsorted_reco_scores = np.take_along_axis(similarity, unsorted_reco_positions, axis=1)
 
-        all_reco_scores = np.take_along_axis(
-            unsorted_reco_scores, unsorted_reco_scores.argsort()[:, ::-1], axis=1
-        )
-        all_reco_ids = np.take_along_axis(
-            unsorted_reco_positions, unsorted_reco_scores.argsort()[:, ::-1], axis=1
-        )
+        all_reco_scores = np.take_along_axis(unsorted_reco_scores, unsorted_reco_scores.argsort()[:, ::-1], axis=1)
+        all_reco_ids = np.take_along_axis(unsorted_reco_positions, unsorted_reco_scores.argsort()[:, ::-1], axis=1)
 
         all_target_ids = np.repeat(target_ids, n_reco)
         all_reco_ids_1d = np.concatenate(all_reco_ids)

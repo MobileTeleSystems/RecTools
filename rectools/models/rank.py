@@ -12,12 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""Base classes for vector models."""
+"""Implicit ranker model."""
 
 import typing as tp
 from enum import Enum
 
-import attr
 import implicit.cpu
 import numpy as np
 from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
@@ -26,26 +25,35 @@ from scipy import sparse
 from rectools import InternalIds
 from rectools.models.base import Scores
 
-from .vector import Distance
+
+class Distance(Enum):
+    """Distance metric"""
+
+    DOT = 1  # Bigger value means closer vectors
+    COSINE = 2  # Bigger value means closer vectors
+    EUCLIDEAN = 3  # Smaller value means closer vectors
 
 
 class ImplicitRanker:
     """
-    Ranker for vector-based models which uses implicit library matrix factorization topk method
+    Ranker model which uses implicit library matrix factorization topk method
 
     Parameters
     ----------
     distance : Distance
         Distance metric.
-    subjects_factors : tp.Union[sparse.csr_matrix, np.ndarray]
+    subjects_factors : np.ndarray | sparse.csr_matrix
         Array of subject embeddings, shape (n_subjects, n_factors).
     objects_factors : np.ndarray
         Array with embeddings of all objects, shape (n_objects, n_factors).
     """
 
     def __init__(
-        self, distance: Distance, subjects_factors: tp.Union[sparse.csr_matrix, np.ndarray], objects_factors: np.ndarray
+        self, distance: Distance, subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix], objects_factors: np.ndarray
     ) -> None:
+        if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
+            raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
+
         self.distance = distance
         self.subjects_factors = subjects_factors.astype(np.float32)
         self.objects_factors = objects_factors.astype(np.float32)
