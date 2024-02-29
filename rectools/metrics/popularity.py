@@ -36,21 +36,22 @@ class AvgRecPopularity(MetricAtK):
     .. math::
         ARP@k = \frac{1}{|U_{t}|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\phi (i)}{|L_{u}|}
     .. math::
-        Normalized ARP@k = \frac{1}{|U_{t}|}\sum_{u\in U_{t}^{}}\frac{\sum_{i\in L_{u}}\frac{\phi(i)}{|I|}}{|L_{u}|}
+        Normalized ARP@k = \frac{1}{|U_t|}\sum_{u\in U_t^{}}\frac{(\sum_{i\in L_u}\phi(i))/|interactions|}{|L_u|}
 
     where
-        - :math:`\phi (i)` is the number of previous interactions with item i.
-        - :math:`|U_{t}|` is the number of users in the test set.
-        - :math:`|I|` is the overall number of previous interactions.
+        - :math:`\phi (i)` is the number of previous interactions with item i;
+        - :math:`|U_{t}|` is the number of users in the test set;
+        - :math:`|interactions|` is the total number of interactions;
         - :math:`L_{u}` is the list of top k recommended items for user u.
 
     Parameters
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
-    normalized: bool
+    normalize: bool
         Flag, which says whether to normalize metric or not.
-        Normalized version helps to interpret metric's values better given that the distribution boundaries are known.
+        Normalization is done on total items popularity. This gives a probabilistic
+        interpretation of the metric that can be easily applied to any data.
 
     Examples
     --------
@@ -71,11 +72,11 @@ class AvgRecPopularity(MetricAtK):
     array([3., 1., 1.])
     >>> AvgRecPopularity(k=3).calc_per_user(reco, prev_interactions).values
     array([2.5, 2. , 1.5])
-    >>> AvgRecPopularity(k=3, normalized=True).calc_per_user(reco, prev_interactions).values
+    >>> AvgRecPopularity(k=3, normalize=True).calc_per_user(reco, prev_interactions).values
     array([0.41666667, 0.33333333, 0.25        ])
     """
 
-    normalized: bool = attr.ib(default=False)
+    normalize: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, prev_interactions: pd.DataFrame) -> float:
         """
@@ -118,7 +119,7 @@ class AvgRecPopularity(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        item_popularity = prev_interactions[Columns.Item].value_counts(normalize=self.normalized)
+        item_popularity = prev_interactions[Columns.Item].value_counts(normalize=self.normalize)
         item_popularity.name = "popularity"
 
         reco_k = reco.query(f"{Columns.Rank} <= @self.k")

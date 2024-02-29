@@ -46,16 +46,18 @@ class TestAvgRecPopularity:
         return recommendations
 
     @pytest.mark.parametrize(
-        "k,expected",
+        "k,normalize,expected",
         (
-            (1, pd.Series(index=["u1", "u2", "u3"], data=[3.0, 1.0, 1.0])),
-            (3, pd.Series(index=["u1", "u2", "u3"], data=[2.5, 2.0, 1.5])),
+            (1, False, pd.Series(index=["u1", "u2", "u3"], data=[3.0, 1.0, 1.0])),
+            (3, False, pd.Series(index=["u1", "u2", "u3"], data=[2.5, 2.0, 1.5])),
+            (1, True, pd.Series(index=["u1", "u2", "u3"], data=[0.5, np.divide(1, 6), np.divide(1, 6)])),
+            (3, True, pd.Series(index=["u1", "u2", "u3"], data=[np.divide(5, 12), np.divide(1, 3), 0.25])),
         ),
     )
     def test_correct_arp_values(
-        self, recommendations: pd.DataFrame, interactions: pd.DataFrame, k: int, expected: pd.Series
+        self, recommendations: pd.DataFrame, interactions: pd.DataFrame, k: int, normalize: bool, expected: pd.Series
     ) -> None:
-        arp = AvgRecPopularity(k)
+        arp = AvgRecPopularity(k, normalize)
 
         actual = arp.calc_per_user(recommendations, interactions)
         pd.testing.assert_series_equal(actual, expected, check_names=False)
@@ -103,22 +105,4 @@ class TestAvgRecPopularity:
         pd.testing.assert_series_equal(actual, expected, check_names=False)
 
         actual_mean = arp.calc(reco, interactions)
-        assert actual_mean == expected.mean()
-
-    @pytest.mark.parametrize(
-        "k,normalized,expected",
-        (
-            (1, True, pd.Series(index=["u1", "u2", "u3"], data=[0.5, np.divide(1, 6), np.divide(1, 6)])),
-            (3, True, pd.Series(index=["u1", "u2", "u3"], data=[np.divide(5, 12), np.divide(1, 3), 0.25])),
-        ),
-    )
-    def test_when_normalized(
-        self, recommendations: pd.DataFrame, interactions: pd.DataFrame, k: int, normalized: bool, expected: pd.Series
-    ) -> None:
-        arp = AvgRecPopularity(k, normalized)
-
-        actual = arp.calc_per_user(recommendations, interactions)
-        pd.testing.assert_series_equal(actual, expected, check_names=False)
-
-        actual_mean = arp.calc(recommendations, interactions)
         assert actual_mean == expected.mean()
