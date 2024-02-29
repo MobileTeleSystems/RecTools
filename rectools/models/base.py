@@ -449,16 +449,6 @@ class ModelBase:
     def _recommend_cold(
         self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
     ) -> tp.Union[SemiInternalRecoTriplet, InternalRecoTriplet]:
-        item_ids, scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
-        reco_target_ids = np.repeat(target_ids, len(item_ids))
-        reco_item_ids = np.tile(item_ids, len(target_ids))
-        reco_scores = np.tile(scores, len(target_ids))
-
-        return reco_target_ids, reco_item_ids, reco_scores
-
-    def _get_cold_reco(
-        self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
-    ) -> tp.Tuple[InternalIds, Scores]:
         raise NotImplementedError()
 
     def _recommend_u2i_warm(
@@ -496,4 +486,27 @@ class ModelBase:
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
     ) -> InternalRecoTriplet:
+        raise NotImplementedError()
+
+
+class FixedColdRecoModelMixin:
+    """
+    Mixin for models that have fixed cold recommendations.
+
+    Models that use this mixin should implement `_get_cold_reco` method.
+    """
+
+    def _recommend_cold(
+        self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+    ) -> SemiInternalRecoTriplet:
+        item_ids, scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
+        reco_target_ids = np.repeat(target_ids, len(item_ids))
+        reco_item_ids = np.tile(item_ids, len(target_ids))
+        reco_scores = np.tile(scores, len(target_ids))
+
+        return reco_target_ids, reco_item_ids, reco_scores
+    
+    def _get_cold_reco(
+        self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+    ) -> tp.Tuple[InternalIds, Scores]:
         raise NotImplementedError()

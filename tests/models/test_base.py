@@ -24,7 +24,7 @@ from pytest_mock import MockerFixture
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models.base import InternalRecoTriplet, ModelBase, Scores
+from rectools.models.base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelBase, Scores, SemiInternalRecoTriplet
 from rectools.types import AnyIds, ExternalIds, InternalIds
 
 from .data import DATASET, INTERACTIONS
@@ -273,10 +273,12 @@ class TestHotWarmCold:
         class HotColdModel(HotModel):
             allow_cold = True
 
-            def _get_cold_reco(
-                self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
-            ) -> tp.Tuple[InternalIds, Scores]:
-                return np.arange(k), np.arange(1, k + 1) * 0.1 + 2
+            def _recommend_cold(self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]) -> SemiInternalRecoTriplet:
+                return (
+                    np.repeat(target_ids, k),
+                    np.tile(np.arange(k), len(target_ids)),
+                    np.tile(np.arange(1, k + 1) * 0.1 + 2, len(target_ids)),
+                )
 
         class HotWarmColdModel(HotWarmModel, HotColdModel):
             pass
@@ -457,3 +459,21 @@ class TestHotWarmCold:
         targets = self.warms[kind]
         with pytest.raises(ValueError, match="doesn't support recommendations for cold"):
             self._get_reco(targets, "hot_warm", "no_features", kind)
+
+
+class TestFixedColdRecoModelMixin:
+    def test_cold_reco_works(self) -> None:
+        class ColdRecoModel(FixedColdRecoModelMixin, ModelBase):
+            
+            def _get_cold_reco(
+                self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+            ) -> tp.Tuple[InternalIds, Scores]:
+                return np.arange(k), np.arange(1, k + 1) * 0.1 + 2
+            
+        model = ColdRecoModel()
+
+        reco = model._recommend_cold(np.array([10, 11]), 2, None)
+        np.testing.assert_array_equal(reco[0], [10, 10, 11, 11])
+        np.testing.assert_array_equal(reco[1], [0, 1, 0, 1])
+        np.testing.assert_array_equal(reco[2], [2.1, 2.2, 2.1, 2.2])
+
