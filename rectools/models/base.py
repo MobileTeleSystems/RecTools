@@ -43,8 +43,8 @@ class ModelBase:
     Use derived classes instead.
     """
 
-    allow_warm: bool = False
-    allow_cold: bool = False
+    recommends_for_warm: bool = False
+    recommends_for_cold: bool = False
 
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
@@ -156,7 +156,7 @@ class ModelBase:
         if hot_user_ids.size > 0:
             reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
         if warm_user_ids.size > 0:
-            if self.allow_warm:
+            if self.recommends_for_warm:
                 reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
             else:
                 # TODO: use correct types for numpy arrays and stop ignoring
@@ -268,7 +268,7 @@ class ModelBase:
         if hot_target_ids.size > 0:
             reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
         if warm_target_ids.size > 0:
-            if self.allow_warm:
+            if self.recommends_for_warm:
                 reco_warm = self._recommend_i2i_warm(
                     warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend
                 )
@@ -370,13 +370,13 @@ class ModelBase:
         cold_targets: np.ndarray,
         entity: tpe.Literal["user", "item"],
     ) -> None:
-        if warm_targets.size > 0 and not cls.allow_warm and not cls.allow_cold:
+        if warm_targets.size > 0 and not cls.recommends_for_warm and not cls.recommends_for_cold:
             raise ValueError(
                 f"Model `{cls}` doesn't support recommendations for warm and cold {entity}s, "
                 f"but some of given {entity}s are warm: they are not in the interactions"
             )
 
-        if cold_targets.size > 0 and not cls.allow_cold:
+        if cold_targets.size > 0 and not cls.recommends_for_cold:
             raise ValueError(
                 f"Model `{cls}` doesn't support recommendations for cold {entity}s, "
                 f"but some of given {entity}s are cold: they are not in the `dataset.{entity}_id_map`"
