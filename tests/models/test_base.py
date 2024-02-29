@@ -214,8 +214,8 @@ class TestRecommendWithInternalIds:
 class TestHotWarmCold:
     def setup(self) -> None:
         class HotModel(ModelBase):
-            allow_cold = False
-            allow_warm = False
+            recommends_for_cold = False
+            recommends_for_warm = False
 
             def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
                 pass
@@ -248,7 +248,7 @@ class TestHotWarmCold:
                 )
 
         class HotWarmModel(HotModel):
-            allow_warm = True
+            recommends_for_warm = True
 
             def _recommend_u2i_warm(
                 self,
@@ -277,7 +277,7 @@ class TestHotWarmCold:
                 )
 
         class HotColdModel(HotModel):
-            allow_cold = True
+            recommends_for_cold = True
 
             def _recommend_cold(
                 self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
