@@ -505,7 +505,7 @@ class FixedColdRecoModelMixin:
         reco_scores = np.tile(scores, len(target_ids))
 
         return reco_target_ids, reco_item_ids, reco_scores
-    
+
     def _get_cold_reco(
         self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
     ) -> tp.Tuple[InternalIds, Scores]:
