@@ -36,16 +36,22 @@ class Distance(Enum):
 
 class ImplicitRanker:
     """
-    Ranker model which uses implicit library matrix factorization topk method
+    Ranker model which uses implicit library matrix factorization topk method.
+
+    This ranker is suitable for the following cases of scores calculation:
+    1. subject_embeddings.dot(objects_embeddings)
+    2. subject_interactions.dot(item-item-similarities)
 
     Parameters
     ----------
     distance : Distance
         Distance metric.
     subjects_factors : np.ndarray | sparse.csr_matrix
-        Array of subjects embeddings, shape (n_subjects, n_factors). For item-item similarity models subjects vectors from ui_csr are viewed as factors.
+        Array of subjects embeddings, shape (n_subjects, n_factors).
+        For item-item similarity models subjects vectors from ui_csr are viewed as factors.
     objects_factors : np.ndarray
-        Array with embeddings of all objects, shape (n_objects, n_factors). For item-item similarity models item similarity vectors are viewed as factors.
+        Array with embeddings of all objects, shape (n_objects, n_factors).
+        For item-item similarity models item similarity vectors are viewed as factors.
     """
 
     def __init__(
@@ -129,11 +135,33 @@ class ImplicitRanker:
         self,
         subject_ids: InternalIds,
         k: int,
-        filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,  # subect-object interactions, relevant for u2i case
+        filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[np.ndarray] = None,
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        """Proceed inference using implicit library matrix factorization topk cpu method"""
+        """Rank objects for proceed inference with using implicit library topk cpu method.
+
+        Parameters
+        ----------
+        subject_ids : csr_matrix
+            Array of ids to recommend for.
+        k : int
+            Derived number of recommendations for every subject ids.
+        filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
+            Subject-object interactions.
+            This is relevant for u2i case.
+        sorted_object_whitelist : sparse.csr_matrix, optional, default ``None``
+            Whitelist of object ids.
+            If given, only these items will be used for recommendations.
+            Otherwise all items from dataset will be used.
+        num_threads : int, default 0
+            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`.
+
+        Returns
+        -------
+        (InternalIds, InternalIds, Scores)
+            Array of subject ids, array of recommended items, sorted by score descending and array of scores.
+        """
         if sorted_object_whitelist is not None:
             object_factors = self.objects_factors[sorted_object_whitelist]
 

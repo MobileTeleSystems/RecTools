@@ -32,6 +32,11 @@ class EASEModel(ModelBase):
 
     See https://arxiv.org/abs/1905.03375.
 
+    Please note that this algorithm requires a lot of RAM during fit method.
+    Out-of-memory issues are possible for big datasets.
+    Reasonable catalog size for local development is about 30k items.
+    Reasonable amount of interactions is about 20m.
+
     Parameters
     ----------
     regularization : float
@@ -39,7 +44,7 @@ class EASEModel(ModelBase):
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
     num_threads: int, default 1
-        Will be used as `num_threads` parameter for `ImplicitRanker.rank`.
+        Number of threads used for recommend method.
     """
 
     u2i_dist = Distance.DOT
@@ -109,13 +114,14 @@ class EASEModel(ModelBase):
         unsorted_reco_positions = similarity.argpartition(-n_reco, axis=1)[:, -n_reco:]
         unsorted_reco_scores = np.take_along_axis(similarity, unsorted_reco_positions, axis=1)
 
-        all_reco_scores = np.take_along_axis(unsorted_reco_scores, unsorted_reco_scores.argsort()[:, ::-1], axis=1)
-        all_reco_ids = np.take_along_axis(unsorted_reco_positions, unsorted_reco_scores.argsort()[:, ::-1], axis=1)
+        sorted_reco_positions = unsorted_reco_scores.argsort()[:, ::-1]
+
+        all_reco_scores = np.take_along_axis(unsorted_reco_scores, sorted_reco_positions, axis=1)
+        all_reco_ids = np.take_along_axis(unsorted_reco_positions, sorted_reco_positions, axis=1)
 
         all_target_ids = np.repeat(target_ids, n_reco)
-        all_reco_ids_1d = np.concatenate(all_reco_ids)
 
         if sorted_item_ids_to_recommend is not None:
-            all_reco_ids_1d = sorted_item_ids_to_recommend[all_reco_ids_1d]
+            all_reco_ids = sorted_item_ids_to_recommend[all_reco_ids]
 
-        return all_target_ids, all_reco_ids_1d, np.concatenate(all_reco_scores)
+        return all_target_ids, all_reco_ids.flatten(), all_reco_scores.flatten()
