@@ -43,7 +43,7 @@ class ImplicitRanker:
     distance : Distance
         Distance metric.
     subjects_factors : np.ndarray | sparse.csr_matrix
-        Array of subject embeddings, shape (n_subjects, n_factors).
+        Array of subjects embeddings, shape (n_subjects, n_factors). For item-item similarity models subjects vectors from ui_csr are viewed as factors.
     objects_factors : np.ndarray
         Array with embeddings of all objects, shape (n_objects, n_factors).
     """
