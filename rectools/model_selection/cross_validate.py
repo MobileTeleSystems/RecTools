@@ -48,6 +48,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     models: tp.Dict[str, ModelBase],
     k: int,
     filter_viewed: bool,
+    users: tp.Optional[ExternalIds] = None,
     items_to_recommend: tp.Optional[ExternalIds] = None,
 ) -> tp.Dict[str, tp.Any]:
     """
@@ -115,6 +116,8 @@ def cross_validate(  # pylint: disable=too-many-locals
         fold_dataset = _gen_2x_internal_ids_dataset(interactions_df_train, dataset.user_features, dataset.item_features)
 
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
+        if users is not None:
+            interactions_df_test = interactions_df_test[interactions_df_test[Columns.User].isin(users)]
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
         catalog = interactions_df_train[Columns.Item].unique()  # 1x internal
 
