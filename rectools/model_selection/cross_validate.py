@@ -48,8 +48,8 @@ def cross_validate(  # pylint: disable=too-many-locals
     models: tp.Dict[str, ModelBase],
     k: int,
     filter_viewed: bool,
-    users: tp.Optional[ExternalIds] = None,
     items_to_recommend: tp.Optional[ExternalIds] = None,
+    users: tp.Optional[ExternalIds] = None,
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -117,7 +117,8 @@ def cross_validate(  # pylint: disable=too-many-locals
 
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         if users is not None:
-            interactions_df_test = interactions_df_test[interactions_df_test[Columns.User].isin(users)]
+            internal_users = dataset.user_id_map.convert_to_internal(users, strict=False)
+            interactions_df_test = interactions_df_test[interactions_df_test[Columns.User].isin(internal_users)]
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
         catalog = interactions_df_train[Columns.Item].unique()  # 1x internal
 
