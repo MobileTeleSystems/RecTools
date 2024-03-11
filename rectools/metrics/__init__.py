@@ -29,6 +29,8 @@ Metrics
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
+`metrics.ItemCoverage`
+`metrics.NumRetrieved`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.AvgRecPopularity`
@@ -43,6 +45,7 @@ Tools
 """
 
 from .classification import MCC, Accuracy, F1Beta, Precision, Recall
+from .coverage import ItemCoverage, NumRetrieved
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -68,6 +71,8 @@ __all__ = (
     "IntraListDiversity",
     "AvgRecPopularity",
     "Serendipity",
+    "ItemCoverage",
+    "NumRetrieved",
     "calc_metrics",
     "PairwiseDistanceCalculator",
     "PairwiseHammingDistanceCalculator",
