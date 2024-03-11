@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ class EASEModel(ModelBase):
 
     See https://arxiv.org/abs/1905.03375.
 
-    Please note that this algorithm requires a lot of RAM during fit method.
+    Please note that this algorithm requires a lot of RAM during `fit` method.
     Out-of-memory issues are possible for big datasets.
     Reasonable catalog size for local development is about 30k items.
     Reasonable amount of interactions is about 20m.
@@ -44,7 +44,7 @@ class EASEModel(ModelBase):
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
     num_threads: int, default 1
-        Number of threads used for recommend method.
+        Number of threads used for `recommend` method.
     """
 
     u2i_dist = Distance.DOT
@@ -58,7 +58,7 @@ class EASEModel(ModelBase):
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
-        self.n_threads = num_threads
+        self.num_threads = num_threads
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
@@ -94,7 +94,7 @@ class EASEModel(ModelBase):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.n_threads,
+            num_threads=self.num_threads,
         )
 
         return all_user_ids, all_reco_ids, all_scores

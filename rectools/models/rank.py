@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -139,16 +139,16 @@ class ImplicitRanker:
         sorted_object_whitelist: tp.Optional[np.ndarray] = None,
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        """Rank objects for proceed inference with using implicit library topk cpu method.
+        """Rank objects to proceed inference using implicit library topk cpu method.
 
         Parameters
         ----------
         subject_ids : csr_matrix
             Array of ids to recommend for.
         k : int
-            Derived number of recommendations for every subject ids.
+            Derived number of recommendations for every subject id.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
-            Subject-object interactions.
+            Subject-object interactions that should be filtered from recommendations.
             This is relevant for u2i case.
         sorted_object_whitelist : sparse.csr_matrix, optional, default ``None``
             Whitelist of object ids.
