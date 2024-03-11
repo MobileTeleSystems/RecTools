@@ -151,13 +151,13 @@ To remove virtual environment run
 make clean
 ```
 
-## RecTools.Team
+## RecTools Team
 
-- [Emiliy Feldman](https://github.com/feldlime)
-- [Ildar Safilo](https://github.com/irsafilo)
-- [Daniil Potapov](https://github.com/sharthZ23) 
-- [Igor Belkov](https://github.com/OzmundSedler)
-- [Artem Senin](https://github.com/artemseninhse)
+- [Emiliy Feldman](https://github.com/feldlime) [Maintainer]
+- [Daria Tikhonovich](https://github.com/blondered) [Maintainer]
 - [Alexander Butenko](https://github.com/iomallach)
-- [Mikhail Khasykov](https://github.com/mkhasykov)
-- [Daria Tikhonovich](https://github.com/blondered)
+- [Andrey Semenov](https://github.com/In48semenov)
+- [Mike Sokolov](https://github.com/mikesokolovv)
+
+Historical contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov)
+
