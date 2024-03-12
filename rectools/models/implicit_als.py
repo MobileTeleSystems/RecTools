@@ -26,7 +26,8 @@ from tqdm.auto import tqdm
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 
-from .vector import Distance, Factors, VectorModel
+from .rank import Distance
+from .vector import Factors, VectorModel
 
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
