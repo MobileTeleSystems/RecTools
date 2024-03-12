@@ -44,13 +44,13 @@ class RandomSplitter(Splitter):
     random_state : int, default  None,
         Controls randomness of each fold. Pass an int to get reproducible result across multiple `split` calls.
     filter_cold_users : bool, default ``True``
-        If `True`, users that not in train will be excluded from test.
+        If `True`, users that are not present in train will be excluded from test.
         WARNING: both cold and warm users will be excluded from test.
     filter_cold_items : bool, default ``True``
-        If `True`, items that not in train will be excluded from test.
+        If `True`, items that are not present in train will be excluded from test.
         WARNING: both cold and warm items will be excluded from test.
     filter_already_seen : bool, default ``True``
-        If `True`, pairs (user, item) that are in train will be excluded from test.
+        If `True`, pairs (user, item) that are present in train will be excluded from test.
 
     Examples
     --------

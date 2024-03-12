@@ -73,7 +73,7 @@ class Dataset:
     def n_hot_items(self) -> int:
         """
         Return number of hot items in dataset.
-        Items with internal ids from `0` to `n_hot_items - 1` are hot (they re present in interactions).
+        Items with internal ids from `0` to `n_hot_items - 1` are hot (they are present in interactions).
         Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm
         (they aren't present in interactions, but they have features).
         """
