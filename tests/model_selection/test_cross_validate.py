@@ -45,9 +45,11 @@ class TestGen2xInternalIdsDataset:
             columns=Columns.Interactions,
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
 
-    @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
-    def test_without_features(self, keep_features_for_hot_only: bool) -> None:
-        dataset = _gen_2x_internal_ids_dataset(self.interactions_internal_df, None, None, keep_features_for_hot_only)
+    @pytest.mark.parametrize("prefer_warm_inference_over_cold", (True, False))
+    def test_without_features(self, prefer_warm_inference_over_cold: bool) -> None:
+        dataset = _gen_2x_internal_ids_dataset(
+            self.interactions_internal_df, None, None, prefer_warm_inference_over_cold
+        )
 
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array([0, 3]))
         np.testing.assert_equal(dataset.item_id_map.external_ids, np.array([0, 1, 2]))
@@ -56,14 +58,14 @@ class TestGen2xInternalIdsDataset:
         assert dataset.item_features is None
 
     @pytest.mark.parametrize(
-        "keep_features_for_hot_only, expected_user_ids, expected_item_ids",
+        "prefer_warm_inference_over_cold, expected_user_ids, expected_item_ids",
         (
-            (True, [0, 3], [0, 1, 2]),
-            (False, [0, 3, 1, 2], [0, 1, 2, 3]),
+            (False, [0, 3], [0, 1, 2]),
+            (True, [0, 3, 1, 2], [0, 1, 2, 3]),
         ),
     )
     def test_with_features(
-        self, keep_features_for_hot_only: bool, expected_user_ids: tp.List[int], expected_item_ids: tp.List[int]
+        self, prefer_warm_inference_over_cold: bool, expected_user_ids: tp.List[int], expected_item_ids: tp.List[int]
     ) -> None:
         user_features = DenseFeatures(
             values=np.array([[1, 10], [2, 20], [3, 30], [4, 40]]),
@@ -82,7 +84,7 @@ class TestGen2xInternalIdsDataset:
         )
 
         dataset = _gen_2x_internal_ids_dataset(
-            self.interactions_internal_df, user_features, item_features, keep_features_for_hot_only
+            self.interactions_internal_df, user_features, item_features, prefer_warm_inference_over_cold
         )
 
         np.testing.assert_equal(dataset.user_id_map.external_ids, np.array(expected_user_ids))
@@ -174,12 +176,12 @@ class TestCrossValidate:
             ),
         ),
     )
-    @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
+    @pytest.mark.parametrize("prefer_warm_inference_over_cold", (True, False))
     def test_happy_path(
         self,
         items_to_recommend: tp.Optional[ExternalIds],
         expected_metrics: tp.List[tp.Dict[str, tp.Any]],
-        keep_features_for_hot_only: bool,
+        prefer_warm_inference_over_cold: bool,
     ) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
@@ -191,7 +193,7 @@ class TestCrossValidate:
             k=2,
             filter_viewed=False,
             items_to_recommend=items_to_recommend,
-            keep_features_for_hot_only=keep_features_for_hot_only,
+            prefer_warm_inference_over_cold=prefer_warm_inference_over_cold,
         )
 
         expected = {
@@ -220,8 +222,8 @@ class TestCrossValidate:
 
         assert actual == expected
 
-    @pytest.mark.parametrize("keep_features_for_hot_only", (True, False))
-    def test_happy_path_with_features(self, keep_features_for_hot_only: bool) -> None:
+    @pytest.mark.parametrize("prefer_warm_inference_over_cold", (True, False))
+    def test_happy_path_with_features(self, prefer_warm_inference_over_cold: bool) -> None:
         splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
         models: tp.Dict[str, ModelBase] = {
@@ -235,7 +237,7 @@ class TestCrossValidate:
             models=models,
             k=2,
             filter_viewed=False,
-            keep_features_for_hot_only=keep_features_for_hot_only,
+            prefer_warm_inference_over_cold=prefer_warm_inference_over_cold,
         )
 
         expected = {

@@ -17,7 +17,7 @@ def _gen_2x_internal_ids_dataset(
     interactions_internal_df: pd.DataFrame,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
-    keep_features_for_hot_only: bool,
+    prefer_warm_inference_over_cold: bool,
 ) -> Dataset:
     """
     Make new dataset based on given interactions and features from base dataset.
@@ -32,7 +32,7 @@ def _gen_2x_internal_ids_dataset(
         if features is None:
             return None, id_map
 
-        if not keep_features_for_hot_only:
+        if prefer_warm_inference_over_cold:
             all_features_ids = np.arange(len(features))  # 1x internal
             id_map = id_map.add_ids(all_features_ids, raise_if_already_present=False)
 
@@ -60,7 +60,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     k: int,
     filter_viewed: bool,
     items_to_recommend: tp.Optional[ExternalIds] = None,
-    keep_features_for_hot_only: bool = False,
+    prefer_warm_inference_over_cold: bool = True,
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -85,9 +85,9 @@ def cross_validate(  # pylint: disable=too-many-locals
     items_to_recommend : array-like, optional, default None
         Whitelist of external item ids.
         If given, only these items will be used for recommendations.
-    keep_features_for_hot_only : bool, default False
-        Whether to keep features only for hot items and users on each split.
-        If False, features will be kept as is.
+    prefer_warm_inference_over_cold : bool, default True
+        If False features will be kept only for hot items and users on each split.
+        If True, features will be kept as is.
 
     Returns
     -------
@@ -121,7 +121,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         # We need to avoid fitting models on sparse matrices with all zero rows/columns =>
         # => we need to create a fold dataset which contains only hot users and items for current training
         fold_dataset = _gen_2x_internal_ids_dataset(
-            interactions_df_train, dataset.user_features, dataset.item_features, keep_features_for_hot_only
+            interactions_df_train, dataset.user_features, dataset.item_features, prefer_warm_inference_over_cold
         )
 
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
