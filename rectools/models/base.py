@@ -278,30 +278,24 @@ class ModelBase:
                     warm_target_ids, requested_k, sorted_item_ids_to_recommend
                 )  # type: ignore
         if cold_target_ids.size > 0:
-            reco_cold = self._recommend_cold(cold_target_ids, requested_k, sorted_item_ids_to_recommend)
+            # We intentionally request `k` and not `requested_k` here since we're not going to filter cold reco later
+            reco_cold = self._recommend_cold(cold_target_ids, k, sorted_item_ids_to_recommend)
 
         reco_hot = self._adjust_reco_types(reco_hot)
         reco_warm = self._adjust_reco_types(reco_warm)
         reco_cold = self._adjust_reco_types(reco_cold, target_type=dataset.item_id_map.external_dtype)
 
-        if assume_external_ids:
-            # We have to do it for cold reco before filtering since we need targets and items to be in the same space.
-            # We do it for cold reco only, since it's faster to filter internal ids than external ones.
-            reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
-        else:
-            reco_cold_final = reco_cold
-        del reco_cold
-
         if filter_itself:
             reco_hot = self._filter_item_itself_from_i2i_reco(reco_hot, k)
             reco_warm = self._filter_item_itself_from_i2i_reco(reco_warm, k)
-            reco_cold_final = self._filter_item_itself_from_i2i_reco(reco_cold_final, k)
+            # We don't filter cold reco since we never recommend cold items
 
         if assume_external_ids:
             reco_hot_final = self._reco_to_external(reco_hot, dataset.item_id_map, dataset.item_id_map)
             reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
+            reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
         else:
-            reco_hot_final, reco_warm_final = reco_hot, reco_warm
+            reco_hot_final, reco_warm_final, reco_cold_final = reco_hot, reco_warm, reco_cold
         del reco_hot, reco_warm
 
         reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
