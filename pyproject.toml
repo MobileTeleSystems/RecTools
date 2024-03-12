@@ -4,18 +4,18 @@ version = "0.4.2"
 description = "An easy-to-use Python library for building recommendation systems"
 license = "Apache-2.0"
 authors = [
+    "Emiliy Feldman <feldlime@yandex.ru",
+    "Daria Tikhonovich <daria.m.tikhonovich@gmail.com>",
     "Daniil Potapov <sharth23@gmail.com>",
     "Ildar Safilo <irsafilo@gmail.com>",
-    "Emiliy Feldman <feldlime@yandex.ru",
     "Alexander Butenko <a.butenko.o@gmail.com>",
     "Julia Karamnova <juliakaramnova@yandex.ru>",
     "Artem Senin <artemseninhse@gmail.com>",
     "Mikhail Khasykov <mkhasykov@gmail.com>",
-    "Daria Tikhonovich <daria.m.tikhonovich@gmail.com>",
+    "Mike Sokolov <mikesokolovv@gmail.com>",
+    "Andrey Semenov <in48semenov@yandex.ru>",
 ]
 maintainers = [
-    "Daniil Potapov <sharth23@gmail.com>",
-    "Ildar Safilo <irsafilo@gmail.com>",
     "Emiliy Feldman <feldlime@yandex.ru",
     "Daria Tikhonovich <daria.m.tikhonovich@gmail.com>",
 ]
