@@ -86,7 +86,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         Whitelist of external item ids.
         If given, only these items will be used for recommendations.
     prefer_warm_inference_over_cold : bool, default True
-        Whether to keep features for test users and items that were not present in train. 
+        Whether to keep features for test users and items that were not present in train.
         Set to `True` to enable "warm" recommendations for all applicable models.
         Set to `False` to treat all new users and items as "cold" and not to provide features for them.
         If new users and items are filtered from test in splitter, this argument has no effect.
