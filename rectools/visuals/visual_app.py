@@ -210,7 +210,7 @@ class AppDataStorage:
                 df[id_col] = selected_requests[request_name]
                 df[Columns.Model] = model_name
                 res.append(df)
-        return pd.concat(res, axis=0)
+        return pd.concat(res, axis=0).reset_index(drop=True)
 
     @classmethod
     def _ungroup_interactions(
@@ -246,7 +246,7 @@ class AppDataStorage:
     def _df_to_tables_dict(cls, df: pd.DataFrame, key_col: str) -> TablesDict:
         res = {}
         for key, grouped_df in df.groupby(key_col):
-            res[key] = grouped_df.drop(columns=[key_col])
+            res[key] = grouped_df.drop(columns=[key_col]).reset_index(drop=True)
         return res
 
     @classmethod
