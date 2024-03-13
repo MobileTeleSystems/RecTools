@@ -161,11 +161,12 @@ class AppDataStorage:
         interactions: pd.DataFrame,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         id_col: str,
-        item_data: pd.DataFrame,
+        item_data: tp.Optional[pd.DataFrame] = None,
     ) -> TablesDict:
         # Request ids (e.g. user ids) are stored as values in `selected_requests`
         selected_interactions = interactions[interactions[id_col].isin(selected_requests.values())]
-        selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
+        if item_data is not None:
+            selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
         prepared_interactions = {}
         for request_name, request_id in selected_requests.items():
             prepared_interactions[request_name] = selected_interactions[
@@ -179,7 +180,7 @@ class AppDataStorage:
         reco: TablesDict,
         selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
         id_col: str,
-        item_data: pd.DataFrame,
+        item_data: tp.Optional[pd.DataFrame] = None,
     ) -> tp.Dict[tp.Hashable, TablesDict]:
         prepared_reco = {}
         for model_name, model_reco in reco.items():
@@ -187,12 +188,17 @@ class AppDataStorage:
             selected_reco = model_reco[model_reco[id_col].isin(selected_requests.values())]
             prepared_model_reco = {}
             for request_name, request_id in selected_requests.items():
-                prepared_model_reco[request_name] = item_data.merge(
-                    selected_reco[selected_reco[id_col] == request_id],
-                    how="right",
-                    on="item_id",
-                    suffixes=["_item", "_reco"],
-                ).drop(columns=[id_col])
+                request_reco = (
+                    selected_reco[selected_reco[id_col] == request_id].drop(columns=[id_col]).reset_index(drop=True)
+                )
+                if item_data is not None:
+                    request_reco = request_reco.merge(
+                        item_data,
+                        how="left",
+                        on="item_id",
+                        suffixes=["_reco", "_item"],
+                    )
+                prepared_model_reco[request_name] = request_reco
             prepared_reco[model_name] = prepared_model_reco
         return prepared_reco
 
@@ -325,14 +331,15 @@ class AppDataStorage:
                 {Columns.TargetItem} or {Columns.User}"""
             )
 
-        dummy_item_data = pd.DataFrame(columns=[Columns.Item])
         grouped_interactions = cls._group_interactions(
-            interactions=interactions, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+            interactions=interactions, selected_requests=selected_requests, id_col=id_col
         )
 
         reco_dict = cls._df_to_tables_dict(reco, Columns.Model)
         grouped_reco = cls._group_reco(
-            reco=reco_dict, selected_requests=selected_requests, id_col=id_col, item_data=dummy_item_data
+            reco=reco_dict,
+            selected_requests=selected_requests,
+            id_col=id_col,
         )
 
         return cls(
@@ -513,7 +520,7 @@ class VisualAppBase:
         """
         data_storage = AppDataStorage.load(folder_name=folder_name)
 
-        return cls(
+        return VisualAppBase(
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
