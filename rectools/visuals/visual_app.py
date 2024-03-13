@@ -253,8 +253,8 @@ class AppDataStorage:
     def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, tp.Hashable]) -> pd.DataFrame:
         df = pd.DataFrame(
             {
-                "request_name": selected_requests.keys(),
-                "request_id": selected_requests.values(),
+                "request_name": list(selected_requests.keys()),
+                "request_id": list(selected_requests.values()),
             }
         )
         return df
