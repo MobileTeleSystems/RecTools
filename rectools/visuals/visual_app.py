@@ -540,7 +540,7 @@ class VisualApp(VisualAppBase):
 
     Parameters
     ----------
-    reco : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
+    reco : tp.Union[pd.DataFrame, TablesDict]
         Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
         form model names are supposed to be dict keys, and recommendations from different models are
         supposed to be pd.DataFrames as dict values.
@@ -613,7 +613,7 @@ class VisualApp(VisualAppBase):
 
     def __init__(
         self,
-        reco: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
+        reco: tp.Union[pd.DataFrame, TablesDict],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
         selected_users: tp.Dict[tp.Hashable, ExternalId],
@@ -667,7 +667,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     Parameters
     ----------
-    reco : tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]
+    reco : tp.Union[pd.DataFrame, TablesDict]
         Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
         form model names are supposed to be dict keys, and recommendations from different models are
         supposed to be pd.DataFrames as dict values.
@@ -730,7 +730,7 @@ class ItemToItemVisualApp(VisualAppBase):
 
     def __init__(
         self,
-        reco: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
+        reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, ExternalId],
         n_random_items: int = 0,
