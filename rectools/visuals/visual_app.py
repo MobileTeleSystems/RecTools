@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from IPython.display import display
 
-from rectools import Columns
+from rectools import Columns, ExternalId
 from rectools.utils import fast_isin
 
 TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
@@ -32,7 +32,7 @@ class AppDataStorage:
 
     is_u2i: bool = attr.ib()
     id_col: str = attr.ib()
-    selected_requests: tp.Dict[tp.Hashable, tp.Hashable] = attr.ib()
+    selected_requests: tp.Dict[tp.Hashable, ExternalId] = attr.ib()
     grouped_interactions: TablesDict = attr.ib()
     grouped_reco: tp.Dict[tp.Hashable, TablesDict] = attr.ib()
 
@@ -41,7 +41,7 @@ class AppDataStorage:
         cls,
         reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_requests: tp.Dict[tp.Hashable, ExternalId],
         is_u2i: bool = True,
         n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
@@ -58,7 +58,7 @@ class AppDataStorage:
         item_data : pd.DataFrame
             Data for items that is used for visualisation in both interactions and recommendations
             widgets.
-        selected_requests : tp.Dict[tp.Hashable, tp.Hashable]
+        selected_requests : tp.Dict[tp.Hashable, ExternalId]
             Predefined requests (users or items) that will be displayed in widgets. Request names
             must be specified as keys of the dict and ids as values of the dict.
         is_u2i : bool, default ``True``
@@ -134,14 +134,13 @@ class AppDataStorage:
     @classmethod
     def _fill_requests_with_random(
         cls,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_requests: tp.Dict[tp.Hashable, ExternalId],
         n_random_requests: int,
         id_col: str,
         reco: TablesDict,
-    ) -> tp.Dict[tp.Hashable, tp.Hashable]:
+    ) -> tp.Dict[tp.Hashable, ExternalId]:
 
         # Leave only those ids that were not predefined by user
-        # Request ids (e.g. user ids) are stored as values in `selected_requests`
         all_ids = [model_reco[id_col].unique() for model_reco in reco.values()]
         unique_ids = pd.unique(np.hstack(all_ids))
         selected_ids = np.array(list(selected_requests.values()))
@@ -151,7 +150,7 @@ class AppDataStorage:
         num_selecting = min(len(selecting_from), n_random_requests)
         new_ids = np.random.choice(selecting_from, num_selecting, replace=False)
         res = selected_requests.copy()
-        new_requests: tp.Dict[tp.Hashable, tp.Hashable] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
+        new_requests: tp.Dict[tp.Hashable, ExternalId] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
         res.update(new_requests)
         return res
 
@@ -159,11 +158,10 @@ class AppDataStorage:
     def _group_interactions(
         cls,
         interactions: pd.DataFrame,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_requests: tp.Dict[tp.Hashable, ExternalId],
         id_col: str,
         item_data: tp.Optional[pd.DataFrame] = None,
     ) -> TablesDict:
-        # Request ids (e.g. user ids) are stored as values in `selected_requests`
         selected_interactions = interactions[interactions[id_col].isin(selected_requests.values())]
         if item_data is not None:
             selected_interactions = selected_interactions.merge(item_data, how="left", on="item_id")
@@ -178,13 +176,12 @@ class AppDataStorage:
     def _group_reco(
         cls,
         reco: TablesDict,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_requests: tp.Dict[tp.Hashable, ExternalId],
         id_col: str,
         item_data: tp.Optional[pd.DataFrame] = None,
     ) -> tp.Dict[tp.Hashable, TablesDict]:
         prepared_reco = {}
         for model_name, model_reco in reco.items():
-            # Request ids (e.g. user ids) are stored as values in `selected_requests`
             selected_reco = model_reco[model_reco[id_col].isin(selected_requests.values())]
             prepared_model_reco = {}
             for request_name, request_id in selected_requests.items():
@@ -206,7 +203,7 @@ class AppDataStorage:
     def _ungroup_reco(
         cls,
         grouped_reco: tp.Dict[tp.Hashable, TablesDict],
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_requests: tp.Dict[tp.Hashable, ExternalId],
         id_col: str,
     ) -> pd.DataFrame:
         res = []
@@ -222,7 +219,7 @@ class AppDataStorage:
     def _ungroup_interactions(
         cls,
         grouped_interactions: TablesDict,
-        selected_requests: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_requests: tp.Dict[tp.Hashable, ExternalId],
         id_col: str,
     ) -> pd.DataFrame:
         res = []
@@ -256,7 +253,7 @@ class AppDataStorage:
         return res
 
     @classmethod
-    def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, tp.Hashable]) -> pd.DataFrame:
+    def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, ExternalId]) -> pd.DataFrame:
         df = pd.DataFrame(
             {
                 "request_name": list(selected_requests.keys()),
@@ -568,7 +565,7 @@ class VisualApp(VisualAppBase):
         Supposed to be in form of a pandas DataFrame with columns:
             - `Columns.Item` - item id
             - Any other columns with item data (e.g. name, category, popularity, image link)
-    selected_users : tp.Dict[tp.Hashable, tp.Hashable]
+    selected_users : tp.Dict[tp.Hashable, ExternalId]
         Predefined users that will be displayed in widgets. User names must be specified as keys
         of the dict and user ids as values of the dict.
     n_random_users : int, default 0
@@ -619,7 +616,7 @@ class VisualApp(VisualAppBase):
         reco: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
-        selected_users: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_users: tp.Dict[tp.Hashable, ExternalId],
         n_random_users: int = 0,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
@@ -643,7 +640,7 @@ class VisualApp(VisualAppBase):
         reco: tp.Union[pd.DataFrame, TablesDict],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
-        selected_users: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_users: tp.Dict[tp.Hashable, ExternalId],
         n_random_users: int,
     ) -> AppDataStorage:
         return AppDataStorage.from_raw(
@@ -687,7 +684,7 @@ class ItemToItemVisualApp(VisualAppBase):
         Supposed to be in form of a pandas DataFrame with columns:
             - `Columns.Item` - item id
             - Any other columns with item data (e.g. name, category, popularity, image link)
-    selected_items : tp.Dict[tp.Hashable, tp.Hashable]
+    selected_items : tp.Dict[tp.Hashable, ExternalId]
         Predefined items that will be displayed in widgets. Item names must be specified as keys
         of the dict and item ids as values of the dict.
     n_random_items : int, default 0
@@ -735,7 +732,7 @@ class ItemToItemVisualApp(VisualAppBase):
         self,
         reco: tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]],
         item_data: pd.DataFrame,
-        selected_items: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_items: tp.Dict[tp.Hashable, ExternalId],
         n_random_items: int = 0,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
@@ -757,7 +754,7 @@ class ItemToItemVisualApp(VisualAppBase):
         self,
         reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
-        selected_items: tp.Dict[tp.Hashable, tp.Hashable],
+        selected_items: tp.Dict[tp.Hashable, ExternalId],
         n_random_items: int,
     ) -> AppDataStorage:
         return AppDataStorage.from_raw(
