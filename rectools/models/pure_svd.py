@@ -21,7 +21,8 @@ from scipy.sparse.linalg import svds
 
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models.vector import Distance, Factors, VectorModel
+from rectools.models.rank import Distance
+from rectools.models.vector import Factors, VectorModel
 
 
 class PureSVDModel(VectorModel):

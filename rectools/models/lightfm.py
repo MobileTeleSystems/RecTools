@@ -22,7 +22,8 @@ from scipy import sparse
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 
-from .vector import Distance, Factors, VectorModel
+from .rank import Distance
+from .vector import Factors, VectorModel
 
 
 class LightFMWrapperModel(VectorModel):

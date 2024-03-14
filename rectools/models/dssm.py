@@ -38,7 +38,8 @@ from torch.utils.data import Dataset as TorchDataset
 from ..dataset.dataset import Dataset
 from ..dataset.torch_datasets import ItemFeaturesDataset, UserFeaturesDataset
 from ..exceptions import NotFittedError
-from .vector import Distance, Factors, VectorModel
+from .rank import Distance
+from .vector import Factors, VectorModel
 
 
 class ItemNet(nn.Module):
