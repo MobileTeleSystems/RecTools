@@ -189,11 +189,11 @@ class AppDataStorage:
                     selected_reco[selected_reco[id_col] == request_id].drop(columns=[id_col]).reset_index(drop=True)
                 )
                 if item_data is not None:
-                    request_reco = request_reco.merge(
-                        item_data,
-                        how="left",
+                    request_reco = item_data.merge(
+                        request_reco,
+                        how="right",
                         on="item_id",
-                        suffixes=["_reco", "_item"],
+                        suffixes=["_item", "_reco"],
                     )
                 prepared_model_reco[request_name] = request_reco
             prepared_reco[model_name] = prepared_model_reco
