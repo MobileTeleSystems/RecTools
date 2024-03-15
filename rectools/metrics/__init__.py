@@ -52,6 +52,7 @@ from .diversity import IntraListDiversity
 from .novelty import MeanInvUserFreq
 from .popularity import AvgRecPopularity
 from .ranking import MAP, MRR, NDCG
+from .roc_auc import LAUC
 from .scoring import calc_metrics
 from .serendipity import Serendipity
 
@@ -64,6 +65,7 @@ __all__ = (
     "MAP",
     "NDCG",
     "MRR",
+    "LAUC",
     "MeanInvUserFreq",
     "IntraListDiversity",
     "AvgRecPopularity",
