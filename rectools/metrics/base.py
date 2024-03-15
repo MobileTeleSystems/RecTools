@@ -76,7 +76,7 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
     Parameters
     ----------
     reco : pd.DataFrame
-        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank` and `Columns.Score` (optional)
     interactions : pd.DataFrame
         Interactions table with columns `Columns.User`, `Columns.Item`.
 
@@ -85,9 +85,14 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         Result of merging.
     """
+    if Columns.Score in reco:
+        reco_columns = Columns.UserItem + [Columns.Rank, Columns.Score]
+    else:
+        reco_columns = Columns.UserItem + [Columns.Rank]
+
     merged = pd.merge(
         interactions.reindex(columns=Columns.UserItem),
-        reco.reindex(columns=Columns.UserItem + [Columns.Rank]),
+        reco.reindex(columns=reco_columns),
         on=Columns.UserItem,
         how="left",
     )

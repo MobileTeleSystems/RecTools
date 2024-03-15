@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics.ranking import MAP, MRR, NDCG
+from rectools.metrics.ranking import MAP, MRR, NDCG, PFound
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
@@ -193,3 +193,128 @@ class TestMRR:
             dtype=float,
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
+
+
+class TestPFound:
+    @pytest.mark.parametrize(
+        "k,expected_pfound",
+        (
+            (1, [0, 0, 1 * 0.88, 1 * 0.84, 0]),
+            (
+                3,
+                [
+                    0,
+                    0,
+                    1 * 0.88
+                    + 1 * (1 - 0.88) * (1 - 0.15) * 0.80
+                    + 1 * (1 - 0.88) * (1 - 0.15) * (1 - 0.80) * (1 - 0.15) * 0.76,
+                    1 * 0.84,
+                    1 * 0 + (1 * (1 - 0) * (1 - 0.15)) * 0 + (1 * (1 - 0) * (1 - 0.15) * (1 - 0) * (1 - 0.15)) * 0.8,
+                ],
+            ),
+        ),
+    )
+    def test_calc(self, k: int, expected_pfound: tp.List[float]) -> None:
+        reco = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6],
+                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5, 1],
+                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1, 1],
+                Columns.Score: [0.4, 0.9, 0.88, 0.8, 0.76, 0.84, 0.80, 0.5, 0.4, 0.94, 0.96],
+            }
+        )
+        interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+            }
+        )
+
+        metric = PFound(k=k)
+        expected_metric_per_user = pd.Series(
+            expected_pfound,
+            index=pd.Series([1, 2, 3, 4, 5], name=Columns.User),
+            dtype=float,
+        )
+
+        pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
+        assert np.allclose(metric.calc(reco, interactions), expected_metric_per_user.mean())
+
+    def test_when_no_interactions(self) -> None:
+        reco = pd.DataFrame(
+            [[1, 1, 1, 0.9], [2, 1, 1, 0.9]], columns=[Columns.User, Columns.Item, Columns.Rank, Columns.Score]
+        )
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
+        metric = PFound(k=3)
+        pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
+        assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
+
+    def test_when_no_column_score_in_reco(self) -> None:
+        reco = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6],
+                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5, 1],
+                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1, 1],
+            }
+        )
+        interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+            }
+        )
+
+        metric = PFound(k=3)
+
+        with pytest.raises(KeyError):
+            metric.calc_per_user(reco, interactions)
+
+    @pytest.mark.parametrize(
+        "expected_top_k",
+        (
+            (
+                pd.DataFrame(
+                    {
+                        Columns.User: [1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5],
+                        Columns.Rank: [1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6],
+                        Columns.Score: [
+                            0.96,
+                            0.9,
+                            0.88,
+                            0.84,
+                            0.88,
+                            0.8,
+                            0.76,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0.46,
+                            0.9,
+                            0,
+                            0,
+                            0.6,
+                            0,
+                            0.8,
+                            0.76,
+                            0,
+                            0,
+                            0.5,
+                        ],
+                    }
+                )
+            ),
+        ),
+    )
+    def test_add_missing_values(self, expected_top_k: pd.DataFrame) -> None:
+        top_k = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 1, 1, 3, 3, 3, 3, 4, 4, 5, 5, 5],
+                Columns.Rank: [1, 2, 3, 4, 1, 2, 3, 9, 1, 4, 2, 3, 6],
+                Columns.Score: [0.96, 0.9, 0.88, 0.84, 0.88, 0.8, 0.76, 0.46, 0.9, 0.6, 0.8, 0.76, 0.5],
+            }
+        )
+
+        top_k_no_missing_values = PFound(k=10).add_missing_values(top_k)
+        pd.testing.assert_frame_equal(top_k_no_missing_values, expected_top_k)
