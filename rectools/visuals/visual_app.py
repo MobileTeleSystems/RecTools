@@ -179,6 +179,7 @@ class AppDataStorage:
         selected_requests: tp.Dict[tp.Hashable, ExternalId],
         id_col: str,
         item_data: tp.Optional[pd.DataFrame] = None,
+        drop_na_reco_cols: bool = False,
     ) -> tp.Dict[tp.Hashable, TablesDict]:
         prepared_reco = {}
         for model_name, model_reco in reco.items():
@@ -188,6 +189,8 @@ class AppDataStorage:
                 request_reco = (
                     selected_reco[selected_reco[id_col] == request_id].drop(columns=[id_col]).reset_index(drop=True)
                 )
+                if drop_na_reco_cols:
+                    request_reco = request_reco.dropna(axis=1, how="all")
                 if item_data is not None:
                     request_reco = item_data.merge(
                         request_reco,
@@ -273,6 +276,7 @@ class AppDataStorage:
         overwrite : bool, default ``False``
             Allow to overwrite in the folder files if they already exist.
         """
+
         interactions_df = self._ungroup_interactions(
             grouped_interactions=self.grouped_interactions, selected_requests=self.selected_requests, id_col=self.id_col
         )
@@ -333,10 +337,9 @@ class AppDataStorage:
         )
 
         reco_dict = cls._df_to_tables_dict(reco, Columns.Model)
+        # We need to drop na cols from reco dfs because they could have appeared during pd.concat when saving
         grouped_reco = cls._group_reco(
-            reco=reco_dict,
-            selected_requests=selected_requests,
-            id_col=id_col,
+            reco=reco_dict, selected_requests=selected_requests, id_col=id_col, drop_na_reco_cols=True
         )
 
         return cls(
@@ -357,29 +360,23 @@ class VisualAppBase:
 
     def __init__(
         self,
-        *args: tp.Any,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
         data_storage: tp.Optional[AppDataStorage] = None,
-        **kwargs: tp.Any,
     ) -> None:
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
 
-        if data_storage is None:
-            data_storage = self._create_data_storage(*args, **kwargs)
-        self.data_storage: AppDataStorage = data_storage
+        if data_storage is not None:
+            self.data_storage: AppDataStorage = data_storage
 
         if min_width <= MIN_WIDTH_LIMIT:
             raise ValueError(f"`min_width` must be greater then {MIN_WIDTH_LIMIT}. {min_width} specified")
         self.min_width = min_width
         if auto_display:
             self.display()
-
-    def _create_data_storage(self, *args: tp.Any, **kwargs: tp.Any) -> AppDataStorage:
-        raise NotImplementedError()
 
     def _convert_to_html(self, df: pd.DataFrame) -> str:
         html_repr = (
@@ -623,33 +620,20 @@ class VisualApp(VisualAppBase):
         rows_limit: int = 20,
         min_width: int = 100,
     ) -> None:
-        super().__init__(
-            reco=reco,
-            interactions=interactions,
-            item_data=item_data,
-            selected_users=selected_users,
-            n_random_users=n_random_users,
-            auto_display=auto_display,
-            formatters=formatters,
-            rows_limit=rows_limit,
-            min_width=min_width,
-        )
-
-    def _create_data_storage(
-        self,
-        reco: tp.Union[pd.DataFrame, TablesDict],
-        interactions: pd.DataFrame,
-        item_data: pd.DataFrame,
-        selected_users: tp.Dict[tp.Hashable, ExternalId],
-        n_random_users: int,
-    ) -> AppDataStorage:
-        return AppDataStorage.from_raw(
+        data_storage = AppDataStorage.from_raw(
             interactions=interactions,
             reco=reco,
             selected_requests=selected_users,
             item_data=item_data,
             is_u2i=True,
             n_random_requests=n_random_users,
+        )
+        super().__init__(
+            data_storage=data_storage,
+            auto_display=auto_display,
+            formatters=formatters,
+            rows_limit=rows_limit,
+            min_width=min_width,
         )
 
 
@@ -739,28 +723,17 @@ class ItemToItemVisualApp(VisualAppBase):
         rows_limit: int = 20,
         min_width: int = 100,
     ) -> None:
-        super().__init__(
-            reco=reco,
-            item_data=item_data,
-            selected_items=selected_items,
-            n_random_items=n_random_items,
-            auto_display=auto_display,
-            formatters=formatters,
-            rows_limit=rows_limit,
-            min_width=min_width,
-        )
-
-    def _create_data_storage(
-        self,
-        reco: tp.Union[pd.DataFrame, TablesDict],
-        item_data: pd.DataFrame,
-        selected_items: tp.Dict[tp.Hashable, ExternalId],
-        n_random_items: int,
-    ) -> AppDataStorage:
-        return AppDataStorage.from_raw(
+        data_storage = AppDataStorage.from_raw(
             reco=reco,
             selected_requests=selected_items,
             item_data=item_data,
             is_u2i=False,
             n_random_requests=n_random_items,
+        )
+        super().__init__(
+            data_storage=data_storage,
+            auto_display=auto_display,
+            formatters=formatters,
+            rows_limit=rows_limit,
+            min_width=min_width,
         )
