@@ -84,7 +84,7 @@ class AppDataStorage:
             )
         if isinstance(reco, pd.DataFrame):
             if Columns.Model not in reco.columns:
-                raise ValueError("Missing `{Columns.Model}` column in `reco` DataFrame")
+                raise KeyError("Missing `{Columns.Model}` column in `reco` DataFrame")
             reco = cls._df_to_tables_dict(reco, Columns.Model)
         cls._check_columns_present_in_reco(reco=reco, id_col=id_col)
 
@@ -276,7 +276,6 @@ class AppDataStorage:
         overwrite : bool, default ``False``
             Allow to overwrite in the folder files if they already exist.
         """
-
         interactions_df = self._ungroup_interactions(
             grouped_interactions=self.grouped_interactions, selected_requests=self.selected_requests, id_col=self.id_col
         )

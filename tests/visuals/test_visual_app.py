@@ -15,6 +15,16 @@ RECO_U2I: TablesDict = {
     "model2": pd.DataFrame({Columns.User: [1, 2, 3, 4], Columns.Item: [5, 6, 5, 6], Columns.Rank: [1, 1, 1, 1]}),
 }
 
+RECO_U2I_DF = pd.DataFrame(
+    {
+        Columns.User: [1, 2, 3, 4] * 2,
+        Columns.Item: [3, 4, 3, 4, 5, 6, 5, 6],
+        Columns.Score: [0.99, 0.9, 0.5, 0.5] + [np.nan] * 4,
+        Columns.Rank: [np.nan] * 4 + [1] * 4,
+        Columns.Model: ["model1"] * 4 + ["model2"] * 4,
+    }
+)
+
 RECO_I2I: TablesDict = {
     "model1": pd.DataFrame(
         {Columns.TargetItem: [3, 4, 5, 5], Columns.Item: [3, 4, 7, 8], Columns.Score: [0.99, 0.9, 0.7, 0.5]}
@@ -47,10 +57,51 @@ def check_data_storages_equal(one: AppDataStorage, two: AppDataStorage) -> None:
 
 
 class TestAppDataStorage:
-    def test_u2i(self) -> None:
+    @pytest.mark.parametrize(
+        "reco, expected_grouped_reco",
+        (
+            (
+                RECO_U2I,
+                {
+                    "model1": {
+                        "user_one": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]}),
+                        "user_three": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.5]}),
+                    },
+                    "model2": {
+                        "user_one": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]}),
+                        "user_three": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]}),
+                    },
+                },
+            ),
+            (
+                RECO_U2I_DF,
+                {
+                    "model1": {
+                        "user_one": pd.DataFrame(
+                            {Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99], Columns.Rank: [np.nan]}
+                        ),
+                        "user_three": pd.DataFrame(
+                            {Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.5], Columns.Rank: [np.nan]}
+                        ),
+                    },
+                    "model2": {
+                        "user_one": pd.DataFrame(
+                            {Columns.Item: [5], "feature_1": ["three"], Columns.Score: [np.nan], Columns.Rank: [1.0]}
+                        ),
+                        "user_three": pd.DataFrame(
+                            {Columns.Item: [5], "feature_1": ["three"], Columns.Score: [np.nan], Columns.Rank: [1.0]}
+                        ),
+                    },
+                },
+            ),
+        ),
+    )
+    def test_u2i(
+        self, reco: tp.Union[TablesDict, pd.DataFrame], expected_grouped_reco: tp.Dict[str, TablesDict]
+    ) -> None:
 
         ads = AppDataStorage.from_raw(
-            reco=RECO_U2I,
+            reco=reco,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
             is_u2i=True,
@@ -67,16 +118,6 @@ class TestAppDataStorage:
         expected_interactions = pd.DataFrame({Columns.Item: [3, 7], "feature_1": ["one", "one"]})
         pd.testing.assert_frame_equal(ads.grouped_interactions["user_one"], expected_interactions)
 
-        expected_grouped_reco = {
-            "model1": {
-                "user_one": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]}),
-                "user_three": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.5]}),
-            },
-            "model2": {
-                "user_one": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]}),
-                "user_three": pd.DataFrame({Columns.Item: [5], "feature_1": ["three"], Columns.Rank: [1]}),
-            },
-        }
         assert expected_grouped_reco.keys() == ads.grouped_reco.keys()
         for model_name, model_reco in expected_grouped_reco.items():
             assert model_reco.keys() == ads.grouped_reco[model_name].keys()
@@ -154,6 +195,19 @@ class TestAppDataStorage:
             AppDataStorage.from_raw(
                 reco=RECO_U2I,
                 item_data=ITEM_DATA.drop(columns=[Columns.Item]),
+                interactions=INTERACTIONS,
+                is_u2i=True,
+                selected_requests=SELECTED_REQUESTS_U2I,
+            )
+
+        # Missing `Columns.Model` in reco pd.DataFrame
+        with pytest.raises(KeyError):
+            incorrect_reco = pd.DataFrame(
+                {Columns.User: [1, 2, 3, 4], Columns.Item: [3, 4, 3, 4], Columns.Score: [0.99, 0.9, 0.5, 0.5]}
+            )
+            AppDataStorage.from_raw(
+                reco=incorrect_reco,
+                item_data=ITEM_DATA,
                 interactions=INTERACTIONS,
                 is_u2i=True,
                 selected_requests=SELECTED_REQUESTS_U2I,
