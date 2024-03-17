@@ -1,12 +1,20 @@
 import tempfile
 import typing as tp
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, TablesDict, VisualApp, VisualAppBase
+from rectools.visuals.visual_app import (
+    AppDataStorage,
+    ItemToItemVisualApp,
+    StorageFiles,
+    TablesDict,
+    VisualApp,
+    VisualAppBase,
+)
 
 RECO_U2I: TablesDict = {
     "model1": pd.DataFrame(
@@ -338,6 +346,30 @@ class TestAppDataStorage:
             ads_i2i.save(tmp, overwrite=True)
             loaded_i2i = AppDataStorage.load(tmp)
             check_data_storages_equal(ads_i2i, loaded_i2i)
+
+    def test_incorrect_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ads = AppDataStorage.from_raw(
+                reco=RECO_U2I,
+                item_data=ITEM_DATA,
+                interactions=INTERACTIONS,
+                is_u2i=True,
+                selected_requests=SELECTED_REQUESTS_U2I,
+            )
+            ads.save(tmp)
+            interactions = pd.read_csv(Path(tmp, StorageFiles.Interactions))
+
+            # both Columns.TargetItem and Columns.User
+            interactions[Columns.TargetItem] = 1
+            interactions.to_csv(Path(tmp, StorageFiles.Interactions), index=False, mode="w")
+            with pytest.raises(ValueError):
+                AppDataStorage.load(tmp)
+
+            # none of the Columns.TargetItem or Columns.User
+            interactions = interactions.drop(columns=[Columns.User, Columns.TargetItem])
+            interactions.to_csv(Path(tmp, StorageFiles.Interactions), index=False, mode="w")
+            with pytest.raises(ValueError):
+                AppDataStorage.load(tmp)
 
 
 class TestVisualApp:
