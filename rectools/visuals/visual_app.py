@@ -16,6 +16,8 @@ MIN_WIDTH_LIMIT = 10
 REQUEST_NAMES_COL = "request_name"
 REQUEST_IDS_COL = "request_id"
 
+VisualAppT = tp.TypeVar("VisualAppT", bound="VisualAppBase")
+
 
 class StorageFiles:
     """Fixed file names for `AppDataStorage` saving and loading."""
@@ -257,16 +259,6 @@ class AppDataStorage:
             res[key] = grouped_df.drop(columns=[key_col]).reset_index(drop=True)
         return res
 
-    @classmethod
-    def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, ExternalId]) -> pd.DataFrame:
-        df = pd.DataFrame(
-            {
-                REQUEST_NAMES_COL: list(selected_requests.keys()),
-                REQUEST_IDS_COL: list(selected_requests.values()),
-            }
-        )
-        return df
-
     def save(self, folder_name: str, overwrite: bool = False) -> None:
         """Save stored data for `VisualApp` widgets. This method is not meant to be used
         directly. Use `VisualApp` or `ItemToItemVisualApp` class methods instead.
@@ -284,13 +276,13 @@ class AppDataStorage:
         reco_df = self._ungroup_reco(
             grouped_reco=self.grouped_reco, selected_requests=self.selected_requests, id_col=self.id_col
         )
-        requests_df = self._create_requests_df(self.selected_requests)
+        requests_df = pd.Series(self.selected_requests, name=REQUEST_IDS_COL)
 
         Path(folder_name).mkdir(parents=True, exist_ok=True)
         mode = "w" if overwrite else "x"
         interactions_df.to_csv(Path(folder_name, StorageFiles.Interactions), index=False, mode=mode)
         reco_df.to_csv(Path(folder_name, StorageFiles.Recommendations), index=False, mode=mode)
-        requests_df.to_csv(Path(folder_name, StorageFiles.Requests), index=False, mode=mode)
+        requests_df.to_csv(Path(folder_name, StorageFiles.Requests), index_label=REQUEST_NAMES_COL, mode=mode)
 
     @classmethod
     def load(cls, folder_name: str) -> "AppDataStorage":
@@ -475,13 +467,13 @@ class VisualAppBase:
 
     @classmethod
     def load(
-        cls,
+        cls: tp.Type[VisualAppT],
         folder_name: str,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
-    ) -> "VisualAppBase":
+    ) -> VisualAppT:
         """Create widgets from data that was processed and saved earlier.
 
         Parameters
