@@ -7,14 +7,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.visuals.visual_app import (
-    AppDataStorage,
-    ItemToItemVisualApp,
-    StorageFiles,
-    TablesDict,
-    VisualApp,
-    VisualAppBase,
-)
+from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, StorageFiles, TablesDict, VisualApp
 
 RECO_U2I: TablesDict = {
     "model1": pd.DataFrame(
@@ -379,7 +372,7 @@ class TestVisualApp:
     def test_happy_path(
         self, auto_display: bool, n_random_users: int, formatters: tp.Optional[tp.Dict[str, tp.Callable]]
     ) -> None:
-        VisualApp(
+        VisualApp.construct(
             reco=RECO_U2I,
             item_data=ITEM_DATA,
             selected_users=SELECTED_REQUESTS_U2I,
@@ -391,7 +384,7 @@ class TestVisualApp:
 
     def test_incorrect_min_width(self) -> None:
         with pytest.raises(ValueError):
-            VisualApp(
+            VisualApp.construct(
                 reco=RECO_U2I,
                 item_data=ITEM_DATA,
                 selected_users=SELECTED_REQUESTS_U2I,
@@ -402,7 +395,7 @@ class TestVisualApp:
             )
 
     def test_save_and_load_equal_data_storage(self) -> None:
-        app = VisualApp(
+        app = VisualApp.construct(
             reco=RECO_U2I,
             item_data=ITEM_DATA,
             selected_users=SELECTED_REQUESTS_U2I,
@@ -411,15 +404,8 @@ class TestVisualApp:
         )
         with tempfile.TemporaryDirectory() as tmp:
             app.save(tmp)
-
-            item_to_item_loaded = ItemToItemVisualApp.load(tmp, auto_display=False)
-            check_data_storages_equal(app.data_storage, item_to_item_loaded.data_storage)
-
-            base_loaded = VisualAppBase.load(tmp, auto_display=False)
-            check_data_storages_equal(app.data_storage, base_loaded.data_storage)
-
-            visual_app_loaded = VisualAppBase.load(tmp, auto_display=False)
-            check_data_storages_equal(app.data_storage, visual_app_loaded.data_storage)
+            loaded = VisualApp.load(tmp, auto_display=False)
+            check_data_storages_equal(app.data_storage, loaded.data_storage)
 
 
 class TestItemToItemVisualApp:
@@ -429,7 +415,7 @@ class TestItemToItemVisualApp:
     def test_happy_path(
         self, auto_display: bool, n_random_items: int, formatters: tp.Optional[tp.Dict[str, tp.Callable]]
     ) -> None:
-        ItemToItemVisualApp(
+        ItemToItemVisualApp.construct(
             reco=RECO_I2I,
             item_data=ITEM_DATA,
             selected_items=SELECTED_REQUESTS_I2I,
@@ -440,7 +426,7 @@ class TestItemToItemVisualApp:
 
     def test_incorrect_min_width(self) -> None:
         with pytest.raises(ValueError):
-            ItemToItemVisualApp(
+            ItemToItemVisualApp.construct(
                 reco=RECO_I2I,
                 item_data=ITEM_DATA,
                 selected_items=SELECTED_REQUESTS_I2I,
@@ -450,7 +436,7 @@ class TestItemToItemVisualApp:
             )
 
     def test_save_and_load_equal_data_storage(self) -> None:
-        app = ItemToItemVisualApp(
+        app = ItemToItemVisualApp.construct(
             reco=RECO_I2I,
             item_data=ITEM_DATA,
             selected_items=SELECTED_REQUESTS_I2I,
@@ -458,12 +444,5 @@ class TestItemToItemVisualApp:
         )
         with tempfile.TemporaryDirectory() as tmp:
             app.save(tmp)
-
-            item_to_item_loaded = ItemToItemVisualApp.load(tmp, auto_display=False)
-            check_data_storages_equal(app.data_storage, item_to_item_loaded.data_storage)
-
-            base_loaded = VisualAppBase.load(tmp, auto_display=False)
-            check_data_storages_equal(app.data_storage, base_loaded.data_storage)
-
-            visual_app_loaded = VisualAppBase.load(tmp, auto_display=False)
-            check_data_storages_equal(app.data_storage, visual_app_loaded.data_storage)
+            loaded = ItemToItemVisualApp.load(tmp, auto_display=False)
+            check_data_storages_equal(app.data_storage, loaded.data_storage)

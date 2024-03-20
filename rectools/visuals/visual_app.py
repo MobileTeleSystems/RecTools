@@ -13,6 +13,8 @@ from rectools.utils import fast_isin
 TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 
 MIN_WIDTH_LIMIT = 10
+REQUEST_NAMES_COL = "request_name"
+REQUEST_IDS_COL = "request_id"
 
 
 class StorageFiles:
@@ -230,7 +232,7 @@ class AppDataStorage:
             df = request_interactions.copy()
             df[id_col] = selected_requests[request_name]
             res.append(df)
-        return pd.concat(res, axis=0, sort=False)
+        return pd.concat(res, axis=0, sort=False).reset_index(drop=True)
 
     @classmethod
     def _check_columns_present_in_reco(cls, reco: TablesDict, id_col: str) -> None:
@@ -259,8 +261,8 @@ class AppDataStorage:
     def _create_requests_df(cls, selected_requests: tp.Dict[tp.Hashable, ExternalId]) -> pd.DataFrame:
         df = pd.DataFrame(
             {
-                "request_name": list(selected_requests.keys()),
-                "request_id": list(selected_requests.values()),
+                REQUEST_NAMES_COL: list(selected_requests.keys()),
+                REQUEST_IDS_COL: list(selected_requests.values()),
             }
         )
         return df
@@ -307,11 +309,8 @@ class AppDataStorage:
         """
         interactions = pd.read_csv(Path(folder_name, StorageFiles.Interactions))
         reco = pd.read_csv(Path(folder_name, StorageFiles.Recommendations))
-        selected_requests = dict(
-            pd.read_csv(
-                Path(folder_name, StorageFiles.Requests),
-            ).values
-        )
+        selected_requests_df = pd.read_csv(Path(folder_name, StorageFiles.Requests), index_col=REQUEST_NAMES_COL)
+        selected_requests = selected_requests_df[REQUEST_IDS_COL].to_dict()
 
         if Columns.TargetItem in interactions.columns and Columns.User in interactions.columns:
             raise ValueError(
@@ -352,24 +351,22 @@ class AppDataStorage:
 
 class VisualAppBase:
     """
-    Base visual app class.
-    Warning: This class should not be used directly.
-    Use derived classes instead.
+    Jupyter widgets app for recommendations visualization and models comparison.
+    Warning! This is a base class.
+    Do not create instances of this class directly. Use derived classes `construct` methods instead.
     """
 
     def __init__(
         self,
+        data_storage: AppDataStorage,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
-        min_width: int = 100,
-        data_storage: tp.Optional[AppDataStorage] = None,
+        min_width: int = 50,
     ) -> None:
+        self.data_storage = data_storage
         self.rows_limit = rows_limit
         self.formatters = formatters if formatters is not None else {}
-
-        if data_storage is not None:
-            self.data_storage: AppDataStorage = data_storage
 
         if min_width <= MIN_WIDTH_LIMIT:
             raise ValueError(f"`min_width` must be greater then {MIN_WIDTH_LIMIT}. {min_width} specified")
@@ -420,7 +417,7 @@ class VisualAppBase:
         """Display full VisualApp widget"""
         request_name_selection = widgets.ToggleButtons(
             options=self.data_storage.request_names,
-            description=f"Request {self.data_storage.id_col}:",
+            description=f"Target:",
             disabled=False,
             button_style="warning",
         )
@@ -485,7 +482,7 @@ class VisualAppBase:
         rows_limit: int = 20,
         min_width: int = 100,
     ) -> "VisualAppBase":
-        """Create widgets from data that was saved earlier.
+        """Create widgets from data that was processed and saved earlier.
 
         Parameters
         ----------
@@ -508,107 +505,29 @@ class VisualAppBase:
 
         Returns
         -------
-        VisualApp
+        VisualAppBase
             Jupyter widgets for recommendations visualization.
         """
         data_storage = AppDataStorage.load(folder_name=folder_name)
 
-        return VisualAppBase(
+        return cls(
+            data_storage=data_storage,
             auto_display=auto_display,
             formatters=formatters,
             rows_limit=rows_limit,
             min_width=min_width,
-            data_storage=data_storage,
         )
 
 
 class VisualApp(VisualAppBase):
     r"""
-    Main tool for recommendations visualization. Creates Jupyter widgets for visual
-    analysis and comparison of different models. Outputs both interactions history of the selected
-    users and their recommended items from different models along with items data.
-
-    Models for comparison will be listed from the `reco` dictionary keys.
-    Users display names for comparison will be listed from the `selected_users` keys and ids will be
-    taken from `selected_users` values.
-
-    Optionally use `formatters` to process dataframe columns values to desired html outputs.
-
-    Parameters
-    ----------
-    reco : tp.Union[pd.DataFrame, TablesDict]
-        Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
-        form model names are supposed to be dict keys, and recommendations from different models are
-        supposed to be pd.DataFrames as dict values.
-        In the DataFrame form all recommendations must be specified in one DataFrame with
-        `Columns.Model` column to separate different models.
-        Other required columns for both forms are:
-            - `Columns.User` - user id
-            - `Columns.Item` - recommended item id
-            - Any other columns that you wish to display in widgets (e.g. rank or score)
-        The original order of the rows will be preserved. Keep in mind to sort the rows correctly
-        before visualizing. The most intuitive way is to sort by rank in ascending order.
-    interactions : pd.DataFrame
-        Table with interactions history for users. Only needed for u2i case. Supposed to be in form
-        of pandas DataFrames with columns:
-            - `Columns.User` - user id
-            - `Columns.Item` - item id
-        The original order of the rows will be preserved. Keep in mind to sort the rows correctly
-        before visualizing. The most intuitive way is to sort by date in descending order. If user
-        has too many interactions the lest ones may not be displayed.
-    item_data : pd.DataFrame
-        Data for items that is used for visualisation in both interactions and recommendations widgets.
-        Supposed to be in form of a pandas DataFrame with columns:
-            - `Columns.Item` - item id
-            - Any other columns with item data (e.g. name, category, popularity, image link)
-    selected_users : tp.Dict[tp.Hashable, ExternalId]
-        Predefined users that will be displayed in widgets. User names must be specified as keys
-        of the dict and user ids as values of the dict.
-    n_random_users : int, default 0
-        Number of random users to add for visualization from users in recommendation tables.
-    auto_display : bool, optional, default ``True``
-        Display widgets right after initialization.
-    formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
-        Formatter functions to apply to columns elements in the sections of interactions and
-        recommendations. Keys of the dict must be columns names (item_data, interactions and
-        recommendations columns can be specified here). Values bust be functions that will be
-        applied to corresponding columns elements. The result of each function must be a unicode
-        string that represents html code. Formatters can be used to format text, create links
-        and display images with html.
-    rows_limit : int, optional, default 20
-        Maximum number of rows to display in the sections of interactions and recommendations.
-    min_width : int, optional, default 100
-        Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
-        10.
-
-    Examples
-    --------
-    >>> reco = {
-    ...     "model1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
-    ...     "model2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]})
-    ... }
-    >>>
-    >>> item_data = pd.DataFrame({
-    ...     Columns.Item: [3, 4, 5, 6, 7, 8],
-    ...     "feature_1": ["one", "two", "three", "five", "one", "two"]
-    ... })
-    >>>
-    >>> interactions = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
-    >>> selected_users = {"user_one": 1}
-    >>> formatters = {"item_id": lambda x: f"<b>{x}</b>"}
-    >>>
-    >>> widgets = VisualApp(
-    ...     reco=reco,
-    ...     item_data=item_data,
-    ...     interactions=interactions,
-    ...     selected_users=selected_users,
-    ...     formatters=formatters,
-    ...     auto_display=False
-    ... )
+    Jupyter widgets app for user-to-item recommendations visualization and models comparison.
+    Do not create instances of this class directly. Use `VisualApp.construct` method instead.
     """
 
-    def __init__(
-        self,
+    @classmethod
+    def construct(
+        cls,
         reco: tp.Union[pd.DataFrame, TablesDict],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
@@ -618,7 +537,120 @@ class VisualApp(VisualAppBase):
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
-    ) -> None:
+    ) -> "VisualApp":
+        r"""
+        Construct visualization app for classic user-to-item recommendations.
+
+        This will process raw data and create Jupyter widgets for visual analysis and comparison of
+        different models. Created app outputs both interactions history of the selected
+        users and their recommended items from different models along with explicit items data.
+
+        Model names for comparison will be listed from the `reco` dictionary keys or `reco` dataframe
+        `Columns.Model` values depending on the format provided.
+        Users display names for comparison will be listed from the `selected_users` keys and ids will be
+        taken from `selected_users` values.
+
+        Optionally provide `formatters` to process dataframe columns values to desired html outputs.
+
+        Parameters
+        ----------
+        reco : tp.Union[pd.DataFrame, TablesDict]
+            Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
+            form model names are supposed to be dict keys, and recommendations from different models are
+            supposed to be pd.DataFrames as dict values.
+            In the DataFrame form all recommendations must be specified in one DataFrame with
+            `Columns.Model` column to separate different models.
+            Other required columns for both forms are:
+                - `Columns.User` - user id
+                - `Columns.Item` - recommended item id
+                - Any other columns that you wish to display in widgets (e.g. rank or score)
+            The original order of the rows will be preserved. Keep in mind to sort the rows correctly
+            before visualizing. The most intuitive way is to sort by rank in ascending order.
+        interactions : pd.DataFrame
+            Table with interactions history for users. Only needed for u2i case. Supposed to be in form
+            of pandas DataFrames with columns:
+                - `Columns.User` - user id
+                - `Columns.Item` - item id
+            The original order of the rows will be preserved. Keep in mind to sort the rows correctly
+            before visualizing. The most intuitive way is to sort by date in descending order. If user
+            has too many interactions the lest ones may not be displayed.
+        item_data : pd.DataFrame
+            Data for items that is used for visualisation in both interactions and recommendations widgets.
+            Supposed to be in form of a pandas DataFrame with columns:
+                - `Columns.Item` - item id
+                - Any other columns with item data (e.g. name, category, popularity, image link)
+        selected_users : tp.Dict[tp.Hashable, ExternalId]
+            Predefined users that will be displayed in widgets. User names must be specified as keys
+            of the dict and user ids as values of the dict.
+        n_random_users : int, default 0
+            Number of random users to add for visualization from users in recommendation tables.
+        auto_display : bool, optional, default ``True``
+            Display widgets right after initialization.
+        formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
+            Formatter functions to apply to columns elements in the sections of interactions and
+            recommendations. Keys of the dict must be columns names (item_data, interactions and
+            recommendations columns can be specified here). Values bust be functions that will be
+            applied to corresponding columns elements. The result of each function must be a unicode
+            string that represents html code. Formatters can be used to format text, create links
+            and display images with html.
+        rows_limit : int, optional, default 20
+            Maximum number of rows to display in the sections of interactions and recommendations.
+        min_width : int, optional, default 100
+            Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
+            10.
+
+        Examples
+        --------
+        Providing reco as TablesDict
+
+        >>> reco = {
+        ...     "model_1": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
+        ...     "model_2": pd.DataFrame({Columns.User: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]})
+        ... }
+        >>>
+        >>> item_data = pd.DataFrame({
+        ...     Columns.Item: [3, 4, 5, 6, 7, 8],
+        ...     "feature_1": ["one", "two", "three", "five", "one", "two"]
+        ... })
+        >>>
+        >>> interactions = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
+        >>> selected_users = {"user_one": 1}
+        >>>
+        >>> app = VisualApp.construct(
+        ...     reco=reco,
+        ...     item_data=item_data,
+        ...     interactions=interactions,
+        ...     selected_users=selected_users,
+        ...     auto_display=False
+        ... )
+
+        Providing reco as pd.DataFrame and adding `formatters`
+
+        >>> reco = pd.DataFrame({
+        ...     Columns.User: [1, 2, 1, 2],
+        ...     Columns.Item: [3, 4, 5, 6],
+        ...     Columns.Model: ["model_1", "model_1", "model_2", "model_2"]
+        ... })
+        >>>
+        >>> item_data = pd.DataFrame({
+        ...     Columns.Item: [3, 4, 5, 6, 7, 8],
+        ...     "feature_1": ["one", "two", "three", "five", "one", "two"]
+        ... })
+        >>>
+        >>> interactions = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
+        >>> selected_users = {"user_one": 1}
+        >>>
+        >>> formatters = {"item_id": lambda x: f"<b>{x}</b>"}
+        >>>
+        >>> app = VisualApp.construct(
+        ...     reco=reco,
+        ...     item_data=item_data,
+        ...     interactions=interactions,
+        ...     selected_users=selected_users,
+        ...     formatters=formatters,
+        ...     auto_display=False
+        ... )
+        """
         data_storage = AppDataStorage.from_raw(
             interactions=interactions,
             reco=reco,
@@ -627,7 +659,7 @@ class VisualApp(VisualAppBase):
             is_u2i=True,
             n_random_requests=n_random_users,
         )
-        super().__init__(
+        return cls(
             data_storage=data_storage,
             auto_display=auto_display,
             formatters=formatters,
@@ -638,81 +670,14 @@ class VisualApp(VisualAppBase):
 
 class ItemToItemVisualApp(VisualAppBase):
     r"""
-    Main tool for item-to-item recommendations visualization. Creates Jupyter widgets for visual
-    analysis and comparison of different models. Outputs both target item data and recommended items
-    data from different models for all of the selected items.
-
-    Models for comparison will be listed from the `reco` dictionary keys.
-    Items display names for comparison will be listed from the `selected_items` keys and ids will be
-    taken from `selected_items` values.
-
-    Optionally use `formatters` to process dataframe columns values to desired html outputs.
-
-    Parameters
-    ----------
-    reco : tp.Union[pd.DataFrame, TablesDict]
-        Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
-        form model names are supposed to be dict keys, and recommendations from different models are
-        supposed to be pd.DataFrames as dict values.
-        In the DataFrame form all recommendations must be specified in one DataFrame with
-        `Columns.Model` column to separate different models.
-        Other required columns for both forms are:
-            - `Columns.TargetItem` - target item id
-            - `Columns.Item` - recommended item id
-            - Any other columns that you wish to display in widgets (e.g. rank or score)
-        The original order of the rows will be preserved. Keep in mind to sort the rows correctly
-        before visualizing. The most intuitive way is to sort by rank in ascending order.
-    item_data : pd.DataFrame
-        Data for items that is used for visualisation in both interactions and recommendations widgets.
-        Supposed to be in form of a pandas DataFrame with columns:
-            - `Columns.Item` - item id
-            - Any other columns with item data (e.g. name, category, popularity, image link)
-    selected_items : tp.Dict[tp.Hashable, ExternalId]
-        Predefined items that will be displayed in widgets. Item names must be specified as keys
-        of the dict and item ids as values of the dict.
-    n_random_items : int, default 0
-        Number of random items to add for visualization from target items in recommendation tables.
-    auto_display : bool, optional, default ``True``
-        Display widgets right after initialization.
-    formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
-        Formatter functions to apply to columns elements in the sections of interactions and
-        recommendations. Keys of the dict must be columns names (item_data, interactions and
-        recommendations columns can be specified here). Values bust be functions that will be
-        applied to corresponding columns elements. The result of each function must be a unicode
-        string that represents html code. Formatters can be used to format text, create links
-        and display images with html.
-    rows_limit : int, optional, default 20
-        Maximum number of rows to display in the sections of interactions and recommendations.
-    min_width : int, optional, default 100
-        Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
-        10.
-
-    Examples
-    --------
-    >>> reco = {
-    ...     "model1": pd.DataFrame({Columns.TargetItem: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
-    ...     "model2": pd.DataFrame({Columns.TargetItem: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]})
-    ... }
-    >>>
-    >>> item_data = pd.DataFrame({
-    ...     Columns.Item: [3, 4, 5, 6, 7, 8],
-    ...     "feature_1": ["one", "two", "three", "five", "one", "two"]
-    ... })
-    >>>
-    >>> selected_items = {"item_one": 1}
-    >>> formatters = {"item_id": lambda x: f"<b>{x}</b>"}
-    >>>
-    >>> widgets = ItemToItemVisualApp(
-    ...     reco=reco,
-    ...     item_data=item_data,
-    ...     selected_items=selected_items,
-    ...     formatters=formatters,
-    ...     auto_display=False
-    ... )
+    Jupyter widgets app for item-to-item recommendations visualization and models comparison.
+    Do not create instances of this class directly. Use `ItemToItemVisualApp.construct` method
+    instead.
     """
 
-    def __init__(
-        self,
+    @classmethod
+    def construct(
+        cls,
         reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
         selected_items: tp.Dict[tp.Hashable, ExternalId],
@@ -721,7 +686,107 @@ class ItemToItemVisualApp(VisualAppBase):
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
         rows_limit: int = 20,
         min_width: int = 100,
-    ) -> None:
+    ) -> "ItemToItemVisualApp":
+        r"""
+        Construct visualization widgets for item-to-item recommendations.
+
+        This will process raw data and create Jupyter widgets for visual analysis and comparison of
+        different models. Created app outputs both target item data and recommended items data from
+        different models for all of the selected items.
+
+        Model names for comparison will be listed from the `reco` dictionary keys or `reco` dataframe
+        `Columns.Model` values depending on the format provided.
+        Items display names for comparison will be listed from the `selected_items` keys and ids will be
+        taken from `selected_items` values.
+
+        Optionally provide `formatters` to process dataframe columns values to desired html outputs.
+
+        Parameters
+        ----------
+        reco : tp.Union[pd.DataFrame, TablesDict]
+            Recommendations from different models in a form of a pd.DataFrame or a dict. In the dict
+            form model names are supposed to be dict keys, and recommendations from different models are
+            supposed to be pd.DataFrames as dict values.
+            In the DataFrame form all recommendations must be specified in one DataFrame with
+            `Columns.Model` column to separate different models.
+            Other required columns for both forms are:
+                - `Columns.TargetItem` - target item id
+                - `Columns.Item` - recommended item id
+                - Any other columns that you wish to display in widgets (e.g. rank or score)
+            The original order of the rows will be preserved. Keep in mind to sort the rows correctly
+            before visualizing. The most intuitive way is to sort by rank in ascending order.
+        item_data : pd.DataFrame
+            Data for items that is used for visualisation in both interactions and recommendations widgets.
+            Supposed to be in form of a pandas DataFrame with columns:
+                - `Columns.Item` - item id
+                - Any other columns with item data (e.g. name, category, popularity, image link)
+        selected_items : tp.Dict[tp.Hashable, ExternalId]
+            Predefined items that will be displayed in widgets. Item names must be specified as keys
+            of the dict and item ids as values of the dict.
+        n_random_items : int, default 0
+            Number of random items to add for visualization from target items in recommendation tables.
+        auto_display : bool, optional, default ``True``
+            Display widgets right after initialization.
+        formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
+            Formatter functions to apply to columns elements in the sections of interactions and
+            recommendations. Keys of the dict must be columns names (item_data, interactions and
+            recommendations columns can be specified here). Values bust be functions that will be
+            applied to corresponding columns elements. The result of each function must be a unicode
+            string that represents html code. Formatters can be used to format text, create links
+            and display images with html.
+        rows_limit : int, optional, default 20
+            Maximum number of rows to display in the sections of interactions and recommendations.
+        min_width : int, optional, default 100
+            Minimum column width in pixels for dataframe columns in widgets output. Must be greater then
+            10.
+
+        Examples
+        --------
+        Providing reco as TablesDict
+
+        >>> reco = {
+        ...     "model_1": pd.DataFrame({Columns.TargetItem: [1, 2], Columns.Item: [3, 4], Columns.Score: [0.99, 0.9]}),
+        ...     "model_2": pd.DataFrame({Columns.TargetItem: [1, 2], Columns.Item: [5, 6], Columns.Rank: [1, 1]})
+        ... }
+        >>>
+        >>> item_data = pd.DataFrame({
+        ...     Columns.Item: [3, 4, 5, 6, 1, 2],
+        ...     "feature_1": ["one", "two", "three", "five", "one", "two"]
+        ... })
+        >>>
+        >>> selected_items = {"item_one": 1}
+        >>>
+        >>> app = ItemToItemVisualApp.construct(
+        ...     reco=reco,
+        ...     item_data=item_data,
+        ...     selected_items=selected_items,
+        ...     auto_display=False
+        ... )
+
+        Providing reco as pd.DataFrame and adding `formatters`
+
+        >>> reco = pd.DataFrame({
+        ...     Columns.TargetItem: [1, 2, 1, 2],
+        ...     Columns.Item: [3, 4, 5, 6],
+        ...     Columns.Model: ["model_1", "model_1", "model_2", "model_2"]
+        ... })
+        >>>
+        >>> item_data = pd.DataFrame({
+        ...     Columns.Item: [3, 4, 5, 6, 1, 2],
+        ...     "feature_1": ["one", "two", "three", "five", "one", "two"]
+        ... })
+        >>>
+        >>> selected_items = {"item_one": 1}
+        >>> formatters = {"item_id": lambda x: f"<b>{x}</b>"}
+        >>>
+        >>> app = ItemToItemVisualApp.construct(
+        ...     reco=reco,
+        ...     item_data=item_data,
+        ...     selected_items=selected_items,
+        ...     formatters=formatters,
+        ...     auto_display=False
+        ... )
+        """
         data_storage = AppDataStorage.from_raw(
             reco=reco,
             selected_requests=selected_items,
@@ -729,7 +794,7 @@ class ItemToItemVisualApp(VisualAppBase):
             is_u2i=False,
             n_random_requests=n_random_items,
         )
-        super().__init__(
+        return cls(
             data_storage=data_storage,
             auto_display=auto_display,
             formatters=formatters,
