@@ -417,7 +417,7 @@ class VisualAppBase:
         """Display full VisualApp widget"""
         request_name_selection = widgets.ToggleButtons(
             options=self.data_storage.request_names,
-            description=f"Target:",
+            description="Target:",
             disabled=False,
             button_style="warning",
         )
