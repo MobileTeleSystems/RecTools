@@ -216,7 +216,7 @@ class AppDataStorage:
                 df[id_col] = selected_requests[request_name]
                 df[Columns.Model] = model_name
                 res.append(df)
-        return pd.concat(res, axis=0).reset_index(drop=True)
+        return pd.concat(res, axis=0, sort=False).reset_index(drop=True)
 
     @classmethod
     def _ungroup_interactions(
@@ -230,7 +230,7 @@ class AppDataStorage:
             df = request_interactions.copy()
             df[id_col] = selected_requests[request_name]
             res.append(df)
-        return pd.concat(res, axis=0)
+        return pd.concat(res, axis=0, sort=False)
 
     @classmethod
     def _check_columns_present_in_reco(cls, reco: TablesDict, id_col: str) -> None:
