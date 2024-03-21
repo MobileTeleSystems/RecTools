@@ -52,7 +52,7 @@ class MeanInvUserFreq(MetricAtK):
     to the number of users who interacted with it.
 
     .. math::
-        MIUF@k = -(\sum_{i=1}^{k+1} \log_{2} (users(i) / n\_users)) / k
+        MIUF@k = -(\sum_{i=1}^{k} \log_{2} (users(i) / n\_users)) / k
 
     where
     - `users(i)` is number of users that previously interacted with item with rank `i`.
