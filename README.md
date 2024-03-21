@@ -74,6 +74,7 @@ The default version doesn't contain all the dependencies, because some of them a
 
 - `lightfm`: adds wrapper for LightFM model,
 - `torch`: adds models based on neural nets,
+- `visuals`: adds visualization tools,
 - `nmslib`: adds fast ANN recommenders.
 
 Install extension:
