@@ -45,7 +45,7 @@ class AppDataStorage:
         cls,
         reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
-        selected_requests: tp.Dict[tp.Hashable, ExternalId],
+        selected_requests: tp.Optional[tp.Dict[tp.Hashable, ExternalId]] = None,
         is_u2i: bool = True,
         n_random_requests: int = 0,
         interactions: tp.Optional[pd.DataFrame] = None,
@@ -62,7 +62,7 @@ class AppDataStorage:
         item_data : pd.DataFrame
             Data for items that is used for visualisation in both interactions and recommendations
             widgets.
-        selected_requests : tp.Dict[tp.Hashable, ExternalId]
+        selected_requests : tp.Optional[tp.Dict[tp.Hashable, ExternalId]], default ``None``
             Predefined requests (users or items) that will be displayed in widgets. Request names
             must be specified as keys of the dict and ids as values of the dict.
         is_u2i : bool, default ``True``
@@ -79,13 +79,12 @@ class AppDataStorage:
         """
         id_col = Columns.User if is_u2i else Columns.TargetItem
 
+        if selected_requests is None or not selected_requests:
+            selected_requests = cls._validate_empty_requests(is_u2i, n_random_requests)
+
         if n_random_requests > 0:
-            selected_requests = cls._fill_requests_with_random(
-                selected_requests=selected_requests,
-                n_random_requests=n_random_requests,
-                id_col=id_col,
-                reco=reco,
-            )
+            selected_requests = cls._fill_requests_with_random(selected_requests, n_random_requests, id_col, reco)
+
         if isinstance(reco, pd.DataFrame):
             if Columns.Model not in reco.columns:
                 raise KeyError("Missing `{Columns.Model}` column in `reco` DataFrame")
@@ -101,9 +100,6 @@ class AppDataStorage:
             if is_u2i:
                 raise ValueError("For u2i reco you must specify interactions")
             interactions = cls._prepare_interactions_for_i2i(reco=reco)
-
-        if not selected_requests:
-            raise ValueError("`selected_requests` is empty")
 
         grouped_interactions = cls._group_interactions(
             interactions=interactions,
@@ -124,6 +120,13 @@ class AppDataStorage:
             grouped_interactions=grouped_interactions,
             grouped_reco=grouped_reco,
         )
+
+    @classmethod
+    def _validate_empty_requests(cls, is_u2i: bool, n_random_requests: int) -> tp.Dict[tp.Hashable, ExternalId]:
+        if n_random_requests == 0:
+            requests = "users" if is_u2i else "items"
+            raise ValueError(f"Please specify `n_random_{requests}` > 0 or provide `selected_{requests}`")
+        return {}
 
     @property
     def request_names(self) -> tp.List[tp.Hashable]:
@@ -523,7 +526,7 @@ class VisualApp(VisualAppBase):
         reco: tp.Union[pd.DataFrame, TablesDict],
         interactions: pd.DataFrame,
         item_data: pd.DataFrame,
-        selected_users: tp.Dict[tp.Hashable, ExternalId],
+        selected_users: tp.Optional[tp.Dict[tp.Hashable, ExternalId]] = None,
         n_random_users: int = 0,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
@@ -539,8 +542,12 @@ class VisualApp(VisualAppBase):
 
         Model names for comparison will be listed from the `reco` dictionary keys or `reco` dataframe
         `Columns.Model` values depending on the format provided.
-        Users display names for comparison will be listed from the `selected_users` keys and ids will be
-        taken from `selected_users` values.
+
+        Users for comparison can be predefined or random.
+        For predefined users pass `selected_users` dict with user "names" as keys and user ids as
+        values.
+        For random users pass `n_random_users` number greater then 0.
+        You must specify at least one of the above or provide both.
 
         Optionally provide `formatters` to process dataframe columns values to desired html outputs.
 
@@ -571,11 +578,12 @@ class VisualApp(VisualAppBase):
             Supposed to be in form of a pandas DataFrame with columns:
                 - `Columns.Item` - item id
                 - Any other columns with item data (e.g. name, category, popularity, image link)
-        selected_users : tp.Dict[tp.Hashable, ExternalId]
+        selected_users : tp.Optional[tp.Dict[tp.Hashable, ExternalId]], default ``None``
             Predefined users that will be displayed in widgets. User names must be specified as keys
-            of the dict and user ids as values of the dict.
+            of the dict and user ids as values of the dict. Must be provided if `n_random_users` = 0.
         n_random_users : int, default 0
-            Number of random users to add for visualization from users in recommendation tables.
+            Number of random users to add for visualization from users in recommendation tables. Must
+            be greater then 0 if `selected_users` are not specified.
         auto_display : bool, optional, default ``True``
             Display widgets right after initialization.
         formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
@@ -672,7 +680,7 @@ class ItemToItemVisualApp(VisualAppBase):
         cls,
         reco: tp.Union[pd.DataFrame, TablesDict],
         item_data: pd.DataFrame,
-        selected_items: tp.Dict[tp.Hashable, ExternalId],
+        selected_items: tp.Optional[tp.Dict[tp.Hashable, ExternalId]] = None,
         n_random_items: int = 0,
         auto_display: bool = True,
         formatters: tp.Optional[tp.Dict[str, tp.Callable]] = None,
@@ -688,8 +696,12 @@ class ItemToItemVisualApp(VisualAppBase):
 
         Model names for comparison will be listed from the `reco` dictionary keys or `reco` dataframe
         `Columns.Model` values depending on the format provided.
-        Items display names for comparison will be listed from the `selected_items` keys and ids will be
-        taken from `selected_items` values.
+
+        Target items for comparison can be predefined or random.
+        For predefined items pass `selected_items` dict with item "names" as keys and item ids as
+        values.
+        For random target items pass `n_random_items` number greater then 0.
+        You must specify at least one of the above or provide both.
 
         Optionally provide `formatters` to process dataframe columns values to desired html outputs.
 
@@ -712,11 +724,12 @@ class ItemToItemVisualApp(VisualAppBase):
             Supposed to be in form of a pandas DataFrame with columns:
                 - `Columns.Item` - item id
                 - Any other columns with item data (e.g. name, category, popularity, image link)
-        selected_items : tp.Dict[tp.Hashable, ExternalId]
+        selected_items :  tp.Optional[tp.Dict[tp.Hashable, ExternalId]], default ``None``
             Predefined items that will be displayed in widgets. Item names must be specified as keys
-            of the dict and item ids as values of the dict.
+            of the dict and item ids as values of the dict.  Must be provided if `n_random_items` = 0.
         n_random_items : int, default 0
             Number of random items to add for visualization from target items in recommendation tables.
+            Must be greater then 0 if `selected_items` are not specified.
         auto_display : bool, optional, default ``True``
             Display widgets right after initialization.
         formatters : tp.Optional[tp.Dict[str, tp.Callable]], optional, default ``None``
