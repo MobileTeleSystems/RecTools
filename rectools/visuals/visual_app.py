@@ -79,8 +79,7 @@ class AppDataStorage:
         """
         id_col = Columns.User if is_u2i else Columns.TargetItem
 
-        if selected_requests is None or not selected_requests:
-            selected_requests = cls._validate_empty_requests(is_u2i, n_random_requests)
+        selected_requests = cls._validate_selected_requests(selected_requests, is_u2i, n_random_requests)
 
         if n_random_requests > 0:
             selected_requests = cls._fill_requests_with_random(selected_requests, n_random_requests, id_col, reco)
@@ -122,11 +121,15 @@ class AppDataStorage:
         )
 
     @classmethod
-    def _validate_empty_requests(cls, is_u2i: bool, n_random_requests: int) -> tp.Dict[tp.Hashable, ExternalId]:
-        if n_random_requests == 0:
-            requests = "users" if is_u2i else "items"
-            raise ValueError(f"Please specify `n_random_{requests}` > 0 or provide `selected_{requests}`")
-        return {}
+    def _validate_selected_requests(
+        cls, selected_requests: tp.Optional[tp.Dict[tp.Hashable, ExternalId]], is_u2i: bool, n_random_requests: int
+    ) -> tp.Dict[tp.Hashable, ExternalId]:
+        if not selected_requests:
+            if n_random_requests == 0:
+                requests = "users" if is_u2i else "items"
+                raise ValueError(f"Please specify `n_random_{requests}` > 0 or provide `selected_{requests}`")
+            return {}
+        return selected_requests
 
     @property
     def request_names(self) -> tp.List[tp.Hashable]:
