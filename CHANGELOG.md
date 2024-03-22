@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Unreleased
+## [0.5.0] - 22.03.2024
 
 ### Added
 - `VisualApp` and `ItemToItemVisualApp` widgets for visual comparison of recommendations ([#80](https://github.com/MobileTeleSystems/RecTools/pull/80), [#82](https://github.com/MobileTeleSystems/RecTools/pull/82), [#85](https://github.com/MobileTeleSystems/RecTools/pull/85),  [#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
