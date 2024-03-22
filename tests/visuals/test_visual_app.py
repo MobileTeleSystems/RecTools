@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from rectools import Columns
+from rectools import Columns, ExternalId
 from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, StorageFiles, TablesDict, VisualApp
 
 RECO_U2I: TablesDict = {
@@ -154,6 +154,19 @@ class TestAppDataStorage:
         expected_i2i_interactions = pd.DataFrame({Columns.TargetItem: [3, 4, 5], Columns.Item: [3, 4, 5]})
         actual = AppDataStorage._prepare_interactions_for_i2i(reco=RECO_I2I)  # pylint: disable=protected-access
         pd.testing.assert_frame_equal(expected_i2i_interactions, actual, check_like=True)
+
+    @pytest.mark.parametrize("selected_requests", (None, {}))
+    def test_empty_selected_requests(self, selected_requests: tp.Optional[tp.Dict[tp.Hashable, ExternalId]]) -> None:
+        ads = AppDataStorage.from_raw(
+            reco=RECO_U2I,
+            item_data=ITEM_DATA,
+            selected_requests=selected_requests,
+            interactions=INTERACTIONS,
+            n_random_requests=2,
+        )
+        assert len(ads.selected_requests) == 2
+        assert "random_1" in ads.selected_requests
+        assert "random_2" in ads.selected_requests
 
     def test_missing_columns_validation(self) -> None:
 
