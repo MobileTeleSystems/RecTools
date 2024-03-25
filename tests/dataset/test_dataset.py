@@ -65,24 +65,23 @@ class TestDataset:
         actual: Dataset,
         expected_user_features: tp.Optional[Features],
         expected_item_features: tp.Optional[Features],
+        expected_user_id_map: tp.Optional[IdMap] = None,
+        expected_item_id_map: tp.Optional[IdMap] = None,
     ) -> None:
-        assert_id_map_equal(actual.user_id_map, self.expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, self.expected_item_id_map)
+        expected_user_id_map = expected_user_id_map or self.expected_user_id_map
+        expected_item_id_map = expected_item_id_map or self.expected_item_id_map
+
+        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
+        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, self.expected_interactions)
-        if expected_user_features is None:
-            assert actual.user_features is None
-        else:
-            assert actual.user_features is not None
-            assert_feature_set_equal(actual.user_features, expected_user_features)
-        if expected_item_features is None:
-            assert actual.item_features is None
-        else:
-            assert actual.item_features is not None
-            assert_feature_set_equal(actual.item_features, expected_item_features)
+        assert_feature_set_equal(actual.user_features, expected_user_features)
+        assert_feature_set_equal(actual.item_features, expected_item_features)
 
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
         self.assert_dataset_equal_to_expected(dataset, None, None)
+        assert dataset.n_hot_users == 3
+        assert dataset.n_hot_items == 3
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -119,8 +118,73 @@ class TestDataset:
             cat_item_features=["f2"],
         )
         self.assert_dataset_equal_to_expected(dataset, expected_user_features, expected_item_features)
+        assert dataset.n_hot_users == 3
+        assert dataset.n_hot_items == 3
 
-    def test_get_user_item_matrix(self) -> None:
+        assert_feature_set_equal(dataset.get_hot_user_features(), expected_user_features)
+        assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features)
+
+    @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
+    @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
+    def test_construct_with_features_with_warm_ids(self, user_id_col: str, item_id_col: str) -> None:
+        user_features_df = pd.DataFrame(
+            [
+                ["u1", 77, 99],
+                ["u2", 33, 55],
+                ["u3", 22, 11],
+                ["u4", 22, 11],
+            ],
+            columns=[user_id_col, "f1", "f2"],
+        )
+        expected_user_id_map = self.expected_user_id_map.add_ids(["u4"])
+        expected_user_features = DenseFeatures.from_dataframe(user_features_df, expected_user_id_map, user_id_col)
+
+        item_features_df = pd.DataFrame(
+            [
+                ["i2", "f1", 3],
+                ["i2", "f2", 20],
+                ["i5", "f2", 20],
+                ["i5", "f2", 30],
+                ["i7", "f2", 70],
+            ],
+            columns=[item_id_col, "feature", "value"],
+        )
+        expected_item_id_map = self.expected_item_id_map.add_ids(["i7"])
+        expected_item_features = SparseFeatures.from_flatten(
+            df=item_features_df,
+            id_map=expected_item_id_map,
+            cat_features=["f2"],
+            id_col=item_id_col,
+        )
+
+        dataset = Dataset.construct(
+            self.interactions_df,
+            user_features_df=user_features_df,
+            make_dense_user_features=True,
+            item_features_df=item_features_df,
+            cat_item_features=["f2"],
+        )
+        self.assert_dataset_equal_to_expected(
+            dataset,
+            expected_user_features,
+            expected_item_features,
+            expected_user_id_map,
+            expected_item_id_map,
+        )
+        assert dataset.n_hot_users == 3
+        assert dataset.n_hot_items == 3
+
+        assert_feature_set_equal(dataset.get_hot_user_features(), expected_user_features.take([0, 1, 2]))
+        assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features.take([0, 1, 2]))
+
+    @pytest.mark.parametrize(
+        "include_warm, expected",
+        (
+            (False, [[0, 0, 0], [1, 0, 5]]),
+            (True, [[0, 0, 0], [1, 0, 5], [0, 0, 0]]),
+        ),
+    )
+    def test_get_user_item_matrix(self, include_warm: bool, expected: tp.List[tp.List[int]]) -> None:
         user_id_map = IdMap.from_values(["u1", "u2", "u3"])
         item_id_map = IdMap.from_values(["i1", "i2", "i5"])
         interactions_df = pd.DataFrame(
@@ -132,14 +196,8 @@ class TestDataset:
         )
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
         dataset = Dataset(user_id_map, item_id_map, interactions)
-        user_item_matrix = dataset.get_user_item_matrix()
-        expected_user_item_matrix = sparse.csr_matrix(
-            [
-                [0, 0, 0],
-                [1, 0, 5],
-                [0, 0, 0],
-            ]
-        )
+        user_item_matrix = dataset.get_user_item_matrix(include_warm=include_warm)
+        expected_user_item_matrix = sparse.csr_matrix(expected)
         assert_sparse_matrix_equal(user_item_matrix, expected_user_item_matrix)
 
     @pytest.mark.parametrize("column", Columns.Interactions)
@@ -157,43 +215,11 @@ class TestDataset:
             ],
             columns=["user_id", "f1", "f2"],
         )
-        with pytest.raises(ValueError, match=".+user.+all ids from interactions must present in features table"):
+        with pytest.raises(ValueError, match=".+user.+all ids from interactions must be present in features table"):
             Dataset.construct(
                 self.interactions_df,
                 user_features_df=user_features_df,
                 make_dense_user_features=True,
-            )
-
-    def test_raises_when_in_dense_features_present_ids_that_not_present_in_interactions(self) -> None:
-        user_features_df = pd.DataFrame(
-            [
-                ["u1", 77, 99],
-                ["u2", 33, 55],
-                ["u6", 33, 55],
-            ],
-            columns=["user_id", "f1", "f2"],
-        )
-        with pytest.raises(ValueError, match="Some ids from user features table not present in interactions"):
-            Dataset.construct(
-                self.interactions_df,
-                user_features_df=user_features_df,
-                make_dense_user_features=True,
-            )
-
-    def test_raises_when_in_sparse_features_present_ids_that_not_present_in_interactions(self) -> None:
-        item_features_df = pd.DataFrame(
-            [
-                ["i2", "f1", 3],
-                ["i2", "f2", 20],
-                ["i6", "f2", 20],  # new item id
-            ],
-            columns=["item_id", "feature", "value"],
-        )
-        with pytest.raises(ValueError, match="Some ids from item features table not present in interactions"):
-            Dataset.construct(
-                self.interactions_df,
-                item_features_df=item_features_df,
-                cat_item_features=["f2"],
             )
 
     @pytest.mark.parametrize("include_weight", (True, False))

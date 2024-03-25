@@ -129,3 +129,50 @@ class TestRandomModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = RandomModel(random_state=1)
         assert_second_fit_refits_model(model, dataset)
+
+    @pytest.mark.parametrize(
+        "user_features",
+        (
+            None,
+            pd.DataFrame(
+                {
+                    "id": [10, 50],
+                    "feature": ["f1", "f1"],
+                    "value": [1, 1],
+                }
+            ),
+        ),
+    )
+    def test_u2i_with_warm_and_cold_users(self, user_features: tp.Optional[pd.DataFrame]) -> None:
+        dataset = Dataset.construct(INTERACTIONS, user_features_df=user_features)
+        model = RandomModel().fit(dataset)
+        with pytest.raises(ValueError):
+            model.recommend(
+                users=[10, 20, 50],
+                dataset=dataset,
+                k=2,
+                filter_viewed=False,
+            )
+
+    @pytest.mark.parametrize(
+        "item_features",
+        (
+            None,
+            pd.DataFrame(
+                {
+                    "id": [11, 16],
+                    "feature": ["f1", "f1"],
+                    "value": [1, 1],
+                }
+            ),
+        ),
+    )
+    def test_i2i_with_warm_and_cold_items(self, item_features: tp.Optional[pd.DataFrame]) -> None:
+        dataset = Dataset.construct(INTERACTIONS, item_features_df=item_features)
+        model = RandomModel().fit(dataset)
+        with pytest.raises(ValueError):
+            model.recommend_to_items(
+                target_items=[11, 12, 16],
+                dataset=dataset,
+                k=2,
+            )

@@ -292,3 +292,22 @@ class TestDSSMModel:
                 check_dtype=False,
                 **tol_kwargs,
             )
+
+    def test_u2i_with_cold_users(self, dataset: Dataset) -> None:
+        model = DSSMModel(dataset_type=DSSMDataset).fit(dataset)  # type: ignore
+        with pytest.raises(ValueError, match="doesn't support recommendations for cold users"):
+            model.recommend(
+                users=[10, 20, 50],
+                dataset=dataset,
+                k=2,
+                filter_viewed=False,
+            )
+
+    def test_i2i_with_warm_and_cold_items(self, dataset: Dataset) -> None:
+        model = DSSMModel(dataset_type=DSSMDataset).fit(dataset)  # type: ignore
+        with pytest.raises(ValueError, match="doesn't support recommendations for cold items"):
+            model.recommend_to_items(
+                target_items=[11, 12, 16],
+                dataset=dataset,
+                k=2,
+            )

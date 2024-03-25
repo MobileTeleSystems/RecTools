@@ -62,6 +62,7 @@ tqdm = "^4.27.0"
 implicit = "^0.7.1"
 attrs = ">=19.1.0,<24.0.0"
 typeguard = "^2.0.1"
+typing-extensions = "4.7.1"  # TODO: remove after dropping support for python 3.7
 
 
 lightfm = {version = ">=1.16,<=1.17", optional = true}

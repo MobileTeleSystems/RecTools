@@ -70,15 +70,15 @@ class DSSMDataset(TorchDataset[tp.Any]):
     @classmethod
     def from_dataset(cls: tp.Type[DD], dataset: Dataset) -> DD:
         ui_matrix = dataset.get_user_item_matrix()
-        if dataset.item_features is not None:
-            item_features = dataset.item_features.get_sparse()
-        else:
+
+        # We take hot here since this dataset is used for fit only
+        item_features = dataset.get_hot_item_features()
+        user_features = dataset.get_hot_user_features()
+        if item_features is None:
             raise AttributeError("Item features attribute of dataset could not be None")
-        if dataset.user_features is not None:
-            user_features = dataset.user_features.get_sparse()
-        else:
+        if user_features is None:
             raise AttributeError("User features attribute of dataset could not be None")
-        return cls(items=item_features, users=user_features, interactions=ui_matrix)
+        return cls(items=item_features.get_sparse(), users=user_features.get_sparse(), interactions=ui_matrix)
 
     def __len__(self) -> int:
         return self.interactions.shape[0]
@@ -114,6 +114,7 @@ class ItemFeaturesDataset(TorchDataset[tp.Any]):
 
     @classmethod
     def from_dataset(cls: tp.Type[ID], dataset: Dataset) -> ID:
+        # We take all features here since this dataset is used for recommend only, not for fit
         if dataset.item_features is not None:
             return cls(dataset.item_features.get_sparse())
         raise AttributeError("Item features attribute of dataset could not be None")
@@ -155,6 +156,7 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
         dataset: Dataset,
         keep_users: tp.Optional[tp.Sequence[int]] = None,
     ) -> UD:
+        # We take all features here since this dataset is used for recommend only, not for fit
         if dataset.user_features is not None:
             return cls(
                 dataset.user_features.get_sparse(),

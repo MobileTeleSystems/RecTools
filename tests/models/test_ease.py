@@ -22,7 +22,7 @@ from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import EASEModel
 
-from .data import DATASET
+from .data import DATASET, INTERACTIONS
 from .utils import assert_second_fit_refits_model
 
 
@@ -108,17 +108,6 @@ class TestEASEModel:
         tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
         pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)  # pylint: disable = unexpected-keyword-arg
 
-    @pytest.mark.parametrize("filter_viewed", (True, False))
-    def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
-        with pytest.raises(KeyError):
-            model.recommend(
-                users=np.array([10, 50]),
-                dataset=dataset,
-                k=2,
-                filter_viewed=filter_viewed,
-            )
-
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
         (
@@ -177,3 +166,59 @@ class TestEASEModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = EASEModel()
         assert_second_fit_refits_model(model, dataset)
+
+    @pytest.mark.parametrize(
+        "user_features, error_match",
+        (
+            (None, "doesn't support recommendations for cold users"),
+            (
+                pd.DataFrame(
+                    {
+                        "id": [10, 50],
+                        "feature": ["f1", "f1"],
+                        "value": [1, 1],
+                    }
+                ),
+                "doesn't support recommendations for warm and cold users",
+            ),
+        ),
+    )
+    @pytest.mark.parametrize("filter_viewed", (True, False))
+    def test_u2i_with_warm_and_cold_users(
+        self, filter_viewed: bool, user_features: tp.Optional[pd.DataFrame], error_match: str
+    ) -> None:
+        dataset = Dataset.construct(INTERACTIONS, user_features_df=user_features)
+        model = EASEModel(regularization=500).fit(dataset)
+        with pytest.raises(ValueError, match=error_match):
+            model.recommend(
+                users=[10, 20, 50],
+                dataset=dataset,
+                k=2,
+                filter_viewed=filter_viewed,
+            )
+
+    @pytest.mark.parametrize(
+        "item_features, error_match",
+        (
+            (None, "doesn't support recommendations for cold items"),
+            (
+                pd.DataFrame(
+                    {
+                        "id": [11, 16],
+                        "feature": ["f1", "f1"],
+                        "value": [1, 1],
+                    }
+                ),
+                "doesn't support recommendations for warm and cold items",
+            ),
+        ),
+    )
+    def test_i2i_with_warm_and_cold_items(self, item_features: tp.Optional[pd.DataFrame], error_match: str) -> None:
+        dataset = Dataset.construct(INTERACTIONS, item_features_df=item_features)
+        model = EASEModel(regularization=500).fit(dataset)
+        with pytest.raises(ValueError, match=error_match):
+            model.recommend_to_items(
+                target_items=[11, 12, 16],
+                dataset=dataset,
+                k=2,
+            )

@@ -94,7 +94,7 @@ class TestPopularInCategoryModel:
         assert actual[Columns.Rank].tolist() == expected_ranks
 
         assert actual[Columns.Item].tolist() == sum(expected_items, [])
-        np.testing.assert_almost_equal(actual[Columns.Score].values, sum(expected_scores, []))
+        np.testing.assert_allclose(actual[Columns.Score].values, sum(expected_scores, []), atol=1e-5)
 
     def test_raises_when_incorrect_popularity(self) -> None:
         with pytest.raises(ValueError):

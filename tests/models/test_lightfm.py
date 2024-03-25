@@ -174,18 +174,6 @@ class TestLightFMWrapperModel:
             actual,
         )
 
-    @pytest.mark.parametrize("filter_viewed", (True, False))
-    def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool) -> None:
-        base_model = LightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model).fit(dataset)
-        with pytest.raises(KeyError):
-            model.recommend(
-                users=np.array([10, 999]),
-                dataset=dataset,
-                k=2,
-                filter_viewed=filter_viewed,
-            )
-
     def test_with_features(self, dataset_with_features: Dataset) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset_with_features)

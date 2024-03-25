@@ -69,8 +69,8 @@ class LightFMWrapperModel(VectorModel):
         self.model = deepcopy(self._model)
 
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
-        user_features = self._prepare_features(dataset.user_features)
-        item_features = self._prepare_features(dataset.item_features)
+        user_features = self._prepare_features(dataset.get_hot_user_features())
+        item_features = self._prepare_features(dataset.get_hot_item_features())
 
         self.model.fit(
             ui_coo,
