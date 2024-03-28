@@ -24,9 +24,10 @@ from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
 from rectools.dataset import Dataset
+from rectools.types import InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
-from .base import ModelBase, Scores
+from .base import ModelBase, Scores, ScoresArray
 from .utils import get_viewed_item_ids
 
 
@@ -97,7 +98,7 @@ class PopularModel(ModelBase):
         self.add_cold = add_cold
         self.inverse = inverse
 
-        self.popularity_list: tp.Tuple[np.ndarray, np.ndarray]
+        self.popularity_list: tp.Tuple[InternalIdsArray, ScoresArray]
 
     def _filter_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
         if self.begin_from is not None:
@@ -140,11 +141,11 @@ class PopularModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         if sorted_item_ids_to_recommend is not None:
             valid_items_mask = fast_isin_for_sorted_test_elements(self.popularity_list[0], sorted_item_ids_to_recommend)
@@ -174,8 +175,8 @@ class PopularModel(ModelBase):
     def _recommend_for_user(
         cls,
         k: int,
-        popularity_list: tp.Tuple[np.ndarray, np.ndarray],
-        sorted_blacklist: tp.Optional[np.ndarray],
+        popularity_list: tp.Tuple[InternalIdsArray, ScoresArray],
+        sorted_blacklist: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, Scores]:
         if sorted_blacklist is not None:
             n_items = k + sorted_blacklist.size
@@ -194,10 +195,10 @@ class PopularModel(ModelBase):
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         _, single_reco, single_scores = self._recommend_u2i(
             user_ids=dataset.user_id_map.internal_ids[:1],

@@ -21,6 +21,7 @@ from scipy import sparse
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
+from rectools.types import InternalIdsArray
 
 from .base import ModelBase, Scores
 from .rank import Distance, ImplicitRanker
@@ -74,11 +75,11 @@ class EASEModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         user_items = dataset.get_user_item_matrix(include_weights=True)
 
@@ -101,10 +102,10 @@ class EASEModel(ModelBase):
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         similarity = self.weight[target_ids]
         if sorted_item_ids_to_recommend is not None:

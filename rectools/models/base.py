@@ -24,9 +24,11 @@ from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
+from rectools.types import AnyIdsArray, InternalIdsArray
 
 T = tp.TypeVar("T", bound="ModelBase")
-Scores = tp.Union[tp.Sequence[float], np.ndarray]
+ScoresArray = np.ndarray
+Scores = tp.Union[tp.Sequence[float], ScoresArray]
 
 InternalRecoTriplet = tp.Tuple[InternalIds, InternalIds, Scores]
 SemiInternalRecoTriplet = tp.Tuple[AnyIds, InternalIds, Scores]
@@ -296,7 +298,7 @@ class ModelBase:
             reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
         else:
             reco_hot_final, reco_warm_final, reco_cold_final = reco_hot, reco_warm, reco_cold
-        del reco_hot, reco_warm
+        del reco_hot, reco_warm, reco_cold
 
         reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
         del reco_hot_final, reco_warm_final, reco_cold_final
@@ -323,7 +325,7 @@ class ModelBase:
     @classmethod
     def _get_sorted_item_ids_to_recommend(
         cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
-    ) -> tp.Optional[np.ndarray]:
+    ) -> tp.Optional[InternalIdsArray]:
         if items_to_recommend is None:
             return None
 
@@ -342,7 +344,7 @@ class ModelBase:
         id_map: IdMap,
         n_hot: int,
         assume_external_ids: bool,
-    ) -> tp.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
         if assume_external_ids:
             known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
         else:
@@ -359,9 +361,9 @@ class ModelBase:
     @classmethod
     def _check_targets_are_valid(
         cls,
-        hot_targets: np.ndarray,
-        warm_targets: np.ndarray,
-        cold_targets: np.ndarray,
+        hot_targets: InternalIdsArray,
+        warm_targets: InternalIdsArray,
+        cold_targets: AnyIdsArray,
         entity: tpe.Literal["user", "item"],
     ) -> None:
         if warm_targets.size > 0 and not cls.recommends_for_warm and not cls.recommends_for_cold:
@@ -377,7 +379,7 @@ class ModelBase:
             )
 
     @classmethod
-    def _ensure_internal_ids_valid(cls, internal_ids: AnyIds) -> np.ndarray:
+    def _ensure_internal_ids_valid(cls, internal_ids: AnyIds) -> InternalIdsArray:
         ids = np.asarray(internal_ids)
         if not np.issubdtype(ids.dtype, np.integer):
             raise TypeError("Internal ids are always integer")
@@ -441,44 +443,44 @@ class ModelBase:
         return df
 
     def _recommend_cold(
-        self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+        self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> SemiInternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_u2i_warm(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_i2i_warm(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
@@ -491,7 +493,7 @@ class FixedColdRecoModelMixin:
     """
 
     def _recommend_cold(
-        self, target_ids: np.ndarray, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+        self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> SemiInternalRecoTriplet:
         item_ids, scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
         reco_target_ids = np.repeat(target_ids, len(item_ids))
@@ -501,6 +503,6 @@ class FixedColdRecoModelMixin:
         return reco_target_ids, reco_item_ids, reco_scores
 
     def _get_cold_reco(
-        self, k: int, sorted_item_ids_to_recommend: tp.Optional[np.ndarray]
+        self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> tp.Tuple[InternalIds, Scores]:
         raise NotImplementedError()
