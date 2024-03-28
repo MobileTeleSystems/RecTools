@@ -6,10 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Unreleased
+## [0.5.0] - 22.03.2024
 
 ### Added
-- VisualApp and ItemToItemVisualApp widgets for visual comparison of recommendations ([#80](https://github.com/MobileTeleSystems/RecTools/pull/80), [#82](https://github.com/MobileTeleSystems/RecTools/pull/82)) (Need examples and readme update)
+- `VisualApp` and `ItemToItemVisualApp` widgets for visual comparison of recommendations ([#80](https://github.com/MobileTeleSystems/RecTools/pull/80), [#82](https://github.com/MobileTeleSystems/RecTools/pull/82), [#85](https://github.com/MobileTeleSystems/RecTools/pull/85),  [#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
 - Methods for conversion `Interactions` to raw form and for getting raw interactions from `Dataset` ([#69](https://github.com/MobileTeleSystems/RecTools/pull/69))
 - `AvgRecPopularity (Average Recommendation Popularity)` to `metrics` ([#81](https://github.com/MobileTeleSystems/RecTools/pull/81))
 - Added `normalized` parameter to `AvgRecPopularity` metric ([#89](https://github.com/MobileTeleSystems/RecTools/pull/89))
@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Bug in `Interactions.from_raw` method ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
+- Mistakes in formulas for Serendipity and MIUF in docstrings ([#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
+- Examples reproducibility on Google Colab ([#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
 
 
 ## [0.4.2] - 01.12.2023
