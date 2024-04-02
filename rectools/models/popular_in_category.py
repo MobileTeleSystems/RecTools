@@ -24,6 +24,7 @@ import pandas as pd
 
 from rectools import Columns, InternalIds
 from rectools.dataset import Dataset, Interactions, features
+from rectools.types import InternalIdsArray
 
 from .base import Scores
 from .popular import PopularModel
@@ -230,7 +231,7 @@ class PopularInCategoryModel(PopularModel):
         main_recs: tp.List[pd.DataFrame],
         fallback_recs: tp.List[pd.DataFrame],
         k: int,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
     ) -> pd.DataFrame:
         cat_recs = pd.concat(main_recs, sort=False)
         cat_recs.drop_duplicates(subset=[Columns.User, Columns.Item], inplace=True)
@@ -271,11 +272,11 @@ class PopularInCategoryModel(PopularModel):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         num_recs = self._get_num_recs_for_each_category(k)
         main_recs = []
@@ -313,10 +314,10 @@ class PopularInCategoryModel(PopularModel):
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         _, single_reco, single_scores = self._recommend_u2i(
             user_ids=dataset.user_id_map.internal_ids[:1],

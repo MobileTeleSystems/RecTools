@@ -17,8 +17,11 @@ import typing as tp
 import numpy as np
 
 ExternalId = tp.Hashable
-ExternalIds = tp.Union[tp.Sequence[ExternalId], np.ndarray]
+ExternalIdsArray = np.ndarray
+ExternalIds = tp.Union[tp.Sequence[ExternalId], ExternalIdsArray]
 InternalId = int
-InternalIds = tp.Union[tp.Sequence[InternalId], np.ndarray]
+InternalIdsArray = np.ndarray
+InternalIds = tp.Union[tp.Sequence[InternalId], InternalIdsArray]
+AnyIdsArray = tp.Union[ExternalIdsArray, InternalIdsArray]
 AnyIds = tp.Union[ExternalIds, InternalIds]
 AnySequence = tp.Union[tp.Sequence[tp.Any], np.ndarray]

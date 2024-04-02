@@ -92,6 +92,10 @@ class TestDenseFeatures:
         with pytest.raises(IndexError):
             features.take([2, 3])
 
+    def test_len(self) -> None:
+        features = DenseFeatures(self.values, self.names)
+        assert len(features) == 3
+
 
 class TestSparseFeatures:
     def setup(self) -> None:
@@ -282,3 +286,7 @@ class TestSparseFeatures:
         features = SparseFeatures(self.values, self.names)
         with pytest.raises(IndexError):
             features.take([2, 4])
+
+    def test_len(self) -> None:
+        features = SparseFeatures(self.values, self.names)
+        assert len(features) == 4
