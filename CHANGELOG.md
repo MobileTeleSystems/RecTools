@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.6.0] - Unreleased
 
 ### Added 
-- Warm and cold users/items support to models ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- Warm users/items support in `Dataset` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- Warm and cold users/items support in `ModelBase` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- Warm and cold users/items support in `cross_validate` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+
+### Removed
+- `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
 
 
 ## [0.5.0] - 22.03.2024
