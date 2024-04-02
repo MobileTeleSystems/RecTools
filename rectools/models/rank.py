@@ -24,6 +24,7 @@ from scipy import sparse
 
 from rectools import InternalIds
 from rectools.models.base import Scores
+from rectools.types import InternalIdsArray
 
 
 class Distance(Enum):
@@ -136,7 +137,7 @@ class ImplicitRanker:
         subject_ids: InternalIds,
         k: int,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
-        sorted_object_whitelist: tp.Optional[np.ndarray] = None,
+        sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
         num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Rank objects to proceed inference using implicit library topk cpu method.
