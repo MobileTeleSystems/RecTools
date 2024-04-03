@@ -24,6 +24,7 @@ import pandas as pd
 from rectools import Columns
 
 from .base import Catalog, MetricAtK, merge_reco
+from .debias_wrapper import DebiasClassificationMetric, DebiasSimpleClassificationMetric  # make_downsample
 
 TP = "__TP"
 FP = "__FP"
@@ -371,8 +372,47 @@ class MCC(ClassificationMetric):
         return mcc
 
 
+# class DebiasPrecisionWrapper(Precision):
+
+#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+#         interactions_wo_popularity = make_downsample(interactions)
+#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+
+# class DebiasRecallWrapper(Recall):
+
+#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+#         interactions_wo_popularity = make_downsample(interactions)
+#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+
+# class DebiasF1BetaWrapper(F1Beta):
+
+#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+#         interactions_wo_popularity = make_downsample(interactions)
+#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+
+# class DebiasAccuracyWrapper(Accuracy):
+
+#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
+#         interactions_wo_popularity = make_downsample(interactions)
+#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+
+
+# class DebiasMCCWrapper(MCC):
+
+#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
+#         interactions_wo_popularity = make_downsample(interactions)
+#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+
+
+# DebiasClassificationMetric: tp.Union[DebiasAccuracyWrapper, DebiasMCCWrapper]
+# DebiasSimpleClassificationMetric: tp.Union[DebiasPrecisionWrapper, DebiasRecallWrapper, DebiasF1BetaWrapper]
+
+
 def calc_classification_metrics(
-    metrics: tp.Dict[str, tp.Union[ClassificationMetric, SimpleClassificationMetric]],
+    metrics: tp.Dict[str, tp.Union[ClassificationMetric, SimpleClassificationMetric, DebiasClassificationMetric, DebiasSimpleClassificationMetric]],
     merged: pd.DataFrame,
     catalog: tp.Optional[Catalog] = None,
 ) -> tp.Dict[str, float]:
@@ -415,13 +455,18 @@ def calc_classification_metrics(
 
     results = {}
     for k, k_metrics in k_map.items():
-        confusion_df = calc_confusions(merged, k)
+        # confusion_df = calc_confusions(merged, k)
 
         for metric_name in k_metrics:
             metric = metrics[metric_name]
-            if isinstance(metric, SimpleClassificationMetric):
+            if isinstance(metric, DebiasClassification) or isinstance(metric, DebiasClassificationMetric):
+                confusion_df = calc_confusions(merged, k, True)
+            else:
+                confusion_df = calc_confusions(merged, k, False)
+
+            if isinstance(metric, SimpleClassificationMetric) or isinstance(metric, DebiasSimpleClassificationMetric):
                 res = metric.calc_from_confusion_df(confusion_df)
-            elif isinstance(metric, ClassificationMetric):
+            elif isinstance(metric, ClassificationMetric) or isinstance(metric, DebiasClassification):
                 if catalog is None:
                     raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
                 res = metric.calc_from_confusion_df(confusion_df, catalog)
@@ -432,7 +477,7 @@ def calc_classification_metrics(
     return results
 
 
-def calc_confusions(merged: pd.DataFrame, k: int) -> pd.DataFrame:
+def calc_confusions(merged: pd.DataFrame, k: int, debias: bool = False) -> pd.DataFrame:
     """
     Calculate some intermediate metrics from prepared data (it's a helper function).
 
@@ -463,6 +508,10 @@ def calc_confusions(merged: pd.DataFrame, k: int) -> pd.DataFrame:
     FN = liked - TP
     TN = all - K - FN = left - FN = left - liked + TP
     """
+    if debias:
+        merged = merged.copy()
+        merged = make_downsample(interactions=merged)
+    
     confusion_df = merged.groupby(Columns.User)[Columns.Item].agg("size").rename(LIKED).to_frame()
     confusion_df[TP] = merged.eval(f"__is_hit = {Columns.Rank} <= @k").groupby(Columns.User)["__is_hit"].agg("sum")
     confusion_df[FP] = k - confusion_df[TP]
