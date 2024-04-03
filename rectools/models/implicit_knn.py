@@ -24,6 +24,7 @@ from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
+from rectools.types import InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
 from .base import ModelBase, Scores
@@ -59,11 +60,11 @@ class ImplicitItemKNNWrapperModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         user_items = dataset.get_user_item_matrix(include_weights=True)
 
@@ -86,11 +87,11 @@ class ImplicitItemKNNWrapperModel(ModelBase):
 
     def _recommend_for_user(
         self,
-        user_id: int,
+        user_id: InternalId,
         user_items: sparse.csr_matrix,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids: tp.Optional[np.ndarray],
+        sorted_item_ids: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, Scores]:
         if filter_viewed:
             viewed_ids = get_viewed_item_ids(user_items, user_id)  # sorted
@@ -120,10 +121,10 @@ class ImplicitItemKNNWrapperModel(ModelBase):
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         similarity = self.model.similarity
         if sorted_item_ids_to_recommend is not None:
@@ -152,7 +153,7 @@ class ImplicitItemKNNWrapperModel(ModelBase):
     @staticmethod
     def _recommend_for_item(
         similarity: sparse.csr_matrix,
-        target_id: int,
+        target_id: InternalId,
         k: int,
     ) -> tp.Tuple[np.ndarray, np.ndarray]:
         slice_ = slice(similarity.indptr[target_id], similarity.indptr[target_id + 1])

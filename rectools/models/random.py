@@ -22,6 +22,7 @@ from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
+from rectools.types import InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
 from .base import ModelBase, Scores
@@ -61,11 +62,11 @@ class RandomModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -111,9 +112,9 @@ class RandomModel(ModelBase):
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         return self._recommend_u2i(target_ids, dataset, k, False, sorted_item_ids_to_recommend)
