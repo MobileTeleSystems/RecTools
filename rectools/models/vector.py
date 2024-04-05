@@ -22,6 +22,7 @@ import numpy as np
 from rectools import InternalIds
 from rectools.dataset import Dataset
 from rectools.models.base import ModelBase, Scores
+from rectools.types import InternalIdsArray
 
 from .rank import Distance, ImplicitRanker
 
@@ -43,11 +44,11 @@ class VectorModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -68,10 +69,10 @@ class VectorModel(ModelBase):
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         item_vectors_1, item_vectors_2 = self._get_i2i_vectors(dataset)
 

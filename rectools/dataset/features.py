@@ -160,6 +160,10 @@ class DenseFeatures:
             names=self.names,
         )
 
+    def __len__(self) -> int:
+        """Return number of objects."""
+        return self.values.shape[0]
+
 
 SparseFeatureName = tp.Tuple[str, tp.Any]
 
@@ -441,6 +445,10 @@ class SparseFeatures:
             values=self.values[ids],
             names=self.names,
         )
+
+    def __len__(self) -> int:
+        """Return number of objects."""
+        return self.values.shape[0]
 
 
 Features = tp.Union[DenseFeatures, SparseFeatures]
