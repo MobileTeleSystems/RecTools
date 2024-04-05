@@ -24,13 +24,6 @@ from rectools import Columns
 from rectools.metrics.base import MetricAtK, merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias_wrapper import (
-    DebiasRankingMetric,
-    DebiasMAPWrapper,
-    DebiasNDCGWrapper,
-    DebiasMRRWrapper,
-)# make_downsample
-
 
 @attr.s
 class _RankingMetric(MetricAtK):
@@ -533,42 +526,78 @@ class MRR(_RankingMetric):
         return per_user.mean()
 
 
-# class DebiasMAPWrapper(MAP):
+@attr.s
+class DebiasMAP(MAP):
+    """
+    TODO
+    """
 
-#     @classmethod
-#     def fit(cls, merged: pd.DataFrame, k_max: int) -> MAPFitted:
-#         merged_wo_popularity = make_downsample(merged)
-#         return MAP.fit(merge_reco=merged_wo_popularity, k_max=k_max)
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
 
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+    @classmethod
+    def fit(cls, merged: pd.DataFrame, k_max: int) -> MAPFitted:
+        merged_wo_popularity = cls.make_downsample(merged, cls.iqr_coef, cls.random_state)
+        return MAP.fit(merge_reco=merged_wo_popularity, k_max=k_max)
 
-
-# class DebiasNDCGWrapper(NDCG):
-
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
-
-#     def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
-#         merged_wo_popularity = make_downsample(merged)
-#         super().calc_per_user_from_merged(merged=merged_wo_popularity)
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
-# class DebiasMRRWrapper(NDCG):
+@attr.s
+class DebiasNDCG(NDCG):
+    """
+    TODO
+    """
 
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
 
-#     def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
-#         merged_wo_popularity = make_downsample(merged)
-#         super().calc_per_user_from_merged(merged=merged_wo_popularity)
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        merged_wo_popularity = self.make_downsample(merged, self.iqr_coef, self.random_state)
+        super().calc_per_user_from_merged(merged=merged_wo_popularity)
+
+
+@attr.s
+class DebiasMRR(MRR):
+    """
+    TODO
+    """
+
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        merged_wo_popularity = self.make_downsample(merged, self.iqr_coef, self.random_state)
+        super().calc_per_user_from_merged(merged=merged_wo_popularity)
 
 
 RankingMetric = tp.Union[NDCG, MAP, MRR]
-# DebiasRankingMetric = tp.Union[DebiasNDCGWrapper, DebiasMAPWrapper, DebiasMRRWrapper]
+DebiasRankingMetric = tp.Union[DebiasNDCG, DebiasMAP, DebiasMRR]
 
 
 def calc_ranking_metrics(
@@ -600,12 +629,12 @@ def calc_ranking_metrics(
     """
     results = {}
 
-    for ranking_metric_cls in [NDCG, MRR, DebiasNDCGWrapper, DebiasMRRWrapper]:
+    for ranking_metric_cls in [NDCG, MRR, DebiasNDCG, DebiasMRR]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(merged)
 
-    for ranking_map_metric_cls in [MAP, DebiasMAPWrapper]:
+    for ranking_map_metric_cls in [MAP, DebiasMAP]:
         map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, ranking_map_metric_cls)
         if map_metrics:
             k_max = max(metric.k for metric in map_metrics.values())

@@ -22,9 +22,9 @@ import numpy as np
 import pandas as pd
 
 from rectools import Columns
+from rectools.utils import is_instance
 
 from .base import Catalog, MetricAtK, merge_reco
-from .debias_wrapper import DebiasClassificationMetric, DebiasSimpleClassificationMetric  # make_downsample
 
 TP = "__TP"
 FP = "__FP"
@@ -372,47 +372,105 @@ class MCC(ClassificationMetric):
         return mcc
 
 
-# class DebiasPrecisionWrapper(Precision):
+@attr.s
+class DebiasPrecision(Precision):
+    """
+    TODO
+    """
 
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
 
-
-# class DebiasRecallWrapper(Recall):
-
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
-
-
-# class DebiasF1BetaWrapper(F1Beta):
-
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
-# class DebiasAccuracyWrapper(Accuracy):
+@attr.s
+class DebiasRecall(Recall):
+    """
+    TODO
+    """
 
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
-# class DebiasMCCWrapper(MCC):
+@attr.s
+class DebiasF1Beta(F1Beta):
+    """
+    TODO
+    """
 
-#     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
-#         interactions_wo_popularity = make_downsample(interactions)
-#         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
-# DebiasClassificationMetric: tp.Union[DebiasAccuracyWrapper, DebiasMCCWrapper]
-# DebiasSimpleClassificationMetric: tp.Union[DebiasPrecisionWrapper, DebiasRecallWrapper, DebiasF1BetaWrapper]
+@attr.s
+class DebiasAccuracy(Accuracy):
+    """
+    TODO
+    """
+
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+
+
+@attr.s
+class DebiasMCC(MCC):
+    """
+    TODO
+    """
+
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
+        """
+        TODO
+        """
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+
+
+DebiasClassificationMetric = tp.Union[DebiasAccuracy, DebiasMCC]
+DebiasSimpleClassificationMetric = tp.Union[DebiasPrecision, DebiasRecall, DebiasF1Beta]
 
 
 def calc_classification_metrics(
-    metrics: tp.Dict[str, tp.Union[ClassificationMetric, SimpleClassificationMetric, DebiasClassificationMetric, DebiasSimpleClassificationMetric]],
+    metrics: tp.Dict[
+        str,
+        tp.Union[
+            ClassificationMetric,
+            SimpleClassificationMetric,
+            DebiasClassificationMetric,
+            DebiasSimpleClassificationMetric,
+        ],
+    ],
     merged: pd.DataFrame,
     catalog: tp.Optional[Catalog] = None,
 ) -> tp.Dict[str, float]:
@@ -455,18 +513,19 @@ def calc_classification_metrics(
 
     results = {}
     for k, k_metrics in k_map.items():
-        # confusion_df = calc_confusions(merged, k)
 
         for metric_name in k_metrics:
             metric = metrics[metric_name]
-            if isinstance(metric, DebiasClassification) or isinstance(metric, DebiasClassificationMetric):
-                confusion_df = calc_confusions(merged, k, True)
+
+            if is_instance(metric, DebiasClassificationMetric) or is_instance(metric, DebiasSimpleClassificationMetric):
+                merged_wo_bias = metric.make_downsample(merged, metric.iqr_coef, metric.random_state)
+                confusion_df = calc_confusions(merged_wo_bias, k)
             else:
-                confusion_df = calc_confusions(merged, k, False)
+                confusion_df = calc_confusions(merged, k)
 
             if isinstance(metric, SimpleClassificationMetric) or isinstance(metric, DebiasSimpleClassificationMetric):
                 res = metric.calc_from_confusion_df(confusion_df)
-            elif isinstance(metric, ClassificationMetric) or isinstance(metric, DebiasClassification):
+            elif isinstance(metric, ClassificationMetric) or isinstance(metric, DebiasClassificationMetric):
                 if catalog is None:
                     raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
                 res = metric.calc_from_confusion_df(confusion_df, catalog)
@@ -477,7 +536,7 @@ def calc_classification_metrics(
     return results
 
 
-def calc_confusions(merged: pd.DataFrame, k: int, debias: bool = False) -> pd.DataFrame:
+def calc_confusions(merged: pd.DataFrame, k: int) -> pd.DataFrame:
     """
     Calculate some intermediate metrics from prepared data (it's a helper function).
 
@@ -508,10 +567,6 @@ def calc_confusions(merged: pd.DataFrame, k: int, debias: bool = False) -> pd.Da
     FN = liked - TP
     TN = all - K - FN = left - FN = left - liked + TP
     """
-    if debias:
-        merged = merged.copy()
-        merged = make_downsample(interactions=merged)
-    
     confusion_df = merged.groupby(Columns.User)[Columns.Item].agg("size").rename(LIKED).to_frame()
     confusion_df[TP] = merged.eval(f"__is_hit = {Columns.Rank} <= @k").groupby(Columns.User)["__is_hit"].agg("sum")
     confusion_df[FP] = k - confusion_df[TP]
