@@ -27,7 +27,7 @@ from rectools.dataset import Dataset
 from rectools.types import InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
-from .base import ModelBase, Scores, ScoresArray
+from .base import FixedColdRecoModelMixin, ModelBase, Scores, ScoresArray
 from .utils import get_viewed_item_ids
 
 
@@ -40,7 +40,7 @@ class Popularity(Enum):
     SUM_WEIGHT = "sum_weight"
 
 
-class PopularModel(ModelBase):
+class PopularModel(FixedColdRecoModelMixin, ModelBase):
     """
     Model generating recommendations based on popularity of items.
 
@@ -72,6 +72,9 @@ class PopularModel(ModelBase):
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
     """
+
+    recommends_for_warm: bool = False
+    recommends_for_cold: bool = True
 
     def __init__(
         self,
@@ -147,11 +150,7 @@ class PopularModel(ModelBase):
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        if sorted_item_ids_to_recommend is not None:
-            valid_items_mask = fast_isin_for_sorted_test_elements(self.popularity_list[0], sorted_item_ids_to_recommend)
-            popularity_list = (self.popularity_list[0][valid_items_mask], self.popularity_list[1][valid_items_mask])
-        else:
-            popularity_list = self.popularity_list
+        popularity_list = self._get_filtered_popularity_list(sorted_item_ids_to_recommend)
 
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -215,3 +214,19 @@ class PopularModel(ModelBase):
         all_reco_ids = np.tile(single_reco, n_targets)
         all_scores = np.tile(single_scores, n_targets)
         return all_target_ids, all_reco_ids, all_scores
+    
+    def _get_filtered_popularity_list(self, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]) -> tp.Tuple[InternalIdsArray, ScoresArray]:
+        popularity_list = self.popularity_list
+        if sorted_item_ids_to_recommend is not None:
+            valid_items_mask = fast_isin_for_sorted_test_elements(popularity_list[0], sorted_item_ids_to_recommend)
+            popularity_list = (popularity_list[0][valid_items_mask], popularity_list[1][valid_items_mask])
+        return popularity_list
+
+    def _get_cold_reco(
+        self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+    ) -> tp.Tuple[InternalIds, Scores]:
+        popularity_list = self._get_filtered_popularity_list(sorted_item_ids_to_recommend)
+        reco_ids = popularity_list[0][:k]
+        scores = popularity_list[1][:k]
+        return reco_ids, scores 
+        
