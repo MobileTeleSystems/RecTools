@@ -214,8 +214,10 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         all_reco_ids = np.tile(single_reco, n_targets)
         all_scores = np.tile(single_scores, n_targets)
         return all_target_ids, all_reco_ids, all_scores
-    
-    def _get_filtered_popularity_list(self, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]) -> tp.Tuple[InternalIdsArray, ScoresArray]:
+
+    def _get_filtered_popularity_list(
+        self, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+    ) -> tp.Tuple[InternalIdsArray, ScoresArray]:
         popularity_list = self.popularity_list
         if sorted_item_ids_to_recommend is not None:
             valid_items_mask = fast_isin_for_sorted_test_elements(popularity_list[0], sorted_item_ids_to_recommend)
@@ -228,5 +230,4 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         popularity_list = self._get_filtered_popularity_list(sorted_item_ids_to_recommend)
         reco_ids = popularity_list[0][:k]
         scores = popularity_list[1][:k]
-        return reco_ids, scores 
-        
+        return reco_ids, scores

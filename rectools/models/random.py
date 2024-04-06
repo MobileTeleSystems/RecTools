@@ -30,9 +30,7 @@ from .base import ModelBase, Scores, SemiInternalRecoTriplet
 from .utils import get_viewed_item_ids
 
 
-
 class RandomSampler:
-
     def __init__(self, values: np.ndarray, random_state: tp.Optional[int] = None) -> None:
         self.values = values
         self.values_list = list(values)  # for random.sample
@@ -121,14 +119,14 @@ class RandomModel(ModelBase):
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         return self._recommend_u2i(target_ids, dataset, k, False, sorted_item_ids_to_recommend)
-    
+
     def _get_filtered_item_ids(self, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]) -> InternalIdsArray:
         if sorted_item_ids_to_recommend is not None:
             item_ids = np.unique(sorted_item_ids_to_recommend)
         else:
             item_ids = self.all_item_ids
         return item_ids
-    
+
     def _recommend_cold(
         self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> SemiInternalRecoTriplet:

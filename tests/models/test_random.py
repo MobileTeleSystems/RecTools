@@ -32,7 +32,7 @@ class TestRandomModel:
         return DATASET
 
     @pytest.mark.parametrize("items_to_recommend", (None, [11, 12, 13]))
-    def test_basic(self,items_to_recommend: tp.Optional[tp.List[tp.Any]]) -> None:
+    def test_basic(self, items_to_recommend: tp.Optional[tp.List[tp.Any]]) -> None:
         user_features = pd.DataFrame(
             {
                 "id": [10, 50],
@@ -131,7 +131,7 @@ class TestRandomModel:
             items_to_recommend=whitelist,
         )
         assert actual.columns.tolist() == Columns.RecommendationsI2I
-        
+
         assert actual[Columns.TargetItem].tolist() == [11, 11, 12, 12, 16, 16, 18, 18]
         assert actual[Columns.Rank].tolist() == [1, 2, 1, 2, 1, 2, 1, 2]
         # Items that aren't present in interections but have features can also be used
