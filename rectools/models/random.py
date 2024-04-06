@@ -22,15 +22,14 @@ from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
-from rectools.dataset.identifiers import IdMap
-from rectools.types import AnyIdsArray, InternalIdsArray
+from rectools.types import AnyIdsArray, InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
 from .base import ModelBase, Scores, SemiInternalRecoTriplet
 from .utils import get_viewed_item_ids
 
 
-class RandomSampler:
+class _RandomSampler:
     def __init__(self, values: np.ndarray, random_state: tp.Optional[int] = None) -> None:
         self.values = values
         self.values_list = list(values)  # for random.sample
@@ -85,10 +84,10 @@ class RandomModel(ModelBase):
             user_items = dataset.get_user_item_matrix(include_weights=False)
 
         item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
-        sampler = RandomSampler(item_ids, self.random_state)
+        sampler = _RandomSampler(item_ids, self.random_state)
 
         all_user_ids = []
-        all_reco_ids = []
+        all_reco_ids: tp.List[InternalId] = []
         all_scores: tp.List[float] = []
         for user_id in tqdm(user_ids, disable=self.verbose == 0):
             if filter_viewed:
@@ -106,8 +105,8 @@ class RandomModel(ModelBase):
             reco_scores = np.arange(reco_ids.size, 0, -1)
 
             all_user_ids.extend([user_id] * len(reco_ids))
-            all_reco_ids.extend(reco_ids)
-            all_scores.extend(reco_scores)
+            all_reco_ids.extend(reco_ids.tolist())
+            all_scores.extend(reco_scores.tolist())
 
         return all_user_ids, all_reco_ids, all_scores
 
@@ -131,7 +130,7 @@ class RandomModel(ModelBase):
         self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> SemiInternalRecoTriplet:
         item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
-        sampler = RandomSampler(item_ids, self.random_state)
+        sampler = _RandomSampler(item_ids, self.random_state)
         n_reco = min(k, item_ids.size)
 
         reco_ids_lst = []

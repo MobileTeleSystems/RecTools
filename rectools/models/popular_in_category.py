@@ -341,4 +341,4 @@ class PopularInCategoryModel(PopularModel):
     def _get_cold_reco(
         self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> tp.Tuple[InternalIds, Scores]:
-        pass
+        return [], []
