@@ -119,12 +119,12 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         items = items_scores.index.values
         scores = items_scores.values.astype(float)
 
-        if self.add_cold:  # pragma: no cover  # TODO: remove when added support for warm and cold
+        if self.add_cold:
             cold_items = np.setdiff1d(dataset.item_id_map.internal_ids, items)
             items = np.concatenate((items, cold_items))
             scores = np.concatenate((scores, np.zeros(cold_items.size)))
 
-        if self.inverse:  # pragma: no cover  # TODO: remove when added support for warm and cold
+        if self.inverse:
             items = items[::-1]
             scores = scores[::-1]
 

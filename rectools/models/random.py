@@ -40,7 +40,7 @@ class _RandomSampler:
         if n < 25:  # Empiric value, for optimization
             sampled = np.asarray(self.python_gen.sample(self.values_list, n))
         else:
-            sampled = self.np_gen.choice(self.values, n, replace=False)
+            sampled = self.np_gen.choice(self.values, n, replace=False)  # pragma: no cover
         return sampled
 
 
