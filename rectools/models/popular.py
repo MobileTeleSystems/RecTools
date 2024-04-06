@@ -73,8 +73,8 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         Degree of verbose output. If ``0``, no output will be provided.
     """
 
-    recommends_for_warm: bool = False
-    recommends_for_cold: bool = True
+    recommends_for_warm = False
+    recommends_for_cold = True
 
     def __init__(
         self,

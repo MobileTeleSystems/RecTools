@@ -95,6 +95,9 @@ class PopularInCategoryModel(PopularModel):
         Degree of verbose output. If ``0``, no output will be provided.
     """
 
+    recommends_for_warm = False
+    recommends_for_cold = True
+
     def __init__(
         self,
         category_feature: str,
@@ -334,3 +337,8 @@ class PopularInCategoryModel(PopularModel):
         all_reco_ids = np.tile(single_reco, n_targets)
         all_scores = np.tile(single_scores, n_targets)
         return all_target_ids, all_reco_ids, all_scores
+
+    def _get_cold_reco(
+        self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+    ) -> tp.Tuple[InternalIds, Scores]:
+        pass
