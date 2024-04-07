@@ -322,14 +322,9 @@ class PopularInCategoryModel(PopularModel):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        _, single_reco, single_scores = self._recommend_u2i(
-            user_ids=dataset.user_id_map.internal_ids[:1],
-            dataset=dataset,
-            k=k,
-            filter_viewed=False,
-            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+        single_reco, single_scores = self._get_cold_reco(  # pylint: disable=protected-access
+            k, sorted_item_ids_to_recommend
         )
-
         n_targets = len(target_ids)
         n_reco_per_target = len(single_reco)
 
@@ -341,4 +336,50 @@ class PopularInCategoryModel(PopularModel):
     def _get_cold_reco(
         self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> tp.Tuple[InternalIds, Scores]:
-        return [], []
+        num_recs = self._get_num_recs_for_each_category(k)
+        main_recs = []
+        fallback_recs = []
+        for priority, num_col in enumerate(num_recs.index):
+            model = self.models[num_col]
+            reco_ids, reco_scores = model._get_cold_reco(  # pylint: disable=protected-access
+                k, sorted_item_ids_to_recommend
+            )
+            reco_df = pd.DataFrame(
+                {
+                    Columns.Item: reco_ids,
+                    Columns.Score: reco_scores,
+                    "category_priority": priority,
+                }
+            )
+            reco_df["category_rank"] = range(len(reco_df))
+            main_mask = reco_df["category_rank"] < num_recs.loc[num_col]
+            main_recs.append(reco_df[main_mask])
+            fallback_recs.append(reco_df[~main_mask])
+        cat_recs = pd.concat(main_recs, sort=False)
+        cat_recs.drop_duplicates(subset=[Columns.Item], inplace=True)
+        if len(cat_recs) < k:
+            cat_recs["is_main_rec"] = True
+            extra_recs = pd.concat(fallback_recs, sort=False)
+            extra_recs["is_main_rec"] = False
+            full_recs = pd.concat([cat_recs, extra_recs], sort=False)
+            full_recs.drop_duplicates(subset=[Columns.Item], inplace=True)
+
+            # Extra recommendations are given in a specific logic to guarantee that fallback recommendations
+            # never replace main recommendations in final result. And popular category doesn't dominate
+            # over other categories in fallback recs. Thus `rotate` mixing strategy is applied before getting
+            # k recs for each user.
+            full_recs.sort_values(
+                by=["is_main_rec", "category_rank", "category_priority"],
+                ascending=[False, True, True],
+                inplace=True,
+            )
+            full_recs = full_recs.head(k)
+        else:
+            full_recs = cat_recs
+
+        if self.mixing_strategy == MixingStrategy.GROUP:
+            full_recs.sort_values(by=["category_priority", "category_rank"], inplace=True)
+        elif self.mixing_strategy == MixingStrategy.ROTATE:
+            full_recs["category_rank"] = full_recs.groupby(["category_priority"], sort=False).cumcount()
+            full_recs.sort_values(by=["category_rank", "category_priority"], inplace=True)
+        return full_recs[Columns.Item].values, full_recs[Columns.Score].values
