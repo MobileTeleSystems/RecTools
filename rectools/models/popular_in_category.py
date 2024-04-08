@@ -322,9 +322,7 @@ class PopularInCategoryModel(PopularModel):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        single_reco, single_scores = self._get_cold_reco(
-            k, sorted_item_ids_to_recommend
-        )
+        single_reco, single_scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
         n_targets = len(target_ids)
         n_reco_per_target = len(single_reco)
 
