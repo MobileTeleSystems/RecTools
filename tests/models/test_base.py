@@ -468,6 +468,13 @@ class TestHotWarmCold:
         with pytest.raises(ValueError, match="doesn't support recommendations for cold"):
             self._get_reco(targets, "hot_warm", "no_features", kind)
 
+    @pytest.mark.parametrize("dataset_key", ("no_features", "with_features"))
+    @pytest.mark.parametrize("kind", ("u2i", "i2i"))
+    @pytest.mark.parametrize("model_key", ("hot_cold", "hot_warm_cold"))
+    def test_raises_on_incorrect_cold_targets_type(self, dataset_key: str, kind: str, model_key: str) -> None:
+        with pytest.raises(TypeError):
+            self._get_reco(["some_id"], model_key, dataset_key, kind)
+
 
 class TestFixedColdRecoModelMixin:
     def test_cold_reco_works(self) -> None:

@@ -147,7 +147,11 @@ class ModelBase:
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
-            users, dataset.user_id_map, dataset.n_hot_users, assume_external_ids
+            users,
+            dataset.user_id_map,
+            dataset.n_hot_users,
+            assume_external_ids,
+            "user",
         )
         self._check_targets_are_valid(hot_user_ids, warm_user_ids, cold_user_ids, "user")
 
@@ -257,7 +261,11 @@ class ModelBase:
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
-            target_items, dataset.item_id_map, dataset.n_hot_items, assume_external_ids
+            target_items,
+            dataset.item_id_map,
+            dataset.n_hot_items,
+            assume_external_ids,
+            "item",
         )
         self._check_targets_are_valid(hot_target_ids, warm_target_ids, cold_target_ids, "item")
 
@@ -344,9 +352,17 @@ class ModelBase:
         id_map: IdMap,
         n_hot: int,
         assume_external_ids: bool,
+        entity: tpe.Literal["user", "item"],
     ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
         if assume_external_ids:
             known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
+            try:
+                cold_ids = cold_ids.astype(id_map.external_dtype)
+            except ValueError:
+                raise TypeError(
+                    f"Given {entity} ids must be convertible to the "
+                    f"{entity}_id` type in dataset ({id_map.external_dtype})"
+                )
         else:
             target_ids = cls._ensure_internal_ids_valid(targets)
             known_mask = target_ids < id_map.size
