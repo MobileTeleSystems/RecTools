@@ -127,7 +127,11 @@ class RandomModel(ModelBase):
         return item_ids
 
     def _recommend_cold(
-        self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+        self,
+        target_ids: AnyIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> SemiInternalRecoTriplet:
         item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
         sampler = _RandomSampler(item_ids, self.random_state)

@@ -322,7 +322,7 @@ class PopularInCategoryModel(PopularModel):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-        single_reco, single_scores = self._get_cold_reco(k, sorted_item_ids_to_recommend)
+        single_reco, single_scores = self._get_cold_reco(dataset, k, sorted_item_ids_to_recommend)
         n_targets = len(target_ids)
         n_reco_per_target = len(single_reco)
 
@@ -332,7 +332,7 @@ class PopularInCategoryModel(PopularModel):
         return all_target_ids, all_reco_ids, all_scores
 
     def _get_cold_reco(
-        self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+        self, dataset: Dataset, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> tp.Tuple[InternalIds, Scores]:
         num_recs = self._get_num_recs_for_each_category(k)
         main_recs = []
@@ -340,7 +340,7 @@ class PopularInCategoryModel(PopularModel):
         for priority, num_col in enumerate(num_recs.index):
             model = self.models[num_col]
             reco_ids, reco_scores = model._get_cold_reco(  # pylint: disable=protected-access
-                k, sorted_item_ids_to_recommend
+                dataset, k, sorted_item_ids_to_recommend
             )
             reco_df = pd.DataFrame(
                 {
