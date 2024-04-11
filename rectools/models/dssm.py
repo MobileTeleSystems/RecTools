@@ -218,6 +218,9 @@ class DSSMModel(VectorModel):
     model : Optional(DSSM), default None
         Which model to wrap.
         If model is None, an instance of default DSSM is created during fit.
+    n_factors: int, default 128
+        How many hidden units to use in user and item networks.
+        Used only if `model` is None.
     max_epochs : int, default 5
         Stop training if this number of epochs is reached.
         Keep in mind that if any kind of early stopping callback is passed
@@ -252,6 +255,7 @@ class DSSMModel(VectorModel):
         self,
         dataset_type: TorchDataset[tp.Any],
         model: tp.Optional[DSSM] = None,
+        n_factors: int = 128,
         max_epochs: int = 5,
         batch_size: int = 128,
         dataloader_num_workers: int = 0,
@@ -265,6 +269,7 @@ class DSSMModel(VectorModel):
         super().__init__(verbose=verbose)
         self.model: tp.Optional[DSSM]
         self._model = model
+        self.n_factors = n_factors
         self.max_epochs = max_epochs
         self.batch_size = batch_size
         self.trainer: Trainer
@@ -285,8 +290,8 @@ class DSSMModel(VectorModel):
 
         if self.model is None:
             self.model = DSSM(
-                n_factors_user=128,
-                n_factors_item=128,
+                n_factors_user=self.n_factors,
+                n_factors_item=self.n_factors,
                 dim_input_user=dataset.user_features.get_sparse().shape[1],  # type: ignore
                 dim_input_item=dataset.item_features.get_sparse().shape[1],  # type: ignore
                 dim_interactions=dataset.get_user_item_matrix().shape[1],
