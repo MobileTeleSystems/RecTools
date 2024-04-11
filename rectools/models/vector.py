@@ -59,7 +59,7 @@ class VectorModel(ModelBase):
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
         ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
-        
+
         return ranker.rank(
             subject_ids=user_ids,
             k=k,

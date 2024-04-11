@@ -76,12 +76,12 @@ class TestLightFMWrapperModel:
 
     @pytest.fixture
     def dataset_with_features(self, interactions_df: pd.DataFrame) -> Dataset:
-        user_features_df = pd.DataFrame({"id": [10], "feature": ["f1"], "value": [2]})
+        user_features_df = pd.DataFrame({"id": [10, 130], "feature": ["f1", "f1"], "value": [2, 2]})
         item_features_df = pd.DataFrame(
             {
-                "id": [11, 11, 12, 12, 14, 14],
-                "feature": ["f1", "f2", "f1", "f2", "f1", "f2"],
-                "value": [100, "a", 100, "a", 100, "a"],
+                "id": [11, 11, 12, 12, 14, 14, 16, 16],
+                "feature": ["f1", "f2", "f1", "f2", "f1", "f2", "f1", "f2"],
+                "value": [100, "a", 100, "a", 100, "a", 100, "a"],
             }
         )
 
@@ -100,9 +100,9 @@ class TestLightFMWrapperModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 20, 20],
-                        Columns.Item: [15, 13, 14],
-                        Columns.Rank: [1, 1, 2],
+                        Columns.User: [10, 20, 20, 150, 150],
+                        Columns.Item: [15, 13, 14, 11, 12],
+                        Columns.Rank: [1, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -110,9 +110,9 @@ class TestLightFMWrapperModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [11, 12, 11, 12],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.User: [10, 10, 20, 20, 150, 150],
+                        Columns.Item: [11, 12, 11, 12, 11, 12],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -122,7 +122,7 @@ class TestLightFMWrapperModel:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset)
         actual = model.recommend(
-            users=np.array([10, 20]),
+            users=np.array([10, 20, 150]),  # hot, hot, cold
             dataset=dataset,
             k=2,
             filter_viewed=filter_viewed,
@@ -140,9 +140,9 @@ class TestLightFMWrapperModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [20],
-                        Columns.Item: [14],
-                        Columns.Rank: [1],
+                        Columns.User: [20, 150, 150],
+                        Columns.Item: [14, 11, 15],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -150,9 +150,9 @@ class TestLightFMWrapperModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [20, 20],
-                        Columns.Item: [11, 15],
-                        Columns.Rank: [1, 2],
+                        Columns.User: [20, 20, 150, 150],
+                        Columns.Item: [11, 15, 11, 15],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -162,7 +162,7 @@ class TestLightFMWrapperModel:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset)
         actual = model.recommend(
-            users=np.array([20]),
+            users=np.array([20, 150]),  # hot, cold
             dataset=dataset,
             k=2,
             filter_viewed=filter_viewed,
@@ -178,7 +178,7 @@ class TestLightFMWrapperModel:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset_with_features)
         actual = model.recommend(
-            users=np.array([10, 20]),
+            users=np.array([10, 20, 130, 150]),  # hot, hot, warm, cold
             dataset=dataset_with_features,
             k=2,
             filter_viewed=True,
@@ -186,9 +186,9 @@ class TestLightFMWrapperModel:
 
         expected = pd.DataFrame(
             {
-                Columns.User: [10, 20, 20],
-                Columns.Item: [15, 14, 13],
-                Columns.Rank: [1, 1, 2],
+                Columns.User: [10, 20, 20, 130, 130, 150, 150],
+                Columns.Item: [15, 14, 13, 11, 12, 11, 12],
+                Columns.Rank: [1, 1, 2, 1, 2, 1, 2],
             }
         )
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
@@ -245,9 +245,9 @@ class TestLightFMWrapperModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [11, 15, 12, 13],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.TargetItem: [11, 11, 12, 12, 16, 16, 17, 17],
+                        Columns.Item: [11, 15, 12, 13, 11, 12, 11, 12],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -256,9 +256,9 @@ class TestLightFMWrapperModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [15, 14, 13, 14],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.TargetItem: [11, 11, 12, 12, 16, 16, 17, 17],
+                        Columns.Item: [15, 14, 13, 14, 11, 12, 11, 12],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -267,9 +267,9 @@ class TestLightFMWrapperModel:
                 np.array([11, 15, 14]),
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [11, 15, 14, 15],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.TargetItem: [11, 11, 12, 12, 16, 16, 17, 17],
+                        Columns.Item: [11, 15, 14, 15, 11, 15, 11, 15],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -281,7 +281,7 @@ class TestLightFMWrapperModel:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model, epochs=100).fit(dataset)
         actual = model.recommend_to_items(
-            target_items=np.array([11, 12]),
+            target_items=np.array([11, 12, 16, 17]),  # hot, hot, warm, cold
             dataset=dataset,
             k=2,
             filter_itself=filter_itself,
