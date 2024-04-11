@@ -52,13 +52,14 @@ class VectorModel(ModelBase):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
+            ui_csr_for_filter = user_items[user_ids]
         else:
-            user_items = None
+            ui_csr_for_filter = None
 
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
         ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
-        ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
+        
         return ranker.rank(
             subject_ids=user_ids,
             k=k,
