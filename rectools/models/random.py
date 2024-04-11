@@ -29,18 +29,24 @@ from .base import ModelBase, Scores, SemiInternalRecoTriplet
 from .utils import get_viewed_item_ids
 
 
-class _RandomSampler:
-    def __init__(self, values: np.ndarray, random_state: tp.Optional[int] = None) -> None:
-        self.values = values
-        self.values_list = list(values)  # for random.sample
+class _RandomGen:
+    def __init__(self, random_state: tp.Optional[int] = None) -> None:
         self.python_gen = random.Random(random_state)
         self.np_gen = np.random.default_rng(random_state)
+
+
+class _RandomSampler:
+    def __init__(self, values: np.ndarray, random_gen: _RandomGen) -> None:
+        self.python_gen = random_gen.python_gen
+        self.np_gen = random_gen.np_gen
+        self.values = values
+        self.values_list = list(values)  # for random.sample
 
     def sample(self, n: int) -> np.ndarray:
         if n < 25:  # Empiric value, for optimization
             sampled = np.asarray(self.python_gen.sample(self.values_list, n))
         else:
-            sampled = self.np_gen.choice(self.values, n, replace=False)  # pragma: no cover
+            sampled = self.np_gen.choice(self.values, n, replace=False)
         return sampled
 
 
@@ -67,6 +73,8 @@ class RandomModel(ModelBase):
     def __init__(self, random_state: tp.Optional[int] = None, verbose: int = 0):
         super().__init__(verbose=verbose)
         self.random_state = random_state
+        self.random_gen = _RandomGen(random_state)
+
         self.all_item_ids: np.ndarray
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
@@ -84,7 +92,7 @@ class RandomModel(ModelBase):
             user_items = dataset.get_user_item_matrix(include_weights=False)
 
         item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
-        sampler = _RandomSampler(item_ids, self.random_state)
+        sampler = _RandomSampler(item_ids, self.random_gen)
 
         all_user_ids = []
         all_reco_ids: tp.List[InternalId] = []
@@ -121,7 +129,7 @@ class RandomModel(ModelBase):
 
     def _get_filtered_item_ids(self, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]) -> InternalIdsArray:
         if sorted_item_ids_to_recommend is not None:
-            item_ids = np.unique(sorted_item_ids_to_recommend)
+            item_ids = sorted_item_ids_to_recommend
         else:
             item_ids = self.all_item_ids
         return item_ids
@@ -130,7 +138,7 @@ class RandomModel(ModelBase):
         self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> SemiInternalRecoTriplet:
         item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
-        sampler = _RandomSampler(item_ids, self.random_state)
+        sampler = _RandomSampler(item_ids, self.random_gen)
         n_reco = min(k, item_ids.size)
 
         reco_ids_lst = []
