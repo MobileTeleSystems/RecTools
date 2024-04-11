@@ -106,9 +106,11 @@ class TestRandomModel:
             }
         )
         dataset = Dataset.construct(interactions)
-        model = RandomModel(random_state=42).fit(dataset)
-        reco_1 = model.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
-        reco_2 = model.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
+
+        model_1 = RandomModel(random_state=42).fit(dataset)
+        reco_1 = model_1.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
+        model_2 = RandomModel(random_state=42).fit(dataset)
+        reco_2 = model_2.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
         pd.testing.assert_frame_equal(reco_1, reco_2)
 
     @pytest.mark.parametrize("filter_itself", (True, False))
