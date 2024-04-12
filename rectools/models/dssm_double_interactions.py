@@ -186,8 +186,8 @@ class DSSMModelDoubleInteractions(DSSMModel):
 
         if self.model is None:
             self.model = DSSMDoubleInteractions(
-                n_factors_user=128,
-                n_factors_item=128,
+                n_factors_user=32,
+                n_factors_item=32,
                 dim_input_user=dataset.user_features.get_sparse().shape[1],  # type: ignore
                 dim_input_item=dataset.item_features.get_sparse().shape[1],  # type: ignore
                 dim_interactions=dataset.get_user_item_matrix().shape[1],
