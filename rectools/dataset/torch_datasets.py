@@ -99,6 +99,59 @@ class DSSMDataset(TorchDataset[tp.Any]):
         return user_features, interactions, pos, neg
 
 
+class DSSMDatasetNoInteractions(DSSMDataset):
+    def __getitem__(
+        self, idx: int
+    ) -> tp.Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+        interactions_vec = self.interactions[idx].toarray().flatten()
+        probabilities = interactions_vec / interactions_vec.sum()
+        pos_i = np.random.choice(np.arange(self.interactions.shape[1]), p=probabilities)
+        neg_i = np.random.choice(np.arange(self.interactions.shape[1]))
+
+        user_features = torch.FloatTensor(self.users[idx].toarray().flatten())
+        pos = torch.FloatTensor(self.items[pos_i].toarray().flatten())
+        neg = torch.FloatTensor(self.items[neg_i].toarray().flatten())
+
+        return user_features, pos, neg
+
+
+class DSSMDatasetDoubleInteractions(DSSMDataset):
+    def __init__(
+        self,
+        items: sparse.csr_matrix,
+        users: sparse.csr_matrix,
+        interactions: sparse.csr_matrix,
+    ) -> None:
+        self.items = items
+        self.users = users
+        self.interactions = interactions
+        self.intractions_t = interactions.T.tocsr()
+        if not self.interactions.sum(1).all() or (self.interactions < 0).sum(1).any():
+            raise ValueError(
+                "Impossible to sample from a row that either contains only negative items"
+                " or contains any negatively signed integers."
+                "Make sure that all rows from interactions have at least 1 positive item"
+            )
+
+    def __getitem__(
+        self, idx: int
+    ) -> tp.Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+        interactions_vec = self.interactions[idx].toarray().flatten()
+        probabilities = interactions_vec / interactions_vec.sum()
+        pos_i = np.random.choice(np.arange(self.interactions.shape[1]), p=probabilities)
+        neg_i = np.random.choice(np.arange(self.interactions.shape[1]))
+
+        user_features = torch.FloatTensor(self.users[idx].toarray().flatten())
+        interactions = torch.FloatTensor(interactions_vec)
+        pos = torch.FloatTensor(self.items[pos_i].toarray().flatten())
+        pos_interactions_t = torch.FloatTensor(self.intractions_t[pos_i].toarray().flatten())
+        neg = torch.FloatTensor(self.items[neg_i].toarray().flatten())
+        neg_interactions_t = torch.FloatTensor(self.intractions_t[neg_i].toarray().flatten())
+
+        return user_features, interactions, pos, pos_interactions_t, neg, neg_interactions_t
+
+
+
 class ItemFeaturesDataset(TorchDataset[tp.Any]):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
@@ -124,6 +177,29 @@ class ItemFeaturesDataset(TorchDataset[tp.Any]):
 
     def __getitem__(self, idx: int) -> torch.FloatTensor:
         return torch.FloatTensor(self.items[idx].toarray().flatten())
+    
+
+
+class ItemFeaturesDatasetWithInteractions(TorchDataset[tp.Any]):
+    def __init__(self, items: sparse.csr_matrix, interactions_t: sparse.csr_matrix,):
+        self.items = items
+        self.interactions_t = interactions_t
+
+    @classmethod
+    def from_dataset(cls: tp.Type[ID], dataset: Dataset) -> ID:
+        # We take all features here since this dataset is used for recommend only, not for fit
+        if dataset.item_features is not None:
+            return cls(dataset.item_features.get_sparse(), dataset.get_user_item_matrix().T.tocsr())
+        raise AttributeError("Item features attribute of dataset could not be None")
+
+    def __len__(self) -> int:
+        return self.items.shape[0]
+
+    def __getitem__(self, idx: int) -> torch.FloatTensor:
+        return (
+            torch.FloatTensor(self.items[idx].toarray().flatten()),
+            torch.FloatTensor(self.interactions_t[idx].toarray().flatten()),
+        )
 
 
 class UserFeaturesDataset(TorchDataset[tp.Any]):
@@ -172,3 +248,36 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
         user_features = self.users[idx].toarray().flatten()
         interactions = self.interactions[idx].toarray().flatten()
         return torch.FloatTensor(user_features), torch.FloatTensor(interactions)
+
+
+class UserFeaturesDatasetNoInteractions(TorchDataset[tp.Any]):
+    def __init__(
+        self,
+        users: sparse.csr_matrix,
+        keep_users: tp.Optional[tp.Sequence[int]] = None,
+    ):
+        if keep_users is not None:
+            self.users = users[keep_users]
+        else:
+            self.users = users
+
+    @classmethod
+    def from_dataset(
+        cls: tp.Type[UD],
+        dataset: Dataset,
+        keep_users: tp.Optional[tp.Sequence[int]] = None,
+    ) -> UD:
+        # We take all features here since this dataset is used for recommend only, not for fit
+        if dataset.user_features is not None:
+            return cls(
+                dataset.user_features.get_sparse(),
+                keep_users,
+            )
+        raise AttributeError("User features attribute of dataset could not be None")
+
+    def __len__(self) -> int:
+        return self.users.shape[0]
+
+    def __getitem__(self, idx: int) -> tp.Tuple[torch.FloatTensor]:
+        user_features = self.users[idx].toarray().flatten()
+        return torch.FloatTensor(user_features)
