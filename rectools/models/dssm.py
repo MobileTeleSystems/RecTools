@@ -26,9 +26,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from rectools.models.base import InternalRecoTriplet
-from rectools.types import InternalIdsArray
-
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
     from pytorch_lightning import Callback, LightningModule, Trainer
@@ -38,9 +35,12 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
-from ..dataset.dataset import Dataset
-from ..dataset.torch_datasets import ItemFeaturesDataset, UserFeaturesDataset
-from ..exceptions import NotFittedError
+from rectools.dataset import Dataset
+from rectools.dataset.torch_datasets import ItemFeaturesDataset, UserFeaturesDataset
+from rectools.exceptions import NotFittedError
+from rectools.types import InternalIdsArray
+
+from .base import InternalRecoTriplet
 from .rank import Distance
 from .vector import Factors, VectorModel
 
