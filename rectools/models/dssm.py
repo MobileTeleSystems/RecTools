@@ -26,6 +26,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from rectools.models.base import InternalRecoTriplet
+from rectools.types import InternalIdsArray
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
     from pytorch_lightning import Callback, LightningModule, Trainer
@@ -246,7 +249,13 @@ class DSSMModel(VectorModel):
         Which loggers to use. For instance, `pytorch_lightning.loggers.TensorboardLogger`, etc.
     verbose : int, default 0
         Verbosity level (applies only to recommend loop).
+    deterministic : bool, default ``False``
+        If ``True``, sets whether PyTorch operations must use deterministic algorithms.
+        Use `pytorch_lightning.seed_everything` together with this param to fix the random state.
     """
+
+    recommends_for_warm = True
+    recommends_for_cold = False
 
     u2i_dist = Distance.EUCLIDEAN
     i2i_dist = Distance.EUCLIDEAN
@@ -265,6 +274,7 @@ class DSSMModel(VectorModel):
         callbacks: tp.Optional[tp.Union[tp.List[Callback], Callback]] = None,
         loggers: tp.Union[Logger, tp.Iterable[Logger], bool] = True,
         verbose: int = 0,
+        deterministic: bool = False,
     ) -> None:
         super().__init__(verbose=verbose)
         self.model: tp.Optional[DSSM]
@@ -272,6 +282,7 @@ class DSSMModel(VectorModel):
         self.n_factors = n_factors
         self.max_epochs = max_epochs
         self.batch_size = batch_size
+        self.deterministic = deterministic
         self.trainer: Trainer
         self._trainer = Trainer(
             devices=trainer_devices,
@@ -280,6 +291,7 @@ class DSSMModel(VectorModel):
             num_sanity_val_steps=trainer_sanity_steps,
             callbacks=callbacks,
             logger=loggers,
+            deterministic=deterministic,
         )
         self.dataloader_num_workers = dataloader_num_workers
         self.dataset_type = dataset_type
@@ -345,3 +357,21 @@ class DSSMModel(VectorModel):
         )
         vectors = self.model.inference_items(dataloader)  # type: ignore
         return Factors(vectors)
+
+    def _recommend_u2i_warm(
+        self,
+        user_ids: InternalIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+    ) -> InternalRecoTriplet:
+        return self._recommend_u2i(user_ids, dataset, k, False, sorted_item_ids_to_recommend)
+
+    def _recommend_i2i_warm(
+        self,
+        target_ids: InternalIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+    ) -> InternalRecoTriplet:
+        return self._recommend_i2i(target_ids, dataset, k, sorted_item_ids_to_recommend)

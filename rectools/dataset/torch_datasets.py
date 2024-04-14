@@ -143,6 +143,8 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
         interactions: sparse.csr_matrix,
         keep_users: tp.Optional[tp.Sequence[int]] = None,
     ):
+        if users.shape[0] != interactions.shape[0]:
+            raise ValueError("Number of rows in user features matrix and in interactions matrix must be the same")
         if keep_users is not None:
             self.users = users[keep_users]
             self.interactions = interactions[keep_users]
@@ -160,7 +162,7 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
         if dataset.user_features is not None:
             return cls(
                 dataset.user_features.get_sparse(),
-                dataset.get_user_item_matrix(),
+                dataset.get_user_item_matrix(include_warm_users=True),
                 keep_users,
             )
         raise AttributeError("User features attribute of dataset could not be None")

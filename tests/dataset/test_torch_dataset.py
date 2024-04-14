@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
-
+from scipy import sparse
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.torch_datasets import DSSMDataset, ItemFeaturesDataset, UserFeaturesDataset
@@ -211,6 +211,12 @@ class TestUsersDataset(WithFixtures):
     def test_keep_users(self, dataset: Dataset) -> None:
         users_dataset = UserFeaturesDataset.from_dataset(dataset, keep_users=[0, 1])
         assert (dataset.user_id_map.internal_ids.shape[0] - len(users_dataset)) == 1
+
+    def test_raises_when_users_and_embeddings_have_different_lengths(self) -> None:
+        users = sparse.csr_matrix(np.random.rand(4, 2))
+        interactions = sparse.csr_matrix(np.random.rand(3, 5))
+        with pytest.raises(ValueError):
+            UserFeaturesDataset(users, interactions)
 
 
 class TestItemsDataset(WithFixtures):
