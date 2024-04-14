@@ -14,10 +14,10 @@
 
 import typing as tp
 
-from lightning_fabric import seed_everything
 import numpy as np
 import pandas as pd
 import pytest
+from lightning_fabric import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
@@ -126,7 +126,6 @@ class TestDSSMModel:
             max_epochs=3,
             batch_size=4,
             deterministic=True,
-
         )
         model.fit(dataset=dataset, dataset_valid=dataset)
         users = np.array([10, 20, 50])

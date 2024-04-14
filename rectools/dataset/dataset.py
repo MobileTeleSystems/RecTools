@@ -195,11 +195,11 @@ class Dataset:
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
     def get_user_item_matrix(
-            self, 
-            include_weights: bool = True, 
-            include_warm_users: bool = False,
-            include_warm_items: bool = False,
-        ) -> sparse.csr_matrix:
+        self,
+        include_weights: bool = True,
+        include_warm_users: bool = False,
+        include_warm_items: bool = False,
+    ) -> sparse.csr_matrix:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
 

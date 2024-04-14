@@ -277,7 +277,11 @@ class TestLightFMWrapperModel:
         ),
     )
     def test_i2i(
-        self, dataset_with_features: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset_with_features: Dataset,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
     ) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model, epochs=100).fit(dataset_with_features)
@@ -313,4 +317,3 @@ class TestLightFMWrapperModel:
                 k=2,
                 filter_viewed=False,
             )
-
