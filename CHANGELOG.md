@@ -10,11 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added 
 - Warm users/items support in `Dataset` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
-- Warm and cold users/items support in `ModelBase` and non-personalized models ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77), [#1118](https://github.com/MobileTeleSystems/RecTools/pull/118))
+- Warm and cold users/items support in `ModelBase` and non-personalized models ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77), [#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
 - Warm and cold users/items support in `cross_validate` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
 
 ### Removed
 - `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+
+### Changed
+- Changed the logic of choosing random sampler for `RandomModel` and increased the sampling speed ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
 
 
 ## [0.5.0] - 22.03.2024
