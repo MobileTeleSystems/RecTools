@@ -70,8 +70,16 @@ class TestPopularInCategoryModel:
 
     @pytest.fixture
     def dataset(self, interactions_df: pd.DataFrame, item_features_df: pd.DataFrame) -> Dataset:
+        user_features_df = pd.DataFrame(
+            {
+                "id": [10, 50],
+                "feature": ["f1", "f1"],
+                "value": [1, 1],
+            }
+        )
         dataset = Dataset.construct(
             interactions_df=interactions_df,
+            user_features_df=user_features_df,
             item_features_df=item_features_df,
             cat_item_features=["f2", "f1"],
         )
@@ -185,40 +193,28 @@ class TestPopularInCategoryModel:
         assert np.allclose(actual, expected_num_recs)
 
     @pytest.mark.parametrize(
-        "model,expected_items,expected_scores",
+        "mixing_strategy,expected_items,expected_scores",
         (
-            (
-                PopularInCategoryModel(
-                    category_feature="f2",
-                    popularity="mean_weight",
-                    mixing_strategy="group",
-                    ratio_strategy="proportional",
-                ),
-                [[13, 12, 14, 11], [13, 12, 14, 11]],
-                [[9, 1, 1.142857, 1], [9, 1, 1.142857, 1]],
-            ),
-            (
-                PopularInCategoryModel(
-                    category_feature="f2",
-                    popularity="mean_weight",
-                    mixing_strategy="rotate",
-                    ratio_strategy="proportional",
-                ),
-                [[13, 14, 11, 12], [13, 14, 11, 12]],
-                [[9, 1.142857, 1, 1], [9, 1.142857, 1, 1]],
-            ),
+            ("group", [13, 12, 14, 11], [9, 1, 1.142857, 1]),
+            ("rotate", [13, 14, 11, 12], [9, 1.142857, 1, 1]),
         ),
     )
     def test_without_filtering_viewed(
         self,
         dataset: Dataset,
-        model: PopularInCategoryModel,
-        expected_items: tp.List[tp.List[tp.Any]],
-        expected_scores: tp.List[tp.List[tp.Any]],
+        mixing_strategy: str,
+        expected_items: tp.List[tp.Any],
+        expected_scores: tp.List[tp.Any],
     ) -> None:
+        model = PopularInCategoryModel(
+            category_feature="f2",
+            popularity="mean_weight",
+            mixing_strategy=mixing_strategy,
+            ratio_strategy="proportional",
+        )
         model.fit(dataset)
-        actual = model.recommend(users=np.array([10, 30]), dataset=dataset, k=4, filter_viewed=False)
-        self.assert_reco(expected_items, expected_scores, [10, 30], actual)
+        actual = model.recommend(users=np.array([10, 30, 80]), dataset=dataset, k=4, filter_viewed=False)
+        self.assert_reco([expected_items] * 3, [expected_scores] * 3, [10, 30, 80], actual)
 
     @pytest.mark.parametrize(
         "model,k,expected_items,expected_scores",
@@ -232,8 +228,8 @@ class TestPopularInCategoryModel:
                     begin_from=datetime(year=2021, month=11, day=28),
                 ),
                 2,
-                [[], [12, 13], [13], [13, 11]],
-                [[], [2, 1], [1], [1, 2]],
+                [[], [12, 13], [13], [13, 11], [12, 11]],
+                [[], [2, 1], [1], [1, 2], [2, 2]],
             ),
             (
                 PopularInCategoryModel(
@@ -244,8 +240,8 @@ class TestPopularInCategoryModel:
                     period=timedelta(days=2),
                 ),
                 2,
-                [[], [12, 13], [13], [13, 11]],
-                [[], [2, 1], [1], [1, 2]],
+                [[], [12, 13], [13], [13, 11], [12, 11]],
+                [[], [2, 1], [1], [1, 2], [2, 2]],
             ),
             (
                 PopularInCategoryModel(
@@ -255,8 +251,8 @@ class TestPopularInCategoryModel:
                     ratio_strategy="equal",
                 ),
                 4,
-                [[14], [12, 13], [13, 14], [13, 11, 14]],
-                [[2], [6, 1], [1, 2], [1, 5, 2]],
+                [[14], [12, 13], [13, 14], [13, 11, 14], [12, 13, 11, 14]],
+                [[2], [6, 1], [1, 2], [1, 5, 2], [6, 1, 5, 2]],
             ),
             (
                 PopularInCategoryModel(
@@ -266,8 +262,8 @@ class TestPopularInCategoryModel:
                     ratio_strategy="equal",
                 ),
                 1,
-                [[14], [12], [13], [13]],
-                [[2], [6], [1], [1]],
+                [[14], [12], [13], [13], [12]],
+                [[2], [6], [1], [1], [6]],
             ),
         ),
     )
@@ -280,8 +276,9 @@ class TestPopularInCategoryModel:
         expected_scores: tp.List[tp.List[tp.Any]],
     ) -> None:
         model.fit(dataset)
-        actual = model.recommend(users=np.array([10, 20, 40, 50]), dataset=dataset, k=k, filter_viewed=True)
-        self.assert_reco(expected_items, expected_scores, [10, 20, 40, 50], actual)
+        users = [10, 20, 40, 50, 80]
+        actual = model.recommend(users=users, dataset=dataset, k=k, filter_viewed=True)
+        self.assert_reco(expected_items, expected_scores, users, actual)
 
     def test_with_items_white_list(self, dataset: Dataset) -> None:
         model = PopularInCategoryModel(
@@ -292,11 +289,11 @@ class TestPopularInCategoryModel:
         )
         model.fit(dataset)
         actual = model.recommend(
-            users=[10, 20, 40, 50], dataset=dataset, k=2, items_to_recommend=[12, 13], filter_viewed=True
+            users=[10, 20, 40, 50, 80], dataset=dataset, k=2, items_to_recommend=[12, 13], filter_viewed=True
         )
-        expected_items = [[12, 13], [13], [13]]
-        expected_scores = [[6, 1], [1], [1]]
-        self.assert_reco(expected_items, expected_scores, [20, 40, 50], actual)
+        expected_items = [[12, 13], [13], [13], [12, 13]]
+        expected_scores = [[6, 1], [1], [1], [6, 1]]
+        self.assert_reco(expected_items, expected_scores, [20, 40, 50, 80], actual)
 
     @pytest.mark.parametrize(
         "item_features_df,expected_n_categories",
@@ -360,10 +357,10 @@ class TestPopularInCategoryModel:
         )
         model = PopularInCategoryModel(category_feature="f2", ratio_strategy="equal")
         model.fit(dataset)
-        actual = model.recommend(users=[10], dataset=dataset, k=6, filter_viewed=False)
-        expected_items = [[12, 13, 14, 11, 15]]
-        expected_scores = [[6, 1, 2, 5, 1]]
-        self.assert_reco(expected_items, expected_scores, [10], actual)
+        actual = model.recommend(users=[10, 80], dataset=dataset, k=6, filter_viewed=False)
+        expected_items = [[12, 13, 14, 11, 15]] * 2
+        expected_scores = [[6, 1, 2, 5, 1]] * 2
+        self.assert_reco(expected_items, expected_scores, [10, 80], actual)
 
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
@@ -373,9 +370,9 @@ class TestPopularInCategoryModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 13, 13],
-                        Columns.Item: [13, 14, 13, 14],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.TargetItem: [11, 11, 13, 13, 15, 15, 16, 16],
+                        Columns.Item: [13, 14, 13, 14, 13, 14, 13, 14],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -384,9 +381,9 @@ class TestPopularInCategoryModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 13, 13],
-                        Columns.Item: [13, 14, 14, 11],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.TargetItem: [11, 11, 13, 13, 15, 15, 16, 16],
+                        Columns.Item: [13, 14, 14, 11, 13, 14, 13, 14],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -395,9 +392,9 @@ class TestPopularInCategoryModel:
                 np.array([12, 13, 11]),
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 13, 13],
-                        Columns.Item: [13, 11, 13, 11],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.TargetItem: [11, 11, 13, 13, 15, 15, 16, 16],
+                        Columns.Item: [13, 11, 13, 11, 13, 11, 13, 11],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -413,7 +410,7 @@ class TestPopularInCategoryModel:
             ratio_strategy="proportional",
         ).fit(dataset)
         actual = model.recommend_to_items(
-            target_items=np.array([11, 13]),
+            target_items=np.array([11, 13, 15, 16]),
             dataset=dataset,
             k=2,
             filter_itself=filter_itself,
