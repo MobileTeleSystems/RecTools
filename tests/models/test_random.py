@@ -21,9 +21,38 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import RandomModel
+from rectools.models.random import _RandomGen, _RandomSampler
 
 from .data import DATASET, INTERACTIONS
 from .utils import assert_second_fit_refits_model
+
+
+class TestRandomSampler:
+    def test_sample_small_n(self) -> None:
+        gen = _RandomGen(42)
+        sampler = _RandomSampler(np.arange(10), gen)
+        sampled = sampler.sample(5)
+        np.testing.assert_array_equal(sampled, [1, 0, 4, 9, 6])
+
+    def test_sample_big_n(self) -> None:
+        gen = _RandomGen(42)
+        sampler = _RandomSampler(np.arange(100), gen)
+        sampled = sampler.sample(30)
+        np.testing.assert_array_equal(
+            sampled,
+            [
+                95, 42, 74, 65, 6, 7, 16, 97, 67, 54, 11, 15, 80, 44, 88,
+                94, 34, 61, 39, 32, 99, 53, 40, 45, 55, 87, 60, 47, 76, 63,
+            ],
+        )  # fmt: skip
+
+    @pytest.mark.parametrize("n", (10, 50))
+    def test_different_results_after_sequential_inits_with_same_gen(self, n: int) -> None:
+        gen = _RandomGen(42)
+        values = np.arange(100)
+        sampled_1 = _RandomSampler(values, gen).sample(n)
+        sampled_2 = _RandomSampler(values, gen).sample(n)
+        assert not np.array_equal(sampled_1, sampled_2)
 
 
 class TestRandomModel:
@@ -106,9 +135,11 @@ class TestRandomModel:
             }
         )
         dataset = Dataset.construct(interactions)
-        model = RandomModel(random_state=42).fit(dataset)
-        reco_1 = model.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
-        reco_2 = model.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
+
+        model_1 = RandomModel(random_state=42).fit(dataset)
+        reco_1 = model_1.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
+        model_2 = RandomModel(random_state=42).fit(dataset)
+        reco_2 = model_2.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
         pd.testing.assert_frame_equal(reco_1, reco_2)
 
     @pytest.mark.parametrize("filter_itself", (True, False))
