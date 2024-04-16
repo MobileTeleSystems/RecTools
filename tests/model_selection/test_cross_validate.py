@@ -160,7 +160,7 @@ class TestCrossValidate:
                 None,
                 [
                     {"model": "popular", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5},
-                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 1.0},
+                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0},
                     {"model": "popular", "i_split": 1, "precision@2": 0.375, "recall@1": 0.25},
                     {"model": "random", "i_split": 1, "precision@2": 0.375, "recall@1": 0.5},
                 ],
