@@ -16,13 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Changed the logic of choosing random sampler for `RandomModel` and increased the sampling speed ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
 - Changed the logic of `RandomModel`: now the recommendations are different for repeated calls of recommend methods ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
+- Torch datasets to support warm recommendations ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- Replaced `include_warm` parameter in `Dataset.get_user_item_matrix` to pair `include_warm_users` and `include_warm_items` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 
 ### Removed
 - `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
-
-### Changed
-- Torch datasets to support warm recommendations ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
-- Replaced `include_warm` parameter in `Dataset.get_user_item_matrix` to pair `include_warm_users` and `include_warm_items` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 
 
 ## [0.5.0] - 22.03.2024
