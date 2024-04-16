@@ -88,3 +88,25 @@ def debias_wrapper(
         "or `SimpleClassificationMetric` (`MCC`, `Accuracy`) "
         "or `RankingMetric` (`MAP`, `NDCG`, `MRR`)."
     )
+    if isinstance(metric, Precision):
+        return DebiasPrecision(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, Recall):
+        return DebiasRecall(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, F1Beta):
+        return DebiasF1Beta(k=k, beta=metric.beta, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, MCC):
+        return DebiasMCC(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, Accuracy):
+        return DebiasAccuracy(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, MAP):
+        return DebiasMAP(k=k, divide_by_k=metric.divide_by_k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, NDCG):
+        return DebiasNDCG(k=k, log_base=metric.log_base, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, MRR):
+        return DebiasMRR(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    else:
+        raise TypeError(
+            "`metric` must be either  `ClassificationMetric` (`Precision`, `Recall`, `F1Beta`) "
+            "or `SimpleClassificationMetric` (`MCC`, `Accuracy`) "
+            "or `RankingMetric` (`MAP`, `NDCG`, `MRR`)."
+        )

@@ -23,7 +23,7 @@ import pandas as pd
 
 from rectools import Columns
 
-from .base import Catalog, DebiasMetricAtK, MetricAtK, merge_reco
+from .base import Catalog, MetricAtK, merge_reco
 
 TP = "__TP"
 FP = "__FP"
@@ -422,8 +422,8 @@ class DebiasPrecision(Precision, DebiasMetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions)
-        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
@@ -495,8 +495,8 @@ class DebiasF1Beta(F1Beta, DebiasMetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions)
-        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
@@ -516,24 +516,10 @@ class DebiasAccuracy(Accuracy, DebiasMetricAtK):
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
         """
-        Calculate metric values for all users with using downsampling for popularity items.
-
-        Parameters
-        ----------
-        reco : pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        interactions : pd.DataFrame
-            Interactions table with columns `Columns.User`, `Columns.Item`.
-        catalog : collection
-            Collection of unique item ids that could be used for recommendations.
-
-        Returns
-        -------
-        pd.Series
-            Values of metric (index - user id, values - metric value for every user).
+        TODO
         """
-        interactions_wo_popularity = self.make_downsample(interactions)
-        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
 
 
 @attr.s
