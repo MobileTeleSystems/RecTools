@@ -91,7 +91,7 @@ class RandomModel(ModelBase):
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
 
-        item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
+        item_ids = sorted_item_ids_to_recommend if sorted_item_ids_to_recommend is not None else self.all_item_ids
         sampler = _RandomSampler(item_ids, self.random_gen)
 
         all_user_ids = []
@@ -127,17 +127,10 @@ class RandomModel(ModelBase):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         return self._recommend_u2i(target_ids, dataset, k, False, sorted_item_ids_to_recommend)
 
-    def _get_filtered_item_ids(self, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]) -> InternalIdsArray:
-        if sorted_item_ids_to_recommend is not None:
-            item_ids = sorted_item_ids_to_recommend
-        else:
-            item_ids = self.all_item_ids
-        return item_ids
-
     def _recommend_cold(
         self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> SemiInternalRecoTriplet:
-        item_ids = self._get_filtered_item_ids(sorted_item_ids_to_recommend)
+        item_ids = sorted_item_ids_to_recommend if sorted_item_ids_to_recommend is not None else self.all_item_ids
         sampler = _RandomSampler(item_ids, self.random_gen)
         n_reco = min(k, item_ids.size)
 
