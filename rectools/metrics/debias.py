@@ -16,11 +16,6 @@
 
 import typing as tp
 
-import pandas as pd
-
-from rectools import Columns
-from rectools.utils import is_instance
-
 from .classification import (
     MCC,
     Accuracy,
@@ -40,7 +35,11 @@ from .classification import (
 from .ranking import MAP, MRR, NDCG, DebiasMAP, DebiasMRR, DebiasNDCG, DebiasRankingMetric, RankingMetric
 
 
-class DebiasWrapper:
+def debias_wrapper(
+    metric: tp.Union[ClassificationMetric, SimpleClassificationMetric, RankingMetric],
+    iqr_coef: float = 1.5,
+    random_state: int = 32,
+) -> tp.Union[DebiasClassificationMetric, DebiasSimpleClassificationMetric, DebiasRankingMetric]:
     """
     Metric wrapper that creates debiased validation in case of strong popularity bias in test data.
 
@@ -55,87 +54,27 @@ class DebiasWrapper:
     random_state: float, default 32
         Pseudorandom number generator state to control the down-sampling.
     """
+    k = metric.k
 
-    def __new__(
-        cls,
-        metric: tp.Union[ClassificationMetric, SimpleClassificationMetric, RankingMetric],
-        iqr_coef: float = 1.5,
-        random_state: int = 32,
-    ) -> tp.Union[DebiasClassificationMetric, DebiasSimpleClassificationMetric, DebiasRankingMetric]:
-        """
-        TODO
-        """
-        if not is_instance(metric, (ClassificationMetric, SimpleClassificationMetric, RankingMetric)):
-            raise TypeError("Metric must be `ClassificationMetric` / `SimpleClassificationMetric` / `RankingMetric`")
-
-        k = metric.k
-
-        if isinstance(metric, Precision):
-            debias_metric = DebiasPrecision(k=k, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, Recall):
-            debias_metric = DebiasRecall(k=k, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, F1Beta):
-            debias_metric = DebiasF1Beta(k=k, beta=metric.beta, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, MCC):
-            debias_metric = DebiasMCC(k=k, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, Accuracy):
-            debias_metric = DebiasAccuracy(k=k, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, MAP):
-            debias_metric = DebiasMAP(k=k, divide_by_k=metric.divide_by_k, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, NDCG):
-            debias_metric = DebiasNDCG(k=k, log_base=metric.log_base, iqr_coef=iqr_coef, random_state=random_state)
-        elif isinstance(metric, MRR):
-            debias_metric = DebiasMRR(k=k, iqr_coef=iqr_coef, random_state=random_state)
-
-        debias_metric.make_downsample = cls.make_downsample
-        return debias_metric
-
-    @classmethod
-    def make_downsample(cls, interactions: pd.DataFrame, iqr_coef: float, random_state: int) -> pd.DataFrame:
-        """
-        Downsample the size of interactions, excluding some interactions with popular items.
-
-        Algorithm: TODO
-
-        Parameters
-        ----------
-        interactions : pd.DataFrame
-            Table with previous user-item interactions,
-            with columns `Columns.User`, `Columns.Item`.
-
-        Returns
-        -------
-        pd.DataFrame
-            downsampling interactions.
-        """
-        item_popularity = interactions[Columns.Item].value_counts()
-
-        quantiles = item_popularity.quantile(q=[0.25, 0.75])
-        q1, q3 = quantiles.iloc[0.25], quantiles.iloc[0.75]
-        iqr = q3 - q1
-        max_border = q3 + iqr_coef * iqr
-
-        item_outside_max_border = item_popularity[item_popularity > max_border].index
-
-        interactions_result = interactions[~interactions[Columns.Item].isin(item_outside_max_border)]
-        interactions_downsampling = interactions[interactions[Columns.Item].isin(item_outside_max_border)]
-
-        interactions_downsampling = (
-            interactions_downsampling.groupby(Columns.Item, as_index=False)[Columns.User]
-            .agg(lambda users: users.sample(2, random_state=random_state).tolist())
-            .explode(Columns.User)
+    if isinstance(metric, Precision):
+        return DebiasPrecision(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, Recall):
+        return DebiasRecall(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, F1Beta):
+        return DebiasF1Beta(k=k, beta=metric.beta, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, MCC):
+        return DebiasMCC(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, Accuracy):
+        return DebiasAccuracy(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, MAP):
+        return DebiasMAP(k=k, divide_by_k=metric.divide_by_k, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, NDCG):
+        return DebiasNDCG(k=k, log_base=metric.log_base, iqr_coef=iqr_coef, random_state=random_state)
+    elif isinstance(metric, MRR):
+        return DebiasMRR(k=k, iqr_coef=iqr_coef, random_state=random_state)
+    else:
+        raise TypeError(
+            "`metric` must be either  `ClassificationMetric` (`Precision`, `Recall`, `F1Beta`) "
+            "or `SimpleClassificationMetric` (`MCC`, `Accuracy`) "
+            "or `RankingMetric` (`MAP`, `NDCG`, `MRR`)."
         )
-
-        interactions_result = pd.concat([interactions_result, interactions_downsampling]).sort_values(
-            Columns.User, ignore_index=True
-        )
-
-        if Columns.Rank in interactions.columns:
-            interactions_result = pd.merge(
-                interactions_result,
-                interactions,
-                how="left",
-                on=Columns.UserItem,
-            )
-
-        return interactions_result

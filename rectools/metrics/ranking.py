@@ -21,7 +21,7 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.metrics.base import MetricAtK, merge_reco
+from rectools.metrics.base import DebiasMetric, MetricAtK, merge_reco
 from rectools.utils import log_at_base, select_by_type
 
 
@@ -527,72 +527,172 @@ class MRR(_RankingMetric):
 
 
 @attr.s
-class DebiasMAP(MAP):
+class DebiasMAP(MAP, DebiasMetric):
     """
-    TODO
+    Debias Mean Average Precision at k (MAP@k).
+
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    divide_by_k : bool, default False
+        If ``True``, ``k`` will be used as divider in ``AP@k``.
+        If ``False``, number of relevant items for each user will be used.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
     """
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    def fit(self, merged: pd.DataFrame, k_max: int) -> MAPFitted:  # type: ignore[override]
+        """
+        Prepare intermediate data for effective calculation with using downsampling for popularity items.
 
-    @classmethod
-    def fit(cls, merged: pd.DataFrame, k_max: int) -> MAPFitted:
-        merged_wo_popularity = cls.make_downsample(merged, cls.iqr_coef, cls.random_state)
-        return MAP.fit(merge_reco=merged_wo_popularity, k_max=k_max)
+        You can use this method to prepare some intermediate data
+        for later calculation. It can optimize calculations if
+        you want calculate metric value for different `k`.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+        k_max : int
+             k is number of items at the top of recommendations list that will be used to calculate metric.
+             So `k_max` is maximum number of items for which you want to calculate metric.
+
+        Returns
+        -------
+        MAPFitted
+        """
+        merged_wo_popularity = self.make_downsample(merged)
+        return MAP.fit(merged=merged_wo_popularity, k_max=k_max)
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
-class DebiasNDCG(NDCG):
+class DebiasNDCG(NDCG, DebiasMetric):
     """
-    TODO
-    """
+    Debias Normalized Discounted Cumulative Gain at k (NDCG@k).
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    log_base : int, default ``2``
+        Base of logarithm used to weight relevant items.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
     def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users from merged recommendations with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        merged_wo_popularity = self.make_downsample(merged, self.iqr_coef, self.random_state)
+        merged_wo_popularity = self.make_downsample(merged)
         super().calc_per_user_from_merged(merged=merged_wo_popularity)
 
 
 @attr.s
-class DebiasMRR(MRR):
+class DebiasMRR(MRR, DebiasMetric):
     """
-    TODO
-    """
+    Debias Mean Reciprocal Rank at k (MRR@k).
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
     def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users from merged recommendations with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        merged_wo_popularity = self.make_downsample(merged, self.iqr_coef, self.random_state)
+        merged_wo_popularity = self.make_downsample(merged)
         super().calc_per_user_from_merged(merged=merged_wo_popularity)
 
 
@@ -629,17 +729,16 @@ def calc_ranking_metrics(
     """
     results = {}
 
-    for ranking_metric_cls in [NDCG, MRR, DebiasNDCG, DebiasMRR]:
+    for ranking_metric_cls in [NDCG, MRR]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(merged)
 
-    for ranking_map_metric_cls in [MAP, DebiasMAP]:
-        map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, ranking_map_metric_cls)
-        if map_metrics:
-            k_max = max(metric.k for metric in map_metrics.values())
-            fitted = MAP.fit(merged, k_max)
-            for name, map_metric in map_metrics.items():
-                results[name] = map_metric.calc_from_fitted(fitted)
+    map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
+    if map_metrics:
+        k_max = max(metric.k for metric in map_metrics.values())
+        fitted = MAP.fit(merged, k_max)
+        for name, map_metric in map_metrics.items():
+            results[name] = map_metric.calc_from_fitted(fitted)
 
     return results

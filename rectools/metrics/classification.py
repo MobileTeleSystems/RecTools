@@ -22,9 +22,8 @@ import numpy as np
 import pandas as pd
 
 from rectools import Columns
-from rectools.utils import is_instance
 
-from .base import Catalog, MetricAtK, merge_reco
+from .base import Catalog, DebiasMetric, MetricAtK, merge_reco
 
 TP = "__TP"
 FP = "__FP"
@@ -373,87 +372,184 @@ class MCC(ClassificationMetric):
 
 
 @attr.s
-class DebiasPrecision(Precision):
+class DebiasPrecision(Precision, DebiasMetric):
     """
-    TODO
-    """
+    Debias Ratio of relevant items among top-`k` recommended items.
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
-class DebiasRecall(Recall):
+class DebiasRecall(Recall, DebiasMetric):
     """
-    TODO
-    """
+    Debias Ratio of relevant recommended items among all items user interacted with
+    after recommendations were made.
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
-class DebiasF1Beta(F1Beta):
+class DebiasF1Beta(F1Beta, DebiasMetric):
     """
-    TODO
-    """
+    Debias Fbeta score for k first recommendations.
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    beta : float
+        Weight of recall. Default value: beta = 1.0
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
-class DebiasAccuracy(Accuracy):
+class DebiasAccuracy(Accuracy, DebiasMetric):
     """
-    TODO
-    """
+    Debias Ratio of correctly recommended items among all items.
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+        catalog : collection
+            Collection of unique item ids that could be used for recommendations.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
 
 
 @attr.s
-class DebiasMCC(MCC):
+class DebiasMCC(MCC, DebiasMetric):
     """
-    TODO
-    """
+    Debias Matthew correlation coefficient calculates correlation between actual and predicted classification.
 
-    iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> pd.Series:
         """
-        TODO
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+        catalog : collection
+            Collection of unique item ids that could be used for recommendations.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        interactions_wo_popularity = self.make_downsample(interactions, self.iqr_coef, self.random_state)
+        interactions_wo_popularity = self.make_downsample(interactions)
         super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
 
 
@@ -517,15 +613,15 @@ def calc_classification_metrics(
         for metric_name in k_metrics:
             metric = metrics[metric_name]
 
-            if is_instance(metric, DebiasClassificationMetric) or is_instance(metric, DebiasSimpleClassificationMetric):
-                merged_wo_bias = metric.make_downsample(merged, metric.iqr_coef, metric.random_state)
-                confusion_df = calc_confusions(merged_wo_bias, k)
+            if isinstance(metric, (DebiasPrecision, DebiasRecall, DebiasF1Beta, DebiasAccuracy, DebiasMCC)):
+                merged_without_pop_bias = metric.make_downsample(merged)
+                confusion_df = calc_confusions(merged_without_pop_bias, k)
             else:
                 confusion_df = calc_confusions(merged, k)
 
-            if isinstance(metric, SimpleClassificationMetric) or isinstance(metric, DebiasSimpleClassificationMetric):
+            if isinstance(metric, SimpleClassificationMetric):
                 res = metric.calc_from_confusion_df(confusion_df)
-            elif isinstance(metric, ClassificationMetric) or isinstance(metric, DebiasClassificationMetric):
+            elif isinstance(metric, ClassificationMetric):
                 if catalog is None:
                     raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
                 res = metric.calc_from_confusion_df(confusion_df, catalog)
