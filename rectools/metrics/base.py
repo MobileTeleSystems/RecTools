@@ -139,12 +139,15 @@ class DebiasMetric:
         pd.DataFrame
             downsampling interactions.
         """
+        if len(interactions) == 0:
+            return interactions
+
         item_popularity = interactions[Columns.Item].value_counts()
 
         quantiles = item_popularity.quantile(q=[0.25, 0.75])
-        q1, q3 = quantiles.iloc[0.25], quantiles.iloc[0.75]
+        q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
         iqr = q3 - q1
-        max_border = q3 + self.iqr_coef * iqr
+        max_border = int(q3 + self.iqr_coef * iqr)
 
         item_outside_max_border = item_popularity[item_popularity > max_border].index
 
@@ -153,7 +156,7 @@ class DebiasMetric:
 
         interactions_downsampling = (
             interactions_downsampling.groupby(Columns.Item, as_index=False)[Columns.User]
-            .agg(lambda users: users.sample(2, random_state=self.random_state).tolist())
+            .agg(lambda users: users.sample(max_border, random_state=self.random_state).tolist())
             .explode(Columns.User)
         )
 
@@ -161,12 +164,16 @@ class DebiasMetric:
             Columns.User, ignore_index=True
         )
 
+        interactions_result[Columns.User] = interactions_result[Columns.User].astype(interactions[Columns.User].dtypes)
+        interactions_result[Columns.Item] = interactions_result[Columns.Item].astype(interactions[Columns.Item].dtypes)
+
         if Columns.Rank in interactions.columns:
             interactions_result = pd.merge(
-                interactions_result,
+                interactions_result[Columns.UserItem],
                 interactions,
                 how="left",
                 on=Columns.UserItem,
             )
+            interactions_result[Columns.Rank] = interactions_result[Columns.Rank].astype(interactions[Columns.Rank].dtypes)
 
         return interactions_result
