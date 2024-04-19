@@ -282,7 +282,6 @@ class DSSMModel(VectorModel):
         self.n_factors = n_factors
         self.max_epochs = max_epochs
         self.batch_size = batch_size
-        self.deterministic = deterministic
         self.trainer: Trainer
         self._trainer = Trainer(
             devices=trainer_devices,
