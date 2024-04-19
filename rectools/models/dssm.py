@@ -33,10 +33,16 @@ with warnings.catch_warnings():
 
 from torch import nn
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset as TorchDataset
 
 from rectools.dataset import Dataset
-from rectools.dataset.torch_datasets import ItemFeaturesDataset, UserFeaturesDataset
+from rectools.dataset.torch_datasets import (
+    DSSMItemDataset,
+    DSSMItemDatasetBase,
+    DSSMTrainDataset,
+    DSSMTrainDatasetBase,
+    DSSMUserDataset,
+    DSSMUserDatasetBase,
+)
 from rectools.exceptions import NotFittedError
 from rectools.types import InternalIdsArray
 
@@ -262,7 +268,9 @@ class DSSMModel(VectorModel):
 
     def __init__(
         self,
-        dataset_type: TorchDataset[tp.Any],
+        train_dataset_type: tp.Type[DSSMTrainDatasetBase] = DSSMTrainDataset,
+        user_dataset_type: tp.Type[DSSMUserDatasetBase] = DSSMUserDataset,
+        item_dataset_type: tp.Type[DSSMItemDatasetBase] = DSSMItemDataset,
         model: tp.Optional[DSSM] = None,
         n_factors: int = 128,
         max_epochs: int = 5,
@@ -277,7 +285,7 @@ class DSSMModel(VectorModel):
         deterministic: bool = False,
     ) -> None:
         super().__init__(verbose=verbose)
-        self.model: tp.Optional[DSSM]
+        self.model: DSSM
         self._model = model
         self.n_factors = n_factors
         self.max_epochs = max_epochs
@@ -293,42 +301,48 @@ class DSSMModel(VectorModel):
             deterministic=deterministic,
         )
         self.dataloader_num_workers = dataloader_num_workers
-        self.dataset_type = dataset_type
+        self.train_dataset_type = train_dataset_type
+        self.user_dataset_type = user_dataset_type
+        self.item_dataset_type = item_dataset_type
 
     def _fit(self, dataset: Dataset, dataset_valid: tp.Optional[Dataset] = None) -> None:  # type: ignore
         self.trainer = deepcopy(self._trainer)
-        self.model = deepcopy(self._model)
 
-        if self.model is None:
+        if self._model is None:
+            if dataset.user_features is None or dataset.item_features is None:
+                raise ValueError("DSSM model requires user and item features to be present in the dataset.")
             self.model = DSSM(
                 n_factors_user=self.n_factors,
                 n_factors_item=self.n_factors,
-                dim_input_user=dataset.user_features.get_sparse().shape[1],  # type: ignore
-                dim_input_item=dataset.item_features.get_sparse().shape[1],  # type: ignore
+                dim_input_user=dataset.user_features.get_sparse().shape[1],
+                dim_input_item=dataset.item_features.get_sparse().shape[1],
                 dim_interactions=dataset.get_user_item_matrix().shape[1],
             )
-        train_dataset = self.dataset_type.from_dataset(dataset)  # type: ignore
+        else:
+            self.model = deepcopy(self._model)
+
+        train_dataset = self.train_dataset_type.from_dataset(dataset)
         train_dataloader = DataLoader(
             train_dataset,
             batch_size=self.batch_size,
             num_workers=self.dataloader_num_workers,
             shuffle=True,
         )
+        valid_dataloader = None
         if dataset_valid is not None:
-            valid_dataset = self.dataset_type.from_dataset(dataset_valid)  # type: ignore
+            valid_dataset = self.train_dataset_type.from_dataset(dataset_valid)
             valid_dataloader = DataLoader(
                 valid_dataset,
                 batch_size=self.batch_size,
                 num_workers=self.dataloader_num_workers,
                 shuffle=False,
             )
-            self.trainer.fit(
-                model=self.model,
-                train_dataloaders=train_dataloader,
-                val_dataloaders=valid_dataloader,
-            )
-        else:
-            self.trainer.fit(model=self.model, train_dataloaders=train_dataloader)
+
+        self.trainer.fit(
+            model=self.model,
+            train_dataloaders=train_dataloader,
+            val_dataloaders=valid_dataloader,
+        )
 
     def get_vectors(self, dataset: Dataset) -> tp.Tuple[np.ndarray, np.ndarray]:
         if not self.is_fitted:
@@ -339,22 +353,22 @@ class DSSMModel(VectorModel):
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
         dataloader = DataLoader(
-            UserFeaturesDataset.from_dataset(dataset),
+            self.user_dataset_type.from_dataset(dataset),
             batch_size=self.batch_size,
             num_workers=self.dataloader_num_workers,
             shuffle=False,
         )
-        vectors = self.model.inference_users(dataloader)  # type: ignore
+        vectors = self.model.inference_users(dataloader)
         return Factors(vectors)
 
     def _get_items_factors(self, dataset: Dataset) -> Factors:
         dataloader = DataLoader(
-            ItemFeaturesDataset.from_dataset(dataset),
+            self.item_dataset_type.from_dataset(dataset),
             batch_size=self.batch_size,
             num_workers=self.dataloader_num_workers,
             shuffle=False,
         )
-        vectors = self.model.inference_items(dataloader)  # type: ignore
+        vectors = self.model.inference_items(dataloader)
         return Factors(vectors)
 
     def _recommend_u2i_warm(

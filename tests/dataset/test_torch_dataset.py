@@ -21,7 +21,7 @@ from scipy import sparse
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.dataset.torch_datasets import DSSMDataset, ItemFeaturesDataset, UserFeaturesDataset
+from rectools.dataset.torch_datasets import DSSMItemDataset, DSSMTrainDataset, DSSMUserDataset
 
 
 class WithFixtures:
@@ -133,12 +133,12 @@ class WithFixtures:
 
 class TestDSSMDataset(WithFixtures):
     def test_wrapper_len_equal_to_len(self, interactions_df: pd.DataFrame, dataset: Dataset) -> None:
-        dssm_dataset = DSSMDataset.from_dataset(dataset)
+        dssm_dataset = DSSMTrainDataset.from_dataset(dataset)
         assert len(dssm_dataset) == dataset.get_user_item_matrix().shape[0]
         assert len(dssm_dataset) == interactions_df[Columns.User].nunique()
 
     def test_representations_are_equal(self, dataset: Dataset) -> None:
-        dssm_dataset = DSSMDataset.from_dataset(dataset)
+        dssm_dataset = DSSMTrainDataset.from_dataset(dataset)
         assert np.allclose(
             dssm_dataset.interactions.toarray(),
             dataset.get_user_item_matrix().toarray(),
@@ -147,7 +147,7 @@ class TestDSSMDataset(WithFixtures):
         assert np.allclose(dssm_dataset.users.toarray(), dataset.user_features.get_sparse().toarray())  # type: ignore
 
     def test_getitem_reconstructs_users(self, dataset: Dataset) -> None:
-        dssm_dataset = DSSMDataset.from_dataset(dataset)
+        dssm_dataset = DSSMTrainDataset.from_dataset(dataset)
         all_user_features = []
         all_interactions = []
         for idx in range(len(dssm_dataset)):
@@ -164,25 +164,25 @@ class TestDSSMDataset(WithFixtures):
 
     def test_raises_item_features_attribute_error(self, dataset_no_features: Dataset) -> None:
         with pytest.raises(AttributeError):
-            DSSMDataset.from_dataset(dataset_no_features)
+            DSSMTrainDataset.from_dataset(dataset_no_features)
 
     def test_raises_user_features_attribute_error(self, dataset_no_user_features: Dataset) -> None:
         with pytest.raises(AttributeError):
-            DSSMDataset.from_dataset(dataset_no_user_features)
+            DSSMTrainDataset.from_dataset(dataset_no_user_features)
 
     def test_raises_value_error(self, wrong_dataset: Dataset) -> None:
         with pytest.raises(ValueError):
-            DSSMDataset.from_dataset(wrong_dataset)
+            DSSMTrainDataset.from_dataset(wrong_dataset)
 
 
 class TestUsersDataset(WithFixtures):
     def test_wrapper_len_equal_to_len(self, interactions_df: pd.DataFrame, dataset: Dataset) -> None:
-        users_dataset = UserFeaturesDataset.from_dataset(dataset)
+        users_dataset = DSSMUserDataset.from_dataset(dataset)
         assert len(users_dataset) == dataset.get_user_item_matrix().shape[0]
         assert len(users_dataset) == interactions_df[Columns.User].nunique()
 
     def test_representations_are_equal(self, dataset: Dataset) -> None:
-        users_dataset = UserFeaturesDataset.from_dataset(dataset)
+        users_dataset = DSSMUserDataset.from_dataset(dataset)
         assert np.allclose(
             users_dataset.interactions.toarray(),
             dataset.get_user_item_matrix().toarray(),
@@ -190,7 +190,7 @@ class TestUsersDataset(WithFixtures):
         assert np.allclose(users_dataset.users.toarray(), dataset.user_features.get_sparse().toarray())  # type: ignore
 
     def test_getitem_reconstructs_users(self, dataset: Dataset) -> None:
-        users_dataset = UserFeaturesDataset.from_dataset(dataset)
+        users_dataset = DSSMUserDataset.from_dataset(dataset)
         all_user_features = []
         all_interactions = []
         for idx in range(len(users_dataset)):
@@ -207,30 +207,30 @@ class TestUsersDataset(WithFixtures):
 
     def test_raises_attribute_error(self, dataset_no_features: Dataset) -> None:
         with pytest.raises(AttributeError):
-            UserFeaturesDataset.from_dataset(dataset_no_features)
+            DSSMUserDataset.from_dataset(dataset_no_features)
 
     def test_keep_users(self, dataset: Dataset) -> None:
-        users_dataset = UserFeaturesDataset.from_dataset(dataset, keep_users=[0, 1])
+        users_dataset = DSSMUserDataset.from_dataset(dataset, keep_users=[0, 1])
         assert (dataset.user_id_map.internal_ids.shape[0] - len(users_dataset)) == 1
 
     def test_raises_when_users_and_embeddings_have_different_lengths(self) -> None:
         users = sparse.csr_matrix(np.random.rand(4, 2))
         interactions = sparse.csr_matrix(np.random.rand(3, 5))
         with pytest.raises(ValueError):
-            UserFeaturesDataset(users, interactions)
+            DSSMUserDataset(users, interactions)
 
 
 class TestItemsDataset(WithFixtures):
     def test_wrapper_len_equal_to_len(self, interactions_df: pd.DataFrame, dataset: Dataset) -> None:
-        items_dataset = ItemFeaturesDataset.from_dataset(dataset)
+        items_dataset = DSSMItemDataset.from_dataset(dataset)
         assert len(items_dataset) == interactions_df[Columns.Item].nunique()
 
     def test_representations_are_equal(self, dataset: Dataset) -> None:
-        items_dataset = ItemFeaturesDataset.from_dataset(dataset)
+        items_dataset = DSSMItemDataset.from_dataset(dataset)
         assert np.allclose(items_dataset.items.toarray(), dataset.item_features.get_sparse().toarray())  # type: ignore
 
     def test_getitem_reconstructs_items(self, dataset: Dataset) -> None:
-        items_dataset = ItemFeaturesDataset.from_dataset(dataset)
+        items_dataset = DSSMItemDataset.from_dataset(dataset)
         all_item_features = []
         for idx in range(len(items_dataset)):
             item_features = items_dataset[idx]
@@ -241,4 +241,4 @@ class TestItemsDataset(WithFixtures):
 
     def test_raises_attribute_error(self, dataset_no_features: Dataset) -> None:
         with pytest.raises(AttributeError):
-            ItemFeaturesDataset.from_dataset(dataset_no_features)
+            DSSMItemDataset.from_dataset(dataset_no_features)

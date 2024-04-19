@@ -21,7 +21,6 @@ from lightning_fabric import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.dataset.torch_datasets import DSSMDataset
 from rectools.exceptions import NotFittedError
 from rectools.models import DSSMModel
 from rectools.models.dssm import DSSM
@@ -120,7 +119,6 @@ class TestDSSMModel:
             )
         model = DSSMModel(
             model=base_model,
-            dataset_type=DSSMDataset,  # type: ignore
             n_factors=32,
             max_epochs=3,
             batch_size=4,
@@ -162,7 +160,6 @@ class TestDSSMModel:
     )
     def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
         model = DSSMModel(
-            dataset_type=DSSMDataset,  # type: ignore
             n_factors=32,
             max_epochs=3,
             batch_size=4,
@@ -195,7 +192,6 @@ class TestDSSMModel:
         )
         model = DSSMModel(
             model=base_model,
-            dataset_type=DSSMDataset,  # type: ignore
             max_epochs=3,
             batch_size=4,
             dataloader_num_workers=0,
@@ -229,7 +225,6 @@ class TestDSSMModel:
         )
         model = DSSMModel(
             model=base_model,
-            dataset_type=DSSMDataset,  # type: ignore
             max_epochs=3,
             batch_size=4,
             dataloader_num_workers=0,
@@ -280,7 +275,6 @@ class TestDSSMModel:
         self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
     ) -> None:
         model = DSSMModel(
-            dataset_type=DSSMDataset,  # type: ignore
             n_factors=2,
             max_epochs=3,
             batch_size=4,
@@ -302,7 +296,7 @@ class TestDSSMModel:
         )
 
     def test_u2i_with_cold_users(self, dataset: Dataset) -> None:
-        model = DSSMModel(dataset_type=DSSMDataset).fit(dataset)  # type: ignore
+        model = DSSMModel().fit(dataset)
         with pytest.raises(ValueError, match="doesn't support recommendations for cold users"):
             model.recommend(
                 users=[10, 60],
@@ -312,10 +306,23 @@ class TestDSSMModel:
             )
 
     def test_i2i_with_cold_items(self, dataset: Dataset) -> None:
-        model = DSSMModel(dataset_type=DSSMDataset).fit(dataset)  # type: ignore
+        model = DSSMModel().fit(dataset)
         with pytest.raises(ValueError, match="doesn't support recommendations for cold items"):
             model.recommend_to_items(
                 target_items=[11, 18],
                 dataset=dataset,
                 k=2,
             )
+
+    @pytest.mark.parametrize("exclude_features", ("user", "item"))
+    def test_raises_when_no_features_in_dataset(self, dataset: Dataset, exclude_features: str) -> None:
+        dataset = Dataset(
+            dataset.user_id_map,
+            dataset.item_id_map,
+            dataset.interactions,
+            dataset.user_features if exclude_features != "user" else None,
+            dataset.item_features if exclude_features != "item" else None,
+        )
+        model = DSSMModel()
+        with pytest.raises(ValueError, match="requires user and item features"):
+            model.fit(dataset)

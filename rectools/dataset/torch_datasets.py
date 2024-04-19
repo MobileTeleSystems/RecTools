@@ -25,12 +25,23 @@ from torch.utils.data import Dataset as TorchDataset
 
 from .dataset import Dataset
 
-DD = tp.TypeVar("DD", bound="DSSMDataset")
-ID = tp.TypeVar("ID", bound="ItemFeaturesDataset")
-UD = tp.TypeVar("UD", bound="UserFeaturesDataset")
+DSSMTrainDatasetT = tp.TypeVar("DSSMTrainDatasetT", bound="DSSMTrainDatasetBase")
+DSSMItemDatasetT = tp.TypeVar("DSSMItemDatasetT", bound="DSSMItemDatasetBase")
+DSSMUserDatasetT = tp.TypeVar("DSSMUserDatasetT", bound="DSSMUserDatasetBase")
 
 
-class DSSMDataset(TorchDataset[tp.Any]):
+class DSSMTrainDatasetBase(TorchDataset[tp.Any]):
+    """Base class for DSSM training datasets. Used only for type hinting."""
+
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(cls: tp.Type[DSSMTrainDatasetT], dataset: Dataset) -> DSSMTrainDatasetT:
+        raise NotImplementedError()
+
+
+class DSSMTrainDataset(DSSMTrainDatasetBase):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
     Implements `torch.utils.data.Dataset` for subsequent usage with
@@ -68,7 +79,7 @@ class DSSMDataset(TorchDataset[tp.Any]):
             )
 
     @classmethod
-    def from_dataset(cls: tp.Type[DD], dataset: Dataset) -> DD:
+    def from_dataset(cls: tp.Type[DSSMTrainDatasetT], dataset: Dataset) -> DSSMTrainDatasetT:
         ui_matrix = dataset.get_user_item_matrix()
 
         # We take hot here since this dataset is used for fit only
@@ -99,7 +110,18 @@ class DSSMDataset(TorchDataset[tp.Any]):
         return user_features, interactions, pos, neg
 
 
-class ItemFeaturesDataset(TorchDataset[tp.Any]):
+class DSSMItemDatasetBase(TorchDataset[tp.Any]):
+    """Base class for DSSM item datasets. Used only for type hinting."""
+
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(cls: tp.Type[DSSMItemDatasetT], dataset: Dataset) -> DSSMItemDatasetT:
+        raise NotImplementedError()
+
+
+class DSSMItemDataset(DSSMItemDatasetBase):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
     Implements `torch.utils.data.Dataset` for subsequent usage with
@@ -113,7 +135,7 @@ class ItemFeaturesDataset(TorchDataset[tp.Any]):
         self.items = items
 
     @classmethod
-    def from_dataset(cls: tp.Type[ID], dataset: Dataset) -> ID:
+    def from_dataset(cls: tp.Type[DSSMItemDatasetT], dataset: Dataset) -> DSSMItemDatasetT:
         # We take all features here since this dataset is used for recommend only, not for fit
         if dataset.item_features is not None:
             return cls(dataset.item_features.get_sparse())
@@ -126,7 +148,22 @@ class ItemFeaturesDataset(TorchDataset[tp.Any]):
         return torch.FloatTensor(self.items[idx].toarray().flatten())
 
 
-class UserFeaturesDataset(TorchDataset[tp.Any]):
+class DSSMUserDatasetBase(TorchDataset[tp.Any]):
+    """Base class for DSSM training datasets. Used only for type hinting."""
+
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(
+        cls: tp.Type[DSSMUserDatasetT],
+        dataset: Dataset,
+        keep_users: tp.Optional[tp.Sequence[int]] = None,
+    ) -> DSSMUserDatasetT:
+        raise NotImplementedError()
+
+
+class DSSMUserDataset(DSSMUserDatasetBase):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
     Implements `torch.utils.data.Dataset` for subsequent usage with
@@ -154,10 +191,10 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
 
     @classmethod
     def from_dataset(
-        cls: tp.Type[UD],
+        cls: tp.Type[DSSMUserDatasetT],
         dataset: Dataset,
         keep_users: tp.Optional[tp.Sequence[int]] = None,
-    ) -> UD:
+    ) -> DSSMUserDatasetT:
         # We take all features here since this dataset is used for recommend only, not for fit
         if dataset.user_features is not None:
             return cls(
