@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Warm and cold users/items support in `ModelBase` and all possible models ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77), [#120](https://github.com/MobileTeleSystems/RecTools/pull/120), [#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 - Warm and cold users/items support in `cross_validate` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
 - [Breaking] Default value for train dataset type and params for user and item dataset types in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] `n_factors` and `deterministic` params to `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 
 ### Changed
 - Changed the logic of choosing random sampler for `RandomModel` and increased the sampling speed ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
