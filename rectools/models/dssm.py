@@ -221,7 +221,16 @@ class DSSMModel(VectorModel):
 
     Parameters
     ----------
-    dataset_type : torch.utils.data.Dataset
+    train_dataset_type : Type(DSSMTrainDatasetBase), default `DSSMTrainDataset`
+        Type of dataset used for training.
+        A child of `torch.utils.data.Dataset` that implements `from_dataset` classmethod.
+        Used to construct `torch.utils.data.Dataset` from a given `rectools.dataset.dataset.Dataset`.
+    user_dataset_type : Type(DSSMUserDatasetBase), default `DSSMUserDataset`
+        Type of dataset used for user inference.
+        A child of `torch.utils.data.Dataset` that implements `from_dataset` classmethod.
+        Used to construct `torch.utils.data.Dataset` from a given `rectools.dataset.dataset.Dataset`.
+    item_dataset_type : Type(DSSMItemDatasetBase), default `DSSMItemDataset`
+        Type of dataset used for item inference.
         A child of `torch.utils.data.Dataset` that implements `from_dataset` classmethod.
         Used to construct `torch.utils.data.Dataset` from a given `rectools.dataset.dataset.Dataset`.
     model : Optional(DSSM), default None
