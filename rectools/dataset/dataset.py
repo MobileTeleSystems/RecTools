@@ -194,7 +194,12 @@ class Dataset:
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
-    def get_user_item_matrix(self, include_weights: bool = True, include_warm: bool = False) -> sparse.csr_matrix:
+    def get_user_item_matrix(
+        self,
+        include_weights: bool = True,
+        include_warm_users: bool = False,
+        include_warm_items: bool = False,
+    ) -> sparse.csr_matrix:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
 
@@ -219,8 +224,9 @@ class Dataset:
             Resized user-item CSR matrix
         """
         matrix = self.interactions.get_user_item_matrix(include_weights)
-        if include_warm:
-            matrix.resize(self.user_id_map.size, self.item_id_map.size)
+        n_rows = self.user_id_map.size if include_warm_users else matrix.shape[0]
+        n_columns = self.item_id_map.size if include_warm_items else matrix.shape[1]
+        matrix.resize(n_rows, n_columns)
         return matrix
 
     def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:

@@ -225,7 +225,7 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         return popularity_list
 
     def _get_cold_reco(
-        self, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+        self, dataset: Dataset, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
     ) -> tp.Tuple[InternalIds, Scores]:
         popularity_list = self._get_filtered_popularity_list(sorted_item_ids_to_recommend)
         reco_ids = popularity_list[0][:k]
