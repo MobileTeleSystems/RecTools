@@ -178,13 +178,62 @@ class TestDataset:
         assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features.take([0, 1, 2]))
 
     @pytest.mark.parametrize(
-        "include_warm, expected",
+        "include_warm_users, include_warm_items, expected",
         (
-            (False, [[0, 0, 0], [1, 0, 5]]),
-            (True, [[0, 0, 0], [1, 0, 5], [0, 0, 0]]),
+            (False, False, [[1, 2], [1, 0]]),
+            (True, False, [[1, 2], [1, 0], [0, 0]]),
+            (False, True, [[1, 2, 0], [1, 0, 0]]),
+            (True, True, [[1, 2, 0], [1, 0, 0], [0, 0, 0]]),
         ),
     )
-    def test_get_user_item_matrix(self, include_warm: bool, expected: tp.List[tp.List[int]]) -> None:
+    def test_get_user_item_matrix(
+        self, include_warm_users: bool, include_warm_items: bool, expected: tp.List[tp.List[int]]
+    ) -> None:
+        interactions_df = pd.DataFrame(
+            [
+                ["u10", "i11", 1, "2021-09-09"],
+                ["u10", "i12", 2, "2021-09-09"],
+                ["u20", "i11", 1, "2021-09-05"],
+            ],
+            columns=Columns.Interactions,
+        )
+        user_features_df = pd.DataFrame(
+            {
+                Columns.User: ["u10", "u20", "u30", "u30"],
+                "feature": ["f1", "f2", "f1", "f2"],
+                "value": [1, 2, 1, 2],
+            }
+        )
+        item_features_df = pd.DataFrame(
+            {
+                Columns.Item: ["i13"],
+                "feature": ["feature"],
+                "value": [100],
+            }
+        )
+        dataset = Dataset.construct(
+            interactions_df=interactions_df,
+            user_features_df=user_features_df,
+            item_features_df=item_features_df,
+        )
+        user_item_matrix = dataset.get_user_item_matrix(
+            include_warm_users=include_warm_users, include_warm_items=include_warm_items
+        )
+        expected_user_item_matrix = sparse.csr_matrix(expected)
+        assert_sparse_matrix_equal(user_item_matrix, expected_user_item_matrix)
+
+    @pytest.mark.parametrize(
+        "include_warm_users, include_warm_items, expected",
+        (
+            (False, False, [[0, 0, 0], [1, 0, 5]]),
+            (True, False, [[0, 0, 0], [1, 0, 5], [0, 0, 0]]),
+            (False, True, [[0, 0, 0], [1, 0, 5]]),
+            (True, True, [[0, 0, 0], [1, 0, 5], [0, 0, 0]]),
+        ),
+    )
+    def test_get_user_item_matrix_for_extraordinary_dataset(
+        self, include_warm_users: bool, include_warm_items: bool, expected: tp.List[tp.List[int]]
+    ) -> None:
         user_id_map = IdMap.from_values(["u1", "u2", "u3"])
         item_id_map = IdMap.from_values(["i1", "i2", "i5"])
         interactions_df = pd.DataFrame(
@@ -192,11 +241,13 @@ class TestDataset:
                 ["u2", "i1", 1, "2021-09-09"],
                 ["u2", "i5", 5, "2021-09-05"],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=Columns.Interactions,
         )
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
         dataset = Dataset(user_id_map, item_id_map, interactions)
-        user_item_matrix = dataset.get_user_item_matrix(include_warm=include_warm)
+        user_item_matrix = dataset.get_user_item_matrix(
+            include_warm_users=include_warm_users, include_warm_items=include_warm_items
+        )
         expected_user_item_matrix = sparse.csr_matrix(expected)
         assert_sparse_matrix_equal(user_item_matrix, expected_user_item_matrix)
 

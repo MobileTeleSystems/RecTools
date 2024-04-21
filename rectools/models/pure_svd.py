@@ -39,6 +39,9 @@ class PureSVDModel(VectorModel):
         Degree of verbose output. If ``0``, no output will be provided.
     """
 
+    recommends_for_warm = False
+    recommends_for_cold = False
+
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 

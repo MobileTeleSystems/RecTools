@@ -128,7 +128,11 @@ class RandomModel(ModelBase):
         return self._recommend_u2i(target_ids, dataset, k, False, sorted_item_ids_to_recommend)
 
     def _recommend_cold(
-        self, target_ids: AnyIdsArray, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+        self,
+        target_ids: AnyIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> SemiInternalRecoTriplet:
         item_ids = sorted_item_ids_to_recommend if sorted_item_ids_to_recommend is not None else self.all_item_ids
         sampler = _RandomSampler(item_ids, self.random_gen)
