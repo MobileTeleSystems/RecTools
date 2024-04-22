@@ -169,8 +169,8 @@ class TestHitRate:
         # fn = pd.Series([2, 0, 1, 1])
 
         expected_metric_per_user = pd.Series(
-            [1 / (1 + 2), 1 / (1 + 0), 0 / (0 + 1), 0 / (0 + 1)],
-            index=pd.Series([1, 3, 4, 5], name=Columns.User),
+            [1, 1, 0, 0],
+            index=pd.Series([1, 3, 4, 5], name=Columns.User, dtype=int), dtype=float
         )
         pd.testing.assert_series_equal(self.metric.calc_per_user(RECO, INTERACTIONS), expected_metric_per_user)
         assert self.metric.calc(RECO, INTERACTIONS) == expected_metric_per_user.mean()

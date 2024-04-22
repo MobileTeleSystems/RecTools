@@ -376,10 +376,9 @@ class HitRate(SimpleClassificationMetric):
     """
     HitRate calculates the fraction of users for which the correct answer is included in the recommendation list
 
-    The HitRate equals to ``tp / (tp + fn)`` where
+    The HitRate equals to ``1 if tp > 0, otherwise 0`` where
         - ``tp`` is the number of relevant recommendations
           among the first ``k`` items in recommendation list;
-        - ``fn`` - number of items the user has interacted with but that weren't recommended (in top-`k`).
 
     Parameters
     ----------
@@ -388,7 +387,7 @@ class HitRate(SimpleClassificationMetric):
     """
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
-        hit_rate = confusion_df[TP] / (confusion_df[TP] + confusion_df[FN])
+        hit_rate = (confusion_df[TP] > 0).astype(float)
         return hit_rate
 
 
