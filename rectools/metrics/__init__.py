@@ -33,6 +33,7 @@ Metrics
 `metrics.IntraListDiversity`
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
+`metrics.HitRate`
 
 Tools
 -----
@@ -42,7 +43,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
-from .classification import MCC, Accuracy, F1Beta, Precision, Recall
+from .classification import MCC, Accuracy, F1Beta, Precision, Recall, HitRate
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -72,4 +73,5 @@ __all__ = (
     "PairwiseDistanceCalculator",
     "PairwiseHammingDistanceCalculator",
     "SparsePairwiseHammingDistanceCalculator",
+    "HitRate",
 )
