@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import MCC, Accuracy, F1Beta, Precision, Recall, HitRate
+from rectools.metrics import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from rectools.metrics.base import MetricAtK
 from rectools.metrics.classification import ClassificationMetric, calc_classification_metrics
 
@@ -169,8 +169,7 @@ class TestHitRate:
         # fn = pd.Series([2, 0, 1, 1])
 
         expected_metric_per_user = pd.Series(
-            [1, 1, 0, 0],
-            index=pd.Series([1, 3, 4, 5], name=Columns.User, dtype=int), dtype=float
+            [1, 1, 0, 0], index=pd.Series([1, 3, 4, 5], name=Columns.User, dtype=int), dtype=float
         )
         pd.testing.assert_series_equal(self.metric.calc_per_user(RECO, INTERACTIONS), expected_metric_per_user)
         assert self.metric.calc(RECO, INTERACTIONS) == expected_metric_per_user.mean()

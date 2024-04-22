@@ -43,7 +43,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
-from .classification import MCC, Accuracy, F1Beta, Precision, Recall, HitRate
+from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
