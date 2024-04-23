@@ -585,7 +585,7 @@ class DebiasMAP(MAP, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
@@ -622,7 +622,7 @@ class DebiasNDCG(NDCG, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
     def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
         """
@@ -640,7 +640,7 @@ class DebiasNDCG(NDCG, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         merged_wo_popularity = self.make_downsample(merged)
-        super().calc_per_user_from_merged(merged=merged_wo_popularity)
+        return super().calc_per_user_from_merged(merged=merged_wo_popularity)
 
 
 @attr.s
@@ -675,7 +675,7 @@ class DebiasMRR(MRR, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
     def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
         """
@@ -693,7 +693,7 @@ class DebiasMRR(MRR, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         merged_wo_popularity = self.make_downsample(merged)
-        super().calc_per_user_from_merged(merged=merged_wo_popularity)
+        return super().calc_per_user_from_merged(merged=merged_wo_popularity)
 
 
 RankingMetric = tp.Union[NDCG, MAP, MRR]

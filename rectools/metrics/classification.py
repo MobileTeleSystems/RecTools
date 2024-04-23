@@ -403,7 +403,7 @@ class DebiasPrecision(Precision, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
@@ -439,7 +439,7 @@ class DebiasRecall(Recall, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
@@ -476,7 +476,7 @@ class DebiasF1Beta(F1Beta, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
 
 
 @attr.s
@@ -513,7 +513,7 @@ class DebiasAccuracy(Accuracy, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
 
 
 @attr.s
@@ -550,7 +550,7 @@ class DebiasMCC(MCC, DebiasMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         interactions_wo_popularity = self.make_downsample(interactions)
-        super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity, catalog=catalog)
 
 
 DebiasClassificationMetric = tp.Union[DebiasAccuracy, DebiasMCC]

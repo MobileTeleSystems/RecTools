@@ -21,8 +21,12 @@ import pytest
 from rectools import Columns
 from rectools.metrics import calc_metrics, debias_wrapper
 from rectools.metrics.base import DebiasMetric, merge_reco
-from rectools.metrics.ranking import DebiasMAP, DebiasNDCG, DebiasMRR
-from rectools.metrics.classification import DebiasPrecision, DebiasRecall, DebiasF1Beta, DebiasAccuracy, DebiasMCC
+from rectools.metrics.ranking import DebiasMAP, DebiasNDCG, DebiasMRR, MAP, NDCG, MRR
+from rectools.metrics.classification import (
+    DebiasPrecision, DebiasRecall, DebiasF1Beta, DebiasAccuracy, DebiasMCC,
+    Precision, Recall, F1Beta, Accuracy, MCC,
+)
+
 
 
 class TestDebias:
@@ -55,6 +59,17 @@ class TestDebias:
     def catalog(self) -> tp.List[int]:
         return list(range(10))
 
+    @pytest.fixture
+    def interactions_downsampling(self, interactions: pd.DataFrame) -> pd.DataFrame:
+        metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
+        return metric_debias.make_downsample(interactions)
+    
+    @pytest.fixture
+    def merged_downsampling(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> pd.DataFrame:
+        metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
+        merged = merge_reco(recommendations, interactions)
+        return metric_debias.make_downsample(merged)
+    
     def test_make_downsample(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> None:
         metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
         merged = merge_reco(recommendations, interactions)
@@ -83,19 +98,97 @@ class TestDebias:
         interactions_downsampling = metric_debias.make_downsample(empty_interactions)
 
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
-        
-    def test_calc(
+    
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            (Precision(k=1)), 
+            (Precision(k=3)),
+            (Recall(k=1)), 
+            (Recall(k=3)),
+            (F1Beta(k=1)), 
+            (F1Beta(k=3)),
+        ),
+    )
+    def test_simple_cls_metric_calc(
         self,
-        intecations: pd.DataFrame,
+        metric: tp.Union[Precision, Recall, F1Beta],
+        interactions: pd.DataFrame,
         recommendations: pd.DataFrame,
-        catalog: tp.List[int],
+        interactions_downsampling: pd.DataFrame,
     ) -> None:
-        pass
+        debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
 
-    def test_calc_empty(
+        expected_result_per_user = metric.calc_per_user(recommendations, interactions_downsampling)
+        result_per_user = debias_metric.calc_per_user(recommendations, interactions)
+
+        expected_result_mean = metric.calc(recommendations, interactions_downsampling)
+        result_mean = debias_metric.calc(recommendations, interactions)
+
+        pd.testing.assert_series_equal(result_per_user, expected_result_per_user)
+        assert result_mean == expected_result_mean
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            (Accuracy(k=1)), 
+            (Accuracy(k=3)),
+            (MCC(k=1)), 
+            (MCC(k=3)),
+        ),
+    )
+    def test_cls_metric_calc(
         self,
-        intecations: pd.DataFrame,
+        metric: tp.Union[Precision, Recall, F1Beta],
+        interactions: pd.DataFrame,
         recommendations: pd.DataFrame,
+        interactions_downsampling: pd.DataFrame,
         catalog: tp.List[int],
     ) -> None:
-        pass
+        debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
+
+        expected_result_per_user = metric.calc_per_user(recommendations, interactions_downsampling, catalog)
+        result_per_user = debias_metric.calc_per_user(recommendations, interactions, catalog)
+
+        expected_result_mean = metric.calc(recommendations, interactions_downsampling, catalog)
+        result_mean = debias_metric.calc(recommendations, interactions, catalog)
+
+        pd.testing.assert_series_equal(result_per_user, expected_result_per_user)
+        assert result_mean == expected_result_mean
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            (MAP(k=1)), 
+            (MAP(k=3)),
+            (NDCG(k=1)), 
+            (NDCG(k=3)),
+            (MRR(k=1)), 
+            (MRR(k=3)),
+        ),
+    )
+    def test_ranking_metric_calc(
+        self,
+        metric: tp.Union[Precision, Recall, F1Beta],
+        interactions: pd.DataFrame,
+        recommendations: pd.DataFrame,
+        interactions_downsampling: pd.DataFrame,
+    ) -> None:
+        debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
+
+        expected_result_per_user = metric.calc_per_user(recommendations, interactions_downsampling)
+        result_per_user = debias_metric.calc_per_user(recommendations, interactions)
+
+        expected_result_mean = metric.calc(recommendations, interactions_downsampling)
+        result_mean = debias_metric.calc(recommendations, interactions)
+
+        pd.testing.assert_series_equal(result_per_user, expected_result_per_user)
+        assert result_mean == expected_result_mean
+
+    # def test_calc_empty(
+    #     self,
+    #     intecations: pd.DataFrame,
+    #     recommendations: pd.DataFrame,
+    #     catalog: tp.List[int],
+    # ) -> None:
+    #     pass
