@@ -374,11 +374,11 @@ class MCC(ClassificationMetric):
 @attr.s
 class HitRate(SimpleClassificationMetric):
     """
-    HitRate calculates the fraction of users for which the correct answer is included in the recommendation list
+    HitRate calculates the fraction of users for which the correct answer is included in the recommendation list.
 
     The HitRate equals to ``1 if tp > 0, otherwise 0`` where
         - ``tp`` is the number of relevant recommendations
-          among the first ``k`` items in recommendation list;
+          among the first ``k`` items in recommendation list.
 
     Parameters
     ----------

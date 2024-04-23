@@ -62,6 +62,7 @@ __all__ = (
     "F1Beta",
     "Accuracy",
     "MCC",
+    "HitRate",
     "MAP",
     "NDCG",
     "MRR",
@@ -73,5 +74,4 @@ __all__ = (
     "PairwiseDistanceCalculator",
     "PairwiseHammingDistanceCalculator",
     "SparsePairwiseHammingDistanceCalculator",
-    "HitRate",
 )
