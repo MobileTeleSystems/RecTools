@@ -371,6 +371,26 @@ class MCC(ClassificationMetric):
         return mcc
 
 
+@attr.s
+class HitRate(SimpleClassificationMetric):
+    """
+    HitRate calculates the fraction of users for which the correct answer is included in the recommendation list.
+
+    The HitRate equals to ``1 if tp > 0, otherwise 0`` where
+        - ``tp`` is the number of relevant recommendations
+          among the first ``k`` items in recommendation list.
+
+    Parameters
+    ----------
+    k : int
+        Number of items in top of recommendations list that will be used to calculate metric.
+    """
+
+    def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
+        hit_rate = (confusion_df[TP] > 0).astype(float)
+        return hit_rate
+
+
 def calc_classification_metrics(
     metrics: tp.Dict[str, tp.Union[ClassificationMetric, SimpleClassificationMetric]],
     merged: pd.DataFrame,
