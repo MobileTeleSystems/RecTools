@@ -738,7 +738,16 @@ def calc_ranking_metrics(
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
         fitted = MAP.fit(merged, k_max)
+
+        debias_map_metrics = select_by_type(metrics, DebiasMAP)
+        if debias_map_metrics:
+            debias_k_max = max(metric.k for metric in debias_map_metrics.values())
+            debias_fitted = debias_map_metrics[list(debias_map_metrics.keys())[0]].fit(merged, debias_k_max)
+
         for name, map_metric in map_metrics.items():
-            results[name] = map_metric.calc_from_fitted(fitted)
+            if isinstance(map_metric, DebiasMAP):
+                results[name] = map_metric.calc_from_fitted(debias_fitted)
+            else:
+                results[name] = map_metric.calc_from_fitted(fitted)
 
     return results
