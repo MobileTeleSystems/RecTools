@@ -45,6 +45,9 @@ class ImplicitItemKNNWrapperModel(ModelBase):
         Degree of verbose output. If 0, no output will be provided.
     """
 
+    recommends_for_warm = False
+    recommends_for_cold = False
+
     def __init__(self, model: ItemItemRecommender, verbose: int = 0):
         super().__init__(verbose=verbose)
         self.model: ItemItemRecommender

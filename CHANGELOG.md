@@ -10,8 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added 
 - Warm users/items support in `Dataset` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
-- Warm and cold users/items support in `ModelBase` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- Warm and cold users/items support in `ModelBase` and all possible models ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77), [#120](https://github.com/MobileTeleSystems/RecTools/pull/120), [#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 - Warm and cold users/items support in `cross_validate` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- [Breaking] Default value for train dataset type and params for user and item dataset types in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] `n_factors` and `deterministic` params to `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- Hit Rate metric ([#124](https://github.com/MobileTeleSystems/RecTools/pull/124))
+
+### Changed
+- Changed the logic of choosing random sampler for `RandomModel` and increased the sampling speed ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
+- [Breaking] Changed the logic of `RandomModel`: now the recommendations are different for repeated calls of recommend methods ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
+- Torch datasets to support warm recommendations ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] Replaced `include_warm` parameter in `Dataset.get_user_item_matrix` to pair `include_warm_users` and `include_warm_items` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] Renamed torch datasets and `dataset_type` to `train_dataset_type` param in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 
 ### Removed
 - `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))

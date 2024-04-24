@@ -33,6 +33,7 @@ Metrics
 `metrics.IntraListDiversity`
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
+`metrics.HitRate`
 
 Tools
 -----
@@ -42,7 +43,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
-from .classification import MCC, Accuracy, F1Beta, Precision, Recall
+from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .debias import debias_wrapper
 from .distances import (
     PairwiseDistanceCalculator,
@@ -62,6 +63,7 @@ __all__ = (
     "F1Beta",
     "Accuracy",
     "MCC",
+    "HitRate",
     "MAP",
     "NDCG",
     "MRR",

@@ -48,7 +48,8 @@ class EASEModel(ModelBase):
         Number of threads used for `recommend` method.
     """
 
-    u2i_dist = Distance.DOT
+    recommends_for_warm = False
+    recommends_for_cold = False
 
     def __init__(
         self,
@@ -84,7 +85,7 @@ class EASEModel(ModelBase):
         user_items = dataset.get_user_item_matrix(include_weights=True)
 
         ranker = ImplicitRanker(
-            distance=self.u2i_dist,
+            distance=Distance.DOT,
             subjects_factors=user_items,
             objects_factors=self.weight,
         )
