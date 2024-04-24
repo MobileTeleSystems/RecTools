@@ -174,6 +174,8 @@ class DebiasMetric:
                 how="left",
                 on=Columns.UserItem,
             )
-            interactions_result[Columns.Rank] = interactions_result[Columns.Rank].astype(interactions[Columns.Rank].dtypes)
+            interactions_result[Columns.Rank] = interactions_result[Columns.Rank].astype(
+                interactions[Columns.Rank].dtypes
+            )
 
         return interactions_result
