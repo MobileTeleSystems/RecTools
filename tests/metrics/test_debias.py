@@ -32,7 +32,7 @@ from rectools.metrics import (
     calc_metrics,
     debias_wrapper,
 )
-from rectools.metrics.base import DebiasMetric, merge_reco
+from rectools.metrics.base import DebiasMetricAtK, merge_reco
 from rectools.metrics.classification import (
     DebiasAccuracy,
     DebiasClassificationMetric,
@@ -74,17 +74,17 @@ class TestDebias:
 
     @pytest.fixture
     def interactions_downsampling(self, interactions: pd.DataFrame) -> pd.DataFrame:
-        metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
+        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
         return metric_debias.make_downsample(interactions)
 
     @pytest.fixture
     def merged_downsampling(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> pd.DataFrame:
-        metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
+        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
         merged = merge_reco(recommendations, interactions)
         return metric_debias.make_downsample(merged)
 
     def test_make_downsample(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> None:
-        metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
+        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
         merged = merge_reco(recommendations, interactions)
 
         expected_result = pd.DataFrame(
@@ -107,7 +107,7 @@ class TestDebias:
         pd.testing.assert_frame_equal(merged_downsampling, expected_result, check_like=True)
 
     def test_make_downsample_with_empty_data(self, empty_interactions: pd.DataFrame) -> None:
-        metric_debias = DebiasMetric(iqr_coef=1.5, random_state=32)
+        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
         interactions_downsampling = metric_debias.make_downsample(empty_interactions)
 
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
@@ -143,7 +143,7 @@ class TestDebias:
     ) -> None:
         debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
 
-        if isinstance(debias_metric, DebiasAccuracy) or isinstance(debias_metric, DebiasMCC):
+        if isinstance(debias_metric, (DebiasAccuracy, DebiasMCC)):
             expected_result_per_user = metric.calc_per_user(  # type: ignore
                 recommendations, interactions_downsampling, catalog
             )
@@ -183,7 +183,7 @@ class TestDebias:
     ) -> None:
         debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
-        if isinstance(debias_metric, DebiasAccuracy) or isinstance(debias_metric, DebiasMCC):
+        if isinstance(debias_metric, (DebiasAccuracy, DebiasMCC)):
             result_metric_per_user = debias_metric.calc_per_user(recommendations, empty_interactions, catalog)
             assert np.isnan(debias_metric.calc(recommendations, empty_interactions, catalog))
         else:

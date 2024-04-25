@@ -21,7 +21,7 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.metrics.base import DebiasMetric, MetricAtK, merge_reco
+from rectools.metrics.base import DebiasMetricAtK, MetricAtK, merge_reco
 from rectools.utils import log_at_base, select_by_type
 
 
@@ -527,7 +527,7 @@ class MRR(_RankingMetric):
 
 
 @attr.s
-class DebiasMAP(MAP, DebiasMetric):
+class DebiasMAP(MAP, DebiasMetricAtK):
     """
     Debias Mean Average Precision at k (MAP@k).
 
@@ -589,7 +589,7 @@ class DebiasMAP(MAP, DebiasMetric):
 
 
 @attr.s
-class DebiasNDCG(NDCG, DebiasMetric):
+class DebiasNDCG(NDCG, DebiasMetricAtK):
     """
     Debias Normalized Discounted Cumulative Gain at k (NDCG@k).
 
@@ -644,7 +644,7 @@ class DebiasNDCG(NDCG, DebiasMetric):
 
 
 @attr.s
-class DebiasMRR(MRR, DebiasMetric):
+class DebiasMRR(MRR, DebiasMetricAtK):
     """
     Debias Mean Reciprocal Rank at k (MRR@k).
 

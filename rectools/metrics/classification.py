@@ -23,7 +23,7 @@ import pandas as pd
 
 from rectools import Columns
 
-from .base import Catalog, DebiasMetric, MetricAtK, merge_reco
+from .base import Catalog, DebiasMetricAtK, MetricAtK, merge_reco
 
 TP = "__TP"
 FP = "__FP"
@@ -392,7 +392,7 @@ class HitRate(SimpleClassificationMetric):
 
 
 @attr.s
-class DebiasPrecision(Precision, DebiasMetric):
+class DebiasPrecision(Precision, DebiasMetricAtK):
     """
     Debias Ratio of relevant items among top-`k` recommended items.
 
@@ -427,7 +427,7 @@ class DebiasPrecision(Precision, DebiasMetric):
 
 
 @attr.s
-class DebiasRecall(Recall, DebiasMetric):
+class DebiasRecall(Recall, DebiasMetricAtK):
     """
     Debias Ratio of relevant recommended items among all items user interacted with
     after recommendations were made.
@@ -463,7 +463,7 @@ class DebiasRecall(Recall, DebiasMetric):
 
 
 @attr.s
-class DebiasF1Beta(F1Beta, DebiasMetric):
+class DebiasF1Beta(F1Beta, DebiasMetricAtK):
     """
     Debias Fbeta score for k first recommendations.
 
@@ -500,7 +500,7 @@ class DebiasF1Beta(F1Beta, DebiasMetric):
 
 
 @attr.s
-class DebiasAccuracy(Accuracy, DebiasMetric):
+class DebiasAccuracy(Accuracy, DebiasMetricAtK):
     """
     Debias Ratio of correctly recommended items among all items.
 
@@ -537,7 +537,7 @@ class DebiasAccuracy(Accuracy, DebiasMetric):
 
 
 @attr.s
-class DebiasMCC(MCC, DebiasMetric):
+class DebiasMCC(MCC, DebiasMetricAtK):
     """
     Debias Matthew correlation coefficient calculates correlation between actual and predicted classification.
 

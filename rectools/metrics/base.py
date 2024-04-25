@@ -95,12 +95,14 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
 
 
 @attr.s
-class DebiasMetric:
+class DebiasMetricAtK(MetricAtK):
     """
     Base class of debias metrics.
 
     Parameters
     ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
     iqr_coef : float, default 1.5
         Coefficient for defining as the maximum value inside the border.
     random_state : float, default 32
