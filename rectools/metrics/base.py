@@ -97,7 +97,11 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
 @attr.s
 class DebiasMetricAtK(MetricAtK):
     """
-    Base class of debias metrics.
+    Base class of debias metrics that depends on `k` -
+    a number of top recommendations used to calculate a metric.
+
+    Warning: This class should not be used directly.
+    Use derived classes instead.
 
     Parameters
     ----------
