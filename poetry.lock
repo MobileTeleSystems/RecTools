@@ -2969,4 +2969,4 @@ visuals = ["ipywidgets"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1, <3.13"
-content-hash = "a4ad2c124a7e7dc12d94f138dc72e72bdadb27cb0ca0e2dbe99668aaf47e4ee1"
+content-hash = "54ebc58536343ba4cb8915c1e29d0754530a55d59c3e07eba8761344f8db7b4b"
