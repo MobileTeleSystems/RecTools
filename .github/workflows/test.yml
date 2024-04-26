@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10
+          python-version: "3.10"
 
       - name: Install poetry
         run: pip install urllib3==1.26.15 poetry==1.4.0
@@ -28,7 +28,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-3.8-${{ hashFiles('**/poetry.lock') }}
+          key: venv-lint-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
   
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -38,7 +38,7 @@ jobs:
         run: make lint
 
   test:
-    name: test (${{ matrix.python-version }}, old-deps - ${{ matrix.old-deps }})
+    name: test (${{ matrix.python-version }}
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
   
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
