@@ -85,22 +85,22 @@ all = [
 ]
 
 [tool.poetry.group.dev.dependencies]
-black = "22.3.0"
-isort = "5.10.1"
-pylint = "2.17.6"
-mypy = "1.6.1"
-flake8 = "4.0.1"
-bandit = "1.7.4"
-pytest = "7.1.2"
-radon = "5.1.0"
-coverage = "6.4.2"
-autopep8 = "1.6.0"
-codespell = "2.1.0"
-pytest-subtests = "0.8.0"
-flake8-docstrings = "1.6.0"
-pep8-naming = "0.12.1"
-pytest-cov = "2.12.1"
-pytest-mock = "3.11.1"
+black = "24.4.2"
+isort = "5.13.2"
+pylint = "3.1.0"
+mypy = "1.10.0"
+flake8 = "7.0.0"
+bandit = "1.7.8"
+pytest = "8.1.1"
+radon = "6.0.1"
+coverage = "7.5.0"
+autopep8 = "2.1.0"
+codespell = "2.2.6"
+pytest-subtests = "0.12.1"
+flake8-docstrings = "1.7.0"
+pep8-naming = "0.13.3"
+pytest-cov = "5.0.0"
+pytest-mock = "3.14.0"
 
 
 [tool.black]
