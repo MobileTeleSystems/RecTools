@@ -77,7 +77,7 @@ class TestRecall:
 
 
 class TestAccuracy:
-    def setup_method_method(self) -> None:
+    def setup_method(self) -> None:
         self.metric = Accuracy(k=2)
 
     def test_calc(self) -> None:
