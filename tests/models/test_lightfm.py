@@ -22,7 +22,7 @@ import pytest
 try:
     from lightfm import LightFM
 except ImportError:
-    pass  # it's ok in case we're skipping the tests
+    LightFM = object  # it's ok in case we're skipping the tests
 
 from rectools import Columns
 from rectools.dataset import Dataset
