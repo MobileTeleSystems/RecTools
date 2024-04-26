@@ -31,7 +31,7 @@ from .utils import get_viewed_item_ids
 
 class _RandomGen:
     def __init__(self, random_state: tp.Optional[int] = None) -> None:
-        self.python_gen = random.Random(random_state)
+        self.python_gen = random.Random(random_state)  # nosec
         self.np_gen = np.random.default_rng(random_state)
 
 

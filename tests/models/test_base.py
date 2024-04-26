@@ -491,6 +491,6 @@ class TestFixedColdRecoModelMixin:
         model = ColdRecoModel()
 
         reco = model._recommend_cold(np.array([10, 11]), DATASET, 2, None)  # pylint: disable=protected-access
-        np.testing.assert_array_equal(reco[0], [10, 10, 11, 11])
+        np.testing.assert_array_equal(list(reco[0]), [10, 10, 11, 11])
         np.testing.assert_array_equal(reco[1], [0, 1, 0, 1])
         np.testing.assert_array_equal(reco[2], [2.1, 2.2, 2.1, 2.2])
