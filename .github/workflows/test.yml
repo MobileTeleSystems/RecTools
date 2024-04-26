@@ -38,7 +38,7 @@ jobs:
         run: make lint
 
   test:
-    name: test (${{ matrix.python-version }}
+    name: test ${{ matrix.python-version }}
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
