@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.10
 
       - name: Install poetry
         run: pip install urllib3==1.26.15 poetry==1.4.0
@@ -43,11 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
-        old-deps: [ "false" ]
-        include:
-          - python-version: "3.7"
-            old-deps: "true"
+        python-version: [ "3.8", "3.9", "3.10", "3.11", "3.12" ]
 
     steps:
       - uses: actions/checkout@v2
@@ -65,15 +61,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-old-deps-${{ matrix.old-deps }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
   
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: make install 
-
-      - name: Install old dependencies versions
-        if: matrix.old-deps == 'true'
-        run: poetry run pip install -r requirements-old-versions.txt
 
       - name: Run tests
         run: make test

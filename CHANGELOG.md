@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Breaking] Default value for train dataset type and params for user and item dataset types in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 - [Breaking] `n_factors` and `deterministic` params to `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 - Hit Rate metric ([#124](https://github.com/MobileTeleSystems/RecTools/pull/124))
-- Python 3.11 and 3.12 support ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+- Python `3.11` and `3.12` support ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
 
 ### Changed
 - Changed the logic of choosing random sampler for `RandomModel` and increased the sampling speed ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Breaking] Renamed torch datasets and `dataset_type` to `train_dataset_type` param in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 
 ### Removed
-- `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- [Breaking] `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- [Breaking] Python `3.7` support ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
 
 
 ## [0.5.0] - 22.03.2024
