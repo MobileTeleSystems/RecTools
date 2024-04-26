@@ -331,11 +331,11 @@ class TestHotWarmCold:
         self.warms = {"u2i": [50], "i2i": [16]}
         self.colds = {"u2i": [60], "i2i": [18]}
 
-    def _get_reco(self, targers: ExternalIds, model_key: str, dataset_key: str, kind: str) -> pd.DataFrame:
+    def _get_reco(self, targets: ExternalIds, model_key: str, dataset_key: str, kind: str) -> pd.DataFrame:
         model = self.models[model_key]
         if kind == "u2i":
             reco = model.recommend(
-                users=targers,
+                users=targets,
                 dataset=self.datasets[dataset_key],
                 k=2,
                 filter_viewed=False,
@@ -344,7 +344,7 @@ class TestHotWarmCold:
             reco.rename(columns={Columns.User: "target"}, inplace=True)
         elif kind == "i2i":
             reco = model.recommend_to_items(
-                target_items=targers,
+                target_items=targets,
                 dataset=self.datasets[dataset_key],
                 k=2,
                 add_rank_col=False,

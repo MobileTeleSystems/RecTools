@@ -231,7 +231,7 @@ class Dataset:
 
     def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:
         """
-        Return iteractions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.
+        Return interactions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.
 
         Parameters
         ----------
