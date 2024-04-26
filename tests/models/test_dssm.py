@@ -203,7 +203,11 @@ class TestDSSMModel:
         _, vectors_reco, vectors_scores = ranker.rank(
             dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])), k=5
         )
-        (_, reco_item_ids, reco_scores,) = model._recommend_u2i(  # pylint: disable=protected-access
+        (
+            _,
+            reco_item_ids,
+            reco_scores,
+        ) = model._recommend_u2i(  # pylint: disable=protected-access
             user_ids=dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])),
             dataset=dataset,
             k=5,
