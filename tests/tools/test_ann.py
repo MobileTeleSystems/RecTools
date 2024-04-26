@@ -22,7 +22,6 @@ import pytest
 from rectools.dataset import IdMap
 from rectools.tools import ItemToItemAnnRecommender, UserToItemAnnRecommender
 
-
 pytestmark = pytest.mark.skipif(sys.version_info >= (3, 11), reason="`nmslib` is not compatible with Python >= 3.11")
 
 

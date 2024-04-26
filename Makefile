@@ -60,7 +60,7 @@ install: .venv .reports
 	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py
+	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py --ignore=rectools/models/lightfm.py
 
 coverage: .venv .reports
 	poetry run coverage run --source ${SOURCES} --module pytest

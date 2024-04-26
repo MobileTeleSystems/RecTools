@@ -69,7 +69,7 @@ attrs = ">=19.1.0,<24.0.0"
 typeguard = "^4.1.0"
 
 
-lightfm = {version = ">=1.16,<=1.17", optional = true}
+lightfm = {version = ">=1.16,<=1.17", python = "<3.12", optional = true}
 
 nmslib = {version = "^2.0.4", python = "<3.11", optional = true}
 
