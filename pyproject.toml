@@ -51,7 +51,7 @@ packages = [
 
 
 [tool.poetry.dependencies]
-python = ">=3.7.2, <3.11"
+python = ">=3.7.2, <3.13"
 numpy = ">=1.19.5, <2.0.0"
 pandas = [
     {version = ">=0.25.3, <2.0.0", python = "<3.8"},
