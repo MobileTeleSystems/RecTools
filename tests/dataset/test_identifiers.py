@@ -24,7 +24,7 @@ from rectools.dataset import IdMap
 
 
 class TestIdMap:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.external_ids = np.array(["b", "c", "a"])
         self.id_map = IdMap(self.external_ids)
 

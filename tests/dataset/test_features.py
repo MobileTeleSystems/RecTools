@@ -27,7 +27,7 @@ from tests.testing_utils import assert_sparse_matrix_equal
 
 
 class TestDenseFeatures:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.values = np.array([[1, 10], [2, 20], [3, 30]])
         self.names = ("f1", "f2")
 
@@ -98,7 +98,7 @@ class TestDenseFeatures:
 
 
 class TestSparseFeatures:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.values = sparse.csr_matrix(
             [
                 [3.2, 0, 1],

@@ -32,7 +32,7 @@ from .data import INTERACTIONS
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         seed_everything(42, workers=True)
 
     @pytest.fixture

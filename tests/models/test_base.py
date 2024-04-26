@@ -83,7 +83,7 @@ def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
 
 
 class TestRecommendWithInternalIds:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         class SomeModel(ModelBase):
             def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
                 pass
@@ -212,7 +212,7 @@ class TestRecommendWithInternalIds:
 
 
 class TestHotWarmCold:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         class HotModel(ModelBase):
             recommends_for_cold = False
             recommends_for_warm = False

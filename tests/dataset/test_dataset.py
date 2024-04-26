@@ -32,7 +32,7 @@ from tests.testing_utils import (
 
 
 class TestDataset:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.interactions_df = pd.DataFrame(
             [
                 ["u1", "i1", 2, "2021-09-09"],

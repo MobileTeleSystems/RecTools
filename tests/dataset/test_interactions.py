@@ -29,7 +29,7 @@ from tests.testing_utils import assert_sparse_matrix_equal
 
 
 class TestInteractions:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.df = pd.DataFrame(
             {
                 Columns.User: [1, 2, 1, 1],
