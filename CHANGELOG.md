@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Torch datasets to support warm recommendations ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 - [Breaking] Replaced `include_warm` parameter in `Dataset.get_user_item_matrix` to pair `include_warm_users` and `include_warm_items` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
 - [Breaking] Renamed torch datasets and `dataset_type` to `train_dataset_type` param in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
-- [Breaking] Updated minimum `numpy` (to `1.24`), `scipy` (to `1.9.0`), `pandas` (to `1.5.0`), `typeguard` (to `4.1.0`) versions ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+- [Breaking] Updated minimum versions of `numpy`, `scipy`, `pandas`, `typeguard` ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
 
 ### Removed
 - [Breaking] `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
