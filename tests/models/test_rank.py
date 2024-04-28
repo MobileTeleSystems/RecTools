@@ -53,7 +53,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             subject_factors = sparse.csr_matrix(subject_factors)
 
         implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
-        dummy_factors = np.array([[1, 2]], dtype=np.float32)
+        dummy_factors: np.ndarray = np.array([[1, 2]], dtype=np.float32)
         neginf = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
             items=dummy_factors,
             query=dummy_factors,
@@ -77,7 +77,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
 
         implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
         neginf = implicit_ranker._get_neginf_score()
-        scores = np.array([7, 6, 0, 0], dtype=np.float32)
+        scores: np.ndarray = np.array([7, 6, 0, 0], dtype=np.float32)
 
         actual = implicit_ranker._get_mask_for_correct_scores(scores)
         assert actual == [True] * 4

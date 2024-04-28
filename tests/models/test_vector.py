@@ -29,7 +29,7 @@ pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in tru
 
 
 class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-outside-init
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         stub_interactions = pd.DataFrame([], columns=Columns.Interactions)
         self.stub_dataset = Dataset.construct(stub_interactions)
         user_embeddings = np.array([[-4, 0, 3], [0, 0, 0]])

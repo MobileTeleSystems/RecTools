@@ -41,7 +41,7 @@ EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=in
 
 
 class TestPrecision:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.metric = Precision(k=2)
 
     def test_calc(self) -> None:
@@ -59,7 +59,7 @@ class TestPrecision:
 
 
 class TestRecall:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.metric = Recall(k=2)
 
     def test_calc(self) -> None:
@@ -77,7 +77,7 @@ class TestRecall:
 
 
 class TestAccuracy:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.metric = Accuracy(k=2)
 
     def test_calc(self) -> None:
@@ -113,7 +113,7 @@ class TestCalcClassificationMetrics:
 
 
 class TestF1Beta:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.metric = F1Beta(k=2, beta=2 ** (1 / 2))
 
     def test_calc(self) -> None:
@@ -131,7 +131,7 @@ class TestF1Beta:
 
 
 class TestMCC:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.metric = MCC(k=2)
 
     def test_calc(self) -> None:
@@ -158,7 +158,7 @@ class TestMCC:
 
 
 class TestHitRate:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.metric = HitRate(k=2)
 
     def test_calc(self) -> None:

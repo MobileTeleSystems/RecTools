@@ -42,8 +42,8 @@ class TestImplicitALSWrapperModel:
         n_factors = model.factors
         n_users = dataset.user_id_map.to_internal.size
         n_items = dataset.item_id_map.to_internal.size
-        user_factors = np.linspace(0.1, 0.5, n_users * n_factors, dtype=np.float32).reshape(n_users, n_factors)
-        item_factors = np.linspace(0.1, 0.5, n_items * n_factors, dtype=np.float32).reshape(n_items, n_factors)
+        user_factors: np.ndarray = np.linspace(0.1, 0.5, n_users * n_factors, dtype=np.float32).reshape(n_users, -1)
+        item_factors: np.ndarray = np.linspace(0.1, 0.5, n_items * n_factors, dtype=np.float32).reshape(n_items, -1)
 
         if isinstance(model, GPUAlternatingLeastSquares):
             user_factors = implicit.gpu.Matrix(user_factors)

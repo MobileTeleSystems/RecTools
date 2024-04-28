@@ -62,8 +62,8 @@ class ImplicitRanker:
             raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
 
         self.distance = distance
-        self.subjects_factors = subjects_factors.astype(np.float32)
-        self.objects_factors = objects_factors.astype(np.float32)
+        self.subjects_factors: np.ndarray = subjects_factors.astype(np.float32)
+        self.objects_factors: np.ndarray = objects_factors.astype(np.float32)
 
         self.subjects_norms: np.ndarray
         if distance == Distance.COSINE:
@@ -75,7 +75,7 @@ class ImplicitRanker:
 
     def _get_neginf_score(self) -> float:
         # Adding 1 to avoid float calculation errors (we're comparing `scores <= neginf_score`)
-        return -np.finfo(np.float32).max + 1
+        return float(-np.finfo(np.float32).max + 1)
 
     @staticmethod
     def _calc_dots(factors: np.ndarray) -> np.ndarray:

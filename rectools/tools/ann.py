@@ -60,7 +60,7 @@ class BaseNmslibRecommender:
         NMSLIB index creation parameters. See nmslib documentation.
         In case of None defaults to reasonable parameters.
     index : FloatIndex, optional
-        Optonal instance of FloatIndex. Exists for outside initialization.
+        Optional instance of FloatIndex. Exists for outside initialization.
 
     See Also
     --------
@@ -233,7 +233,7 @@ class UserToItemAnnRecommender(BaseNmslibRecommender):
         NMSLIB index creation parameters. See nmslib documentation.
         In case of None defaults to reasonable parameters.
     index : FloatIndex, optional
-        Optonal instance of `FloatIndex`. Exists for outside initialization.
+        Optional instance of `FloatIndex`. Exists for outside initialization.
 
     Methods
     -------
@@ -383,7 +383,7 @@ class ItemToItemAnnRecommender(BaseNmslibRecommender):
         NMSLIB index creation parameters. See nmslib documentation.
         In case of None defaults to reasonable parameters.
     index : FloatIndex, optional
-        Optonal instance of FloatIndex. Exists for outside initialization.
+        Optional instance of FloatIndex. Exists for outside initialization.
 
     Methods
     -------

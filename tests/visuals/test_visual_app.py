@@ -275,7 +275,8 @@ class TestAppDataStorage:
             assert random_id != 1  # random id is not same as predefined by user
             total_reco = 0
             for model_name in ["model1", "model2"]:
-                expected_reco = RECO_U2I[model_name].query(f"{Columns.User} == @random_id")["item_id"].sort_values()
+                expected_reco_df = RECO_U2I[model_name].query(f"{Columns.User} == @random_id")
+                expected_reco = expected_reco_df["item_id"].sort_values()  # pylint: disable=unsubscriptable-object
                 actual_reco = ads.grouped_reco[model_name][random_name]["item_id"].sort_values()
                 total_reco += expected_reco.shape[0]
                 assert np.array_equal(actual_reco, expected_reco)
@@ -309,9 +310,8 @@ class TestAppDataStorage:
             assert random_id != 3  # random id is not same as predefined by user
             total_reco = 0
             for model_name in ["model1", "model2"]:
-                expected_reco = (
-                    RECO_I2I[model_name].query(f"{Columns.TargetItem} == @random_id")["item_id"].sort_values()
-                )
+                expected_reco_df = RECO_I2I[model_name].query(f"{Columns.TargetItem} == @random_id")
+                expected_reco = expected_reco_df["item_id"].sort_values()  # pylint: disable=unsubscriptable-object
                 actual_reco = ads.grouped_reco[model_name][random_name]["item_id"].sort_values()
                 total_reco += expected_reco.shape[0]
                 assert np.array_equal(actual_reco, expected_reco)

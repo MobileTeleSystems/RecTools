@@ -18,7 +18,6 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
-import typing_extensions as tpe
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
@@ -354,7 +353,7 @@ class ModelBase:
         id_map: IdMap,
         n_hot: int,
         assume_external_ids: bool,
-        entity: tpe.Literal["user", "item"],
+        entity: tp.Literal["user", "item"],
     ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
         if assume_external_ids:
             known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
@@ -382,7 +381,7 @@ class ModelBase:
         hot_targets: InternalIdsArray,
         warm_targets: InternalIdsArray,
         cold_targets: AnyIdsArray,
-        entity: tpe.Literal["user", "item"],
+        entity: tp.Literal["user", "item"],
     ) -> None:
         if warm_targets.size > 0 and not cls.recommends_for_warm and not cls.recommends_for_cold:
             raise ValueError(

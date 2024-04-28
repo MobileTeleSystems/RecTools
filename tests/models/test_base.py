@@ -83,7 +83,7 @@ def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
 
 
 class TestRecommendWithInternalIds:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         class SomeModel(ModelBase):
             def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
                 pass
@@ -212,7 +212,7 @@ class TestRecommendWithInternalIds:
 
 
 class TestHotWarmCold:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         class HotModel(ModelBase):
             recommends_for_cold = False
             recommends_for_warm = False
@@ -331,11 +331,11 @@ class TestHotWarmCold:
         self.warms = {"u2i": [50], "i2i": [16]}
         self.colds = {"u2i": [60], "i2i": [18]}
 
-    def _get_reco(self, targers: ExternalIds, model_key: str, dataset_key: str, kind: str) -> pd.DataFrame:
+    def _get_reco(self, targets: ExternalIds, model_key: str, dataset_key: str, kind: str) -> pd.DataFrame:
         model = self.models[model_key]
         if kind == "u2i":
             reco = model.recommend(
-                users=targers,
+                users=targets,
                 dataset=self.datasets[dataset_key],
                 k=2,
                 filter_viewed=False,
@@ -344,7 +344,7 @@ class TestHotWarmCold:
             reco.rename(columns={Columns.User: "target"}, inplace=True)
         elif kind == "i2i":
             reco = model.recommend_to_items(
-                target_items=targers,
+                target_items=targets,
                 dataset=self.datasets[dataset_key],
                 k=2,
                 add_rank_col=False,
@@ -491,6 +491,6 @@ class TestFixedColdRecoModelMixin:
         model = ColdRecoModel()
 
         reco = model._recommend_cold(np.array([10, 11]), DATASET, 2, None)  # pylint: disable=protected-access
-        np.testing.assert_array_equal(reco[0], [10, 10, 11, 11])
+        np.testing.assert_array_equal(list(reco[0]), [10, 10, 11, 11])
         np.testing.assert_array_equal(reco[1], [0, 1, 0, 1])
         np.testing.assert_array_equal(reco[2], [2.1, 2.2, 2.1, 2.2])
