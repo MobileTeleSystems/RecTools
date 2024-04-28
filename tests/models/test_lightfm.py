@@ -12,12 +12,17 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
 import typing as tp
 
 import numpy as np
 import pandas as pd
 import pytest
-from lightfm import LightFM
+
+try:
+    from lightfm import LightFM
+except ImportError:
+    LightFM = object  # it's ok in case we're skipping the tests
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -26,6 +31,8 @@ from rectools.models import LightFMWrapperModel
 from rectools.models.utils import recommend_from_scores
 from rectools.models.vector import Factors
 from tests.models.utils import assert_second_fit_refits_model
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
 
 
 # pylint: disable=attribute-defined-outside-init

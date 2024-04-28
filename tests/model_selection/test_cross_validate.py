@@ -22,7 +22,7 @@ a = pytest.approx
 
 
 class TestGen2xInternalIdsDataset:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.interactions_internal_df = pd.DataFrame(
             [
                 [0, 0, 1, 101],
@@ -99,7 +99,7 @@ class TestGen2xInternalIdsDataset:
 
 
 class TestCrossValidate:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         interactions_df = pd.DataFrame(
             [
                 [10, 11, 1, 101],

@@ -129,7 +129,7 @@ class SparsePairwiseHammingDistanceCalculator(PairwiseDistanceCalculator):
 
     def _get_distances_for_item_pairs(self, items_0: ExternalIds, items_1: ExternalIds) -> Distances:
         # Create accumulator for result
-        result = np.empty(len(items_0), dtype=np.float32)
+        result: np.ndarray = np.empty(len(items_0), dtype=np.float32)
         # Find mask external ids that are not contained in the mapper
         existing_external_0 = fast_isin(np.asarray(items_0), self.mapper.external_ids)
         existing_external_1 = fast_isin(np.asarray(items_1), self.mapper.external_ids)

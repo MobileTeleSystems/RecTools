@@ -37,7 +37,7 @@ from rectools.metrics.base import MetricAtK
 
 
 class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 2, 3, 5],

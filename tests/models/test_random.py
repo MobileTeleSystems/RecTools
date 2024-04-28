@@ -165,7 +165,7 @@ class TestRandomModel:
 
         assert actual[Columns.TargetItem].tolist() == [11, 11, 12, 12, 16, 16, 18, 18]
         assert actual[Columns.Rank].tolist() == [1, 2, 1, 2, 1, 2, 1, 2]
-        # Items that aren't present in interections but have features can also be used
+        # Items that aren't present in interactions but have features can also be used
         assert set(actual[Columns.Item]) <= set(whitelist or dataset.item_id_map.external_ids.tolist())
 
         if not filter_itself:

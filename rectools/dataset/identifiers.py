@@ -20,7 +20,6 @@ import warnings
 import attr
 import numpy as np
 import pandas as pd
-import typing_extensions as tpe
 
 from rectools import ExternalId, ExternalIds, InternalId, InternalIds
 from rectools.utils import fast_isin, get_from_series_by_index
@@ -128,13 +127,13 @@ class IdMap:
 
     @tp.overload
     def convert_to_internal(  # noqa: D102
-        self, external: ExternalIds, strict: bool = ..., return_missing: tpe.Literal[False] = False
+        self, external: ExternalIds, strict: bool = ..., return_missing: tp.Literal[False] = False
     ) -> np.ndarray:  # pragma: no cover
         ...
 
     @tp.overload
     def convert_to_internal(  # noqa: D102
-        self, external: ExternalIds, strict: bool = ..., *, return_missing: tpe.Literal[True]
+        self, external: ExternalIds, strict: bool = ..., *, return_missing: tp.Literal[True]
     ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
         ...
 
@@ -176,13 +175,13 @@ class IdMap:
 
     @tp.overload
     def convert_to_external(  # noqa: D102
-        self, internal: InternalIds, strict: bool = ..., return_missing: tpe.Literal[False] = False
+        self, internal: InternalIds, strict: bool = ..., return_missing: tp.Literal[False] = False
     ) -> np.ndarray:  # pragma: no cover
         ...
 
     @tp.overload
     def convert_to_external(  # noqa: D102
-        self, internal: InternalIds, strict: bool = ..., *, return_missing: tpe.Literal[True]
+        self, internal: InternalIds, strict: bool = ..., *, return_missing: tp.Literal[True]
     ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
         ...
 

@@ -66,8 +66,7 @@ class TestEASEModel:
             k=2,
             filter_viewed=filter_viewed,
         )
-        tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
-        pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)  # pylint: disable = unexpected-keyword-arg
+        pd.testing.assert_frame_equal(actual, expected, atol=0.001)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -105,8 +104,7 @@ class TestEASEModel:
             filter_viewed=filter_viewed,
             items_to_recommend=np.array([11, 15, 17]),
         )
-        tol_kwargs: tp.Dict[str, float] = {"check_less_precise": 3} if pd.__version__ < "1" else {"atol": 0.001}
-        pd.testing.assert_frame_equal(actual, expected, **tol_kwargs)  # pylint: disable = unexpected-keyword-arg
+        pd.testing.assert_frame_equal(actual, expected, atol=0.001)
 
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
