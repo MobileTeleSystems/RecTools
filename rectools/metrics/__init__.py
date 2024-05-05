@@ -52,7 +52,7 @@ from .distances import (
 from .diversity import IntraListDiversity
 from .novelty import MeanInvUserFreq
 from .popularity import AvgRecPopularity
-from .ranking import MAP, MRR, NDCG
+from .ranking import MAP, MRR, NDCG, pAUC
 from .scoring import calc_metrics
 from .serendipity import Serendipity
 
@@ -65,6 +65,7 @@ __all__ = (
     "HitRate",
     "MAP",
     "NDCG",
+    "pAUC",
     "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",

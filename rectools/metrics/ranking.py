@@ -525,8 +525,82 @@ class MRR(_RankingMetric):
         per_user = self.calc_per_user_from_merged(merged)
         return per_user.mean()
 
+@attr.s
+class pAUC(_RankingMetric):
 
-RankingMetric = tp.Union[NDCG, MAP, MRR]
+    insufficient_cases: str = attr.ib(default="skip")
+    
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        self._check(reco, interactions=interactions)
+        merged_reco = merge_reco(reco, interactions)
+        return self.calc_per_user_from_merged(merged_reco)
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users from merged recommendations.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        num_pos = merged.groupby(Columns.User).size()
+        ranks = num_pos.apply(lambda a: list(range(1, a + self.k + 1))).explode().rename(Columns.Rank)
+        merged["__fp"] = 0
+        required = merged.merge(ranks, on=[Columns.User, Columns.Rank], how="right")
+        required.fillna({"__fp": 1}, inplace=True)
+        required["__fp_cumsum"] = required.groupby(Columns.User)["__fp"].cumsum()
+        
+        if self.insufficient_cases != "skip":
+            pass
+        
+        required = required[required["__fp_cumsum"] < self.k].copy()
+        required["__auc_numenator_gain"] = (self.k - required["__fp_cumsum"]) * (required["__fp"]-1)*(-1)
+        pauc_numenator = required.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        pauc = pauc_numenator / (num_pos * self.k)
+        return pauc.fillna(0)
+
+    def calc_from_merged(self, merged: pd.DataFrame) -> float:
+        """
+        Calculate metric value from merged recommendations.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        float
+            Value of metric (average between users).
+        """
+        per_user = self.calc_per_user_from_merged(merged)
+        return per_user.mean()
+
+
+RankingMetric = tp.Union[NDCG, MAP, MRR, pAUC]
 
 
 def calc_ranking_metrics(
@@ -558,7 +632,7 @@ def calc_ranking_metrics(
     """
     results = {}
 
-    for ranking_metric_cls in [NDCG, MRR]:
+    for ranking_metric_cls in [NDCG, MRR, pAUC]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(merged)
