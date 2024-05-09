@@ -566,18 +566,20 @@ class pAUC(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         num_pos = merged.groupby(Columns.User).size()
-        ranks = num_pos.apply(lambda a: list(range(1, a + self.k + 1))).explode().rename(Columns.Rank)
+        # ranks = num_pos.apply(lambda a: list(range(1, a + self.k + 1))).explode().rename(Columns.Rank)
+        ranks = reco[[Columns.User, Columns.Rank]]
         merged["__fp"] = 0
         ranked_reco = merged.merge(ranks, on=[Columns.User, Columns.Rank], how="right")
         ranked_reco.fillna({"__fp": 1}, inplace=True)
         ranked_reco["__fp_cumsum"] = ranked_reco.groupby(Columns.User)["__fp"].cumsum()
-        
+
         if self.insufficient_cases in ["drop", "raise"]:
             users_fm_cumcum_max = ranked_reco.groupby(Columns.User)["__fp_cumsum"].max()
             insufficient_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index
-            if insufficient_users:
+            if not insufficient_users.empty:
                 if self.insufficient_cases == "drop":
                     ranked_reco = ranked_reco[~ranked_reco[Columns.User].isin(insufficient_users)]
+                    num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
                 else:
                     raise ValueError(f"""
                         pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
@@ -590,9 +592,9 @@ class pAUC(_RankingMetric):
                         with `insufficient_cases` = "drop"
                         """)
 
-        ranked_reco = ranked_reco[ranked_reco["__fp_cumsum"] < self.k].copy()
-        ranked_reco["__auc_numenator_gain"] = (self.k - ranked_reco["__fp_cumsum"]) * (ranked_reco["__fp"] - 1) * (-1)
-        pauc_numenator = ranked_reco.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        cropped = ranked_reco[ranked_reco["__fp_cumsum"] < self.k].copy()
+        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * (cropped["__fp"] - 1) * (-1)
+        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
         pauc = pauc_numenator / (num_pos * self.k)
         return pauc.fillna(0)
 
