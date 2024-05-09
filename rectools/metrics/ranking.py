@@ -566,23 +566,30 @@ class pAUC(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         num_pos = merged.groupby(Columns.User).size()
-        # ranks = num_pos.apply(lambda a: list(range(1, a + self.k + 1))).explode().rename(Columns.Rank)
-        ranks = reco[[Columns.User, Columns.Rank]]
-        merged["__fp"] = 0
-        ranked_reco = merged.merge(ranks, on=[Columns.User, Columns.Rank], how="right")
+        if self.insufficient_cases in ["exclude", "raise"]:
+            users_not_full_predicted = merged[merged[Columns.Rank].isna()][Columns.User].unique()
+            
+        merged["__fp"] = 0      
+        max_rank = reco.groupby(Columns.User)[Columns.Rank].max()
+        full_ranks = max_rank.apply(lambda a: list(range(1, a + 1))).explode().rename(Columns.Rank)
+        ranked_reco = merged.merge(full_ranks, on=[Columns.User, Columns.Rank], how="right").sort_values([Columns.User, Columns.Rank])
+        
         ranked_reco.fillna({"__fp": 1}, inplace=True)
         ranked_reco["__fp_cumsum"] = ranked_reco.groupby(Columns.User)["__fp"].cumsum()
 
-        if self.insufficient_cases in ["drop", "raise"]:
+        if self.insufficient_cases in ["exclude", "raise"]:
             users_fm_cumcum_max = ranked_reco.groupby(Columns.User)["__fp_cumsum"].max()
-            insufficient_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index
-            if not insufficient_users.empty:
-                if self.insufficient_cases == "drop":
+            insufficient_fp_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index.values
+            insufficient_users = np.intersect1d(insufficient_fp_users, users_not_full_predicted)
+            
+            if insufficient_users.any():
+                if self.insufficient_cases == "exclude":
                     ranked_reco = ranked_reco[~ranked_reco[Columns.User].isin(insufficient_users)]
                     num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
                 else:
                     raise ValueError(f"""
                         pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
+                        Or all items from user interactions ranked in reco meaning that all other reco will be negatives.
                         There are {len(insufficient_users)} users with less negatives.
                         For correct pAUC computation please provied each user with sufficient number
                         of recommended items. It fill be enough to have `n_user_positives` + `pAUC_k`
