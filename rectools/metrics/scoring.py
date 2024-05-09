@@ -121,7 +121,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
         if interactions is None:
             raise ValueError("For calculating ranking metrics it's necessary to set 'interactions'")
         merged = merged if merged is not None else merge_reco(reco, interactions)
-        ranking_values = calc_ranking_metrics(ranking_metrics, merged)
+        ranking_values = calc_ranking_metrics(ranking_metrics, merged, reco)
         results.update(ranking_values)
 
     # Novelty

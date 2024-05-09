@@ -528,7 +528,7 @@ class MRR(_RankingMetric):
 @attr.s
 class pAUC(_RankingMetric):
 
-    insufficient_cases: str = attr.ib(default="skip")
+    insufficient_cases: str = attr.ib(default="drop")
     
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
@@ -548,9 +548,9 @@ class pAUC(_RankingMetric):
         """
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
-        return self.calc_per_user_from_merged(merged_reco)
+        return self.calc_per_user_from_merged_and_reco(merged_reco, reco)
 
-    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+    def calc_per_user_from_merged_and_reco(self, merged: pd.DataFrame, reco: pd.DataFrame) -> pd.Series:
         """
         Calculate metric values for all users from merged recommendations.
 
@@ -568,20 +568,35 @@ class pAUC(_RankingMetric):
         num_pos = merged.groupby(Columns.User).size()
         ranks = num_pos.apply(lambda a: list(range(1, a + self.k + 1))).explode().rename(Columns.Rank)
         merged["__fp"] = 0
-        required = merged.merge(ranks, on=[Columns.User, Columns.Rank], how="right")
-        required.fillna({"__fp": 1}, inplace=True)
-        required["__fp_cumsum"] = required.groupby(Columns.User)["__fp"].cumsum()
+        ranked_reco = merged.merge(ranks, on=[Columns.User, Columns.Rank], how="right")
+        ranked_reco.fillna({"__fp": 1}, inplace=True)
+        ranked_reco["__fp_cumsum"] = ranked_reco.groupby(Columns.User)["__fp"].cumsum()
         
-        if self.insufficient_cases != "skip":
-            pass
-        
-        required = required[required["__fp_cumsum"] < self.k].copy()
-        required["__auc_numenator_gain"] = (self.k - required["__fp_cumsum"]) * (required["__fp"]-1)*(-1)
-        pauc_numenator = required.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        if self.insufficient_cases in ["drop", "raise"]:
+            users_fm_cumcum_max = ranked_reco.groupby(Columns.User)["__fp_cumsum"].max()
+            insufficient_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index
+            if insufficient_users:
+                if self.insufficient_cases == "drop":
+                    ranked_reco = ranked_reco[~ranked_reco[Columns.User].isin(insufficient_users)]
+                else:
+                    raise ValueError(f"""
+                        pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
+                        There are {len(insufficient_users)} users with less negatives.
+                        For correct pAUC computation please provied each user with sufficient number
+                        of recommended items. It fill be enough to have `n_user_positives` + `pAUC_k`
+                        recommended items for each user.
+                        You can disable this error by specifying `insufficient_cases` = "don't check" or
+                        by dropping all users with insuffissient recommendations from metric computation
+                        with `insufficient_cases` = "drop"
+                        """)
+
+        ranked_reco = ranked_reco[ranked_reco["__fp_cumsum"] < self.k].copy()
+        ranked_reco["__auc_numenator_gain"] = (self.k - ranked_reco["__fp_cumsum"]) * (ranked_reco["__fp"] - 1) * (-1)
+        pauc_numenator = ranked_reco.groupby(Columns.User)["__auc_numenator_gain"].sum()
         pauc = pauc_numenator / (num_pos * self.k)
         return pauc.fillna(0)
 
-    def calc_from_merged(self, merged: pd.DataFrame) -> float:
+    def calc_from_merged_and_reco(self, merged: pd.DataFrame, reco: pd.DataFrame) -> float:
         """
         Calculate metric value from merged recommendations.
 
@@ -596,7 +611,7 @@ class pAUC(_RankingMetric):
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_merged(merged)
+        per_user = self.calc_per_user_from_merged_and_reco(merged, reco)
         return per_user.mean()
 
 
@@ -606,6 +621,7 @@ RankingMetric = tp.Union[NDCG, MAP, MRR, pAUC]
 def calc_ranking_metrics(
     metrics: tp.Dict[str, RankingMetric],
     merged: pd.DataFrame,
+    reco: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
     Calculate any ranking metrics (MAP, NDCG and MRR for now).
@@ -632,10 +648,15 @@ def calc_ranking_metrics(
     """
     results = {}
 
-    for ranking_metric_cls in [NDCG, MRR, pAUC]:
+    for ranking_metric_cls in [NDCG, MRR]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(merged)
+            
+    for ranking_metric_cls in [pAUC]:
+        pauc_metrics: tp.Dict[str, pAUC] = select_by_type(metrics, ranking_metric_cls)
+        for name, metric in pauc_metrics.items():
+            results[name] = metric.calc_from_merged_and_reco(merged, reco)
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
