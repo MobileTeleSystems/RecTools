@@ -50,9 +50,6 @@ It might include category, price or any other features which may prove to be imp
 All of the above concepts are combined in `Dataset`.
 `Dataset` is used to build recommendation models and infer recommendations.
 
-.. include:: dataset.rst
-
-
 Hot, warm, cold
 ~~~~~~~~~~~~~~~
 There is a concept of a temperature we're using for users and items:
@@ -65,6 +62,8 @@ All the models are able to generate recommendations for the *hot* users (items).
 But as for warm and cold ones, there may be all possible combinations (neither of them, only cold, only warm, both).  
 The important thing is that if model is able to recommend for cold users (items), but not for warm ones (see table below), 
 it is still able to recommend for warm ones, but they will be considered as cold (no personalisation should be expected).
+
+.. include:: dataset.rst
 
 .. include:: models.rst
 
