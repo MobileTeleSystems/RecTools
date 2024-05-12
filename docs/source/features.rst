@@ -55,7 +55,8 @@ All of the above concepts are combined in `Dataset`.
 
 Hot, warm, cold
 ~~~~~~~~~~~~~~~
-There is a concept of a temperature we're using for users and items:  
+There is a concept of a temperature we're using for users and items:
+
 * **hot** - the ones that are present in interactions used for training (they may or may not have features);
 * **warm** - the ones that are not in interactions, but have some features;
 * **cold** - the ones we don't know anything about (they are not in interactions and don't have any features).
