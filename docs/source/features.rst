@@ -55,10 +55,10 @@ All of the above concepts are combined in `Dataset`.
 
 Hot, warm, cold
 ~~~~~~~~~~~~~~~
-There is a concept of a temperature we're using for users and items:
-- **hot** - the ones that are present in interactions used for training (they may or may not have features);
-- **warm** - the ones that are not in interactions, but have some features;
-- **cold** - the ones we don't know anything about (they are not in interactions and don't have any features).
+There is a concept of a temperature we're using for users and items:  
+* **hot** - the ones that are present in interactions used for training (they may or may not have features);
+* **warm** - the ones that are not in interactions, but have some features;
+* **cold** - the ones we don't know anything about (they are not in interactions and don't have any features).
 
 All the models are able to generate recommendations for the *hot* users (items).  
 But as for warm and cold ones, there may be all possible combinations (neither of them, only cold, only warm, both).  
