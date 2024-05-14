@@ -26,7 +26,8 @@ from tqdm.auto import tqdm
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 
-from .vector import Distance, Factors, VectorModel
+from .rank import Distance
+from .vector import Factors, VectorModel
 
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
@@ -51,6 +52,9 @@ class ImplicitALSWrapperModel(VectorModel):
         See documentations linked above for details.
     """
 
+    recommends_for_warm = False
+    recommends_for_cold = False
+
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
@@ -73,16 +77,16 @@ class ImplicitALSWrapperModel(VectorModel):
             fit_als_with_features_together_inplace(
                 self.model,
                 ui_csr,
-                dataset.user_features,
-                dataset.item_features,
+                dataset.get_hot_user_features(),
+                dataset.get_hot_item_features(),
                 self.verbose,
             )
         else:
             fit_als_with_features_separately_inplace(
                 self.model,
                 ui_csr,
-                dataset.user_features,
-                dataset.item_features,
+                dataset.get_hot_user_features(),
+                dataset.get_hot_item_features(),
                 self.verbose,
             )
 

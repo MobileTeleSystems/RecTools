@@ -22,7 +22,7 @@ from scipy import sparse
 
 from rectools import Columns
 
-from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures, UnknownIdError
+from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
 from .identifiers import IdMap
 from .interactions import Interactions
 
@@ -36,8 +36,8 @@ class Dataset:
     user-item interactions, user and item features
     in special `rectools` structures for convenient future usage.
 
-    This is data class, so you can create it explicitly, but
-    it's recommended to use `construct` method.
+    WARNING: It's highly not recommended to create `Dataset` object directly.
+    Use `construct` class method instead.
 
     Parameters
     ----------
@@ -58,6 +58,38 @@ class Dataset:
     interactions: Interactions = attr.ib()
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
+
+    @property
+    def n_hot_users(self) -> int:
+        """
+        Return number of hot users in dataset.
+        Users with internal ids from `0` to `n_hot_users - 1` are hot (they are present in interactions).
+        Users with internal ids from `n_hot_users` to `dataset.user_id_map.size - 1` are warm
+        (they aren't present in interactions, but they have features).
+        """
+        return self.interactions.df[Columns.User].max() + 1
+
+    @property
+    def n_hot_items(self) -> int:
+        """
+        Return number of hot items in dataset.
+        Items with internal ids from `0` to `n_hot_items - 1` are hot (they are present in interactions).
+        Items with internal ids from `n_hot_items` to `dataset.item_id_map.size - 1` are warm
+        (they aren't present in interactions, but they have features).
+        """
+        return self.interactions.df[Columns.Item].max() + 1
+
+    def get_hot_user_features(self) -> tp.Optional[Features]:
+        """User features for hot users."""
+        if self.user_features is None:
+            return None
+        return self.user_features.take(range(self.n_hot_users))
+
+    def get_hot_item_features(self) -> tp.Optional[Features]:
+        """Item features for hot items."""
+        if self.item_features is None:
+            return None
+        return self.item_features.take(range(self.n_hot_items))
 
     @classmethod
     def construct(
@@ -112,7 +144,8 @@ class Dataset:
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
-        user_features = cls._make_features(
+
+        user_features, user_id_map = cls._make_features(
             user_features_df,
             cat_user_features,
             make_dense_user_features,
@@ -120,7 +153,7 @@ class Dataset:
             Columns.User,
             "user",
         )
-        item_features = cls._make_features(
+        item_features, item_id_map = cls._make_features(
             item_features_df,
             cat_item_features,
             make_dense_item_features,
@@ -138,36 +171,37 @@ class Dataset:
         id_map: IdMap,
         possible_id_col: str,
         feature_type: str,
-    ) -> tp.Optional[Features]:
+    ) -> tp.Tuple[tp.Optional[Features], IdMap]:
         if df is None:
-            return None
+            return None, id_map
 
         id_col = possible_id_col if possible_id_col in df else "id"
+        id_map = id_map.add_ids(df[id_col].values, raise_if_already_present=False)
 
         if make_dense:
             try:
-                return DenseFeatures.from_dataframe(df, id_map, id_col=id_col)
-            except UnknownIdError:
-                raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
+                return DenseFeatures.from_dataframe(df, id_map, id_col=id_col), id_map
             except AbsentIdError:
                 raise ValueError(
                     f"An error has occurred while constructing {feature_type} features: "
-                    "When using dense features all ids from interactions must present in features table"
+                    "When using dense features all ids from interactions must be present in features table"
                 )
             except Exception as e:  # pragma: no cover
                 raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
+
         try:
-            return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col)
-        except UnknownIdError:
-            raise ValueError(f"Some ids from {feature_type} features table not present in interactions")
+            return SparseFeatures.from_flatten(df, id_map, cat_features, id_col=id_col), id_map
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
-    def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
+    def get_user_item_matrix(
+        self,
+        include_weights: bool = True,
+        include_warm_users: bool = False,
+        include_warm_items: bool = False,
+    ) -> sparse.csr_matrix:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
-
-        `Interactions.get_user_item_matrix` is used, see its documentation for details.
 
         Return a resized user-item matrix.
         Resizing is done using `user_id_map` and `item_id_map`,
@@ -179,6 +213,10 @@ class Dataset:
         include_weights : bool, default ``True``
              Whether include interaction weights in matrix or not.
              If False, all values in returned matrix will be equal to ``1``.
+        include_warm : bool, default ``False``
+            Whether to include warm users and items into the matrix or not.
+            Rows and columns for warm users and items will be added to the end of matrix,
+            they will contain only zeros.
 
         Returns
         -------
@@ -186,5 +224,24 @@ class Dataset:
             Resized user-item CSR matrix
         """
         matrix = self.interactions.get_user_item_matrix(include_weights)
-        matrix.resize(self.user_id_map.internal_ids.size, self.item_id_map.internal_ids.size)
+        n_rows = self.user_id_map.size if include_warm_users else matrix.shape[0]
+        n_columns = self.item_id_map.size if include_warm_items else matrix.shape[1]
+        matrix.resize(n_rows, n_columns)
         return matrix
+
+    def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:
+        """
+        Return interactions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.
+
+        Parameters
+        ----------
+        include_weight : bool, default ``True``
+            Whether to include weight column into resulting table or not.
+        include_datetime : bool, default ``True``
+            Whether to include datetime column into resulting table or not.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)

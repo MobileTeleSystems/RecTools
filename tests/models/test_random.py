@@ -21,9 +21,38 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import RandomModel
+from rectools.models.random import _RandomGen, _RandomSampler
 
 from .data import DATASET, INTERACTIONS
 from .utils import assert_second_fit_refits_model
+
+
+class TestRandomSampler:
+    def test_sample_small_n(self) -> None:
+        gen = _RandomGen(42)
+        sampler = _RandomSampler(np.arange(10), gen)
+        sampled = sampler.sample(5)
+        np.testing.assert_array_equal(sampled, [1, 0, 4, 9, 6])
+
+    def test_sample_big_n(self) -> None:
+        gen = _RandomGen(42)
+        sampler = _RandomSampler(np.arange(100), gen)
+        sampled = sampler.sample(30)
+        np.testing.assert_array_equal(
+            sampled,
+            [
+                95, 42, 74, 65, 6, 7, 16, 97, 67, 54, 11, 15, 80, 44, 88,
+                94, 34, 61, 39, 32, 99, 53, 40, 45, 55, 87, 60, 47, 76, 63,
+            ],
+        )  # fmt: skip
+
+    @pytest.mark.parametrize("n", (10, 50))
+    def test_different_results_after_sequential_inits_with_same_gen(self, n: int) -> None:
+        gen = _RandomGen(42)
+        values = np.arange(100)
+        sampled_1 = _RandomSampler(values, gen).sample(n)
+        sampled_2 = _RandomSampler(values, gen).sample(n)
+        assert not np.array_equal(sampled_1, sampled_2)
 
 
 class TestRandomModel:
@@ -32,19 +61,27 @@ class TestRandomModel:
         return DATASET
 
     @pytest.mark.parametrize("items_to_recommend", (None, [11, 12, 13]))
-    def test_basic(self, dataset: Dataset, items_to_recommend: tp.Optional[tp.List[tp.Any]]) -> None:
+    def test_basic(self, items_to_recommend: tp.Optional[tp.List[tp.Any]]) -> None:
+        user_features = pd.DataFrame(
+            {
+                "id": [10, 50],
+                "feature": ["f1", "f1"],
+                "value": [1, 1],
+            }
+        )
+        dataset = Dataset.construct(INTERACTIONS, user_features_df=user_features)
         model = RandomModel().fit(dataset)
         actual = model.recommend(
-            users=np.array([10, 20]),
+            users=np.array([10, 20, 50, 60]),
             dataset=dataset,
             k=2,
             filter_viewed=False,
             items_to_recommend=items_to_recommend,
         )
         assert actual.columns.tolist() == Columns.Recommendations
-        assert actual[Columns.User].tolist() == [10, 10, 20, 20]
-        assert actual[Columns.Rank].tolist() == [1, 2, 1, 2]
-        assert actual[Columns.Score].tolist() == [2, 1, 2, 1]
+        assert actual[Columns.User].tolist() == [10, 10, 20, 20, 50, 50, 60, 60]
+        assert actual[Columns.Rank].tolist() == [1, 2, 1, 2, 1, 2, 1, 2]
+        assert actual[Columns.Score].tolist() == [2, 1, 2, 1, 2, 1, 2, 1]
         assert set(actual[Columns.Item]) <= set(items_to_recommend or INTERACTIONS[Columns.Item])
 
     @pytest.mark.parametrize("items_to_recommend", (None, [11, 12, 13]))
@@ -98,33 +135,45 @@ class TestRandomModel:
             }
         )
         dataset = Dataset.construct(interactions)
-        model = RandomModel(random_state=42).fit(dataset)
-        reco_1 = model.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
-        reco_2 = model.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
+
+        model_1 = RandomModel(random_state=42).fit(dataset)
+        reco_1 = model_1.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
+        model_2 = RandomModel(random_state=42).fit(dataset)
+        reco_2 = model_2.recommend(users=np.array([10, 20]), dataset=dataset, k=5, filter_viewed=False)
         pd.testing.assert_frame_equal(reco_1, reco_2)
 
     @pytest.mark.parametrize("filter_itself", (True, False))
-    @pytest.mark.parametrize("whitelist", (None, np.array([11, 12, 13])))
-    def test_i2i(self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray]) -> None:
+    @pytest.mark.parametrize("whitelist", (None, [11, 12, 13]))
+    def test_i2i(self, filter_itself: bool, whitelist: tp.Optional[tp.List[tp.Any]]) -> None:
+        item_features = pd.DataFrame(
+            {
+                "id": [11, 16],
+                "feature": ["f1", "f1"],
+                "value": [1, 1],
+            }
+        )
+        dataset = Dataset.construct(INTERACTIONS, item_features_df=item_features)
         model = RandomModel().fit(dataset)
         actual = model.recommend_to_items(
-            target_items=[11],
+            target_items=[11, 12, 16, 18],
             dataset=dataset,
-            k=10,
+            k=2,
             filter_itself=filter_itself,
             items_to_recommend=whitelist,
         )
         assert actual.columns.tolist() == Columns.RecommendationsI2I
-        if whitelist is None:
-            expected_reco_set = set(dataset.item_id_map.external_ids)
+
+        assert actual[Columns.TargetItem].tolist() == [11, 11, 12, 12, 16, 16, 18, 18]
+        assert actual[Columns.Rank].tolist() == [1, 2, 1, 2, 1, 2, 1, 2]
+        # Items that aren't present in interactions but have features can also be used
+        assert set(actual[Columns.Item]) <= set(whitelist or dataset.item_id_map.external_ids.tolist())
+
+        if not filter_itself:
+            assert actual[Columns.Score].tolist() == [2, 1, 2, 1, 2, 1, 2, 1]
         else:
-            expected_reco_set = set(whitelist)
-        if filter_itself:
-            expected_reco_set -= {11}
-        assert actual[Columns.TargetItem].tolist() == [11] * len(expected_reco_set)
-        assert actual[Columns.Rank].tolist() == list(range(1, len(expected_reco_set) + 1))
-        assert set(actual[Columns.Score]) <= set(np.arange(dataset.item_id_map.external_ids.size) + 1)
-        assert set(actual[Columns.Item]) == expected_reco_set
+            # We give scores first then filter items itself, so there can be score k+1
+            assert set(actual[Columns.Score]) <= {1, 2, 3}
+            assert (actual[Columns.TargetItem] != actual[Columns.Item]).all()
 
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = RandomModel(random_state=1)

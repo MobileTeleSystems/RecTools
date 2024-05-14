@@ -1,3 +1,6 @@
+# MacOS
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -41,7 +44,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-reports/
+.reports/
 
 # PyBuilder
 .pybuilder/

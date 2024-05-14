@@ -21,11 +21,15 @@ from scipy import sparse
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
+from rectools.models.utils import recommend_from_scores
+from rectools.types import InternalIds, InternalIdsArray
 
-from .vector import Distance, Factors, VectorModel
+from .base import FixedColdRecoModelMixin, InternalRecoTriplet, Scores
+from .rank import Distance
+from .vector import Factors, VectorModel
 
 
-class LightFMWrapperModel(VectorModel):
+class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
     """
     Wrapper for `lightfm.LightFM`.
 
@@ -46,6 +50,9 @@ class LightFMWrapperModel(VectorModel):
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
     """
+
+    recommends_for_warm = True
+    recommends_for_cold = True
 
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
@@ -68,8 +75,8 @@ class LightFMWrapperModel(VectorModel):
         self.model = deepcopy(self._model)
 
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
-        user_features = self._prepare_features(dataset.user_features)
-        item_features = self._prepare_features(dataset.item_features)
+        user_features = self._prepare_features(dataset.get_hot_user_features(), dataset.n_hot_users)
+        item_features = self._prepare_features(dataset.get_hot_item_features(), dataset.n_hot_items)
 
         self.model.fit(
             ui_coo,
@@ -82,14 +89,18 @@ class LightFMWrapperModel(VectorModel):
         )
 
     @staticmethod
-    def _prepare_features(features: tp.Optional[Features]) -> tp.Optional[sparse.csr_matrix]:
+    def _prepare_features(features: tp.Optional[Features], n_hot: int) -> tp.Optional[sparse.csr_matrix]:
         if features is None:
             return None
 
         features_csr = features.get_sparse()
+
+        identity = sparse.identity(n_hot, dtype="float32", format="csr")
+        identity.resize(features_csr.shape[0], n_hot)
+
         features_csr = sparse.hstack(
             (
-                sparse.identity(features_csr.shape[0], dtype="float32", format="csr"),
+                identity,
                 features_csr,
             ),
             format="csr",
@@ -97,12 +108,12 @@ class LightFMWrapperModel(VectorModel):
         return features_csr
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
-        user_features = self._prepare_features(dataset.user_features)
+        user_features = self._prepare_features(dataset.user_features, dataset.n_hot_users)
         user_biases, user_embeddings = self.model.get_user_representations(user_features)
         return Factors(user_embeddings, user_biases)
 
     def _get_items_factors(self, dataset: Dataset) -> Factors:
-        item_features = self._prepare_features(dataset.item_features)
+        item_features = self._prepare_features(dataset.item_features, dataset.n_hot_items)
         item_biases, item_embeddings = self.model.get_item_representations(item_features)
         return Factors(item_embeddings, item_biases)
 
@@ -149,3 +160,30 @@ class LightFMWrapperModel(VectorModel):
             item_embeddings = np.hstack((np.ones((item_biases.size, 1)), item_biases[:, np.newaxis], item_embeddings))
 
         return user_embeddings, item_embeddings
+
+    def _get_cold_reco(
+        self, dataset: Dataset, k: int, sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray]
+    ) -> tp.Tuple[InternalIds, Scores]:
+        all_scores = self._get_items_factors(dataset).biases
+        if all_scores is None:
+            raise RuntimeError("Model must have biases")
+        reco_ids, scores = recommend_from_scores(all_scores, k, sorted_whitelist=sorted_item_ids_to_recommend)
+        return reco_ids, scores
+
+    def _recommend_u2i_warm(
+        self,
+        user_ids: InternalIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+    ) -> InternalRecoTriplet:
+        return self._recommend_u2i(user_ids, dataset, k, False, sorted_item_ids_to_recommend)
+
+    def _recommend_i2i_warm(
+        self,
+        target_ids: InternalIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+    ) -> InternalRecoTriplet:
+        return self._recommend_i2i(target_ids, dataset, k, sorted_item_ids_to_recommend)

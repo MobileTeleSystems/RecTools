@@ -16,12 +16,26 @@ import typing as tp
 
 import pytest
 
-from rectools.compat import DSSMModel, ItemToItemAnnRecommender, LightFMWrapperModel, UserToItemAnnRecommender
+from rectools.compat import (
+    DSSMModel,
+    ItemToItemAnnRecommender,
+    ItemToItemVisualApp,
+    LightFMWrapperModel,
+    UserToItemAnnRecommender,
+    VisualApp,
+)
 
 
 @pytest.mark.parametrize(
     "model",
-    (DSSMModel, ItemToItemAnnRecommender, UserToItemAnnRecommender, LightFMWrapperModel),
+    (
+        DSSMModel,
+        ItemToItemAnnRecommender,
+        UserToItemAnnRecommender,
+        LightFMWrapperModel,
+        VisualApp,
+        ItemToItemVisualApp,
+    ),
 )
 def test_raise_when_model_not_available(
     model: tp.Any,

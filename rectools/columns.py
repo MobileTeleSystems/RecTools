@@ -25,6 +25,7 @@ class Columns:
     Datetime = "datetime"
     Rank = "rank"
     Score = "score"
+    Model = "model"
     UserItem = [User, Item]
     Interactions = [User, Item, Weight, Datetime]
     Recommendations = [User, Item, Score, Rank]

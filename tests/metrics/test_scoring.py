@@ -23,6 +23,8 @@ from rectools.metrics import (
     MRR,
     NDCG,
     Accuracy,
+    AvgRecPopularity,
+    HitRate,
     IntraListDiversity,
     MeanInvUserFreq,
     PairwiseHammingDistanceCalculator,
@@ -35,7 +37,7 @@ from rectools.metrics.base import MetricAtK
 
 
 class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 2, 3, 5],
@@ -71,11 +73,13 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "prec@2": Precision(k=2),
             "recall@1": Recall(k=1),
             "accuracy@1": Accuracy(k=1),
+            "hitrate@1": HitRate(k=1),
             "map@1": MAP(k=1),
             "map@2": MAP(k=2),
             "ndcg@1": NDCG(k=1, log_base=3),
             "mrr@1": MRR(k=1),
             "miuf": MeanInvUserFreq(k=3),
+            "arp": AvgRecPopularity(k=2),
             "ild": IntraListDiversity(k=3, distance_calculator=self.calculator),
             "serendipity": Serendipity(k=3),
             "custom": MetricAtK(k=1),
@@ -87,11 +91,13 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "prec@2": 0.375,
             "recall@1": 0.125,
             "accuracy@1": 0.825,
+            "hitrate@1": 0.25,
             "map@1": 0.125,
             "map@2": 0.375,
             "ndcg@1": 0.25,
             "mrr@1": 0.25,
             "miuf": 0.125,
+            "arp": 2.75,
             "ild": 0.25,
             "serendipity": 0,
         }
@@ -103,6 +109,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (Precision(k=1), ["reco"]),
             (MAP(k=1), ["reco"]),
             (MeanInvUserFreq(k=1), ["reco"]),
+            (AvgRecPopularity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco", "interactions"]),
             (Serendipity(k=1), ["reco", "interactions", "prev_interactions"]),

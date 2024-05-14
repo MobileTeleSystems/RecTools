@@ -74,6 +74,7 @@ The default version doesn't contain all the dependencies, because some of them a
 
 - `lightfm`: adds wrapper for LightFM model,
 - `torch`: adds models based on neural nets,
+- `visuals`: adds visualization tools,
 - `nmslib`: adds fast ANN recommenders.
 
 Install extension:
@@ -100,6 +101,7 @@ The table below lists recommender models that are available in RecTools.
 | [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! [Check our boost to metrics](examples/5_benchmark_iALS_with_features.ipynb) |
 | [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Collaborative Filtering | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
 | [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | `rectools.models.LightFMWrapperModel` - Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
+| EASE | Collaborative Filtering | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | - |
 | PureSVD | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix | - |
 | DSSM | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
 | Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
@@ -112,15 +114,19 @@ The table below lists recommender models that are available in RecTools.
 - For getting recommendations `filter_viewed` and `items_to_recommend` options are available
 - For item-to-item recommendations use `recommend_to_items` method
 - For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
-
+- For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.** Check [documentation](https://rectools.readthedocs.io/en/stable/features.html#models) to see which models support this scenarios.
 
 ## Contribution
+[Contributing guide](CONTRIBUTING.rst)
 
-To install all requirements run
+To install all requirements
+- you must have `python3` and `poetry==1.4.0` installed
+- make sure you have no active virtual environments (deactivate conda `base` if applicable)
+- run
 ```
 make install
 ```
-You must have `python3` and `poetry==1.4.0` installed.
+
 
 For autoformatting run 
 ```
@@ -147,13 +153,13 @@ To remove virtual environment run
 make clean
 ```
 
-## RecTools.Team
+## RecTools Team
 
-- [Emiliy Feldman](https://github.com/feldlime)
-- [Ildar Safilo](https://github.com/irsafilo)
-- [Daniil Potapov](https://github.com/sharthZ23) 
-- [Igor Belkov](https://github.com/OzmundSedler)
-- [Artem Senin](https://github.com/artemseninhse)
+- [Emiliy Feldman](https://github.com/feldlime) [Maintainer]
+- [Daria Tikhonovich](https://github.com/blondered) [Maintainer]
 - [Alexander Butenko](https://github.com/iomallach)
-- [Mikhail Khasykov](https://github.com/mkhasykov)
-- [Daria Tikhonovich](https://github.com/blondered)
+- [Andrey Semenov](https://github.com/In48semenov)
+- [Mike Sokolov](https://github.com/mikesokolovv)
+
+Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup) 
+

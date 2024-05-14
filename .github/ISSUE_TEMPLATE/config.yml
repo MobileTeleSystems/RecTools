@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: RecTools Documentation
+    url: https://rectools.readthedocs.io/
+    about: Please check the documentation before asking a question.
+  - name: RecTools Telegram Channel
+    url: https://t.me/RecTools_Support
+    about: Feel free to ask questions in the telegram channel.

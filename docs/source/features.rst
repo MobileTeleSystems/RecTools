@@ -47,22 +47,33 @@ Item Features
 This table stores data about items.
 It might include category, price or any other features which may prove to be important for a recommender model.
 
+Hot, warm, cold
+~~~~~~~~~~~~~~~
+There is a concept of a temperature we're using for users and items:
+
+* **hot** - the ones that are present in interactions used for training (they may or may not have features);
+* **warm** - the ones that are not in interactions, but have some features;
+* **cold** - the ones we don't know anything about (they are not in interactions and don't have any features).
+
+All the models are able to generate recommendations for the *hot* users (items).  
+But as for warm and cold ones, there may be all possible combinations (neither of them, only cold, only warm, both).  
+The important thing is that if model is able to recommend for cold users (items), but not for warm ones (see table below), 
+it is still able to recommend for warm ones, but they will be considered as cold (no personalisation should be expected).
+
 All of the above concepts are combined in `Dataset`.
 `Dataset` is used to build recommendation models and infer recommendations.
 
 .. include:: dataset.rst
 
+.. include:: models.rst
+
+What are you waiting for? Train and apply them!
 
 Recommendation Table
 ~~~~~~~~~~~~~~~~~~~~
 Recommendation table contains recommendations for each user.
 It has a fixed set of columns, though they are different for i2i and u2i recommendations.
 Recommendation table can also be used for calculation of metrics.
-
-
-.. include:: models.rst
-
-What are you waiting for? Train and apply them!
 
 
 .. include:: metrics.rst
@@ -74,3 +85,6 @@ Oops, yeah, can't forget about them.
 
 
 .. include:: tools.rst
+
+
+.. include:: visuals.rst

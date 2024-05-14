@@ -25,12 +25,23 @@ from torch.utils.data import Dataset as TorchDataset
 
 from .dataset import Dataset
 
-DD = tp.TypeVar("DD", bound="DSSMDataset")
-ID = tp.TypeVar("ID", bound="ItemFeaturesDataset")
-UD = tp.TypeVar("UD", bound="UserFeaturesDataset")
+DSSMTrainDatasetT = tp.TypeVar("DSSMTrainDatasetT", bound="DSSMTrainDatasetBase")
+DSSMItemDatasetT = tp.TypeVar("DSSMItemDatasetT", bound="DSSMItemDatasetBase")
+DSSMUserDatasetT = tp.TypeVar("DSSMUserDatasetT", bound="DSSMUserDatasetBase")
 
 
-class DSSMDataset(TorchDataset[tp.Any]):
+class DSSMTrainDatasetBase(TorchDataset[tp.Any]):
+    """Base class for DSSM training datasets. Used only for type hinting."""
+
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(cls: tp.Type[DSSMTrainDatasetT], dataset: Dataset) -> DSSMTrainDatasetT:
+        raise NotImplementedError()
+
+
+class DSSMTrainDataset(DSSMTrainDatasetBase):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
     Implements `torch.utils.data.Dataset` for subsequent usage with
@@ -68,17 +79,17 @@ class DSSMDataset(TorchDataset[tp.Any]):
             )
 
     @classmethod
-    def from_dataset(cls: tp.Type[DD], dataset: Dataset) -> DD:
+    def from_dataset(cls: tp.Type[DSSMTrainDatasetT], dataset: Dataset) -> DSSMTrainDatasetT:
         ui_matrix = dataset.get_user_item_matrix()
-        if dataset.item_features is not None:
-            item_features = dataset.item_features.get_sparse()
-        else:
+
+        # We take hot here since this dataset is used for fit only
+        item_features = dataset.get_hot_item_features()
+        user_features = dataset.get_hot_user_features()
+        if item_features is None:
             raise AttributeError("Item features attribute of dataset could not be None")
-        if dataset.user_features is not None:
-            user_features = dataset.user_features.get_sparse()
-        else:
+        if user_features is None:
             raise AttributeError("User features attribute of dataset could not be None")
-        return cls(items=item_features, users=user_features, interactions=ui_matrix)
+        return cls(items=item_features.get_sparse(), users=user_features.get_sparse(), interactions=ui_matrix)
 
     def __len__(self) -> int:
         return self.interactions.shape[0]
@@ -99,7 +110,18 @@ class DSSMDataset(TorchDataset[tp.Any]):
         return user_features, interactions, pos, neg
 
 
-class ItemFeaturesDataset(TorchDataset[tp.Any]):
+class DSSMItemDatasetBase(TorchDataset[tp.Any]):
+    """Base class for DSSM item datasets. Used only for type hinting."""
+
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(cls: tp.Type[DSSMItemDatasetT], dataset: Dataset) -> DSSMItemDatasetT:
+        raise NotImplementedError()
+
+
+class DSSMItemDataset(DSSMItemDatasetBase):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
     Implements `torch.utils.data.Dataset` for subsequent usage with
@@ -113,7 +135,8 @@ class ItemFeaturesDataset(TorchDataset[tp.Any]):
         self.items = items
 
     @classmethod
-    def from_dataset(cls: tp.Type[ID], dataset: Dataset) -> ID:
+    def from_dataset(cls: tp.Type[DSSMItemDatasetT], dataset: Dataset) -> DSSMItemDatasetT:
+        # We take all features here since this dataset is used for recommend only, not for fit
         if dataset.item_features is not None:
             return cls(dataset.item_features.get_sparse())
         raise AttributeError("Item features attribute of dataset could not be None")
@@ -125,7 +148,22 @@ class ItemFeaturesDataset(TorchDataset[tp.Any]):
         return torch.FloatTensor(self.items[idx].toarray().flatten())
 
 
-class UserFeaturesDataset(TorchDataset[tp.Any]):
+class DSSMUserDatasetBase(TorchDataset[tp.Any]):
+    """Base class for DSSM training datasets. Used only for type hinting."""
+
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(
+        cls: tp.Type[DSSMUserDatasetT],
+        dataset: Dataset,
+        keep_users: tp.Optional[tp.Sequence[int]] = None,
+    ) -> DSSMUserDatasetT:
+        raise NotImplementedError()
+
+
+class DSSMUserDataset(DSSMUserDatasetBase):
     """
     Torch dataset wrapper for `rectools.dataset.dataset.Dataset`.
     Implements `torch.utils.data.Dataset` for subsequent usage with
@@ -142,6 +180,8 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
         interactions: sparse.csr_matrix,
         keep_users: tp.Optional[tp.Sequence[int]] = None,
     ):
+        if users.shape[0] != interactions.shape[0]:
+            raise ValueError("Number of rows in user features matrix and in interactions matrix must be the same")
         if keep_users is not None:
             self.users = users[keep_users]
             self.interactions = interactions[keep_users]
@@ -151,14 +191,15 @@ class UserFeaturesDataset(TorchDataset[tp.Any]):
 
     @classmethod
     def from_dataset(
-        cls: tp.Type[UD],
+        cls: tp.Type[DSSMUserDatasetT],
         dataset: Dataset,
         keep_users: tp.Optional[tp.Sequence[int]] = None,
-    ) -> UD:
+    ) -> DSSMUserDatasetT:
+        # We take all features here since this dataset is used for recommend only, not for fit
         if dataset.user_features is not None:
             return cls(
                 dataset.user_features.get_sparse(),
-                dataset.get_user_item_matrix(),
+                dataset.get_user_item_matrix(include_warm_users=True),
                 keep_users,
             )
         raise AttributeError("User features attribute of dataset could not be None")

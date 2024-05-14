@@ -22,16 +22,32 @@ from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
+from rectools.types import AnyIdsArray, InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
-from .base import ModelBase, Scores
+from .base import ModelBase, Scores, SemiInternalRecoTriplet
 from .utils import get_viewed_item_ids
 
-# Experiments have shown that for random sampling without replacement if k / n > 0.025
-# where n - size of population, k - required number of samples
-# it's faster to use `np.random.choice(population, k, replace=False)
-# otherwise it's better to use `random.sample(population, k)
-K_TO_N_MIN_NUMPY_RATIO = 0.025
+
+class _RandomGen:
+    def __init__(self, random_state: tp.Optional[int] = None) -> None:
+        self.python_gen = random.Random(random_state)  # nosec
+        self.np_gen = np.random.default_rng(random_state)
+
+
+class _RandomSampler:
+    def __init__(self, values: np.ndarray, random_gen: _RandomGen) -> None:
+        self.python_gen = random_gen.python_gen
+        self.np_gen = random_gen.np_gen
+        self.values = values
+        self.values_list = list(values)  # for random.sample
+
+    def sample(self, n: int) -> np.ndarray:
+        if n < 25:  # Empiric value, for optimization
+            sampled = np.asarray(self.python_gen.sample(self.values_list, n))
+        else:
+            sampled = self.np_gen.choice(self.values, n, replace=False)
+        return sampled
 
 
 class RandomModel(ModelBase):
@@ -51,9 +67,14 @@ class RandomModel(ModelBase):
         Degree of verbose output. If ``0``, no output will be provided.
     """
 
+    recommends_for_warm = False
+    recommends_for_cold = True
+
     def __init__(self, random_state: tp.Optional[int] = None, verbose: int = 0):
         super().__init__(verbose=verbose)
         self.random_state = random_state
+        self.random_gen = _RandomGen(random_state)
+
         self.all_item_ids: np.ndarray
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
@@ -61,27 +82,20 @@ class RandomModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: np.ndarray,
+        user_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
 
-        if sorted_item_ids_to_recommend is not None:
-            item_ids = np.unique(sorted_item_ids_to_recommend)
-        else:
-            item_ids = self.all_item_ids
-
-        item_indices = list(range(item_ids.size))  # for random.sample
-
-        np.random.seed(self.random_state)
-        random.seed(self.random_state, version=2)
+        item_ids = sorted_item_ids_to_recommend if sorted_item_ids_to_recommend is not None else self.all_item_ids
+        sampler = _RandomSampler(item_ids, self.random_gen)
 
         all_user_ids = []
-        all_reco_ids = []
+        all_reco_ids: tp.List[InternalId] = []
         all_scores: tp.List[float] = []
         for user_id in tqdm(user_ids, disable=self.verbose == 0):
             if filter_viewed:
@@ -91,12 +105,7 @@ class RandomModel(ModelBase):
                 n_reco = k
 
             n_reco = min(n_reco, item_ids.size)
-
-            if n_reco / item_ids.size < K_TO_N_MIN_NUMPY_RATIO:
-                reco_indices = random.sample(item_indices, n_reco)
-                reco_ids = item_ids[reco_indices]
-            else:
-                reco_ids = np.random.choice(item_ids, n_reco, replace=False)
+            reco_ids = sampler.sample(n_reco)
 
             if filter_viewed:
                 reco_ids = reco_ids[fast_isin_for_sorted_test_elements(reco_ids, viewed_ids, invert=True)][:k]
@@ -104,16 +113,37 @@ class RandomModel(ModelBase):
             reco_scores = np.arange(reco_ids.size, 0, -1)
 
             all_user_ids.extend([user_id] * len(reco_ids))
-            all_reco_ids.extend(reco_ids)
-            all_scores.extend(reco_scores)
+            all_reco_ids.extend(reco_ids.tolist())
+            all_scores.extend(reco_scores.tolist())
 
         return all_user_ids, all_reco_ids, all_scores
 
     def _recommend_i2i(
         self,
-        target_ids: np.ndarray,
+        target_ids: InternalIdsArray,
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: tp.Optional[np.ndarray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         return self._recommend_u2i(target_ids, dataset, k, False, sorted_item_ids_to_recommend)
+
+    def _recommend_cold(
+        self,
+        target_ids: AnyIdsArray,
+        dataset: Dataset,
+        k: int,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+    ) -> SemiInternalRecoTriplet:
+        item_ids = sorted_item_ids_to_recommend if sorted_item_ids_to_recommend is not None else self.all_item_ids
+        sampler = _RandomSampler(item_ids, self.random_gen)
+        n_reco = min(k, item_ids.size)
+
+        reco_ids_lst = []
+        for _ in tqdm(target_ids, disable=self.verbose == 0):
+            reco_ids = sampler.sample(n_reco)
+            reco_ids_lst.append(reco_ids)
+
+        reco_item_ids = np.concatenate(reco_ids_lst)
+        reco_target_ids = np.repeat(target_ids, n_reco)
+        reco_scores = np.tile(np.arange(n_reco, 0, -1), len(target_ids))
+        return reco_target_ids, reco_item_ids, reco_scores

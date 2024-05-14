@@ -42,8 +42,8 @@ class TestImplicitALSWrapperModel:
         n_factors = model.factors
         n_users = dataset.user_id_map.to_internal.size
         n_items = dataset.item_id_map.to_internal.size
-        user_factors = np.linspace(0.1, 0.5, n_users * n_factors, dtype=np.float32).reshape(n_users, n_factors)
-        item_factors = np.linspace(0.1, 0.5, n_items * n_factors, dtype=np.float32).reshape(n_items, n_factors)
+        user_factors: np.ndarray = np.linspace(0.1, 0.5, n_users * n_factors, dtype=np.float32).reshape(n_users, -1)
+        item_factors: np.ndarray = np.linspace(0.1, 0.5, n_items * n_factors, dtype=np.float32).reshape(n_items, -1)
 
         if isinstance(model, GPUAlternatingLeastSquares):
             user_factors = implicit.gpu.Matrix(user_factors)
@@ -135,9 +135,9 @@ class TestImplicitALSWrapperModel:
                 N=3,
                 filter_already_liked_items=False,
             )
-            actual_ids = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Item].values
+            actual_ids = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Item].values
             actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
-            actual_scores = actual_reco.query(f"{Columns.User} == @user_id")[Columns.Score].values
+            actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
             np.testing.assert_equal(actual_internal_ids, expected_ids)
             np.testing.assert_allclose(actual_scores, expected_scores, atol=0.01)
 
@@ -171,19 +171,7 @@ class TestImplicitALSWrapperModel:
             items_to_recommend=np.array([11, 13, 17]),
         )
         for uid in (10, 20):
-            assert set(actual.query(f"user_id == {uid}")["item_id"]) == expected[uid]
-
-    @pytest.mark.parametrize("filter_viewed", (True, False))
-    def test_raises_when_new_user(self, dataset: Dataset, filter_viewed: bool, use_gpu: bool) -> None:
-        base_model = AlternatingLeastSquares(factors=2, num_threads=2, random_state=1, use_gpu=use_gpu)
-        model = ImplicitALSWrapperModel(model=base_model).fit(dataset)
-        with pytest.raises(KeyError):
-            model.recommend(
-                users=np.array([10, 50]),
-                dataset=dataset,
-                k=2,
-                filter_viewed=filter_viewed,
-            )
+            assert set(actual.loc[actual[Columns.User] == uid, Columns.Item]) == expected[uid]
 
     @pytest.mark.parametrize(
         "fit_features_together,expected",
@@ -192,9 +180,9 @@ class TestImplicitALSWrapperModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: ["u1", "u1", "u2", "u3", "u3"],
-                        Columns.Item: ["i2", "i4", "i4", "i3", "i2"],
-                        Columns.Rank: [1, 2, 1, 1, 2],
+                        Columns.User: ["u1", "u3", "u3"],
+                        Columns.Item: ["i2", "i3", "i2"],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -202,9 +190,9 @@ class TestImplicitALSWrapperModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: ["u1", "u1", "u2", "u3", "u3"],
-                        Columns.Item: ["i2", "i4", "i4", "i2", "i3"],
-                        Columns.Rank: [1, 2, 1, 1, 2],
+                        Columns.User: ["u1", "u3", "u3"],
+                        Columns.Item: ["i2", "i2", "i3"],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -212,7 +200,7 @@ class TestImplicitALSWrapperModel:
     )
     def test_happy_path_with_features(self, fit_features_together: bool, expected: pd.DataFrame, use_gpu: bool) -> None:
         user_id_map = IdMap.from_values(["u1", "u2", "u3"])
-        item_id_map = IdMap.from_values(["i1", "i2", "i3", "i4"])
+        item_id_map = IdMap.from_values(["i1", "i2", "i3"])
         interactions_df = pd.DataFrame(
             [
                 ["u1", "i1", 0.1, "2021-09-09"],
@@ -337,3 +325,24 @@ class TestImplicitALSWrapperModel:
         base_model = AlternatingLeastSquares(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
         model = ImplicitALSWrapperModel(model=base_model)
         assert_second_fit_refits_model(model, dataset)
+
+    def test_u2i_with_cold_users(self, use_gpu: bool, dataset: Dataset) -> None:
+        base_model = AlternatingLeastSquares(use_gpu=use_gpu)
+        model = ImplicitALSWrapperModel(model=base_model).fit(dataset)
+        with pytest.raises(ValueError, match="doesn't support recommendations for cold users"):
+            model.recommend(
+                users=[10, 20, 50],
+                dataset=dataset,
+                k=2,
+                filter_viewed=False,
+            )
+
+    def test_i2i_with_warm_and_cold_items(self, use_gpu: bool, dataset: Dataset) -> None:
+        base_model = AlternatingLeastSquares(use_gpu=use_gpu)
+        model = ImplicitALSWrapperModel(model=base_model).fit(dataset)
+        with pytest.raises(ValueError, match="doesn't support recommendations for cold items"):
+            model.recommend_to_items(
+                target_items=[11, 12, 16],
+                dataset=dataset,
+                k=2,
+            )

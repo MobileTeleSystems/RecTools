@@ -22,6 +22,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
+from rectools import InternalIds
+
 from .identifiers import IdMap
 
 DIRECT_FEATURE_VALUE = "__is_direct_feature"
@@ -138,6 +140,29 @@ class DenseFeatures:
     def get_sparse(self) -> sparse.csr_matrix:
         """Return values in sparse format."""
         return sparse.csr_matrix(self.values)
+
+    def take(self, ids: InternalIds) -> "DenseFeatures":
+        """
+        Take a subset of features for given subject (user or item) ids.
+
+        Parameters
+        ----------
+        ids : array-like
+            Array of internal ids to select features for.
+
+        Returns
+        -------
+        DenseFeatures
+
+        """
+        return DenseFeatures(
+            values=self.values[ids],
+            names=self.names,
+        )
+
+    def __len__(self) -> int:
+        """Return number of objects."""
+        return self.values.shape[0]
 
 
 SparseFeatureName = tp.Tuple[str, tp.Any]
@@ -402,6 +427,28 @@ class SparseFeatures:
     def get_sparse(self) -> sparse.csr_matrix:
         """Return values in sparse format."""
         return self.values
+
+    def take(self, ids: InternalIds) -> "SparseFeatures":
+        """
+        Take a subset of features for given subject (user or item) ids.
+
+        Parameters
+        ----------
+        ids : array-like
+            Array of internal ids to select features for.
+
+        Returns
+        -------
+        SparseFeatures
+        """
+        return SparseFeatures(
+            values=self.values[ids],
+            names=self.names,
+        )
+
+    def __len__(self) -> int:
+        """Return number of objects."""
+        return self.values.shape[0]
 
 
 Features = tp.Union[DenseFeatures, SparseFeatures]

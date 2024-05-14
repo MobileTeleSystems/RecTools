@@ -16,7 +16,7 @@ import typing as tp
 from itertools import tee
 
 import numpy as np
-from typeguard import check_type
+from typeguard import TypeCheckError, check_type
 
 T = tp.TypeVar("T")
 
@@ -93,9 +93,9 @@ def _is_instance_of_type(obj: tp.Any, type_: AnyType) -> bool:
         Whether `type_` is type of `obj`.
     """
     try:
-        check_type("", obj, type_)
+        check_type(obj, type_)
         return True
-    except TypeError:
+    except TypeCheckError:
         return False
 
 

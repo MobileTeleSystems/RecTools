@@ -1,116 +1,72 @@
 VENV=.venv
-
-ifeq (${OS},Windows_NT)
-	BIN=${VENV}/Scripts
-else
-	BIN=${VENV}/bin
-endif
-
-export PATH := $(BIN):$(PATH)
-
-FLAKE=flake8
-MYPY=mypy
-PYLINT=pylint
-ISORT=isort
-AUTOPEP8=autopep8
-BLACK=black
-CODESPELL=codespell
-BANDIT=bandit
-PYTEST=pytest
-COVERAGE=coverage
+REPORTS=.reports
 
 BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
-REPORTS=reports
+
 
 
 # Installation
 
-reports:
-	@mkdir ${REPORTS}
+.reports:
+	mkdir ${REPORTS}
 
 .venv:
-	@echo "Creating virtualenv...\t\t"
 	poetry install -E all --no-root
-	@echo "[Installed]"
 
-install: .venv reports
+install: .venv .reports
 
 
 # Linters
 
 .isort:
-	@echo "Running isort checks..."
-	@${ISORT} --check ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Isort checks finished]"
+	poetry run isort --check ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .black:
-	@echo "Running black checks..."
-	@${BLACK} --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Black checks finished]"
+	poetry run black --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
 
-.pylint: reports
-	@echo "Running pylint checks..."
-	@${PYLINT} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@${PYLINT} ${SOURCES} ${TESTS} ${BENCHMARK} > ${REPORTS}/pylint.txt
-	@echo "[Pylint checks finished]"
+.pylint:
+	poetry run pylint --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .mypy:
-	@echo "Running mypy checks..."
-	@${MYPY} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Mypy checks finished]"
+	poetry run mypy ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .flake8:
-	@echo "Running flake8 checks...\t"
-	@${FLAKE} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Flake8 checks finished]"
+	poetry run flake8 ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .bandit:
-	@echo "Running bandit checks...\t"
-	@${BANDIT} -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Bandit checks finished]"
+	poetry run bandit -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .codespell:
-	@echo "Running codespell checks...\t"
-	@${CODESPELL} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Codespell checks finished]"
+	poetry run codespell ${SOURCES} ${TESTS} ${BENCHMARK}
 
 
 # Fixers & formatters
 
 .isort_fix:
-	@echo "Fixing isort..."
-	@${ISORT} ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Isort fixed]"
+	poetry run isort ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .autopep8_fix:
-	@echo "Formatting with autopep8..."
-	@${AUTOPEP8} --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Autopep8 fixed]"
+	poetry run autopep8 --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
 
 .black_fix:
-	@echo "Formatting with black..."
-	@${BLACK} -q  ${SOURCES} ${TESTS} ${BENCHMARK}
-	@echo "[Black fixed]"
+	poetry run black -q  ${SOURCES} ${TESTS} ${BENCHMARK}
 
 
 # Tests
 
 .pytest:
-	@echo "Running pytest checks...\t"
-	@PYTHONPATH=. ${PYTEST} ${TESTS} --cov=${SOURCES} --cov-report=xml
+	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	@echo "Running doctest checks...\t"
-	${PYTEST} --doctest-modules ${SOURCES}
+	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py --ignore=rectools/models/lightfm.py
 
-coverage: .venv reports
-	@echo "Running coverage..."
-	${COVERAGE} run --source ${SOURCES} --module pytest
-	${COVERAGE} report
-	${COVERAGE} html -d ${REPORTS}/coverage_html
-	${COVERAGE} xml -o ${REPORTS}/coverage.xml -i
+coverage: .venv .reports
+	poetry run coverage run --source ${SOURCES} --module pytest
+	poetry run coverage report
+	poetry run coverage html -d ${REPORTS}/coverage_html
+	poetry run coverage xml -o ${REPORTS}/coverage.xml -i
 
 
 # Generalization
@@ -128,10 +84,10 @@ test: .venv .test
 # Cleaning
 
 clean:
-	@rm -rf build dist .eggs *.egg-info
-	@rm -rf ${VENV}
-	@rm -rf ${REPORTS}
-	@find . -type d -name '.mypy_cache' -exec rm -rf {} +
-	@find . -type d -name '*pytest_cache*' -exec rm -rf {} +
+	rm -rf build dist .eggs *.egg-info
+	rm -rf ${VENV}
+	rm -rf ${REPORTS}
+	find . -type d -name '.mypy_cache' -exec rm -rf {} +
+	find . -type d -name '*pytest_cache*' -exec rm -rf {} +
 
 reinstall: clean install

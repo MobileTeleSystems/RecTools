@@ -51,7 +51,7 @@ class Serendipity(MetricAtK):
     Evaluates novelty and relevance together.
 
     .. math::
-        Serendipity@k = (\sum_{i=1}^{k+1} max(p(i) - pu(i), 0) * rel(i)) / k
+        Serendipity@k = (\sum_{i=1}^{k} max(p(i) - pu(i), 0) * rel(i)) / k
 
     where
         - :math:`p(i) = (n\_items + 1 - i) / n\_items`

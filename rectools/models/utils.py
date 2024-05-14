@@ -19,10 +19,12 @@ import typing as tp
 import numpy as np
 from scipy import sparse
 
+from rectools.models.base import ScoresArray
+from rectools.types import InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
 
-def get_viewed_item_ids(user_items: sparse.csr_matrix, user_id: int) -> np.ndarray:
+def get_viewed_item_ids(user_items: sparse.csr_matrix, user_id: InternalId) -> InternalIdsArray:
     """
     Return indices of items that user has interacted with.
 
@@ -42,12 +44,12 @@ def get_viewed_item_ids(user_items: sparse.csr_matrix, user_id: int) -> np.ndarr
 
 
 def recommend_from_scores(
-    scores: np.ndarray,
+    scores: ScoresArray,
     k: int,
-    sorted_blacklist: tp.Optional[np.ndarray] = None,
-    sorted_whitelist: tp.Optional[np.ndarray] = None,
+    sorted_blacklist: tp.Optional[InternalIdsArray] = None,
+    sorted_whitelist: tp.Optional[InternalIdsArray] = None,
     ascending: bool = False,
-) -> tp.Tuple[np.ndarray, np.ndarray]:
+) -> tp.Tuple[InternalIdsArray, ScoresArray]:
     """
     Prepare top-k recommendations for a user.
 

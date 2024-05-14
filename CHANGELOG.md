@@ -6,11 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Unreleased
+## [0.6.0] - 13.05.2024
+
+### Added 
+- Warm users/items support in `Dataset` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- Warm and cold users/items support in `ModelBase` and all possible models ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77), [#120](https://github.com/MobileTeleSystems/RecTools/pull/120), [#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- Warm and cold users/items support in `cross_validate` ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- [Breaking] Default value for train dataset type and params for user and item dataset types in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] `n_factors` and `deterministic` params to `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- Hit Rate metric ([#124](https://github.com/MobileTeleSystems/RecTools/pull/124))
+- Python `3.11` support (without `nmslib`) ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+- Python `3.12` support (without `nmslib` and `lightfm`) ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+
+### Changed
+- Changed the logic of choosing random sampler for `RandomModel` and increased the sampling speed ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
+- [Breaking] Changed the logic of `RandomModel`: now the recommendations are different for repeated calls of recommend methods ([#120](https://github.com/MobileTeleSystems/RecTools/pull/120))
+- Torch datasets to support warm recommendations ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] Replaced `include_warm` parameter in `Dataset.get_user_item_matrix` to pair `include_warm_users` and `include_warm_items` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] Renamed torch datasets and `dataset_type` to `train_dataset_type` param in `DSSMModel` ([#122](https://github.com/MobileTeleSystems/RecTools/pull/122))
+- [Breaking] Updated minimum versions of `numpy`, `scipy`, `pandas`, `typeguard` ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+- [Breaking] Set restriction `scipy < 1.13` ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+
+### Removed
+- [Breaking] `return_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#77](https://github.com/MobileTeleSystems/RecTools/pull/77))
+- [Breaking] Python `3.7` support ([#126](https://github.com/MobileTeleSystems/RecTools/pull/126))
+
+
+## [0.5.0] - 22.03.2024
+
+### Added
+- `VisualApp` and `ItemToItemVisualApp` widgets for visual comparison of recommendations ([#80](https://github.com/MobileTeleSystems/RecTools/pull/80), [#82](https://github.com/MobileTeleSystems/RecTools/pull/82), [#85](https://github.com/MobileTeleSystems/RecTools/pull/85),  [#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
+- Methods for conversion `Interactions` to raw form and for getting raw interactions from `Dataset` ([#69](https://github.com/MobileTeleSystems/RecTools/pull/69))
+- `AvgRecPopularity (Average Recommendation Popularity)` to `metrics` ([#81](https://github.com/MobileTeleSystems/RecTools/pull/81))
+- Added `normalized` parameter to `AvgRecPopularity` metric ([#89](https://github.com/MobileTeleSystems/RecTools/pull/89))
+- Added `EASE` model ([#107](https://github.com/MobileTeleSystems/RecTools/pull/107))
+
+### Changed
+- Loosened `pandas`, `torch` and `torch-light` versions for `python >= 3.8` ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
+
+### Fixed
+- Bug in `Interactions.from_raw` method ([#58](https://github.com/MobileTeleSystems/RecTools/pull/58))
+- Mistakes in formulas for Serendipity and MIUF in docstrings ([#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
+- Examples reproducibility on Google Colab ([#115](https://github.com/MobileTeleSystems/RecTools/pull/115))
+
+
+## [0.4.2] - 01.12.2023
 
 ### Added
 - Ability to pass internal ids to `recommend` and `recommend_to_items` methods and get internal ids back ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))
-- `rectools.model_selection.cross_validate` function ([#71](https://github.com/MobileTeleSystems/RecTools/pull/71))
+- `rectools.model_selection.cross_validate` function ([#71](https://github.com/MobileTeleSystems/RecTools/pull/71), [#73](https://github.com/MobileTeleSystems/RecTools/pull/73))
+
+### Changed
+- Loosened `lightfm` version, now it's possible to use 1.16 and 1.17 ([#72](https://github.com/MobileTeleSystems/RecTools/pull/72))
 
 ### Fixed
 - Small bug in `LastNSplitter` with incorrect `i_split` in info ([#70](https://github.com/MobileTeleSystems/RecTools/pull/70))

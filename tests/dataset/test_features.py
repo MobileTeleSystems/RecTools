@@ -27,7 +27,7 @@ from tests.testing_utils import assert_sparse_matrix_equal
 
 
 class TestDenseFeatures:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.values = np.array([[1, 10], [2, 20], [3, 30]])
         self.names = ("f1", "f2")
 
@@ -80,9 +80,25 @@ class TestDenseFeatures:
         features = DenseFeatures(self.values, self.names)
         assert_sparse_matrix_equal(features.get_sparse(), sparse.csr_matrix(self.values))
 
+    def test_take(self) -> None:
+        features = DenseFeatures(self.values, self.names)
+        ids = [2, 1]
+        actual = features.take(ids)
+        np.testing.assert_equal(actual.values, self.values[ids])
+        assert actual.names == self.names
+
+    def test_take_with_nonexistent_ids(self) -> None:
+        features = DenseFeatures(self.values, self.names)
+        with pytest.raises(IndexError):
+            features.take([2, 3])
+
+    def test_len(self) -> None:
+        features = DenseFeatures(self.values, self.names)
+        assert len(features) == 3
+
 
 class TestSparseFeatures:
-    def setup(self) -> None:
+    def setup_method(self) -> None:
         self.values = sparse.csr_matrix(
             [
                 [3.2, 0, 1],
@@ -258,3 +274,19 @@ class TestSparseFeatures:
             SparseFeatures.from_flatten(df, id_map=id_map)
         err_text = e.value.args[0]
         assert column in err_text.lower()
+
+    def test_take(self) -> None:
+        features = SparseFeatures(self.values, self.names)
+        ids = [2, 1]
+        actual = features.take(ids)
+        assert_sparse_matrix_equal(actual.values, self.values[ids])
+        assert actual.names == self.names
+
+    def test_take_with_nonexistent_ids(self) -> None:
+        features = SparseFeatures(self.values, self.names)
+        with pytest.raises(IndexError):
+            features.take([2, 4])
+
+    def test_len(self) -> None:
+        features = SparseFeatures(self.values, self.names)
+        assert len(features) == 4

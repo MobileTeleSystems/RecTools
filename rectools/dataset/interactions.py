@@ -27,7 +27,7 @@ from .identifiers import IdMap
 @attr.s(frozen=True, slots=True)
 class Interactions:
     """
-    Structure to storage info about user-item interactions.
+    Structure to store info about user-item interactions.
 
     Usually it's more convenient to use `from_raw` method instead of direct creating.
 
@@ -111,21 +111,19 @@ class Interactions:
 
         df = pd.DataFrame(
             {
-                Columns.User: interactions[Columns.User].map(user_id_map.to_internal),
-                Columns.Item: interactions[Columns.Item].map(item_id_map.to_internal),
+                Columns.User: user_id_map.convert_to_internal(interactions[Columns.User]),
+                Columns.Item: item_id_map.convert_to_internal(interactions[Columns.Item]),
             },
         )
-        df[Columns.Weight] = interactions[Columns.Weight]
-        df[Columns.Datetime] = interactions[Columns.Datetime]
+        df[Columns.Weight] = interactions[Columns.Weight].values
+        df[Columns.Datetime] = interactions[Columns.Datetime].values
         cls._convert_weight_and_datetime_types(df)
 
         return cls(df)
 
     def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
         """
-        Form an user-item CSR matrix based on `interactions` attribute.
-
-        It is used `Interactions.get_user_item_matrix`, see its documentations for details.
+        Form a user-item CSR matrix based on interactions data.
 
         Parameters
         ----------
@@ -152,3 +150,42 @@ class Interactions:
             ),
         )
         return csr
+
+    def to_external(
+        self,
+        user_id_map: IdMap,
+        item_id_map: IdMap,
+        include_weight: bool = True,
+        include_datetime: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Convert itself to `pd.DataFrame` with replacing internal user and item ids to external ones.
+
+        Parameters
+        ----------
+        user_id_map : IdMap
+            User id map that has to be used for converting internal user ids to external ones.
+        item_id_map : IdMap
+            Item id map that has to be used for converting internal item ids to external ones.
+        include_weight : bool, default ``True``
+            Whether to include weight column into resulting table or not
+        include_datetime : bool, default ``True``
+            Whether to include datetime column into resulting table or not.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        res = pd.DataFrame(
+            {
+                Columns.User: user_id_map.convert_to_external(self.df[Columns.User].values),
+                Columns.Item: item_id_map.convert_to_external(self.df[Columns.Item].values),
+            }
+        )
+
+        if include_weight:
+            res[Columns.Weight] = self.df[Columns.Weight]
+        if include_datetime:
+            res[Columns.Datetime] = self.df[Columns.Datetime]
+
+        return res

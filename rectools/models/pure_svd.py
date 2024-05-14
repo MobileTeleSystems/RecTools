@@ -21,7 +21,8 @@ from scipy.sparse.linalg import svds
 
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models.vector import Distance, Factors, VectorModel
+from rectools.models.rank import Distance
+from rectools.models.vector import Factors, VectorModel
 
 
 class PureSVDModel(VectorModel):
@@ -43,6 +44,9 @@ class PureSVDModel(VectorModel):
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
     """
+
+    recommends_for_warm = False
+    recommends_for_cold = False
 
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
