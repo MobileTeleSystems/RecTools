@@ -525,113 +525,13 @@ class MRR(_RankingMetric):
         per_user = self.calc_per_user_from_merged(merged)
         return per_user.mean()
 
-@attr.s
-class pAUC(_RankingMetric):
 
-    insufficient_cases: str = attr.ib(default="exclude")
-    
-    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
-        """
-        Calculate metric values for all users.
-
-        Parameters
-        ----------
-        reco : pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        interactions : pd.DataFrame
-            Interactions table with columns `Columns.User`, `Columns.Item`.
-
-        Returns
-        -------
-        pd.Series
-            Values of metric (index - user id, values - metric value for every user).
-        """
-        self._check(reco, interactions=interactions)
-        merged_reco = merge_reco(reco, interactions)
-        return self.calc_per_user_from_merged_and_reco(merged_reco, reco)
-
-    def calc_per_user_from_merged_and_reco(self, merged: pd.DataFrame, reco: pd.DataFrame) -> pd.Series:
-        """
-        Calculate metric values for all users from merged recommendations.
-
-        Parameters
-        ----------
-        merged : pd.DataFrame
-            Result of merging recommendations and interactions tables.
-            Can be obtained using `merge_reco` function.
-
-        Returns
-        -------
-        pd.Series
-            Values of metric (index - user id, values - metric value for every user).
-        """
-        merged = merged.drop_duplicates([Columns.User, Columns.Rank])
-        num_pos = merged.groupby(Columns.User).size()
-        if self.insufficient_cases in ["exclude", "raise"]:
-            users_not_full_predicted = merged[merged[Columns.Rank].isna()][Columns.User].unique()
-            
-        merged["__fp"] = 0      
-        max_rank = reco.merge(merged[[Columns.User]].drop_duplicates(), on=Columns.User, how="inner").groupby(Columns.User)[Columns.Rank].max()
-        full_ranks = max_rank.apply(lambda a: list(range(1, a + 1))).explode().rename(Columns.Rank)
-        ranked_reco = merged.merge(full_ranks, on=[Columns.User, Columns.Rank], how="right").sort_values([Columns.User, Columns.Rank])
-        
-        ranked_reco.fillna({"__fp": 1}, inplace=True)
-        ranked_reco["__fp_cumsum"] = ranked_reco.groupby(Columns.User)["__fp"].cumsum()
-
-        if self.insufficient_cases in ["exclude", "raise"]:
-            users_fm_cumcum_max = ranked_reco.groupby(Columns.User)["__fp_cumsum"].max()
-            insufficient_fp_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index.values
-            insufficient_users = np.intersect1d(insufficient_fp_users, users_not_full_predicted)
-            
-            if insufficient_users.any():
-                if self.insufficient_cases == "exclude":
-                    ranked_reco = ranked_reco[~ranked_reco[Columns.User].isin(insufficient_users)]
-                    num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
-                else:
-                    raise ValueError(f"""
-                        pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
-                        Or all items from user interactions ranked in reco meaning that all other reco will be negatives.
-                        There are {len(insufficient_users)} users with less negatives.
-                        For correct pAUC computation please provied each user with sufficient number
-                        of recommended items. It fill be enough to have `n_user_positives` + `pAUC_k`
-                        recommended items for each user.
-                        You can disable this error by specifying `insufficient_cases` = "don't check" or
-                        by dropping all users with insuffissient recommendations from metric computation
-                        with `insufficient_cases` = "drop"
-                        """)
-
-        cropped = ranked_reco[ranked_reco["__fp_cumsum"] < self.k].copy()
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * (cropped["__fp"] - 1) * (-1)
-        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
-        pauc = pauc_numenator / (num_pos * self.k)
-        return pauc.fillna(0)
-
-    def calc_from_merged_and_reco(self, merged: pd.DataFrame, reco: pd.DataFrame) -> float:
-        """
-        Calculate metric value from merged recommendations.
-
-        Parameters
-        ----------
-        merged : pd.DataFrame
-            Result of merging recommendations and interactions tables.
-            Can be obtained using `merge_reco` function.
-
-        Returns
-        -------
-        float
-            Value of metric (average between users).
-        """
-        per_user = self.calc_per_user_from_merged_and_reco(merged, reco)
-        return per_user.mean()
-
-
-RankingMetric = tp.Union[NDCG, MAP, MRR, pAUC]
+RankingMetric = tp.Union[NDCG, MAP, MRR]
 
 
 def calc_ranking_metrics(
     metrics: tp.Dict[str, RankingMetric],
     merged: pd.DataFrame,
-    reco: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
     Calculate any ranking metrics (MAP, NDCG and MRR for now).
@@ -662,11 +562,6 @@ def calc_ranking_metrics(
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(merged)
-            
-    for ranking_metric_cls in [pAUC]:
-        pauc_metrics: tp.Dict[str, pAUC] = select_by_type(metrics, ranking_metric_cls)
-        for name, metric in pauc_metrics.items():
-            results[name] = metric.calc_from_merged_and_reco(merged, reco)
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:

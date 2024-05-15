@@ -92,3 +92,43 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
         how="left",
     )
     return merged
+
+
+def outer_merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merge recommendation table with interactions table with outer join and provide full ranks.
+    This method is useful for AUC based metrics.
+
+    Parameters
+    ----------
+    reco : pd.DataFrame
+        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+    interactions : pd.DataFrame
+        Interactions table with columns `Columns.User`, `Columns.Item`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Result of merging with added `__test_positive` boolean column.
+    """
+    print(reco)
+    print(interactions)
+    prepared_interactions = interactions.drop_duplicates(Columns.UserItem).reindex(columns=Columns.UserItem).copy()
+    prepared_interactions["__test_positive"] = True
+    test_users = prepared_interactions[Columns.User].drop_duplicates()
+    prepared_reco = reco.merge(test_users, on=Columns.User, how="inner").reindex(
+        columns=Columns.UserItem + [Columns.Rank]
+    )
+    merged = pd.merge(
+        prepared_interactions,
+        prepared_reco,
+        on=Columns.UserItem,
+        how="outer",
+    )
+    max_rank = prepared_reco.groupby(Columns.User)[Columns.Rank].max()
+    full_ranks = max_rank.apply(lambda a: list(range(1, a + 1))).explode().rename(Columns.Rank)
+    ranked_reco = merged.merge(full_ranks, on=[Columns.User, Columns.Rank], how="outer").sort_values(
+        [Columns.User, Columns.Rank]
+    )
+    ranked_reco["__test_positive"] = ranked_reco["__test_positive"].fillna(False)
+    return ranked_reco
