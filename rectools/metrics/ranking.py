@@ -528,7 +528,7 @@ class MRR(_RankingMetric):
 @attr.s
 class pAUC(_RankingMetric):
 
-    insufficient_cases: str = attr.ib(default="drop")
+    insufficient_cases: str = attr.ib(default="exclude")
     
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
@@ -565,12 +565,13 @@ class pAUC(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        merged = merged.drop_duplicates([Columns.User, Columns.Rank])
         num_pos = merged.groupby(Columns.User).size()
         if self.insufficient_cases in ["exclude", "raise"]:
             users_not_full_predicted = merged[merged[Columns.Rank].isna()][Columns.User].unique()
             
         merged["__fp"] = 0      
-        max_rank = reco.groupby(Columns.User)[Columns.Rank].max()
+        max_rank = reco.merge(merged[[Columns.User]].drop_duplicates(), on=Columns.User, how="inner").groupby(Columns.User)[Columns.Rank].max()
         full_ranks = max_rank.apply(lambda a: list(range(1, a + 1))).explode().rename(Columns.Rank)
         ranked_reco = merged.merge(full_ranks, on=[Columns.User, Columns.Rank], how="right").sort_values([Columns.User, Columns.Rank])
         
