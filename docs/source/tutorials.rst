@@ -14,3 +14,4 @@ See tutorials here: https://github.com/MobileTeleSystems/RecTools/tree/main/exam
    examples/5_benchmark_iALS_with_features
    examples/6_benchmark_lightfm_inference
    examples/7_visualization
+   examples/8_baseline_extended_tutorial
