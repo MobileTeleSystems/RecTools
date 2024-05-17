@@ -100,3 +100,4 @@ The package also provides tools that allow to evaluate metrics as easy and as fa
    benchmarks
    faq
    support
+   examples
