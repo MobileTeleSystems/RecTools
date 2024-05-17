@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- Plotly scatterplot widget for metric-to-metric comparison ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140))
+- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140))
 
 ## [0.6.0] - 13.05.2024
 
