@@ -69,7 +69,7 @@ attrs = ">=19.1.0,<24.0.0"
 typeguard = "^4.1.0"
 
 
-lightfm = {git = "https://github.com/lyst/lightfm", rev = "0c9c31e", optional = true}
+lightfm = {git = "https://github.com/lyst/lightfm", rev = "0c9c31e", python = "<3.12", optional = true}
 
 nmslib = {version = "^2.0.4", python = "<3.11", optional = true}
 
