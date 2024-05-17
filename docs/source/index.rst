@@ -96,6 +96,7 @@ The package also provides tools that allow to evaluate metrics as easy and as fa
 
    features
    api
+   examples
    tutorials
    benchmarks
    faq
