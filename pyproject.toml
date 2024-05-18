@@ -76,7 +76,11 @@ lightfm = {git = "https://github.com/lyst/lightfm", rev = "0c9c31e", python = "<
 
 nmslib = {version = "^2.0.4", python = "<3.11", optional = true}
 
-torch = {version = ">=1.6.0, <3.0.0", optional = true}
+# The latest torch version available for MacOSX + x86_64 is 2.2.2
+torch = [
+    {version = ">=1.6.0, <2.3.0", markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'", optional = true},
+    {version = ">=1.6.0, <3.0.0", optional = true}
+]
 pytorch-lightning = {version = ">=1.6.0, <3.0.0", optional = true}
 
 ipywidgets = {version = ">=7.7,<8.2", optional = true}
