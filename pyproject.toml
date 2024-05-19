@@ -77,7 +77,7 @@ torch = {version = ">=1.6.0, <3.0.0", optional = true}
 pytorch-lightning = {version = ">=1.6.0, <3.0.0", optional = true}
 
 ipywidgets = {version = ">=7.7,<8.2", optional = true}
-plotly = "^5.22.0"
+plotly = {version="^5.22.0", optional = true}
 
 
 [tool.poetry.extras]
