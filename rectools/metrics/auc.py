@@ -57,9 +57,9 @@ class _AUCMetric(MetricAtK):
         per_user = self.calc_per_user(reco, interactions)
         return per_user.mean()
 
-    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+    def calc_per_user_from_outer_merged(self, outer_merged: pd.DataFrame) -> pd.Series:
         """
-        Calculate metric values for all users.
+        Calculate metric values for all users from outer merged recommendations.
 
         Parameters
         ----------
@@ -74,16 +74,6 @@ class _AUCMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         raise NotImplementedError()
-
-
-@attr.s
-class PAUC(_AUCMetric):
-    r"""
-    Partial AUC at k (pAUC@k).
-    Write all info here
-    """
-
-    insufficient_cases: str = attr.ib(default="exclude")
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
@@ -104,6 +94,34 @@ class PAUC(_AUCMetric):
         self._check(reco, interactions=interactions)
         outer_merged_reco = outer_merge_reco(reco, interactions)
         return self.calc_per_user_from_outer_merged(outer_merged_reco)
+
+    def calc_from_outer_merged(self, outer_merged: pd.DataFrame) -> float:
+        """
+        Calculate metric value from merged recommendations.
+
+        Parameters
+        ----------
+        outer_merged : pd.DataFrame
+            Result of merging recommendations and interactions tables with `outer` logic and full ranks provided.
+            Can be obtained using `outer_merge_reco` function.
+
+        Returns
+        -------
+        float
+            Value of metric (average between users).
+        """
+        per_user = self.calc_per_user_from_outer_merged(outer_merged)
+        return per_user.mean()
+
+
+@attr.s
+class PAUC(_AUCMetric):
+    r"""
+    Partial AUC at k (pAUC@k).
+    Write all info here
+    """
+
+    insufficient_cases: str = attr.ib(default="exclude")
 
     def calc_per_user_from_outer_merged(self, outer_merged: pd.DataFrame) -> pd.Series:
         """
@@ -159,9 +177,18 @@ class PAUC(_AUCMetric):
         pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
         return pauc
 
-    def calc_from_outer_merged(self, outer_merged: pd.DataFrame) -> float:
+@attr.s
+class PAP(_AUCMetric):
+    r"""
+    Partial AUC ... at k (pAp@k).
+    Write all info here
+    """
+
+    insufficient_cases: str = attr.ib(default="exclude")
+
+    def calc_per_user_from_outer_merged(self, outer_merged: pd.DataFrame) -> pd.Series:
         """
-        Calculate metric value from merged recommendations.
+        Calculate metric values for all users from outer merged recommendations.
 
         Parameters
         ----------
@@ -171,14 +198,54 @@ class PAUC(_AUCMetric):
 
         Returns
         -------
-        float
-            Value of metric (average between users).
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
-        per_user = self.calc_per_user_from_outer_merged(outer_merged)
-        return per_user.mean()
+        # only these 2 lined added
+        outer_merged["__test_pos_cumsum"] = outer_merged.groupby("user_id")["__test_positive"].cumsum()
+        outer_merged = outer_merged[outer_merged["__test_pos_cumsum"] <= self.k].copy()
+        
+        num_pos = outer_merged[outer_merged["__test_positive"]].groupby(Columns.User).size()
+        
+        if self.insufficient_cases in ["exclude", "raise"]:
+            users_not_full_predicted = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
 
+        outer_merged["__fp"] = (~outer_merged[Columns.Rank].isna()) & (~outer_merged["__test_positive"])
+        outer_merged["__fp_cumsum"] = outer_merged.groupby(Columns.User)["__fp"].cumsum()  # TODO: test on boolean
 
-AucMetric = tp.Union[PAUC]
+        if self.insufficient_cases in ["exclude", "raise"]:
+            users_fm_cumcum_max = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
+            insufficient_fp_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index.values
+            insufficient_users = np.intersect1d(insufficient_fp_users, users_not_full_predicted)
+
+            if insufficient_users.any():
+                if self.insufficient_cases == "exclude":
+                    outer_merged = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)]
+                    num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
+                else:
+                    raise ValueError(
+                        f"""
+                        pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
+                        Or all items from user interactions ranked in reco meaning that all other reco will be
+                        negatives.
+                        There are {len(insufficient_users)} users with less negatives.
+                        For correct pAUC computation please provide each user with sufficient number
+                        of recommended items. It fill be enough to have `n_user_positives` + `pAUC_k`
+                        recommended items for each user.
+                        You can disable this error by specifying `insufficient_cases` = "don't check" or
+                        by dropping all users with insuffissient recommendations from metric computation
+                        with `insufficient_cases` = "drop"
+                        """
+                    )
+
+        cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
+        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * (cropped["__fp"] - 1) * (-1)
+        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        pauc_denominator = num_pos * self.k
+        pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
+        return pauc
+
+AucMetric = tp.Union[PAUC, PAP]
 
 
 def calc_auc_metrics(
@@ -210,8 +277,8 @@ def calc_auc_metrics(
     """
     results = {}
 
-    for auc_metric_cls in [PAUC]:
-        pauc_metrics: tp.Dict[str, PAUC] = select_by_type(metrics, auc_metric_cls)
+    for auc_metric_cls in [PAUC, PAP]:
+        pauc_metrics: tp.Dict[str, AucMetric] = select_by_type(metrics, auc_metric_cls)
         for name, metric in pauc_metrics.items():
             results[name] = metric.calc_from_outer_merged(outer_merged)
 

@@ -29,7 +29,8 @@ Metrics
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
-`metrics.pAUC`
+`metrics.PAUC`
+`metrics.PAP`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.AvgRecPopularity`
@@ -44,7 +45,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
-from .auc import PAUC
+from .auc import PAUC, PAP
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .distances import (
     PairwiseDistanceCalculator,
@@ -68,6 +69,7 @@ __all__ = (
     "MAP",
     "NDCG",
     "PAUC",
+    "PAP",
     "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",
