@@ -30,6 +30,7 @@ class MetricsApp:
         self.auto_display = auto_display
         self.default_plotly_kwargs = {"width": DEFAULT_WIDTH, "height": DEFAULT_HEIGHT}
         self.plotly_kwargs = {**self.default_plotly_kwargs, **(plotly_kwargs if plotly_kwargs is not None else {})}
+
         self.fig = go.Figure()
 
         self._validate_input_data()
@@ -74,51 +75,46 @@ class MetricsApp:
     def _make_chart_data_avg(self) -> pd.DataFrame:
         return self.metrics_data.drop(columns=Columns.Split).groupby(Columns.Model, sort=False).mean().reset_index()
 
-    def _update_fig(self, metric_x: str, metric_y: str, avg_folds: bool, fold_number: tp.Optional[int]) -> None:
-        if avg_folds:
-            chart_data = self._make_chart_data_avg()
-        elif fold_number is not None:
-            chart_data = self._make_chart_data(fold_number)
-        else:
-            raise ValueError("`fold_number` must be provided when `avg_folds` is False")
+    def _update_chart(
+        self,
+        metric_x: widgets.Dropdown,
+        metric_y: widgets.Dropdown,
+        use_avg: widgets.Checkbox,
+        fold: widgets.Dropdown,
+        scatter_chart: widgets.Output,
+    ) -> None:
+        with scatter_chart:
+            scatter_chart.clear_output(wait=True)
+            chart_data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold.value)
+            self.fig = px.scatter(
+                chart_data, x=metric_x.value, y=metric_y.value, color=Columns.Model, **self.plotly_kwargs
+            )
+            self.fig.layout.update(showlegend=self.show_legend)
+            self.fig.show()
 
-        self.fig = px.scatter(
-            chart_data,
-            x=metric_x,
-            y=metric_y,
-            color=Columns.Model,
-            **self.plotly_kwargs,
-        )
-        self.fig.layout.update(showlegend=self.show_legend)
+    def _toggle_fold_number_visibility(self, fold: widgets.Dropdown, use_avg: widgets.Checkbox) -> None:
+        fold.layout.visibility = "hidden" if use_avg.value else "visible"
 
     def display(self) -> None:
         """TODO: add dosctring"""
-        metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
-        metric_y = widgets.Dropdown(description="Metric Y:", value=self.metric_names[-1], options=self.metric_names)
-        container_metrics = widgets.HBox(children=[metric_x, metric_y])
-
+        metric_x = widgets.Dropdown(description="Metric X:", options=self.metric_names, value=self.metric_names[0])
+        metric_y = widgets.Dropdown(description="Metric Y:", options=self.metric_names, value=self.metric_names[-1])
         use_avg = widgets.Checkbox(description="Avg folds", value=True)
-        fold_number = widgets.Dropdown(description="Fold number:", value=0, options=list(range(self.n_folds)))
-
-        def toggle_fold_number_visibility(*args: tp.Any) -> None:
-            fold_number.layout.visibility = "hidden" if use_avg.value else "visible"
-
-        use_avg.observe(toggle_fold_number_visibility, "value")
-        toggle_fold_number_visibility()
-
-        container_folds = widgets.HBox(children=[use_avg, fold_number])
+        fold = widgets.Dropdown(description="Fold number:", options=list(range(self.n_folds)), value=0)
         scatter_chart = widgets.Output()
 
-        def update_chart(*args: tp.Any) -> None:
-            with scatter_chart:
-                scatter_chart.clear_output(wait=True)
-                self._update_fig(metric_x.value, metric_y.value, use_avg.value, fold_number.value)
-                self.fig.show()
+        metric_x.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
+        metric_y.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
+        use_avg.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
+        use_avg.observe(lambda change: self._toggle_fold_number_visibility(fold, use_avg), "value")
+        fold.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
 
-        metric_x.observe(update_chart, "value")
-        metric_y.observe(update_chart, "value")
-        use_avg.observe(update_chart, "value")
-        fold_number.observe(update_chart, "value")
+        container_metrics = widgets.HBox(children=[metric_x, metric_y])
+        container_folds = widgets.HBox(children=[use_avg, fold])
+        scatter_chart = widgets.Output()
 
-        update_chart()
+        # trigger first chart update
+        self._toggle_fold_number_visibility(fold, use_avg)
+        self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart)
+
         display(widgets.VBox([container_folds, container_metrics, scatter_chart]))
