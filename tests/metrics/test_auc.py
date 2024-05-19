@@ -232,12 +232,12 @@ class TestPAP:
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
-    #     # this one is actually useful
+    # this one is actually useful
     @pytest.mark.parametrize(
         "k, insufficient_cases, expected_pauc, expected_users",
         (
-            (1, "don't check", [1, 0], [1, 2]),
-            (1, "exclude", [1, 0], [1, 2]),
+            (2, "don't check", [1 / 2, 0], [1, 2]),
+            (2, "exclude", [0], [2]),
         ),
     )
     def test_when_duplicates_in_interactions_insufficient(
@@ -245,9 +245,9 @@ class TestPAP:
     ) -> None:
         reco = pd.DataFrame(
             {
-                Columns.User: [1, 1, 1, 2, 2, 2],
-                Columns.Item: [1, 2, 3, 1, 2, 3],
-                Columns.Rank: [1, 2, 3, 4, 5, 6],
+                Columns.User: [1, 2, 2, 2],
+                Columns.Item: [1, 1, 2, 3],
+                Columns.Rank: [1, 4, 5, 6],
             }
         )
         interactions = pd.DataFrame(
