@@ -42,7 +42,7 @@ class TestMetricsApp:
     ) -> None:
         with patch("rectools.visuals.metrics_app.MetricsApp.display", MagicMock()):
             MetricsApp.construct(
-                df_metrics_data=DF_METRICS,
+                models_metrics=DF_METRICS,
                 show_legend=show_legend,
                 auto_display=auto_display,
                 plotly_kwargs=plotly_kwargs,
@@ -51,7 +51,7 @@ class TestMetricsApp:
     def test_no_metric_columns(self) -> None:
         with pytest.raises(KeyError):
             MetricsApp.construct(
-                df_metrics_data=pd.DataFrame(
+                models_metrics=pd.DataFrame(
                     {
                         Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
                         Columns.Split: [0, 0, 1, 1, 2, 2],
@@ -62,7 +62,7 @@ class TestMetricsApp:
     def test_no_model_column(self) -> None:
         with pytest.raises(KeyError):
             MetricsApp.construct(
-                df_metrics_data=pd.DataFrame(
+                models_metrics=pd.DataFrame(
                     {
                         Columns.Split: [0, 0, 1, 1, 2, 2],
                         "prec@10": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
