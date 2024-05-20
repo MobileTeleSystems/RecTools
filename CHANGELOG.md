@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- Extended Theory&Practice RecSys baselines tutorial ([#139](https://github.com/MobileTeleSystems/RecTools/pull/139))
+- Extended Theory&Practice RecSys baselines tutorial ([#144](https://github.com/MobileTeleSystems/RecTools/pull/144))
 
 
 ## [0.6.0] - 13.05.2024
