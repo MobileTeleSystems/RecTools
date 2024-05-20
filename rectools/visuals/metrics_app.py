@@ -77,11 +77,11 @@ class MetricsApp:
 
     def _update_chart(
         self,
+        scatter_chart: widgets.Output,
         metric_x: widgets.Dropdown,
         metric_y: widgets.Dropdown,
         use_avg: widgets.Checkbox,
         fold: widgets.Dropdown,
-        scatter_chart: widgets.Output,
     ) -> None:
         with scatter_chart:
             scatter_chart.clear_output(wait=True)
@@ -103,11 +103,11 @@ class MetricsApp:
         fold = widgets.Dropdown(description="Fold number:", options=list(range(self.n_folds)), value=0)
         scatter_chart = widgets.Output()
 
-        metric_x.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
-        metric_y.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
-        use_avg.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
-        use_avg.observe(lambda change: self._toggle_fold_number_visibility(fold, use_avg), "value")
-        fold.observe(lambda change: self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart), "value")
+        metric_x.observe(lambda upd: self._update_chart(scatter_chart, metric_x, metric_y, use_avg, fold), "value")
+        metric_y.observe(lambda upd: self._update_chart(scatter_chart, metric_x, metric_y, use_avg, fold), "value")
+        use_avg.observe(lambda upd: self._update_chart(scatter_chart, metric_x, metric_y, use_avg, fold), "value")
+        use_avg.observe(lambda upd: self._toggle_fold_number_visibility(fold, use_avg), "value")
+        fold.observe(lambda upd: self._update_chart(scatter_chart, metric_x, metric_y, use_avg, fold), "value")
 
         container_metrics = widgets.HBox(children=[metric_x, metric_y])
         container_folds = widgets.HBox(children=[use_avg, fold])
@@ -115,6 +115,6 @@ class MetricsApp:
 
         # trigger first chart update
         self._toggle_fold_number_visibility(fold, use_avg)
-        self._update_chart(metric_x, metric_y, use_avg, fold, scatter_chart)
+        self._update_chart(scatter_chart, metric_x, metric_y, use_avg, fold)
 
         display(widgets.VBox([container_folds, container_metrics, scatter_chart]))
