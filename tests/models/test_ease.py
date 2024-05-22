@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import tempfile
 import typing as tp
 
 import numpy as np
@@ -220,3 +221,14 @@ class TestEASEModel:
                 dataset=dataset,
                 k=2,
             )
+
+    def test_save_and_load_model_ease(self, dataset: Dataset, tmp_path) -> None:
+        model = EASEModel(regularization=500).fit(dataset)
+        file = tmp_path / 'model.npz'
+        model.save_model(file)
+
+        actual = EASEModel()
+        actual.load_model(file)
+
+        np.testing.assert_array_equal(model.weight, actual.weight)
+        assert model.regularization == actual.regularization

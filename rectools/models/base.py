@@ -314,6 +314,32 @@ class ModelBase:
         reco_df = self._make_reco_table(reco_all, Columns.TargetItem, add_rank_col)
         return reco_df
 
+    def save_model(self, file_path: str) -> None:
+        """
+        Save the model to the specified file.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to the file where the model will be saved.
+        """
+        params = {key: value for key, value in vars(self).items() if not key.startswith("_")}
+        print('TESTING PARAMS', params)
+        np.savez(file_path, **params)
+
+    def load_model(self, file_path: str) -> None:
+        """
+        Load the model from the specified file.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to the file from which the model will be loaded.
+        """
+        data = np.load(file_path)
+        for key in data:
+            setattr(self, key, data[key])
+
     def _check_is_fitted(self) -> None:
         if not self.is_fitted:
             raise NotFittedError(self.__class__.__name__)
