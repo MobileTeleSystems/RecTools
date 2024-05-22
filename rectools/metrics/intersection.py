@@ -1,6 +1,7 @@
 from typing import Optional
 
 import attr
+import numpy as np
 import pandas as pd
 
 from rectools import Columns
@@ -71,7 +72,10 @@ class Intersection(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         self._check(reco)
-        self._check(ref_reco)
+        assert set(ref_reco.columns) >= {Columns.User, Columns.Item, Columns.Rank}
+
+        if ref_reco.shape[0] == 0:
+            return pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
         filtered_reco = reco[reco[Columns.Rank] <= self.k]
 
