@@ -97,7 +97,7 @@ all = [
     "lightfm",
     "nmslib", 
     "torch", "pytorch-lightning",
-    "ipywidgets", "plotly",
+    "ipywidgets", "plotly", "kaleido"
 ]
 
 
