@@ -15,18 +15,18 @@ class TestIntersection:
         (
             (2, 2, [1, 2, 4, 5], [0.0, 1.0, 1 / 2, 1 / 3]),
             (3, None, [1, 2, 4, 5], [1 / 2, 1.0, 1 / 2, 2 / 3]),
-            (3, 6, [1, 2, 3, 4, 5], [1 / 2, 1.0, 0.0, 1 / 2, 2 / 3]),
+            (3, 6, [1, 2, 4, 5], [1 / 2, 1.0, 1.0, 1.0]),
         ),
     )
     def test_calc(self, k: int, ref_k: int, expected_users: List[int], expected_intersection: List[float]) -> None:
-        ref_reco = pd.DataFrame(
+        reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 5],
                 Columns.Item: [1, 2, 1, 1, 2, 1, 2, 3, 1, 2, 3, 4],
                 Columns.Rank: [3, 1, 1, 7, 5, 2, 1, 8, 1, 2, 2, 9],
             }
         )
-        reco = pd.DataFrame(
+        ref_reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 5],
                 Columns.Item: [1, 3, 1, 1, 2, 1, 2, 3, 1, 2, 3, 4],

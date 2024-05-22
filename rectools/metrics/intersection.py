@@ -11,7 +11,17 @@ from rectools.metrics.classification import Recall
 @attr.s
 class Intersection(MetricAtK):
     """
-    Metric to measure intersection in user-item (or item-item) pairs between recommendation lists.
+    Metric to measure intersection in user-item pairs between recommendation lists.
+
+    The intersection@k equals the share of ``reco`` that is present in ``ref_reco``.
+
+    This corresponds to the following algorithm:
+        1) filter ``reco`` by ``k``
+        2) filter ``ref_reco`` by ``ref_k``
+        3) calculate the proportion of items in ``reco`` that are also present in ``ref_reco``
+    The second and third steps are equivalent to computing Recall@ref_k when:
+        - Interactions consists of ``reco`` without the `Columns.Rank` column.
+        - Recommendation table is ``ref_reco``
 
     Parameters
     ----------
@@ -29,9 +39,9 @@ class Intersection(MetricAtK):
             Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         ref_reco : pd.DataFrame
             Reference recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        ref_k : Optional[int]
+        ref_k : int, optional
             Number of items in top of reference recommendations list that will be used to calculate metric.
-            If k_res is None than ref_recos will be filtered with ref_k = self.k. Default: None.
+            If ``ref_k`` is None than ``ref_reco`` will be filtered with ``ref_k = k``. Default: None.
 
         Returns
         -------
@@ -51,9 +61,9 @@ class Intersection(MetricAtK):
             Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         ref_reco : pd.DataFrame
             Reference recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        ref_k : Optional[int]
+        ref_k : int, optional
             Number of items in top of reference recommendations list that will be used to calculate metric.
-            If k_res is None than ref_recos will be filtered with ref_k = self.k. Default: None.
+            If ``ref_k`` is None than ``ref_reco`` will be filtered with ``ref_k = self.k``. Default: None.
 
         Returns
         -------
@@ -63,9 +73,10 @@ class Intersection(MetricAtK):
         self._check(reco)
         self._check(ref_reco)
 
+        filtered_reco = reco[reco[Columns.Rank] <= self.k]
+
         if not ref_k:
             ref_k = self.k
-        filtered_ref_reco = ref_reco[ref_reco[Columns.Rank] <= ref_k]
+        recall = Recall(k=ref_k)
 
-        recall = Recall(k=self.k)
-        return recall.calc_per_user(reco, filtered_ref_reco[Columns.UserItem])
+        return recall.calc_per_user(ref_reco, filtered_reco[Columns.UserItem])
