@@ -1,8 +1,6 @@
-import typing as tp
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import plotly.express as px
 import pytest
 
 from rectools import Columns
@@ -21,31 +19,16 @@ DF_METRICS = pd.DataFrame(
 class TestMetricsApp:
     @pytest.mark.parametrize("show_legend", (True, False))
     @pytest.mark.parametrize("auto_display", (True, False))
-    @pytest.mark.parametrize(
-        "plotly_kwargs",
-        [
-            None,
-            {"width": None, "height": None, "color_discrete_sequence": None},
-            {"width": 0, "height": 0, "color_discrete_sequence": px.colors.qualitative.Plotly},
-            {
-                "width": 800,
-                "height": 600,
-                "color_discrete_sequence": ["#0d0887", "#46039f", "#7201a8", "#9c179e", "#bd3786", "#d8576b"],
-            },
-        ],
-    )
     def test_happy_path(
         self,
         show_legend: bool,
         auto_display: bool,
-        plotly_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
     ) -> None:
         with patch("rectools.visuals.metrics_app.MetricsApp.display", MagicMock()):
             MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 show_legend=show_legend,
                 auto_display=auto_display,
-                plotly_kwargs=plotly_kwargs,
             )
 
     def test_no_metric_columns(self) -> None:

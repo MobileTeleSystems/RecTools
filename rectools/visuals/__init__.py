@@ -22,11 +22,13 @@ Recommendations visualization
 ---------
 `visuals.VisualApp` - Jupyter app for visual comparison of recommendations
 `visuals.ItemToItemVisualApp` - Jupyter app for visual comparison of item-to-item recommendations
+`visuals.MetricsApp` - Jupyter app for visual metrics comparison
 """
 
 try:
+    from .metrics_app import MetricsApp
     from .visual_app import ItemToItemVisualApp, VisualApp
 except ImportError:  # pragma: no cover
-    from ..compat import ItemToItemVisualApp, VisualApp  # type: ignore
+    from ..compat import ItemToItemVisualApp, MetricsApp, VisualApp  # type: ignore
 
-__all__ = ("VisualApp", "ItemToItemVisualApp")
+__all__ = ("VisualApp", "ItemToItemVisualApp", "MetricsApp")
