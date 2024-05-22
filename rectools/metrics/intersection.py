@@ -31,7 +31,7 @@ class Intersection(MetricAtK):
             Reference recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         ref_k : Optional[int]
             Number of items in top of reference recommendations list that will be used to calculate metric.
-            If k_res is not None than ref_recos will be filtered. Default: None.
+            If k_res is None than ref_recos will be filtered with ref_k = self.k. Default: None.
 
         Returns
         -------
@@ -53,7 +53,7 @@ class Intersection(MetricAtK):
             Reference recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         ref_k : Optional[int]
             Number of items in top of reference recommendations list that will be used to calculate metric.
-            If k_res is not None than ref_recos will be filtered. Default: None.
+            If k_res is None than ref_recos will be filtered with ref_k = self.k. Default: None.
 
         Returns
         -------
@@ -64,7 +64,7 @@ class Intersection(MetricAtK):
         self._check(ref_reco)
 
         if not ref_k:
-            ref_k = ref_reco[Columns.Rank].max()
+            ref_k = self.k
         filtered_ref_reco = ref_reco[ref_reco[Columns.Rank] <= ref_k]
 
         recall = Recall(k=self.k)
