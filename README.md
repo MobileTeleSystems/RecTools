@@ -87,11 +87,6 @@ Install all extensions:
 pip install rectools[all]
 ```
 
-**Important:** If you're using `poetry` and you want to add `rectools` to your project, then you should either install `rectools` without `lightfm` extras or use `poetry==1.4.0` and add to your `poetry.toml` file the next lines:
-```
-[experimental]
-new-installer = false
-```
 
 ## Recommender Models
 The table below lists recommender models that are available in RecTools. 
