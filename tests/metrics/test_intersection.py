@@ -34,9 +34,9 @@ class TestIntersection:
             }
         )
 
-        intersection_metric = Intersection(k=k)
+        intersection_metric = Intersection(k=k, ref_k=ref_k)
 
-        metric_per_user = intersection_metric.calc_per_user(reco, ref_reco, ref_k)
+        metric_per_user = intersection_metric.calc_per_user(reco, ref_reco)
         expected_metric_per_user = pd.Series(
             expected_intersection,
             index=pd.Series(expected_users, name=Columns.User),
@@ -44,7 +44,7 @@ class TestIntersection:
         )
         pd.testing.assert_series_equal(metric_per_user, expected_metric_per_user)
 
-        metric = intersection_metric.calc(reco, ref_reco, ref_k)
+        metric = intersection_metric.calc(reco, ref_reco)
         assert np.allclose(metric, expected_metric_per_user.mean())
 
     def test_when_no_ref_reco(self) -> None:

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Hashable, Optional, Union
 
 import attr
 import numpy as np
@@ -7,9 +7,10 @@ import pandas as pd
 from rectools import Columns
 from rectools.metrics.base import MetricAtK
 from rectools.metrics.classification import Recall
+from rectools.utils import select_by_type
 
 
-@attr.s
+@attr.s(auto_attribs=True)
 class Intersection(MetricAtK):
     """
     Metric to measure intersection in user-item pairs between recommendation lists.
@@ -28,9 +29,14 @@ class Intersection(MetricAtK):
     ----------
     k : int
         Number of items in top of recommendations list that will be used to calculate metric.
+    ref_k : int, optional
+        Number of items in top of reference recommendations list that will be used to calculate metric.
+        If ``ref_k`` is None than ``ref_reco`` will be filtered with ``ref_k = k``. Default: None.
     """
 
-    def calc(self, reco: pd.DataFrame, ref_reco: pd.DataFrame, ref_k: Optional[int] = None) -> float:
+    ref_k: Optional[int] = attr.ib(default=None)
+
+    def calc(self, reco: pd.DataFrame, ref_reco: pd.DataFrame) -> float:
         """
         Calculate metric value.
 
@@ -40,19 +46,16 @@ class Intersection(MetricAtK):
             Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         ref_reco : pd.DataFrame
             Reference recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        ref_k : int, optional
-            Number of items in top of reference recommendations list that will be used to calculate metric.
-            If ``ref_k`` is None than ``ref_reco`` will be filtered with ``ref_k = k``. Default: None.
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user(reco, ref_reco, ref_k)
+        per_user = self.calc_per_user(reco, ref_reco)
         return per_user.mean()
 
-    def calc_per_user(self, reco: pd.DataFrame, ref_reco: pd.DataFrame, ref_k: Optional[int] = None) -> pd.Series:
+    def calc_per_user(self, reco: pd.DataFrame, ref_reco: pd.DataFrame) -> pd.Series:
         """
         Calculate metric values for all users.
 
@@ -62,9 +65,6 @@ class Intersection(MetricAtK):
             Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         ref_reco : pd.DataFrame
             Reference recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        ref_k : int, optional
-            Number of items in top of reference recommendations list that will be used to calculate metric.
-            If ``ref_k`` is None than ``ref_reco`` will be filtered with ``ref_k = self.k``. Default: None.
 
         Returns
         -------
@@ -79,8 +79,52 @@ class Intersection(MetricAtK):
 
         filtered_reco = reco[reco[Columns.Rank] <= self.k]
 
-        if not ref_k:
-            ref_k = self.k
-        recall = Recall(k=ref_k)
+        if self.ref_k is None:
+            self.ref_k = self.k
+        recall = Recall(k=self.ref_k)
 
         return recall.calc_per_user(ref_reco, filtered_reco[Columns.UserItem])
+
+
+IntersectionMetric = Intersection
+
+
+def calc_intersection_metrics(
+    metrics: Dict[str, Intersection],
+    reco: pd.DataFrame,
+    ref_recos: Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]],
+) -> Dict[str, float]:
+    """
+    Calculate intersection metrics.
+
+    Warning: It is not recommended to use this function directly.
+    Use `calc_metrics` instead.
+
+    Parameters
+    ----------
+    metrics : dict(str -> PopularityMetric)
+        Dict of metric objects to calculate,
+        where key is metric name and value is metric object.
+    reco : pd.DataFrame
+        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+    ref_recos : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]]
+        Reference recommendations table(s) with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+
+    Returns
+    -------
+    dict(str->float)
+        Dictionary where keys are the same as keys in `metrics`
+        and values are metric calculation results.
+    """
+    results = {}
+
+    intersection_metrics: Dict[str, Intersection] = select_by_type(metrics, Intersection)
+    if isinstance(ref_recos, pd.DataFrame):
+        for name, metric in intersection_metrics.items():
+            results[name] = metric.calc(reco, ref_recos)
+    else:
+        for name, metric in intersection_metrics.items():
+            for key, ref_reco in ref_recos.items():
+                results[f"{name}_{key}"] = metric.calc(reco, ref_reco)
+
+    return results
