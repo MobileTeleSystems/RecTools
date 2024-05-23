@@ -76,14 +76,13 @@ class MetricsApp:
         ...        "recall@10": [0.041, 0.045, 0.055, 0.08, 0.036, 0.021],
         ...        "novelty@10": [2.6, 11.3, 4.3, 9.8, 3.3, 11.2],
         ...    })
-        >>>
         >>> app = MetricsApp.construct(
         ...    models_metrics=example_df,
         ...    show_legend=True,
         ...    auto_display=False,
         ...    layout_kwargs={"width": 800, "height": 600})
 
-        Render state of widget as static image
+        Get plotly chart from widget state
 
         >>> fig = app.fig
         >>> fig = fig.update_layout(
@@ -92,7 +91,6 @@ class MetricsApp:
         ...    yaxis_title="recall@10",
         ...    legend_title="Models",
         ... )
-        >>> img = fig.to_image(format="png", engine="kaleido")
         """
         app = cls(models_metrics, show_legend, auto_display, layout_kwargs)
         if auto_display:
