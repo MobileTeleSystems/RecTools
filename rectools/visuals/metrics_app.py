@@ -99,6 +99,56 @@ class MetricsApp:
     def _make_chart_data_avg(self) -> pd.DataFrame:
         return self.models_metrics.drop(columns=Columns.Split).groupby(Columns.Model, sort=False).mean().reset_index()
 
+    def _create_chart(
+        self,
+        fig_widget: go.FigureWidget,
+        metric_x: widgets.Dropdown,
+        metric_y: widgets.Dropdown,
+        use_avg: widgets.Checkbox,
+        fold_i: widgets.Dropdown,
+    ) -> None:
+        data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
+        with fig_widget.batch_update():
+            fig_widget.data = []
+            for model in self.model_names:
+                df = data[data[Columns.Model] == model]
+                template = (f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>",)
+                fig_widget.add_scatter(
+                    x=df[metric_x.value],
+                    y=df[metric_y.value],
+                    mode="markers",
+                    name=model,
+                    hovertemplate=template,
+                    showlegend=self.show_legend,
+                )
+            fig_widget.layout.xaxis.title = metric_x.value
+            fig_widget.layout.yaxis.title = metric_y.value
+        self.fig = go.Figure(fig_widget.data)
+
+    def _update_chart(
+        self,
+        fig_widget: go.FigureWidget,
+        metric_x: widgets.Dropdown,
+        metric_y: widgets.Dropdown,
+        use_avg: widgets.Checkbox,
+        fold_i: widgets.Dropdown,
+    ) -> None:
+        data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
+        with fig_widget.batch_update():
+            existing_traces = {trace.name: trace for trace in fig_widget.data}
+            for model in self.model_names:
+                df = data[data[Columns.Model] == model]
+                trace = existing_traces.get(model)
+                if trace:
+                    trace.x = df[metric_x.value]
+                    trace.y = df[metric_y.value]
+            fig_widget.layout.xaxis.title = metric_x.value
+            fig_widget.layout.yaxis.title = metric_y.value
+        self.fig = go.Figure(fig_widget.data)
+
+    def _update_fold_visibility(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> None:
+        fold_i.layout.visibility = "hidden" if use_avg.value else "visible"
+
     def display(self) -> None:
         """Display MetricsApp widget"""
         metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
@@ -106,35 +156,20 @@ class MetricsApp:
         use_avg = widgets.Checkbox(description="Avg folds", value=False)
         fold_i = widgets.Dropdown(description="Fold number:", value=0, options=list(range(self.n_folds)))
         fig_widget = go.FigureWidget(
-            layout={"width": WIDGET_WIDTH, "height": WIDGET_HEIGHT, "margin": {"t": CHART_MARGIN}}
+            layout={
+                "width": WIDGET_WIDTH,
+                "height": WIDGET_HEIGHT,
+                "margin": {"t": CHART_MARGIN},
+                "autosize": False,
+                "legend_title": "Models",
+            }
         )
 
-        def update_fold_visibility(*args: tp.Any) -> None:
-            fold_i.layout.visibility = "hidden" if use_avg.value else "visible"
+        metric_x.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
+        metric_y.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
+        use_avg.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
+        use_avg.observe(lambda upd: self._update_fold_visibility(use_avg, fold_i), "value")
+        fold_i.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
 
-        def update_chart(*args: tp.Any) -> None:
-            data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
-            with fig_widget.batch_update():
-                fig_widget.data = []
-                for model in self.model_names:
-                    df = data[data[Columns.Model] == model]
-                    htemplate = f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>"
-                    fig_widget.add_scatter(
-                        x=df[metric_x.value], y=df[metric_y.value], mode="markers", name=model, hovertemplate=htemplate
-                    )
-                fig_widget.layout.xaxis.title = metric_x.value
-                fig_widget.layout.yaxis.title = metric_y.value
-            self.fig = go.Figure(fig_widget.data)
-
-        metric_x.observe(update_chart, "value")
-        metric_y.observe(update_chart, "value")
-        use_avg.observe(update_chart, "value")
-        use_avg.observe(update_fold_visibility, "value")
-        fold_i.observe(update_chart, "value")
-
-        display(
-            widgets.VBox(
-                [widgets.HBox(children=[use_avg, fold_i]), widgets.HBox(children=[metric_x, metric_y]), fig_widget]
-            )
-        )
-        update_chart()
+        display(widgets.VBox([widgets.HBox([use_avg, fold_i]), widgets.HBox([metric_x, metric_y]), fig_widget]))
+        self._create_chart(fig_widget, metric_x, metric_y, use_avg, fold_i)
