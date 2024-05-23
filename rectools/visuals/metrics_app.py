@@ -9,7 +9,8 @@ from rectools import Columns
 
 WIDGET_WIDTH = 800
 WIDGET_HEIGHT = 500
-CHART_MARGIN = 20
+TOP_CHART_MARGIN = 20
+LEGEND_TITLE = "Models"
 
 
 class MetricsApp:
@@ -23,11 +24,13 @@ class MetricsApp:
         models_metrics: pd.DataFrame,
         show_legend: bool = True,
         auto_display: bool = True,
+        layout_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
         self.models_metrics = models_metrics
         self.show_legend = show_legend
         self.auto_display = auto_display
         self.fig = go.Figure()
+        self.layout_kwargs = layout_kwargs if layout_kwargs is not None else {}
 
         self._validate_input_data()
 
@@ -37,8 +40,10 @@ class MetricsApp:
         models_metrics: pd.DataFrame,
         show_legend: bool = True,
         auto_display: bool = True,
+        layout_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ) -> "MetricsApp":
-        """Construct a widget-based application for visualizing metrics from the provided dataframe.
+        r"""
+        Construct interactive widget for metric-to-metric trade-off analysis.
 
         Parameters
         ----------
@@ -51,13 +56,45 @@ class MetricsApp:
             Specifies whether to display the chart legend.
         auto_display : bool, default True
             Automatically displays the widgets immediately after initialization.
+         layout_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional, default None
+            Additional arguments from `plotly.graph_objects.Layout`
 
         Returns
         -------
         MetricsApp
             An instance of `MetricsApp`, providing interactive Jupyter widget for metric visualization.
+
+        Examples
+        --------
+        Create interactive widget
+
+        >>> example_df = pd.DataFrame(
+        ...    {
+        ...        Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
+        ...        Columns.Split: [0, 0, 1, 1, 2, 2],
+        ...        "prec@10": [0.031, 0.025, 0.027, 0.21, 0.031, 0.033],
+        ...        "recall@10": [0.041, 0.045, 0.055, 0.08, 0.036, 0.021],
+        ...        "novelty@10": [2.6, 11.3, 4.3, 9.8, 3.3, 11.2],
+        ...    })
+        >>>
+        >>> app = MetricsApp.construct(
+        ...    models_metrics=example_df,
+        ...    show_legend=True,
+        ...    auto_display=False,
+        ...    layout_kwargs={"width": 800, "height": 600})
+
+        Render state of widget as static image
+
+        >>> fig = app.fig
+        >>> fig = fig.update_layout(
+        ...    title="Metrics: recall@10 vs novelty@10",
+        ...    xaxis_title="novelty@10",
+        ...    yaxis_title="recall@10",
+        ...    legend_title="Models",
+        ... )
+        >>> img = fig.to_image(format="png", engine="kaleido")
         """
-        app = cls(models_metrics, show_legend, auto_display)
+        app = cls(models_metrics, show_legend, auto_display, layout_kwargs)
         if auto_display:
             app.display()
         return app
@@ -139,9 +176,11 @@ class MetricsApp:
             for model in self.model_names:
                 df = data[data[Columns.Model] == model]
                 trace = existing_traces.get(model)
-                if trace:
+                template = f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>"
+                if trace is not None:
                     trace.x = df[metric_x.value]
                     trace.y = df[metric_y.value]
+                    trace.hovertemplate = template
             fig_widget.layout.xaxis.title = metric_x.value
             fig_widget.layout.yaxis.title = metric_y.value
         self.fig = go.Figure(fig_widget.data)
@@ -154,16 +193,16 @@ class MetricsApp:
         metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
         metric_y = widgets.Dropdown(description="Metric Y:", value=self.metric_names[-1], options=self.metric_names)
         use_avg = widgets.Checkbox(description="Avg folds", value=False)
-        fold_i = widgets.Dropdown(description="Fold number:", value=0, options=list(range(self.n_folds)))
-        fig_widget = go.FigureWidget(
-            layout={
-                "width": WIDGET_WIDTH,
-                "height": WIDGET_HEIGHT,
-                "margin": {"t": CHART_MARGIN},
-                "autosize": False,
-                "legend_title": "Models",
-            }
-        )
+        fold_i = widgets.Dropdown(description="Fold number:", value=self.fold_ids[0], options=self.fold_ids)
+
+        layout_params = {
+            "width": WIDGET_WIDTH,
+            "height": WIDGET_HEIGHT,
+            "margin": {"t": TOP_CHART_MARGIN},
+            "legend_title": LEGEND_TITLE,
+        }
+        layout_params.update(self.layout_kwargs)
+        fig_widget = go.FigureWidget(layout=layout_params)
 
         metric_x.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
         metric_y.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
