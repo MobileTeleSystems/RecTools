@@ -36,12 +36,13 @@ class TestMetricsApp:
         layout_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
     ) -> None:
         with patch("rectools.visuals.metrics_app.MetricsApp.display", MagicMock()):
-            MetricsApp.construct(
+            app = MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 show_legend=show_legend,
                 auto_display=auto_display,
                 layout_kwargs=layout_kwargs,
             )
+            _ = app.fig
 
     def test_no_metric_columns(self) -> None:
         with pytest.raises(KeyError):

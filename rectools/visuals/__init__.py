@@ -26,9 +26,13 @@ Recommendations visualization
 """
 
 try:
-    from .metrics_app import MetricsApp
     from .visual_app import ItemToItemVisualApp, VisualApp
 except ImportError:  # pragma: no cover
-    from ..compat import ItemToItemVisualApp, MetricsApp, VisualApp  # type: ignore
+    from ..compat import ItemToItemVisualApp, VisualApp  # type: ignore
+
+try:
+    from .metrics_app import MetricsApp
+except ImportError:  # pragma: no cover
+    from ..compat import MetricsApp  # type: ignore
 
 __all__ = ("VisualApp", "ItemToItemVisualApp", "MetricsApp")

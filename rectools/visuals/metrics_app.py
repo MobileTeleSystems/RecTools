@@ -1,4 +1,5 @@
 import typing as tp
+from functools import lru_cache
 
 import ipywidgets as widgets
 import pandas as pd
@@ -29,10 +30,12 @@ class MetricsApp:
         self.models_metrics = models_metrics
         self.show_legend = show_legend
         self.auto_display = auto_display
-        self.fig = go.Figure()
         self.layout_kwargs = layout_kwargs if layout_kwargs is not None else {}
+        self.fig = go.Figure()
 
         self._validate_input_data()
+        if self.auto_display:
+            self.display()
 
     @classmethod
     def construct(
@@ -67,7 +70,6 @@ class MetricsApp:
         Examples
         --------
         Create interactive widget
-
         >>> example_df = pd.DataFrame(
         ...    {
         ...        Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
@@ -83,7 +85,6 @@ class MetricsApp:
         ...    layout_kwargs={"width": 800, "height": 600})
 
         Get plotly chart from widget state
-
         >>> fig = app.fig
         >>> fig = fig.update_layout(
         ...    title="Metrics: recall@10 vs novelty@10",
@@ -92,18 +93,17 @@ class MetricsApp:
         ...    legend_title="Models",
         ... )
         """
-        app = cls(models_metrics, show_legend, auto_display, layout_kwargs)
-        if auto_display:
-            app.display()
-        return app
+        return cls(models_metrics, show_legend, auto_display, layout_kwargs)
 
     @property
+    @lru_cache
     def metric_names(self) -> tp.List[str]:
         """List of metric column names from the `models_metrics`."""
         non_metric_columns = {Columns.Split, Columns.Model}
         return [col for col in self.models_metrics.columns if col not in non_metric_columns]
 
     @property
+    @lru_cache
     def model_names(self) -> tp.List[str]:
         """Sorted list of model names from `models_metrics`."""
         return sorted(self.models_metrics[Columns.Model].unique())
@@ -128,37 +128,13 @@ class MetricsApp:
         if len(self.models_metrics.columns) < 3:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
 
+    @lru_cache
     def _make_chart_data(self, fold_number: int) -> pd.DataFrame:
         return self.models_metrics[self.models_metrics[Columns.Split] == fold_number].drop(columns=Columns.Split)
 
+    @lru_cache
     def _make_chart_data_avg(self) -> pd.DataFrame:
         return self.models_metrics.drop(columns=Columns.Split).groupby(Columns.Model, sort=False).mean().reset_index()
-
-    def _create_chart(
-        self,
-        fig_widget: go.FigureWidget,
-        metric_x: widgets.Dropdown,
-        metric_y: widgets.Dropdown,
-        use_avg: widgets.Checkbox,
-        fold_i: widgets.Dropdown,
-    ) -> None:
-        data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
-        with fig_widget.batch_update():
-            fig_widget.data = []
-            for model in self.model_names:
-                df = data[data[Columns.Model] == model]
-                template = (f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>",)
-                fig_widget.add_scatter(
-                    x=df[metric_x.value],
-                    y=df[metric_y.value],
-                    mode="markers",
-                    name=model,
-                    hovertemplate=template,
-                    showlegend=self.show_legend,
-                )
-            fig_widget.layout.xaxis.title = metric_x.value
-            fig_widget.layout.yaxis.title = metric_y.value
-        self.fig = go.Figure(fig_widget.data)
 
     def _update_chart(
         self,
@@ -169,16 +145,25 @@ class MetricsApp:
         fold_i: widgets.Dropdown,
     ) -> None:
         data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
+        existing_traces = {trace.name: trace for trace in fig_widget.data}
         with fig_widget.batch_update():
-            existing_traces = {trace.name: trace for trace in fig_widget.data}
             for model in self.model_names:
                 df = data[data[Columns.Model] == model]
-                trace = existing_traces.get(model)
-                template = f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>"
-                if trace is not None:
+                hover = f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>"
+                if model in existing_traces:
+                    trace = existing_traces[model]
                     trace.x = df[metric_x.value]
                     trace.y = df[metric_y.value]
-                    trace.hovertemplate = template
+                    trace.hovertemplate = hover
+                else:
+                    fig_widget.add_scatter(
+                        x=df[metric_x.value],
+                        y=df[metric_y.value],
+                        mode="markers",
+                        name=model,
+                        hovertemplate=hover,
+                        showlegend=self.show_legend,
+                    )
             fig_widget.layout.xaxis.title = metric_x.value
             fig_widget.layout.yaxis.title = metric_y.value
         self.fig = go.Figure(fig_widget.data)
@@ -209,4 +194,4 @@ class MetricsApp:
         fold_i.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
 
         display(widgets.VBox([widgets.HBox([use_avg, fold_i]), widgets.HBox([metric_x, metric_y]), fig_widget]))
-        self._create_chart(fig_widget, metric_x, metric_y, use_avg, fold_i)
+        self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i)
