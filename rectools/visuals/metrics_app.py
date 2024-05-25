@@ -87,10 +87,8 @@ class MetricsApp:
         Get plotly chart from widget state
         >>> fig = app.fig
         >>> fig = fig.update_layout(
-        ...    title="Metrics: recall@10 vs novelty@10",
-        ...    xaxis_title="novelty@10",
-        ...    yaxis_title="recall@10",
-        ...    legend_title="Models",
+        ...    title="Metrics comparison",
+        ...    margin=None,
         ... )
         """
         return cls(models_metrics, show_legend, auto_display, layout_kwargs)
@@ -166,7 +164,7 @@ class MetricsApp:
                     )
             fig_widget.layout.xaxis.title = metric_x.value
             fig_widget.layout.yaxis.title = metric_y.value
-        self.fig = go.Figure(fig_widget.data)
+        self.fig = go.Figure(data=fig_widget.data, layout=fig_widget.layout)
 
     def _update_fold_visibility(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> None:
         fold_i.layout.visibility = "hidden" if use_avg.value else "visible"
@@ -175,7 +173,7 @@ class MetricsApp:
         """Display MetricsApp widget"""
         metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
         metric_y = widgets.Dropdown(description="Metric Y:", value=self.metric_names[-1], options=self.metric_names)
-        use_avg = widgets.Checkbox(description="Avg folds", value=False)
+        use_avg = widgets.Checkbox(description="Avg folds", value=True)
         fold_i = widgets.Dropdown(description="Fold number:", value=self.fold_ids[0], options=self.fold_ids)
 
         layout_params = {
@@ -194,4 +192,5 @@ class MetricsApp:
         fold_i.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
 
         display(widgets.VBox([widgets.HBox([use_avg, fold_i]), widgets.HBox([metric_x, metric_y]), fig_widget]))
+        self._update_fold_visibility(use_avg, fold_i)
         self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i)
