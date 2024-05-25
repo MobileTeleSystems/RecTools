@@ -84,12 +84,9 @@ class MetricsApp:
         ...    auto_display=False,
         ...    layout_kwargs={"width": 800, "height": 600})
 
-        Get plotly chart from widget state
+        Get plotly chart from the current widget state
         >>> fig = app.fig
-        >>> fig = fig.update_layout(
-        ...    title="Metrics comparison",
-        ...    margin=None,
-        ... )
+        >>> fig = fig.update_layout(title="Metrics comparison")
         """
         return cls(models_metrics, show_legend, auto_display, layout_kwargs)
 
