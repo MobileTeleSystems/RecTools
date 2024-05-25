@@ -165,6 +165,7 @@ class MetricsApp:
             fig_widget.layout.xaxis.title = metric_x.value
             fig_widget.layout.yaxis.title = metric_y.value
         self.fig = go.Figure(data=fig_widget.data, layout=fig_widget.layout)
+        self.fig.layout.margin = None
 
     def _update_fold_visibility(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> None:
         fold_i.layout.visibility = "hidden" if use_avg.value else "visible"
