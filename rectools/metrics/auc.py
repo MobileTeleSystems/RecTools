@@ -16,7 +16,6 @@
 import typing as tp
 
 import attr
-import numpy as np
 import pandas as pd
 
 from rectools import Columns
@@ -59,6 +58,8 @@ class _AUCMetric(MetricAtK):
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
     """
+    insufficient_cases: str = attr.ib(default="exclude")
+    
     @classmethod
     def fit(self, reco: pd.DataFrame, interactions: pd.DataFrame, k_max: int) -> AUCFitted:
         self._check(reco, interactions=interactions)
@@ -73,8 +74,6 @@ class _AUCMetric(MetricAtK):
         
         num_pos = outer_merged.groupby(Columns.User)["__test_pos_cumsum"].max()
         
-        # users_not_full_predicted = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
-        
         # Every user with FP count more then k_max has sufficient recommendations for pauc metrics
         # We calculate and keep number of false positives for all other users
         users_num_fp = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
@@ -83,6 +82,37 @@ class _AUCMetric(MetricAtK):
         users_num_fp_insuf = users_num_fp_insuf[users_num_fp_insuf.index.isin(users_with_fn)]
         
         return AUCFitted(outer_merged, num_pos, users_num_fp_insuf)
+    
+    def _calc_partial_roc_auc(self, outer_merged: pd.DataFrame, num_pos: pd.Series, users_num_fp_insuf: pd.Series, metric_name: str) -> pd.Series:
+        if self.insufficient_cases in ["exclude", "raise"]:
+            insufficient_users = users_num_fp_insuf[users_num_fp_insuf < self.k].index.values
+
+            if insufficient_users.any():
+                if self.insufficient_cases == "exclude":
+                    outer_merged = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)]
+                    num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
+                else:
+                    raise ValueError(
+                        f"""
+                        {metric_name}@{self.k} metric requires at least {self.k} negatives in reco for each user.
+                        Or all items from user interactions ranked in reco meaning that all other reco will be
+                        negatives.
+                        There are {len(insufficient_users)} users with less negatives.
+                        For correct {metric_name} computation please provide each user with sufficient number
+                        of recommended items. It fill be enough to have `n_user_positives` + `{metric_name}_k`
+                        recommended items for each user.
+                        You can disable this error by specifying `insufficient_cases` = "don't check" or
+                        by dropping all users with insuffissient recommendations from metric computation
+                        with `insufficient_cases` = "drop"
+                        """
+                    )
+
+        cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
+        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
+        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        pauc_denominator = num_pos * self.k
+        pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
+        return pauc
 
     
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
@@ -123,9 +153,6 @@ class _AUCMetric(MetricAtK):
         self._check(reco, interactions=interactions)
         fitted = self.fit(reco, interactions, k_max=self.k)
         return self.calc_per_user_from_fitted(fitted)
-        # self._check(reco, interactions=interactions)
-        # outer_merged_reco = outer_merge_reco(reco, interactions)
-        # return self.calc_per_user_from_outer_merged(outer_merged_reco)
 
     
     def calc_from_fitted(self, fitted: AUCFitted) -> float:
@@ -169,8 +196,6 @@ class PAUC(_AUCMetric):
     Write all info here
     """
 
-    insufficient_cases: str = attr.ib(default="exclude")
-
     def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
         Calculate metric values for all users from outer merged recommendations.
@@ -186,39 +211,12 @@ class PAUC(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        num_pos = fitted.num_pos
-        users_num_fp_insuf = fitted.users_num_fp_insuf
-        outer_merged = fitted.outer_merged_enriched
-        
-        if self.insufficient_cases in ["exclude", "raise"]:
-            insufficient_users = users_num_fp_insuf[users_num_fp_insuf < self.k].index.values
-
-            if insufficient_users.any():
-                if self.insufficient_cases == "exclude":
-                    outer_merged = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)]
-                    num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
-                else:
-                    raise ValueError(
-                        f"""
-                        pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
-                        Or all items from user interactions ranked in reco meaning that all other reco will be
-                        negatives.
-                        There are {len(insufficient_users)} users with less negatives.
-                        For correct pAUC computation please provide each user with sufficient number
-                        of recommended items. It fill be enough to have `n_user_positives` + `pAUC_k`
-                        recommended items for each user.
-                        You can disable this error by specifying `insufficient_cases` = "don't check" or
-                        by dropping all users with insuffissient recommendations from metric computation
-                        with `insufficient_cases` = "drop"
-                        """
-                    )
-
-        cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
-        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
-        pauc_denominator = num_pos * self.k
-        pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
-        return pauc
+        return self._calc_partial_roc_auc(
+            outer_merged=fitted.outer_merged_enriched,
+            num_pos=fitted.num_pos,
+            users_num_fp_insuf=fitted.users_num_fp_insuf,
+            metric_name="PAUC"
+        )
 
 
 @attr.s
@@ -227,8 +225,6 @@ class PAP(_AUCMetric):
     Partial AUC ... at k (pAp@k).
     Write all info here
     """
-
-    insufficient_cases: str = attr.ib(default="exclude")
     
     def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
@@ -245,40 +241,13 @@ class PAP(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        num_pos = fitted.num_pos.clip(upper=self.k)
-        users_num_fp_insuf = fitted.users_num_fp_insuf
-        outer_merged = fitted.outer_merged_enriched[fitted.outer_merged_enriched["__test_pos_cumsum"] <= self.k].copy()
+        return self._calc_partial_roc_auc(
+            outer_merged=fitted.outer_merged_enriched[fitted.outer_merged_enriched["__test_pos_cumsum"] <= self.k].copy(),
+            num_pos=fitted.num_pos.clip(upper=self.k),
+            users_num_fp_insuf=fitted.users_num_fp_insuf,
+            metric_name="PAP"
+        )
         
-        if self.insufficient_cases in ["exclude", "raise"]:
-            insufficient_users = users_num_fp_insuf[users_num_fp_insuf < self.k].index.values
-
-            if insufficient_users.any():
-                if self.insufficient_cases == "exclude":
-                    outer_merged = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)]
-                    num_pos = num_pos[~num_pos.index.isin(insufficient_users)]
-                else:
-                    raise ValueError(
-                        f"""
-                        pAUC@{self.k} metric requires at least {self.k} negatives in reco for each user.
-                        Or all items from user interactions ranked in reco meaning that all other reco will be
-                        negatives.
-                        There are {len(insufficient_users)} users with less negatives.
-                        For correct pAUC computation please provide each user with sufficient number
-                        of recommended items. It fill be enough to have `n_user_positives` + `pAUC_k`
-                        recommended items for each user.
-                        You can disable this error by specifying `insufficient_cases` = "don't check" or
-                        by dropping all users with insuffissient recommendations from metric computation
-                        with `insufficient_cases` = "drop"
-                        """
-                    )
-
-        cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
-        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
-        pauc_denominator = num_pos * self.k
-        pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
-        return pauc
-
 
 AucMetric = tp.Union[PAUC, PAP]
 
@@ -313,14 +282,11 @@ def calc_auc_metrics(
     """
     results = {}
     
-    k_max = max(metric.k for metric in metrics.values())
-    fitted = _AUCMetric.fit(reco, interactions, k_max)
-    for name, metric in metrics.items():
-        results[name] = metric.calc_from_fitted(fitted)
-
-    # for auc_metric_cls in [PAUC, PAP]:
-    #     pauc_metrics: tp.Dict[str, AucMetric] = select_by_type(metrics, auc_metric_cls)
-    #     for name, metric in pauc_metrics.items():
-    #         results[name] = metric.calc_from_outer_merged(outer_merged)
+    auc_metrics: tp.Dict[str, AucMetric] = select_by_type(metrics, AucMetric)
+    if auc_metrics:
+        k_max = max(metric.k for metric in metrics.values())
+        fitted = _AUCMetric.fit(reco, interactions, k_max)
+        for name, metric in auc_metrics.items():
+            results[name] = metric.calc_from_fitted(fitted)
 
     return results
