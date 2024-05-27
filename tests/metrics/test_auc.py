@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics.auc import PAUC, PAP
+from rectools.metrics.auc import PAP, PAUC
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
@@ -143,7 +143,6 @@ class TestPAUC:
             dtype=float,
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
-
 
 
 class TestPAP:

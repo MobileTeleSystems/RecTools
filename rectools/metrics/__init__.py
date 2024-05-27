@@ -45,7 +45,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
-from .auc import PAUC, PAP
+from .auc import PAP, PAUC
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .distances import (
     PairwiseDistanceCalculator,
