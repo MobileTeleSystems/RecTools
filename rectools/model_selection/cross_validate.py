@@ -61,6 +61,8 @@ def cross_validate(  # pylint: disable=too-many-locals
     filter_viewed: bool,
     items_to_recommend: tp.Optional[ExternalIds] = None,
     prefer_warm_inference_over_cold: bool = True,
+    ref_models: tp.Optional[tp.List[str]] = None,
+    validate_ref_models: bool = False,
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -90,6 +92,11 @@ def cross_validate(  # pylint: disable=too-many-locals
         Set to `True` to enable "warm" recommendations for all applicable models.
         Set to `False` to treat all new users and items as "cold" and not to provide features for them.
         If new users and items are filtered from test in splitter, this argument has no effect.
+    ref_models : list(str), optional
+        The keys from `models` argument to compute intersection metrics.
+        Obligatory only if `IntersectionMetric` instances present in `metrics`.
+    validate_ref_models : bool
+        If True include `ref_models` to other metrics calculation. Default: False.
 
     Returns
     -------
@@ -129,6 +136,11 @@ def cross_validate(  # pylint: disable=too-many-locals
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
         catalog = interactions_df_train[Columns.Item].unique()  # 1x internal
+        if ref_models is not None and validate_ref_models:
+            ref_reco_df = interactions_df_test[Columns.UserItem]
+            ref_reco_df[Columns.Rank] = 1
+        else:
+            ref_reco_df = None
 
         if items_to_recommend is not None:
             item_ids_to_recommend = dataset.item_id_map.convert_to_internal(
@@ -146,12 +158,19 @@ def cross_validate(  # pylint: disable=too-many-locals
                 filter_viewed=filter_viewed,
                 items_to_recommend=item_ids_to_recommend,
             )
+
+            if ref_models is not None and model_name in ref_models and validate_ref_models:
+                ref_reco = {model_name: ref_reco_df}
+            else:
+                ref_reco = None
+
             metric_values = calc_metrics(
                 metrics,
                 reco=reco,
                 interactions=interactions_df_test,
                 prev_interactions=interactions_df_train,
                 catalog=catalog,
+                ref_reco=ref_reco,
             )
             res = {"model": model_name, "i_split": split_info["i_split"]}
             res.update(metric_values)

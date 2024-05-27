@@ -63,6 +63,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
         Reference recommendations table(s) with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         For multiple intersection calculations we can pass multiple models recommendations in a dict:
         ``ref_recos = {"one": ref_recos_one, "two": ref_recos_two}``
+        Obligatory only if `IntersectionMetric` instances present in `metrics`.
 
     Returns
     -------
