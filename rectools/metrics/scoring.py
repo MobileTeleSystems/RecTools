@@ -62,7 +62,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     ref_reco : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]], optional
         Reference recommendations table(s) with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         For multiple intersection calculations we can pass multiple models recommendations in a dict:
-        ``ref_recos = {"one": ref_recos_one, "two": ref_recos_two}``
+        ``ref_reco = {"one": ref_reco_one, "two": ref_reco_two}``
         Obligatory only if `IntersectionMetric` instances present in `metrics`.
 
     Returns

@@ -7,6 +7,7 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset, Features, IdMap, Interactions
 from rectools.metrics import calc_metrics
 from rectools.metrics.base import MetricAtK
+from rectools.metrics.intersection import IntersectionMetric
 from rectools.models.base import ModelBase
 from rectools.types import ExternalIds
 
@@ -52,6 +53,63 @@ def _gen_2x_internal_ids_dataset(
     return dataset
 
 
+def _get_ref_reco(
+    ref_models: tp.List[str],
+    models: tp.Dict[str, ModelBase],
+    test_users: np.ndarray,
+    fold_dataset: Dataset,
+    k: int,
+    filter_viewed: bool,
+    internal_item_ids_to_recommend: tp.Optional[np.ndarray] = None,
+) -> tp.Optional[tp.Dict[str, pd.DataFrame]]:
+    """
+    Construct the value of the `ref_reco` parameter for the calc_metrics() method.
+
+    Parameters
+    ----------
+    ref_models: list(str)
+        The keys from `models` argument to fit model and get reference recommendations.
+    models : dict(str -> ModelBase)
+        Dict of initialized model objects from which we select reference models,
+        where key is model name and value is model object.
+    test_users: np.ndarray
+        Array of user ids to recommend for.
+    fold_dataset: Dataset
+         Dataset that contains 2nd level of internal ids.
+    k: int
+        Derived number of recommendations for every user.
+        For some models actual number of recommendations may be less than `k`.
+    filter_viewed: bool
+        Whether to filter from recommendations items that user has already interacted with.
+    internal_item_ids_to_recommend: np.ndarray, optional
+        Whitelist of internal item ids.
+        If given, only these items will be used for recommendations.
+
+    Returns
+    -------
+    dict(str -> pd.DataFrame) or None
+        A dictionary in which the keys are the model names from `ref_models`
+        and the values are the recommendations for that models.
+    """
+    ref_reco = {}
+
+    for model_name in ref_models:
+        model = models[model_name]
+        model.fit(fold_dataset)
+        ref_reco[model_name] = model.recommend(
+            users=test_users,
+            dataset=fold_dataset,
+            k=k,
+            filter_viewed=filter_viewed,
+            items_to_recommend=internal_item_ids_to_recommend,
+        )
+
+    if len(ref_reco) > 0:
+        return ref_reco
+
+    return None
+
+
 def cross_validate(  # pylint: disable=too-many-locals
     dataset: Dataset,
     splitter: Splitter,
@@ -78,7 +136,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         where key is metric name and value is metric object.
     models : dict(str -> ModelBase)
         Dict of initialized model objects to fit and measure quality,
-        where key is metric name and value is metric object.
+        where key is model name and value is model object.
     k : int
         Derived number of recommendations for every user.
         For some models actual number of recommendations may be less than `k`.
@@ -93,10 +151,12 @@ def cross_validate(  # pylint: disable=too-many-locals
         Set to `False` to treat all new users and items as "cold" and not to provide features for them.
         If new users and items are filtered from test in splitter, this argument has no effect.
     ref_models : list(str), optional
-        The keys from `models` argument to compute intersection metrics.
+        The keys from `models` argument to compute intersection metrics. These models
+        recommendations will be used as `ref_reco` for other models intersection metrics calculation.
         Obligatory only if `IntersectionMetric` instances present in `metrics`.
     validate_ref_models : bool
-        If True include `ref_models` to other metrics calculation. Default: False.
+        If True include models specified in `ref_models` to all metrics calculations
+        and receive their metrics from cross-validation. Default: False.
 
     Returns
     -------
@@ -136,11 +196,6 @@ def cross_validate(  # pylint: disable=too-many-locals
         interactions_df_test = interactions.df.iloc[test_ids]  # 1x internal
         test_users = interactions_df_test[Columns.User].unique()  # 1x internal
         catalog = interactions_df_train[Columns.Item].unique()  # 1x internal
-        if ref_models is not None and validate_ref_models:
-            ref_reco_df = interactions_df_test[Columns.UserItem]
-            ref_reco_df[Columns.Rank] = 1
-        else:
-            ref_reco_df = None
 
         if items_to_recommend is not None:
             item_ids_to_recommend = dataset.item_id_map.convert_to_internal(
@@ -149,7 +204,35 @@ def cross_validate(  # pylint: disable=too-many-locals
         else:
             item_ids_to_recommend = None
 
+        if ref_models is not None:
+            ref_reco = _get_ref_reco(
+                ref_models=ref_models,
+                models=models,
+                test_users=test_users,
+                fold_dataset=fold_dataset,
+                k=k,
+                filter_viewed=filter_viewed,
+                internal_item_ids_to_recommend=item_ids_to_recommend,
+            )
+            models_ref_reco = {model_name: None if model_name in ref_models else ref_reco for model_name in models}
+
+            metrics_without_intersection = {
+                metric_name: metric
+                for metric_name, metric in metrics.items()
+                if not isinstance(metric, IntersectionMetric)
+            }
+            models_metrics = {
+                model_name: metrics_without_intersection if model_name in ref_models else metrics
+                for model_name in models
+            }
+        else:
+            models_ref_reco = {model_name: None for model_name in models}
+            models_metrics = {model_name: metrics for model_name in models}
+
         for model_name, model in models.items():
+            if ref_models is not None and model_name in ref_models and not validate_ref_models:
+                continue
+
             model.fit(fold_dataset)
             reco = model.recommend(  # 1x internal
                 users=test_users,
@@ -159,18 +242,13 @@ def cross_validate(  # pylint: disable=too-many-locals
                 items_to_recommend=item_ids_to_recommend,
             )
 
-            if ref_models is not None and model_name in ref_models and validate_ref_models:
-                ref_reco = {model_name: ref_reco_df}
-            else:
-                ref_reco = None
-
             metric_values = calc_metrics(
-                metrics,
+                models_metrics[model_name],
                 reco=reco,
                 interactions=interactions_df_test,
                 prev_interactions=interactions_df_train,
                 catalog=catalog,
-                ref_reco=ref_reco,
+                ref_reco=models_ref_reco[model_name],
             )
             res = {"model": model_name, "i_split": split_info["i_split"]}
             res.update(metric_values)
