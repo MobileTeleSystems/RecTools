@@ -130,8 +130,8 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
     if auc_metrics:
         if interactions is None:
             raise ValueError("For calculating AUC-like metrics it's necessary to set 'interactions'")
-        outer_merged = outer_merge_reco(reco, interactions)
-        auc_values = calc_auc_metrics(auc_metrics, outer_merged)
+        # outer_merged = outer_merge_reco(reco, interactions)
+        auc_values = calc_auc_metrics(auc_metrics, reco, interactions)
         results.update(auc_values)
 
     # Novelty

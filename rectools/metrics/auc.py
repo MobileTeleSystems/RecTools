@@ -25,6 +25,28 @@ from rectools.utils import select_by_type
 
 
 @attr.s
+class AUCFitted:  # TODO: docrstring
+    """
+    Container with meta data got from `_AUCMetric.fit` method.
+
+    Parameters
+    ----------
+    precision_at_k : csr_matrix
+        CSR matrix where rows corresponds to users,
+        rows corresponds all possible k from 0 to `k_max`,
+        and values are weighted precisions for relevant recommended items.
+    users : np.ndarray
+        Array of user ids.
+    n_relevant_items : np.ndarray
+        Tally of relevant items for each user.
+        Users are in the same order as in `precision_at_k` matrix.
+    """
+
+    outer_merged_enriched: pd.DataFrame = attr.ib()
+    num_pos: pd.Series = attr.ib()
+    users_num_fp_insuf: pd.Series = attr.ib()
+
+@attr.s
 class _AUCMetric(MetricAtK):
     """
     AUC like metric base class.
@@ -37,7 +59,32 @@ class _AUCMetric(MetricAtK):
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
     """
+    @classmethod
+    def fit(self, reco: pd.DataFrame, interactions: pd.DataFrame, k_max: int) -> AUCFitted:
+        self._check(reco, interactions=interactions)
+        
+        outer_merged = outer_merge_reco(reco, interactions)  # crop works for isna logic?
+        
+        # TODO: crop to max before cumsum
+        outer_merged["__tp"] = (~outer_merged[Columns.Rank].isna()) & (outer_merged["__test_positive"])
+        outer_merged["__fp"] = (~outer_merged[Columns.Rank].isna()) & (~outer_merged["__test_positive"])
+        outer_merged["__fp_cumsum"] = outer_merged.groupby(Columns.User)["__fp"].cumsum()
+        outer_merged["__test_pos_cumsum"] = outer_merged.groupby(Columns.User)["__test_positive"].cumsum()
+        
+        num_pos = outer_merged.groupby(Columns.User)["__test_pos_cumsum"].max()
+        
+        # users_not_full_predicted = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
+        
+        # Every user with FP count more then k_max has sufficient recommendations for pauc metrics
+        # We calculate and keep number of false positives for all other users
+        users_num_fp = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
+        users_num_fp_insuf = users_num_fp[users_num_fp < k_max]
+        users_with_fn = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
+        users_num_fp_insuf = users_num_fp_insuf[users_num_fp_insuf.index.isin(users_with_fn)]
+        
+        return AUCFitted(outer_merged, num_pos, users_num_fp_insuf)
 
+    
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
         Calculate metric value.
@@ -57,24 +104,6 @@ class _AUCMetric(MetricAtK):
         per_user = self.calc_per_user(reco, interactions)
         return per_user.mean()
 
-    def calc_per_user_from_outer_merged(self, outer_merged: pd.DataFrame) -> pd.Series:
-        """
-        Calculate metric values for all users from outer merged recommendations.
-
-        Parameters
-        ----------
-        reco : pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-        interactions : pd.DataFrame
-            Interactions table with columns `Columns.User`, `Columns.Item`.
-
-        Returns
-        -------
-        pd.Series
-            Values of metric (index - user id, values - metric value for every user).
-        """
-        raise NotImplementedError()
-
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
         Calculate metric values for all users.
@@ -92,26 +121,45 @@ class _AUCMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         self._check(reco, interactions=interactions)
-        outer_merged_reco = outer_merge_reco(reco, interactions)
-        return self.calc_per_user_from_outer_merged(outer_merged_reco)
+        fitted = self.fit(reco, interactions, k_max=self.k)
+        return self.calc_per_user_from_fitted(fitted)
+        # self._check(reco, interactions=interactions)
+        # outer_merged_reco = outer_merge_reco(reco, interactions)
+        # return self.calc_per_user_from_outer_merged(outer_merged_reco)
 
-    def calc_from_outer_merged(self, outer_merged: pd.DataFrame) -> float:
+    
+    def calc_from_fitted(self, fitted: AUCFitted) -> float:
         """
         Calculate metric value from merged recommendations.
 
         Parameters
         ----------
-        outer_merged : pd.DataFrame
-            Result of merging recommendations and interactions tables with `outer` logic and full ranks provided.
-            Can be obtained using `outer_merge_reco` function.
+        fitted : AUCFitted
+            ...
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_outer_merged(outer_merged)
+        per_user = self.calc_per_user_from_fitted(fitted)
         return per_user.mean()
+    
+    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> float:
+        """
+        Calculate metric value from merged recommendations.
+
+        Parameters
+        ----------
+        fitted : AUCFitted
+            ...
+
+        Returns
+        -------
+        float
+            Value of metric (average between users).
+        """
+        raise NotImplementedError()
 
 
 @attr.s
@@ -123,7 +171,7 @@ class PAUC(_AUCMetric):
 
     insufficient_cases: str = attr.ib(default="exclude")
 
-    def calc_per_user_from_outer_merged(self, outer_merged: pd.DataFrame) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
         Calculate metric values for all users from outer merged recommendations.
 
@@ -138,17 +186,12 @@ class PAUC(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        num_pos = outer_merged[outer_merged["__test_positive"]].groupby(Columns.User).size()
+        num_pos = fitted.num_pos
+        users_num_fp_insuf = fitted.users_num_fp_insuf
+        outer_merged = fitted.outer_merged_enriched
+        
         if self.insufficient_cases in ["exclude", "raise"]:
-            users_not_full_predicted = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
-
-        outer_merged["__fp"] = (~outer_merged[Columns.Rank].isna()) & (~outer_merged["__test_positive"])
-        outer_merged["__fp_cumsum"] = outer_merged.groupby(Columns.User)["__fp"].cumsum()  # TODO: test on boolean
-
-        if self.insufficient_cases in ["exclude", "raise"]:
-            users_fm_cumcum_max = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
-            insufficient_fp_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index.values
-            insufficient_users = np.intersect1d(insufficient_fp_users, users_not_full_predicted)
+            insufficient_users = users_num_fp_insuf[users_num_fp_insuf < self.k].index.values
 
             if insufficient_users.any():
                 if self.insufficient_cases == "exclude":
@@ -171,11 +214,12 @@ class PAUC(_AUCMetric):
                     )
 
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * (cropped["__fp"] - 1) * (-1)
+        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
         pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
         pauc_denominator = num_pos * self.k
         pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
         return pauc
+
 
 @attr.s
 class PAP(_AUCMetric):
@@ -185,8 +229,8 @@ class PAP(_AUCMetric):
     """
 
     insufficient_cases: str = attr.ib(default="exclude")
-
-    def calc_per_user_from_outer_merged(self, outer_merged: pd.DataFrame) -> pd.Series:
+    
+    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
         Calculate metric values for all users from outer merged recommendations.
 
@@ -201,22 +245,12 @@ class PAP(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        # only these 2 lined added
-        outer_merged["__test_pos_cumsum"] = outer_merged.groupby("user_id")["__test_positive"].cumsum()
-        outer_merged = outer_merged[outer_merged["__test_pos_cumsum"] <= self.k].copy()
-        
-        num_pos = outer_merged[outer_merged["__test_positive"]].groupby(Columns.User).size()
+        num_pos = fitted.num_pos.clip(upper=self.k)
+        users_num_fp_insuf = fitted.users_num_fp_insuf
+        outer_merged = fitted.outer_merged_enriched[fitted.outer_merged_enriched["__test_pos_cumsum"] <= self.k].copy()
         
         if self.insufficient_cases in ["exclude", "raise"]:
-            users_not_full_predicted = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
-
-        outer_merged["__fp"] = (~outer_merged[Columns.Rank].isna()) & (~outer_merged["__test_positive"])
-        outer_merged["__fp_cumsum"] = outer_merged.groupby(Columns.User)["__fp"].cumsum()  # TODO: test on boolean
-
-        if self.insufficient_cases in ["exclude", "raise"]:
-            users_fm_cumcum_max = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
-            insufficient_fp_users = users_fm_cumcum_max[users_fm_cumcum_max < self.k].index.values
-            insufficient_users = np.intersect1d(insufficient_fp_users, users_not_full_predicted)
+            insufficient_users = users_num_fp_insuf[users_num_fp_insuf < self.k].index.values
 
             if insufficient_users.any():
                 if self.insufficient_cases == "exclude":
@@ -239,18 +273,20 @@ class PAP(_AUCMetric):
                     )
 
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * (cropped["__fp"] - 1) * (-1)
+        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
         pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
         pauc_denominator = num_pos * self.k
         pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
         return pauc
+
 
 AucMetric = tp.Union[PAUC, PAP]
 
 
 def calc_auc_metrics(
     metrics: tp.Dict[str, AucMetric],
-    outer_merged: pd.DataFrame,
+    reco: pd.DataFrame,
+    interactions: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
     Calculate any AUC-like metrics (PAUC for now).
@@ -276,10 +312,15 @@ def calc_auc_metrics(
         and values are metric calculation results.
     """
     results = {}
+    
+    k_max = max(metric.k for metric in metrics.values())
+    fitted = _AUCMetric.fit(reco, interactions, k_max)
+    for name, metric in metrics.items():
+        results[name] = metric.calc_from_fitted(fitted)
 
-    for auc_metric_cls in [PAUC, PAP]:
-        pauc_metrics: tp.Dict[str, AucMetric] = select_by_type(metrics, auc_metric_cls)
-        for name, metric in pauc_metrics.items():
-            results[name] = metric.calc_from_outer_merged(outer_merged)
+    # for auc_metric_cls in [PAUC, PAP]:
+    #     pauc_metrics: tp.Dict[str, AucMetric] = select_by_type(metrics, auc_metric_cls)
+    #     for name, metric in pauc_metrics.items():
+    #         results[name] = metric.calc_from_outer_merged(outer_merged)
 
     return results
