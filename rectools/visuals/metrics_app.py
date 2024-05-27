@@ -185,11 +185,15 @@ class MetricsApp:
         layout_params.update(self.layout_kwargs)
         fig_widget = go.FigureWidget(layout=layout_params)
 
-        metric_x.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
-        metric_y.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
-        use_avg.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
-        use_avg.observe(lambda upd: self._update_fold_visibility(use_avg, fold_i), "value")
-        fold_i.observe(lambda upd: self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i), "value")
+        def update(event: tp.Callable[..., tp.Any]) -> None:
+            self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i)
+            self._update_fold_visibility(use_avg, fold_i)
+
+        metric_x.observe(update, "value")
+        metric_y.observe(update, "value")
+        use_avg.observe(update, "value")
+        use_avg.observe(update, "value")
+        fold_i.observe(update, "value")
 
         display(widgets.VBox([widgets.HBox([use_avg, fold_i]), widgets.HBox([metric_x, metric_y]), fig_widget]))
         self._update_fold_visibility(use_avg, fold_i)
