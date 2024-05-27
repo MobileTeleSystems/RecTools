@@ -37,7 +37,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     interactions: tp.Optional[pd.DataFrame] = None,
     prev_interactions: tp.Optional[pd.DataFrame] = None,
     catalog: tp.Optional[Catalog] = None,
-    ref_recos: tp.Optional[tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]] = None,
+    ref_reco: tp.Optional[tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]] = None,
 ) -> tp.Dict[str, float]:
     """
     Calculate metrics.
@@ -59,7 +59,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     catalog : collection, optional
         Collection of unique item ids that could be used for recommendations.
         Obligatory only if `ClassificationMetric` or `SerendipityMetric` instances present in `metrics`.
-    ref_recos : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]], optional
+    ref_reco : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]], optional
         Reference recommendations table(s) with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         For multiple intersection calculations we can pass multiple models recommendations in a dict:
         ``ref_recos = {"one": ref_recos_one, "two": ref_recos_two}``
@@ -174,12 +174,12 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     intersection_metrics = select_by_type(metrics, IntersectionMetric)
     intersection_additional_metrics_len = 0
     if intersection_metrics:
-        if ref_recos is None:
+        if ref_reco is None:
             raise ValueError("For calculating intersection metrics it's necessary to set 'ref_reco'")
         intersection_values = calc_intersection_metrics(
             intersection_metrics,
             reco,
-            ref_recos,
+            ref_reco,
         )
         results.update(intersection_values)
         intersection_additional_metrics_len += len(intersection_values) - len(intersection_metrics)

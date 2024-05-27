@@ -92,7 +92,7 @@ IntersectionMetric = Intersection
 def calc_intersection_metrics(
     metrics: Dict[str, Intersection],
     reco: pd.DataFrame,
-    ref_recos: Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]],
+    ref_reco: Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]],
 ) -> Dict[str, float]:
     """
     Calculate intersection metrics.
@@ -107,7 +107,7 @@ def calc_intersection_metrics(
         where key is metric name and value is metric object.
     reco : pd.DataFrame
         Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
-    ref_recos : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]]
+    ref_reco : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]]
         Reference recommendations table(s) with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
 
     Returns
@@ -119,12 +119,12 @@ def calc_intersection_metrics(
     results = {}
 
     intersection_metrics: Dict[str, Intersection] = select_by_type(metrics, Intersection)
-    if isinstance(ref_recos, pd.DataFrame):
+    if isinstance(ref_reco, pd.DataFrame):
         for name, metric in intersection_metrics.items():
-            results[name] = metric.calc(reco, ref_recos)
+            results[name] = metric.calc(reco, ref_reco)
     else:
         for name, metric in intersection_metrics.items():
-            for key, ref_reco in ref_recos.items():
+            for key, ref_reco in ref_reco.items():
                 results[f"{name}_{key}"] = metric.calc(reco, ref_reco)
 
     return results
