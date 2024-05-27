@@ -70,6 +70,7 @@ class MetricsApp:
         Examples
         --------
         Create interactive widget
+
         >>> example_df = pd.DataFrame(
         ...    {
         ...        Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
@@ -85,6 +86,7 @@ class MetricsApp:
         ...    layout_kwargs={"width": 800, "height": 600})
 
         Get plotly chart from the current widget state
+
         >>> fig = app.fig
         >>> fig = fig.update_layout(title="Metrics comparison")
         """
