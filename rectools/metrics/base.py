@@ -96,8 +96,10 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
 
 def outer_merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge recommendation table with interactions table with outer join and provide full ranks.
-    This method is useful for AUC based metrics.
+    Merge recommendation table with interactions table with outer join. All ranks for all users are
+    present with no skipping. Null ranks will be specified for test interactions that were not
+    predicted in recommendations.
+    This method is useful for AUC based ranking metrics.
 
     Parameters
     ----------

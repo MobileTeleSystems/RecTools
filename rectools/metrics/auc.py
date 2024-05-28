@@ -306,9 +306,8 @@ class PAP(_AUCMetric):
 
         Parameters
         ----------
-        outer_merged : pd.DataFrame
-            Result of merging recommendations and interactions tables with `outer` logic and full ranks provided.
-            Can be obtained using `outer_merge_reco` function.
+        fitted : AUCFitted
+            Meta data that got from `.fit` method.
 
         Returns
         -------
