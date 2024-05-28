@@ -21,23 +21,23 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics.auc import PAP, PAUC
+from rectools.metrics.auc import PAP, PAUC, InsufficientHandling
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
 
 class TestPAUC:
     @pytest.mark.parametrize(
-        "k, insufficient_cases, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (1, "don't check", [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
-            (3, "don't check", [0, 0, 1, 1, 1 / 12], [1, 2, 3, 4, 5]),
-            (1, "exclude", [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
-            (3, "exclude", [0, 1, 1, 1 / 12], [1, 3, 4, 5]),  # user 2 was excluded
+            (1, InsufficientHandling.SKIP, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
+            (3, InsufficientHandling.SKIP, [0, 0, 1, 1, 1 / 12], [1, 2, 3, 4, 5]),
+            (1, InsufficientHandling.EXCLUDE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
+            (3, InsufficientHandling.EXCLUDE, [0, 1, 1, 1 / 12], [1, 3, 4, 5]),  # user 2 was excluded
         ),
     )
     def test_calc(
-        self, k: int, insufficient_cases: str, expected_pauc: tp.List[float], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_pauc: tp.List[float], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -53,7 +53,7 @@ class TestPAUC:
             }
         )
 
-        metric = PAUC(k=k, insufficient_cases=insufficient_cases)
+        metric = PAUC(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             expected_pauc,
             index=pd.Series(expected_users, name=Columns.User),
@@ -76,21 +76,25 @@ class TestPAUC:
                 Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
             }
         )
-        metric = PAUC(k=3, insufficient_cases="raise")
+        metric = PAUC(k=3, insufficient_handling=InsufficientHandling.RAISE)
         with pytest.raises(ValueError):
             metric.calc(reco, interactions)
 
-    @pytest.mark.parametrize("insufficient_cases", ["raise", "exclude", "don't check"])
-    def test_when_no_interactions(self, insufficient_cases: str) -> None:
+    @pytest.mark.parametrize(
+        "insufficient_handling", [InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP]
+    )
+    def test_when_no_interactions(self, insufficient_handling: str) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
-        metric = PAUC(k=3, insufficient_cases=insufficient_cases)
+        metric = PAUC(k=3, insufficient_handling=insufficient_handling)
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
 
     @pytest.mark.parametrize("k", (1, 3))
-    @pytest.mark.parametrize("insufficient_cases", ("raise", "exclude", "don't check"))
-    def test_when_duplicates_in_interactions_sufficient(self, k: int, insufficient_cases: str) -> None:
+    @pytest.mark.parametrize(
+        "insufficient_handling", (InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP)
+    )
+    def test_when_duplicates_in_interactions_sufficient(self, k: int, insufficient_handling: str) -> None:
         reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 1, 2, 2, 2],
@@ -104,7 +108,7 @@ class TestPAUC:
                 Columns.Item: [1, 2, 1, 1, 2, 3],
             }
         )
-        metric = PAUC(k=k, insufficient_cases=insufficient_cases)
+        metric = PAUC(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             [1, 0],
             index=pd.Series([1, 2], name=Columns.User),
@@ -114,14 +118,14 @@ class TestPAUC:
 
     #     # this one is actually useful
     @pytest.mark.parametrize(
-        "k, insufficient_cases, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (1, "don't check", [2 / 3, 0], [1, 2]),
-            (1, "exclude", [2 / 3, 0], [1, 2]),
+            (1, InsufficientHandling.SKIP, [2 / 3, 0], [1, 2]),
+            (1, InsufficientHandling.EXCLUDE, [2 / 3, 0], [1, 2]),
         ),
     )
     def test_when_duplicates_in_interactions_insufficient(
-        self, k: int, insufficient_cases: str, expected_pauc: tp.List[int], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_pauc: tp.List[int], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -136,7 +140,7 @@ class TestPAUC:
                 Columns.Item: [1, 2, 1, 1, 2, 3, 10],  # last positive is not in reco
             }
         )
-        metric = PAUC(k=k, insufficient_cases=insufficient_cases)
+        metric = PAUC(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             expected_pauc,
             index=pd.Series(expected_users, name=Columns.User),
@@ -147,16 +151,16 @@ class TestPAUC:
 
 class TestPAP:
     @pytest.mark.parametrize(
-        "k, insufficient_cases, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (1, "don't check", [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
-            (3, "don't check", [0, 0, 1, 1, 1 / 9], [1, 2, 3, 4, 5]),
-            (1, "exclude", [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
-            (3, "exclude", [0, 1, 1, 1 / 9], [1, 3, 4, 5]),  # user 2 was excluded
+            (1, InsufficientHandling.SKIP, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
+            (3, InsufficientHandling.SKIP, [0, 0, 1, 1, 1 / 9], [1, 2, 3, 4, 5]),
+            (1, InsufficientHandling.EXCLUDE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
+            (3, InsufficientHandling.EXCLUDE, [0, 1, 1, 1 / 9], [1, 3, 4, 5]),  # user 2 was excluded
         ),
     )
     def test_calc(
-        self, k: int, insufficient_cases: str, expected_pauc: tp.List[float], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_pauc: tp.List[float], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -172,7 +176,7 @@ class TestPAP:
             }
         )
 
-        metric = PAP(k=k, insufficient_cases=insufficient_cases)
+        metric = PAP(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             expected_pauc,
             index=pd.Series(expected_users, name=Columns.User),
@@ -195,21 +199,25 @@ class TestPAP:
                 Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
             }
         )
-        metric = PAP(k=3, insufficient_cases="raise")
+        metric = PAP(k=3, insufficient_handling=InsufficientHandling.RAISE)
         with pytest.raises(ValueError):
             metric.calc(reco, interactions)
 
-    @pytest.mark.parametrize("insufficient_cases", ["raise", "exclude", "don't check"])
-    def test_when_no_interactions(self, insufficient_cases: str) -> None:
+    @pytest.mark.parametrize(
+        "insufficient_handling", [InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP]
+    )
+    def test_when_no_interactions(self, insufficient_handling: str) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
-        metric = PAP(k=3, insufficient_cases=insufficient_cases)
+        metric = PAP(k=3, insufficient_handling=insufficient_handling)
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
 
     @pytest.mark.parametrize("k", (1, 3))
-    @pytest.mark.parametrize("insufficient_cases", ("raise", "exclude", "don't check"))
-    def test_when_duplicates_in_interactions_sufficient(self, k: int, insufficient_cases: str) -> None:
+    @pytest.mark.parametrize(
+        "insufficient_handling", (InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP)
+    )
+    def test_when_duplicates_in_interactions_sufficient(self, k: int, insufficient_handling: str) -> None:
         reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 1, 2, 2, 2],
@@ -223,7 +231,7 @@ class TestPAP:
                 Columns.Item: [1, 2, 1, 1, 2, 3],
             }
         )
-        metric = PAP(k=k, insufficient_cases=insufficient_cases)
+        metric = PAP(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             [1, 0],
             index=pd.Series([1, 2], name=Columns.User),
@@ -233,14 +241,14 @@ class TestPAP:
 
     # this one is actually useful
     @pytest.mark.parametrize(
-        "k, insufficient_cases, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (2, "don't check", [1 / 2, 0], [1, 2]),
-            (2, "exclude", [0], [2]),
+            (2, InsufficientHandling.SKIP, [1 / 2, 0], [1, 2]),
+            (2, InsufficientHandling.EXCLUDE, [0], [2]),
         ),
     )
     def test_when_duplicates_in_interactions_insufficient(
-        self, k: int, insufficient_cases: str, expected_pauc: tp.List[int], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_pauc: tp.List[int], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -255,7 +263,7 @@ class TestPAP:
                 Columns.Item: [1, 2, 1, 1, 2, 3, 10],  # last positive is not in reco
             }
         )
-        metric = PAP(k=k, insufficient_cases=insufficient_cases)
+        metric = PAP(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             expected_pauc,
             index=pd.Series(expected_users, name=Columns.User),

@@ -12,8 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""AUC like recommendations metrics."""
+"""ROC AUC based ranking recommendations metrics."""
 import typing as tp
+from enum import Enum
 
 import attr
 import pandas as pd
@@ -21,6 +22,14 @@ import pandas as pd
 from rectools import Columns
 from rectools.metrics.base import MetricAtK, outer_merge_reco
 from rectools.utils import select_by_type
+
+
+class InsufficientHandling(str, Enum):
+    """Strategy for handling insufficient reommendations cases"""
+
+    SKIP = "skip"
+    EXCLUDE = "exclude"
+    RAISE = "raise"
 
 
 @attr.s
@@ -62,7 +71,7 @@ class _AUCMetric(MetricAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     """
 
-    insufficient_cases: str = attr.ib(default="exclude")
+    insufficient_handling: InsufficientHandling = attr.ib(default=InsufficientHandling.SKIP)
 
     @classmethod
     def fit(cls, reco: pd.DataFrame, interactions: pd.DataFrame, k_max: int) -> AUCFitted:
@@ -91,48 +100,51 @@ class _AUCMetric(MetricAtK):
         num_fp_insufficient = num_fp_insufficient[num_fp_insufficient.index.isin(users_with_fn)]
 
         return AUCFitted(outer_merged, num_pos, num_fp_insufficient)
-    
-    def _process_insufficient_cases(
+
+    def _get_raise_text_enough_reco(self) -> str:
+        raise NotImplementedError()
+
+    def _handle_insufficient_cases(
         self, outer_merged: pd.DataFrame, num_pos: pd.Series, num_fp_insufficient: pd.Series, metric_name: str
     ) -> pd.Series:
-        if self.insufficient_cases == "don't check":
+        if self.insufficient_handling == InsufficientHandling.SKIP:
             return outer_merged, num_pos
-        
+
         insufficient_users = num_fp_insufficient[num_fp_insufficient < self.k].index.values
         if not insufficient_users.any():
             return outer_merged, num_pos
 
-        if self.insufficient_cases == "exclude":
+        if self.insufficient_handling == InsufficientHandling.EXCLUDE:
             outer_merged_suf = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)].copy()  # remove copy
             num_pos_suf = num_pos[~num_pos.index.isin(insufficient_users)].copy()  # remove copy
             return outer_merged_suf, num_pos_suf
-        
+
         raise ValueError(
             f"""
-            {metric_name}@{self.k} metric requires at least {self.k} negatives in 
+            {metric_name}@{self.k} metric requires at least {self.k} negatives in
             recommendations for each user. Or all items from user test interactions ranked in
             recommendations - meaning that all other recommended items will be negatives.
             There are {len(insufficient_users)} users with less then required negatives.
             For correct {metric_name} computation please provide each user with sufficient number
-            of recommended items. It fill be enough to have `n_user_positives` + `{metric_name}_k`
-            recommended items for each user.
-            You can disable this error by specifying `insufficient_cases` = "don't check" or
-            by dropping all users with insuffissient recommendations from metric computation
-            with specifying `insufficient_cases` = "drop".
+            of recommended items. {self._get_raise_text_enough_reco()}
+            You can disable this error by specifying `insufficient_handling`="{InsufficientHandling.SKIP}" or
+            by excluding all users with insuffissient recommendations from metric computation
+            with specifying `insufficient_handling` = "{InsufficientHandling.EXCLUDE}".
             """
         )
-        
-    def _calc_roc_auc(self, outer_merged: pd.DataFrame, num_pos: pd.Series) -> pd.Series:
+
+    def _calc_roc_auc(self, cropped_outer_merged: pd.DataFrame, num_pos: pd.Series) -> pd.Series:
         """
-        Calculate partial roc auc given that all data has already been prepared and cropped following
-        required metric logic.
+        Calculate ROC AUC given that all data has already been prepared, merged, enriched and cropped following
+        metric specific logic.
         """
-        cropped = outer_merged.copy()  # TODO: remove copy
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
-        pauc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
-        pauc_denominator = num_pos * self.k
-        pauc = (pauc_numenator / (pauc_denominator)).fillna(0)
-        return pauc
+        cropped_outer_merged["__auc_numenator_gain"] = (
+            self.k - cropped_outer_merged["__fp_cumsum"]
+        ) * cropped_outer_merged["__tp"]
+        auc_numenator = cropped_outer_merged.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        auc_denominator = num_pos * self.k
+        auc = (auc_numenator / (auc_denominator)).fillna(0)
+        return auc
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
@@ -175,12 +187,12 @@ class _AUCMetric(MetricAtK):
 
     def calc_from_fitted(self, fitted: AUCFitted) -> float:
         """
-        Calculate metric value from merged recommendations.
+        Calculate metric value from fitted data.
 
         Parameters
         ----------
         fitted : AUCFitted
-            ...
+            Meta data that got from `.fit` method.
 
         Returns
         -------
@@ -190,19 +202,19 @@ class _AUCMetric(MetricAtK):
         per_user = self.calc_per_user_from_fitted(fitted)
         return per_user.mean()
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> float:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
-        Calculate metric value from merged recommendations.
+        Calculate metric values for all users from from fitted data.
 
         Parameters
         ----------
         fitted : AUCFitted
-            ...
+            Meta data that got from `.fit` method.
 
         Returns
         -------
-        float
-            Value of metric (average between users).
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
         """
         raise NotImplementedError()
 
@@ -214,31 +226,40 @@ class PAUC(_AUCMetric):
     Write all info here
     """
 
+    def _get_raise_text_enough_reco(self):
+        return f"""
+            It fill be enough to have `n_user_positives` + `PAUC_k` ({self.k}) recommended items for
+            each user. For simplification it will be enough to have max(`n_user_positives`) +
+            `PAUC_k` ({self.k}) recommended items for all users if max(`n_user_positives`) is
+            not too high.
+            """
+
     def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
-        Calculate metric values for all users from outer merged recommendations.
+        Calculate metric values for all users from from fitted data.
 
         Parameters
         ----------
-        outer_merged : pd.DataFrame
-            Result of merging recommendations and interactions tables with `outer` logic and full ranks provided.
-            Can be obtained using `outer_merge_reco` function.
+        fitted : AUCFitted
+            Meta data that got from `.fit` method.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        # Keep k first false positives for roc auc computation
         outer_merged = fitted.outer_merged_enriched
+
+        # Keep k first false positives for roc auc computation, keep all predicted test positives
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
-        outer_merged, num_pos = self._process_insufficient_cases(
+
+        cropped, num_pos = self._handle_insufficient_cases(
             outer_merged=cropped,
             num_pos=fitted.num_pos,
             num_fp_insufficient=fitted.num_fp_insufficient,
             metric_name="PAUC",
         )
-        return self._calc_roc_auc(outer_merged, num_pos)
+        return self._calc_roc_auc(cropped.copy(), num_pos.copy())
 
 
 @attr.s
@@ -248,6 +269,14 @@ class PAP(_AUCMetric):
     Write all info here
     """
 
+    def _get_raise_text_enough_reco(self):
+        return f"""
+            It fill be enough to have min(`n_user_positives`, `PAP_k` ({self.k}))  + `PAP_k`
+            ({self.k}) recommended items for each user.
+            For simplification it will be enough to have `PAP_k` ({self.k})) * 2 recommended items
+            for all users.
+            """
+
     def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
         """
         Calculate metric values for all users from outer merged recommendations.
@@ -263,21 +292,22 @@ class PAP(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        # Keep k first false positives and k first true positives for roc auc computation
         outer_merged = fitted.outer_merged_enriched
+
+        # Keep k first false positives and k first predicted test positives for roc auc computation
         cropped = outer_merged[
             (outer_merged["__test_pos_cumsum"] <= self.k)
             & (outer_merged["__fp_cumsum"] < self.k)
             & (~outer_merged[Columns.Rank].isna())
         ].copy()
-        
-        outer_merged, num_pos = self._process_insufficient_cases(
+
+        cropped, num_pos = self._handle_insufficient_cases(
             outer_merged=cropped,
             num_pos=fitted.num_pos.clip(upper=self.k),
             num_fp_insufficient=fitted.num_fp_insufficient,
             metric_name="PAP",
         )
-        return self._calc_roc_auc(outer_merged, num_pos)
+        return self._calc_roc_auc(cropped, num_pos)
 
 
 AucMetric = tp.Union[PAUC, PAP]
@@ -289,7 +319,7 @@ def calc_auc_metrics(
     interactions: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
-    Calculate any AUC-like metrics (PAUC for now).
+    Calculate any ROC AUC based ranking metric.
 
     Works with pre-prepared data.
 
