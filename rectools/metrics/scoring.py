@@ -22,7 +22,7 @@ import pandas as pd
 from rectools.utils import select_by_type
 
 from .auc import AucMetric, calc_auc_metrics
-from .base import Catalog, MetricAtK, merge_reco, outer_merge_reco
+from .base import Catalog, MetricAtK, merge_reco
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
 from .novelty import NoveltyMetric, calc_novelty_metrics

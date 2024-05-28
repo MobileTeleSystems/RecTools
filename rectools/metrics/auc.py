@@ -57,10 +57,9 @@ class AUCFitted:
     num_fp_insufficient: pd.Series = attr.ib()
 
 
-@attr.s
 class _AUCMetric(MetricAtK):
     """
-    Partial AUC metric base class.
+    ROC AUC based metric base class.
 
     Warning: This class should not be used directly.
     Use derived classes instead.
@@ -69,9 +68,36 @@ class _AUCMetric(MetricAtK):
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
+    insufficient_handling : {"skip", "raise", "exclude"}, default `"skip"`
+        Method of handling users with insufficient recommendations for metric calculation.
+        ROC AUC based metrics with `k` parameter often need more then `k` recommendations
+        for each user. This happens because this metrics calculate ROC AUC
+        score for specific number of user false positives and ranked test positives that is derived
+        from provided `k` parameter but is not equal to it.
+        The following methods are available:
+        - `skip` - don'c check for insufficient recommendations lists, handle all of insufficient
+        cases as if algorithms are not able to retrieve users unpredicted test positives on any k
+        level. This will understate the metric value;
+        - `exclude` - exclude all users with insufficient recommendations lists from metrics
+        computation;
+        - `raise` - raise error if there are any users with insufficient recommendations lists. Use
+        this option very carefully because some of the algorithms are unable to provide full required
+        lists because of their inference logic. So can get errors even if you requested enough
+        recommendations in `recommend` method. For example, ItemKNN generates recommendations only
+        until the model has non-zero scores for the item in item-item similarity matrix. So with
+        small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
+        will still get an error when `insufficient_handling` is set to `raise`.
     """
 
-    insufficient_handling: InsufficientHandling = attr.ib(default=InsufficientHandling.SKIP)
+    def __init__(self, k: int, insufficient_handling: tp.Optional[str] = InsufficientHandling.SKIP) -> None:
+        super().__init__(k=k)
+        try:
+            self.insufficient_handling = InsufficientHandling(insufficient_handling)
+        except ValueError:
+            possible_values = {item.value for item in InsufficientHandling.__members__.values()}
+            raise ValueError(
+                f"`insufficient_handling` must be one of the {possible_values}. Got {insufficient_handling}."
+            )
 
     @classmethod
     def fit(cls, reco: pd.DataFrame, interactions: pd.DataFrame, k_max: int) -> AUCFitted:
@@ -80,7 +106,7 @@ class _AUCMetric(MetricAtK):
 
         You can use this method to prepare some intermediate data
         for later calculation. It can optimize calculations if
-        you want calculate partial AUC metric values for different `k`.
+        you want calculate different AUC based metrics with different `k` parameter.
         """
         cls._check(reco, interactions=interactions)
 
@@ -92,7 +118,7 @@ class _AUCMetric(MetricAtK):
 
         num_pos = outer_merged.groupby(Columns.User)["__test_pos_cumsum"].max()
 
-        # Every user with FP count more then k_max has sufficient recommendations for pauc metrics
+        # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
         # We calculate and keep number of false positives for all other users
         users_num_fp = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
         num_fp_insufficient = users_num_fp[users_num_fp < k_max]
@@ -101,7 +127,7 @@ class _AUCMetric(MetricAtK):
 
         return AUCFitted(outer_merged, num_pos, num_fp_insufficient)
 
-    def _get_raise_text_enough_reco(self) -> str:
+    def _get_sufficient_reco_explananation(self) -> str:
         raise NotImplementedError()
 
     def _handle_insufficient_cases(
@@ -126,7 +152,7 @@ class _AUCMetric(MetricAtK):
             recommendations - meaning that all other recommended items will be negatives.
             There are {len(insufficient_users)} users with less then required negatives.
             For correct {metric_name} computation please provide each user with sufficient number
-            of recommended items. {self._get_raise_text_enough_reco()}
+            of recommended items. {self._get_sufficient_reco_explananation()}
             You can disable this error by specifying `insufficient_handling`="{InsufficientHandling.SKIP}" or
             by excluding all users with insuffissient recommendations from metric computation
             with specifying `insufficient_handling` = "{InsufficientHandling.EXCLUDE}".
@@ -218,14 +244,13 @@ class _AUCMetric(MetricAtK):
         raise NotImplementedError()
 
 
-@attr.s
 class PAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
     Write all info here
     """
 
-    def _get_raise_text_enough_reco(self):
+    def _get_sufficient_reco_explananation(self) -> str:
         return f"""
             It fill be enough to have `n_user_positives` + `PAUC_k` ({self.k}) recommended items for
             each user. For simplification it will be enough to have max(`n_user_positives`) +
@@ -261,14 +286,13 @@ class PAUC(_AUCMetric):
         return self._calc_roc_auc(cropped_suf, num_pos_suf)
 
 
-@attr.s
 class PAP(_AUCMetric):
     r"""
     Partial AUC ... at k (pAp@k).
     Write all info here
     """
 
-    def _get_raise_text_enough_reco(self):
+    def _get_sufficient_reco_explananation(self) -> str:
         return f"""
             It fill be enough to have min(`n_user_positives`, `PAP_k` ({self.k}))  + `PAP_k`
             ({self.k}) recommended items for each user.

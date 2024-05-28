@@ -27,6 +27,10 @@ EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=in
 
 
 class TestPAUC:
+    def test_raises_when_incorrect_insufficient_handling(self) -> None:
+        with pytest.raises(ValueError):
+            PAUC(k=1, insufficient_handling="strange")
+
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
@@ -116,7 +120,6 @@ class TestPAUC:
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
-    #     # this one is actually useful
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
@@ -150,6 +153,10 @@ class TestPAUC:
 
 
 class TestPAP:
+    def test_raises_when_incorrect_insufficient_handling(self) -> None:
+        with pytest.raises(ValueError):
+            PAP(k=1, insufficient_handling="strange")
+
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
