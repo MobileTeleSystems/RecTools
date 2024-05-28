@@ -125,12 +125,11 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
         ranking_values = calc_ranking_metrics(ranking_metrics, merged)
         results.update(ranking_values)
 
-    # AUC
+    # AUC based ranking
     auc_metrics = select_by_type(metrics, AucMetric)
     if auc_metrics:
         if interactions is None:
             raise ValueError("For calculating AUC-like metrics it's necessary to set 'interactions'")
-        # outer_merged = outer_merge_reco(reco, interactions)
         auc_values = calc_auc_metrics(auc_metrics, reco, interactions)
         results.update(auc_values)
 

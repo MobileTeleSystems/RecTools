@@ -115,8 +115,8 @@ class _AUCMetric(MetricAtK):
             return outer_merged, num_pos
 
         if self.insufficient_handling == InsufficientHandling.EXCLUDE:
-            outer_merged_suf = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)].copy()  # remove copy
-            num_pos_suf = num_pos[~num_pos.index.isin(insufficient_users)].copy()  # remove copy
+            outer_merged_suf = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)]
+            num_pos_suf = num_pos[~num_pos.index.isin(insufficient_users)]
             return outer_merged_suf, num_pos_suf
 
         raise ValueError(
@@ -138,10 +138,9 @@ class _AUCMetric(MetricAtK):
         Calculate ROC AUC given that all data has already been prepared, merged, enriched and cropped following
         metric specific logic.
         """
-        cropped_outer_merged["__auc_numenator_gain"] = (
-            self.k - cropped_outer_merged["__fp_cumsum"]
-        ) * cropped_outer_merged["__tp"]
-        auc_numenator = cropped_outer_merged.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        cropped = cropped_outer_merged.copy()
+        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
+        auc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
         auc_denominator = num_pos * self.k
         auc = (auc_numenator / (auc_denominator)).fillna(0)
         return auc
@@ -251,15 +250,15 @@ class PAUC(_AUCMetric):
         outer_merged = fitted.outer_merged_enriched
 
         # Keep k first false positives for roc auc computation, keep all predicted test positives
-        cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())].copy()
+        cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
 
-        cropped, num_pos = self._handle_insufficient_cases(
+        cropped_suf, num_pos_suf = self._handle_insufficient_cases(
             outer_merged=cropped,
             num_pos=fitted.num_pos,
             num_fp_insufficient=fitted.num_fp_insufficient,
             metric_name="PAUC",
         )
-        return self._calc_roc_auc(cropped.copy(), num_pos.copy())
+        return self._calc_roc_auc(cropped_suf, num_pos_suf)
 
 
 @attr.s
@@ -299,15 +298,15 @@ class PAP(_AUCMetric):
             (outer_merged["__test_pos_cumsum"] <= self.k)
             & (outer_merged["__fp_cumsum"] < self.k)
             & (~outer_merged[Columns.Rank].isna())
-        ].copy()
+        ]
 
-        cropped, num_pos = self._handle_insufficient_cases(
+        cropped_suf, num_pos_suf = self._handle_insufficient_cases(
             outer_merged=cropped,
             num_pos=fitted.num_pos.clip(upper=self.k),
             num_fp_insufficient=fitted.num_fp_insufficient,
             metric_name="PAP",
         )
-        return self._calc_roc_auc(cropped, num_pos)
+        return self._calc_roc_auc(cropped_suf, num_pos_suf)
 
 
 AucMetric = tp.Union[PAUC, PAP]
@@ -331,9 +330,11 @@ def calc_auc_metrics(
     metrics : dict(str -> (AucMetric))
         Dict of metric objects to calculate,
         where key is metric name and value is metric object.
-    outer_merged : pd.DataFrame
-        Result of merging recommendations and interactions tables with `outer` logic and full ranks provided.
-        Can be obtained using `outer_merge_reco` function.
+    reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+    interactions : pd.DataFrame, optional
+        Interactions table with columns `Columns.User`, `Columns.Item`.
+        Obligatory only for some types of metrics.
 
     Returns
     -------
