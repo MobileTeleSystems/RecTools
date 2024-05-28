@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Extended Theory&Practice RecSys baselines tutorial ([#139](https://github.com/MobileTeleSystems/RecTools/pull/139))
+- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140))
 
 ### Fixed
 - Used the latest version of `lightfm` that allows to install it using `poetry>=1.5.0` ([#141](https://github.com/MobileTeleSystems/RecTools/pull/141))
