@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -247,7 +247,12 @@ class _AUCMetric(MetricAtK):
 class PAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
-    Write all info here
+    pAUC@k measures AUC between the top-k irrelevant items and all relevant items for eachuser.
+    Analysied: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information"
+    https://arxiv.org/abs/2001.10495
+    Analysied: "Optimization and Analysis of the pAp@k Metric for Recommender Systems"
+    https://proceedings.mlr.press/v119/hiranandani20a.html
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
@@ -288,8 +293,15 @@ class PAUC(_AUCMetric):
 
 class PAP(_AUCMetric):
     r"""
-    Partial AUC ... at k (pAp@k).
-    Write all info here
+    `partial-AUC + precision@k` (pAp@k) joint classification and ranking metric.
+    pAp@k measures AUC between the top-k irrelevant items and top-β relevant items, where β is the
+    minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
+    relevant items are larger than k and like pAUC otherwise
+    Introduced: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information"
+    https://arxiv.org/abs/2001.10495
+    Analysied: "Optimization and Analysis of the pAp@k Metric for Recommender Systems"
+    https://proceedings.mlr.press/v119/hiranandani20a.html
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
