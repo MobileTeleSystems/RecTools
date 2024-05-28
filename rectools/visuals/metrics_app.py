@@ -59,7 +59,7 @@ class MetricsApp:
             Specifies whether to display the chart legend.
         auto_display : bool, default True
             Automatically displays the widgets immediately after initialization.
-         layout_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional, default None
+        layout_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional, default None
             Additional arguments from `plotly.graph_objects.Layout`
 
         Returns
