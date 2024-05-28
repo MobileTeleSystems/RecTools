@@ -248,10 +248,10 @@ class PAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
     pAUC@k measures AUC between the top-k irrelevant items and all relevant items for eachuser.
-    Analysied: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
-    Information"
+    Analysed: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information",
     https://arxiv.org/abs/2001.10495
-    Analysied: "Optimization and Analysis of the pAp@k Metric for Recommender Systems"
+    Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
     https://proceedings.mlr.press/v119/hiranandani20a.html
     """
 
@@ -298,9 +298,8 @@ class PAP(_AUCMetric):
     minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
     relevant items are larger than k and like pAUC otherwise
     Introduced: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
-    Information"
-    https://arxiv.org/abs/2001.10495
-    Analysied: "Optimization and Analysis of the pAp@k Metric for Recommender Systems"
+    Information", https://arxiv.org/abs/2001.10495
+    Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
     https://proceedings.mlr.press/v119/hiranandani20a.html
     """
 
