@@ -249,22 +249,50 @@ class PAUC(_AUCMetric):
     Partial AUC at k (pAUC@k).
     pAUC@k measures ROC AUC score for ranking of the top-k irrelevant items and all relevant items
     for each user.
-    
+
     .. math::
         pAUC@k = \frac{1}{kn^+}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
 
     where
+        - :math:`k` is the number of user top scored negatives for metric computation
+        - :math:`s` is a scoring function which provides scores to rank items for user
         - :math:`\mathbb{1}` is the indicator function
-        - :math:`s` is a scoring funtion which provides scores to rank items for user
         - :math:`n^+` is the number of all user test positives
         - :math:`S^+` is the set of all positives for user
         - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
-    
+
     Analysed: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
     Information",
     https://arxiv.org/abs/2001.10495
     Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
     https://proceedings.mlr.press/v119/hiranandani20a.html
+
+
+    Parameters
+    ----------
+    k : int
+        Number of top irrelevant items for user to be taken for ROC AUC computation. This does not
+        equal `k` for classic `@k` metrics.
+    insufficient_handling : {"skip", "raise", "exclude"}, default `"skip"`
+        Method of handling users with insufficient recommendation lists for metric calculation.
+        pAUC@k needs more then `k` recommendations for each user. This happens because this metris
+        calculate ROC AUC score for specific number of user false positives and ranked test
+        positives that is derived from provided `k` parameter but is not equal to it.
+        It fill be enough to have :math:`n^+` (number of user positives) + `k` recommended items for
+        each user.
+        The following methods are available:
+        - `skip` - don'c check for insufficient recommendations lists, handle all of insufficient
+        cases as if algorithms are not able to retrieve users unpredicted test positives on any k
+        level. This will understate the metric value if recommendation lists are not sufficient;
+        - `exclude` - exclude all users with insufficient recommendations lists from metrics
+        computation;
+        - `raise` - raise error if there are any users with insufficient recommendations lists. Use
+        this option very carefully because some of the algorithms are unable to provide full required
+        lists because of their inference logic. So can get errors even if you requested enough
+        recommendations in `recommend` method. For example, ItemKNN generates recommendations only
+        until the model has non-zero scores for the item in item-item similarity matrix. So with
+        small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
+        will still get an error when `insufficient_handling` is set to `raise`.
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
@@ -309,21 +337,49 @@ class PAP(_AUCMetric):
     pAp@k measures AUC between the top-k irrelevant items and top-β relevant items, where β is the
     minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
     relevant items are larger than k and like pAUC otherwise.
-    
+
     .. math::
         pAp@k = \frac{1}{k\beta}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
 
     where
+        - :math:`k` is the number of top scored negatives and top border for number of user top
+        scored positives for metric computation
+        - :math:`s` is a scoring function which provides scores to rank items for user
         - :math:`\mathbb{1}` is the indicator function
-        - :math:`s` is a scoring funtion which provides scores to rank items for user
         - :math:`\beta` is the minimum between `k` and number of user test positives
         - :math:`S^+` is the set of top :math:`\betta` positives for user acquired by :math:`s`
         - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
-        
+
     Introduced: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
     Information", https://arxiv.org/abs/2001.10495
     Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
     https://proceedings.mlr.press/v119/hiranandani20a.html
+
+
+    Parameters
+    ----------
+    k : int
+        Number of top irrelevant items for user to be taken for ROC AUC computation. This does not
+        equal `k` for classic `@k` metrics.
+    insufficient_handling : {"skip", "raise", "exclude"}, default `"skip"`
+        Method of handling users with insufficient recommendation lists for metric calculation.
+        pAp@k needs more then `k` recommendations for each user. This happens because this metris
+        calculate ROC AUC score for specific number of user false positives and ranked test
+        positives that is derived from provided `k` parameter but is not equal to it.
+        It fill be enough to have `k` * 2 recommended items for each user.
+        The following methods are available:
+        - `skip` - don'c check for insufficient recommendations lists, handle all of insufficient
+        cases as if algorithms are not able to retrieve users unpredicted test positives on any k
+        level. This will understate the metric value if recommendation lists are not sufficient;
+        - `exclude` - exclude all users with insufficient recommendations lists from metrics
+        computation;
+        - `raise` - raise error if there are any users with insufficient recommendations lists. Use
+        this option very carefully because some of the algorithms are unable to provide full required
+        lists because of their inference logic. So can get errors even if you requested enough
+        recommendations in `recommend` method. For example, ItemKNN generates recommendations only
+        until the model has non-zero scores for the item in item-item similarity matrix. So with
+        small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
+        will still get an error when `insufficient_handling` is set to `raise`.
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
