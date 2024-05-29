@@ -260,11 +260,11 @@ class PAUC(_AUCMetric):
         - :math:`n_+` is the number of all user test positives
         - :math:`S^+` is the set of all positives for user
         - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
-        - :math:`x_i` and `x_j` are user positives and negatives for metric computation
+        - :math:`x_i` and :math:`x_j` are user positives and negatives for metric computation
 
-    Analysed in ["Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
-    Information"](https://arxiv.org/abs/2001.10495), analysed in ["Optimization and Analysis of the
-    pAp@k Metric for Recommender Systems"](https://proceedings.mlr.press/v119/hiranandani20a.html)
+    Analysed in "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information": https://arxiv.org/abs/2001.10495, analysed in "Optimization and Analysis of the
+    pAp@k Metric for Recommender Systems": https://proceedings.mlr.press/v119/hiranandani20a.html
 
     Parameters
     ----------
@@ -363,18 +363,17 @@ class PAP(_AUCMetric):
         pAp@k = \frac{1}{k\beta}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
 
     where
-        - :math:`k` is the number of top scored negatives and top border for number of user top
-    scored positives for metric computation
+        - :math:`k` is the number of top scored negatives and border for top scored positives
         - :math:`s` is a scoring function which provides scores to rank items for user
         - :math:`\mathbb{1}` is the indicator function
         - :math:`\beta` is the minimum between `k` and number of user test positives
         - :math:`S^+` is the set of top :math:`\beta` positives for user acquired by :math:`s`
         - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
-        - :math:`x_i` and `x_j` are user positives and negatives for metric computation
+        - :math:`x_i` and :math:`x_j` are user positives and negatives for metric computation
 
-    Introduced in ["Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
-    Information"](https://arxiv.org/abs/2001.10495), analysed in ["Optimization and Analysis of the
-    pAp@k Metric for Recommender Systems"](https://proceedings.mlr.press/v119/hiranandani20a.html)
+    Introduced in "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information": https://arxiv.org/abs/2001.10495, analysed in "Optimization and Analysis of the
+    pAp@k Metric for Recommender Systems": https://proceedings.mlr.press/v119/hiranandani20a.html
 
     Parameters
     ----------
