@@ -266,7 +266,6 @@ class PAUC(_AUCMetric):
     Information"](https://arxiv.org/abs/2001.10495), analysed in ["Optimization and Analysis of the
     pAp@k Metric for Recommender Systems"](https://proceedings.mlr.press/v119/hiranandani20a.html)
 
-
     Parameters
     ----------
     k : int
@@ -292,28 +291,28 @@ class PAUC(_AUCMetric):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
-        
-        Examples
-        --------
-        >>> reco = pd.DataFrame(
-        ...     {
-        ...         Columns.User: [1, 1, 2, 2, 2, 3, 3],
-        ...         Columns.Item: [1, 2, 3, 1, 2, 3, 2],
-        ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2],
-        ...     }
-        ... )
-        >>> interactions = pd.DataFrame(
-        ...     {
-        ...         Columns.User: [1, 1, 2, 2, 3, 3],
-        ...         Columns.Item: [1, 2, 1, 3, 1, 2],
-        ...     }
-        ... )
-        >>> PAUC(k=1).calc_per_user(reco, interactions).values
-        array([1., 1., 0.])
-        >>> PAUC(k=3).calc_per_user(reco, interactions).values
-        array([1., 1. , 0.33333333])
-        >>> PAUC(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
-        array([[1., 1.])
+
+    Examples
+    --------
+    >>> reco = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 2, 3, 3],
+    ...         Columns.Item: [1, 2, 3, 1, 2, 3, 2],
+    ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2],
+    ...     }
+    ... )
+    >>> interactions = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 3, 3],
+    ...         Columns.Item: [1, 2, 1, 3, 1, 2],
+    ...     }
+    ... )
+    >>> PAUC(k=1).calc_per_user(reco, interactions).values
+    array([1., 1., 0.])
+    >>> PAUC(k=3).calc_per_user(reco, interactions).values
+    array([1., 1. , 0.33333333])
+    >>> PAUC(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
+    array([[1., 1.])
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
@@ -377,7 +376,6 @@ class PAP(_AUCMetric):
     Information"](https://arxiv.org/abs/2001.10495), analysed in ["Optimization and Analysis of the
     pAp@k Metric for Recommender Systems"](https://proceedings.mlr.press/v119/hiranandani20a.html)
 
-
     Parameters
     ----------
     k : int
@@ -402,29 +400,28 @@ class PAP(_AUCMetric):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
-        
-        
-        Examples
-        --------
-        >>> reco = pd.DataFrame(
-        ...     {
-        ...         Columns.User: [1, 1, 2, 2, 2, 3, 3],
-        ...         Columns.Item: [1, 2, 3, 1, 2, 3, 2],
-        ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2],
-        ...     }
-        ... )
-        >>> interactions = pd.DataFrame(
-        ...     {
-        ...         Columns.User: [1, 1, 2, 2, 3, 3],
-        ...         Columns.Item: [1, 2, 1, 3, 1, 2],
-        ...     }
-        ... )
-        >>> PAP(k=1).calc_per_user(reco, interactions).values
-        array([1., 1., 0.])
-        >>> PAP(k=3).calc_per_user(reco, interactions).values
-        array([1., 1. , 0.33333333])
-        >>> PAP(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
-        array([[1., 1.])
+
+    Examples
+    --------
+    >>> reco = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 2, 3, 3],
+    ...         Columns.Item: [1, 2, 3, 1, 2, 3, 2],
+    ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2],
+    ...     }
+    ... )
+    >>> interactions = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 3, 3],
+    ...         Columns.Item: [1, 2, 1, 3, 1, 2],
+    ...     }
+    ... )
+    >>> PAP(k=1).calc_per_user(reco, interactions).values
+    array([1., 1., 0.])
+    >>> PAP(k=3).calc_per_user(reco, interactions).values
+    array([1., 1. , 0.33333333])
+    >>> PAP(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
+    array([[1., 1.])
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
