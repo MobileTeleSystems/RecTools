@@ -175,7 +175,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     intersection_metrics = select_by_type(metrics, IntersectionMetric)
     intersection_additional_metrics_len = 0
     if intersection_metrics:
-        if ref_reco is None:
+        if not ref_reco:
             raise ValueError("For calculating intersection metrics it's necessary to set 'ref_reco'")
         intersection_values = calc_intersection_metrics(
             intersection_metrics,

@@ -77,6 +77,13 @@ class Intersection(MetricAtK):
         if ref_reco.shape[0] == 0:
             return pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
+        if ref_reco is reco:
+            return pd.Series(
+                data=1,
+                index=pd.Series(data=reco[Columns.User].unique(), name=Columns.User, dtype=int),
+                dtype=np.float64,
+            )
+
         filtered_reco = reco[reco[Columns.Rank] <= self.k]
 
         if self.ref_k is None:
@@ -124,7 +131,7 @@ def calc_intersection_metrics(
             results[name] = metric.calc(reco, ref_reco)
     else:
         for name, metric in intersection_metrics.items():
-            for key, ref_reco in ref_reco.items():
-                results[f"{name}_{key}"] = metric.calc(reco, ref_reco)
+            for key, ref_r in ref_reco.items():
+                results[f"{name}_{key}"] = metric.calc(reco, ref_r)
 
     return results
