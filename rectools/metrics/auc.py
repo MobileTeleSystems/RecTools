@@ -248,24 +248,23 @@ class PAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
     pAUC@k measures ROC AUC score for ranking of the top-k irrelevant items and all relevant items
-    for each user.
+    for each user. Averaged between users. For one user the formula is:
 
     .. math::
-        pAUC@k = \frac{1}{kn^+}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
+        pAUC@k = \frac{1}{kn_+}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
 
     where
         - :math:`k` is the number of user top scored negatives for metric computation
         - :math:`s` is a scoring function which provides scores to rank items for user
         - :math:`\mathbb{1}` is the indicator function
-        - :math:`n^+` is the number of all user test positives
+        - :math:`n_+` is the number of all user test positives
         - :math:`S^+` is the set of all positives for user
         - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
+        - :math:`x_i` and `x_j` are user positives and negatives for metric computation
 
-    Analysed: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
-    Information",
-    https://arxiv.org/abs/2001.10495
-    Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
-    https://proceedings.mlr.press/v119/hiranandani20a.html
+    Analysed in ["Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information"](https://arxiv.org/abs/2001.10495), analysed in ["Optimization and Analysis of the
+    pAp@k Metric for Recommender Systems"](https://proceedings.mlr.press/v119/hiranandani20a.html)
 
 
     Parameters
@@ -293,6 +292,28 @@ class PAUC(_AUCMetric):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
+        
+        Examples
+        --------
+        >>> reco = pd.DataFrame(
+        ...     {
+        ...         Columns.User: [1, 1, 2, 2, 2, 3, 3],
+        ...         Columns.Item: [1, 2, 3, 1, 2, 3, 2],
+        ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2],
+        ...     }
+        ... )
+        >>> interactions = pd.DataFrame(
+        ...     {
+        ...         Columns.User: [1, 1, 2, 2, 3, 3],
+        ...         Columns.Item: [1, 2, 1, 3, 1, 2],
+        ...     }
+        ... )
+        >>> PAUC(k=1).calc_per_user(reco, interactions).values
+        array([1., 1., 0.])
+        >>> PAUC(k=3).calc_per_user(reco, interactions).values
+        array([1., 1. , 0.33333333])
+        >>> PAUC(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
+        array([[1., 1.])
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
@@ -336,24 +357,25 @@ class PAP(_AUCMetric):
     `partial-AUC + precision@k` (pAp@k) joint classification and ranking metric.
     pAp@k measures AUC between the top-k irrelevant items and top-β relevant items, where β is the
     minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
-    relevant items are larger than k and like pAUC otherwise.
+    relevant items are larger than k and like pAUC otherwise.  Averaged between users. For one user
+    the formula is:
 
     .. math::
         pAp@k = \frac{1}{k\beta}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
 
     where
         - :math:`k` is the number of top scored negatives and top border for number of user top
-        scored positives for metric computation
+    scored positives for metric computation
         - :math:`s` is a scoring function which provides scores to rank items for user
         - :math:`\mathbb{1}` is the indicator function
         - :math:`\beta` is the minimum between `k` and number of user test positives
-        - :math:`S^+` is the set of top :math:`\betta` positives for user acquired by :math:`s`
+        - :math:`S^+` is the set of top :math:`\beta` positives for user acquired by :math:`s`
         - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
+        - :math:`x_i` and `x_j` are user positives and negatives for metric computation
 
-    Introduced: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
-    Information", https://arxiv.org/abs/2001.10495
-    Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
-    https://proceedings.mlr.press/v119/hiranandani20a.html
+    Introduced in ["Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
+    Information"](https://arxiv.org/abs/2001.10495), analysed in ["Optimization and Analysis of the
+    pAp@k Metric for Recommender Systems"](https://proceedings.mlr.press/v119/hiranandani20a.html)
 
 
     Parameters
@@ -380,6 +402,29 @@ class PAP(_AUCMetric):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
+        
+        
+        Examples
+        --------
+        >>> reco = pd.DataFrame(
+        ...     {
+        ...         Columns.User: [1, 1, 2, 2, 2, 3, 3],
+        ...         Columns.Item: [1, 2, 3, 1, 2, 3, 2],
+        ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2],
+        ...     }
+        ... )
+        >>> interactions = pd.DataFrame(
+        ...     {
+        ...         Columns.User: [1, 1, 2, 2, 3, 3],
+        ...         Columns.Item: [1, 2, 1, 3, 1, 2],
+        ...     }
+        ... )
+        >>> PAP(k=1).calc_per_user(reco, interactions).values
+        array([1., 1., 0.])
+        >>> PAP(k=3).calc_per_user(reco, interactions).values
+        array([1., 1. , 0.33333333])
+        >>> PAP(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
+        array([[1., 1.])
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
