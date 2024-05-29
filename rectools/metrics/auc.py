@@ -310,9 +310,9 @@ class PAUC(_AUCMetric):
     >>> PAUC(k=1).calc_per_user(reco, interactions).values
     array([1., 1., 0.])
     >>> PAUC(k=3).calc_per_user(reco, interactions).values
-    array([1., 1. , 0.33333333])
+    array([1.        , 1.        , 0.33333333])
     >>> PAUC(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
-    array([[1., 1.])
+    array([1., 1.])
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
@@ -419,9 +419,9 @@ class PAP(_AUCMetric):
     >>> PAP(k=1).calc_per_user(reco, interactions).values
     array([1., 1., 0.])
     >>> PAP(k=3).calc_per_user(reco, interactions).values
-    array([1., 1. , 0.33333333])
+    array([1.        , 1.        , 0.33333333])
     >>> PAP(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
-    array([[1., 1.])
+    array([1., 1.])
     """
 
     def _get_sufficient_reco_explananation(self) -> str:
