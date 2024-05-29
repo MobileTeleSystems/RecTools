@@ -247,7 +247,19 @@ class _AUCMetric(MetricAtK):
 class PAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
-    pAUC@k measures AUC between the top-k irrelevant items and all relevant items for eachuser.
+    pAUC@k measures ROC AUC score for ranking of the top-k irrelevant items and all relevant items
+    for each user.
+    
+    .. math::
+        pAUC@k = \frac{1}{kn^+}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
+
+    where
+        - :math:`\mathbb{1}` is the indicator function
+        - :math:`s` is a scoring funtion which provides scores to rank items for user
+        - :math:`n^+` is the number of all user test positives
+        - :math:`S^+` is the set of all positives for user
+        - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
+    
     Analysed: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
     Information",
     https://arxiv.org/abs/2001.10495
@@ -296,7 +308,18 @@ class PAP(_AUCMetric):
     `partial-AUC + precision@k` (pAp@k) joint classification and ranking metric.
     pAp@k measures AUC between the top-k irrelevant items and top-β relevant items, where β is the
     minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
-    relevant items are larger than k and like pAUC otherwise
+    relevant items are larger than k and like pAUC otherwise.
+    
+    .. math::
+        pAp@k = \frac{1}{k\beta}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
+
+    where
+        - :math:`\mathbb{1}` is the indicator function
+        - :math:`s` is a scoring funtion which provides scores to rank items for user
+        - :math:`\beta` is the minimum between `k` and number of user test positives
+        - :math:`S^+` is the set of top :math:`\betta` positives for user acquired by :math:`s`
+        - :math:`S^-` is the set of top :math:`k` negatives for user acquired by :math:`s`
+        
     Introduced: "Rich-Item Recommendations for Rich-Users: Exploiting Dynamic and Static Side
     Information", https://arxiv.org/abs/2001.10495
     Analysed: "Optimization and Analysis of the pAp@k Metric for Recommender Systems",
