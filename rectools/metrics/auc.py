@@ -89,7 +89,7 @@ class _AUCMetric(MetricAtK):
         will still get an error when `insufficient_handling` is set to `raise`.
     """
 
-    def __init__(self, k: int, insufficient_handling: tp.Optional[str] = InsufficientHandling.SKIP) -> None:
+    def __init__(self, k: int, insufficient_handling: tp.Optional[str] = "skip") -> None:
         super().__init__(k=k)
         try:
             self.insufficient_handling = InsufficientHandling(insufficient_handling)
@@ -127,7 +127,7 @@ class _AUCMetric(MetricAtK):
 
         return AUCFitted(outer_merged, num_pos, num_fp_insufficient)
 
-    def _get_sufficient_reco_explananation(self) -> str:
+    def _get_sufficient_reco_explanation(self) -> str:
         raise NotImplementedError()
 
     def _handle_insufficient_cases(
@@ -152,7 +152,7 @@ class _AUCMetric(MetricAtK):
             recommendations - meaning that all other recommended items will be negatives.
             There are {len(insufficient_users)} users with less then required negatives.
             For correct {metric_name} computation please provide each user with sufficient number
-            of recommended items. {self._get_sufficient_reco_explananation()}
+            of recommended items. {self._get_sufficient_reco_explanation()}
             You can disable this error by specifying `insufficient_handling`="{InsufficientHandling.SKIP}" or
             by excluding all users with insuffissient recommendations from metric computation
             with specifying `insufficient_handling` = "{InsufficientHandling.EXCLUDE}".
@@ -315,7 +315,7 @@ class PAUC(_AUCMetric):
     array([1., 1.])
     """
 
-    def _get_sufficient_reco_explananation(self) -> str:
+    def _get_sufficient_reco_explanation(self) -> str:
         return f"""
             It fill be enough to have `n_user_positives` + `PAUC_k` ({self.k}) recommended items for
             each user. For simplification it will be enough to have max(`n_user_positives`) +
@@ -423,7 +423,7 @@ class PAP(_AUCMetric):
     array([1., 1.])
     """
 
-    def _get_sufficient_reco_explananation(self) -> str:
+    def _get_sufficient_reco_explanation(self) -> str:
         return f"""
             It fill be enough to have min(`n_user_positives`, `PAP_k` ({self.k}))  + `PAP_k`
             ({self.k}) recommended items for each user.
