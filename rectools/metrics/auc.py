@@ -353,7 +353,7 @@ class PAUC(_AUCMetric):
 
 class PAP(_AUCMetric):
     r"""
-    `partial-AUC + precision@k` (pAp@k) joint classification and ranking metric.
+    Partial AUC + precision@k (pAp@k) joint classification and ranking metric.
     pAp@k measures AUC between the top-k irrelevant items and top-β relevant items, where β is the
     minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
     relevant items are larger than k and like pAUC otherwise.  Averaged between users. For one user
