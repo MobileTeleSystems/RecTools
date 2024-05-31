@@ -21,6 +21,7 @@ from rectools.compat import (
     ItemToItemAnnRecommender,
     ItemToItemVisualApp,
     LightFMWrapperModel,
+    MetricsApp,
     UserToItemAnnRecommender,
     VisualApp,
 )
@@ -35,6 +36,7 @@ from rectools.compat import (
         LightFMWrapperModel,
         VisualApp,
         ItemToItemVisualApp,
+        MetricsApp,
     ),
 )
 def test_raise_when_model_not_available(
