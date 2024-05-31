@@ -97,7 +97,7 @@ IntersectionMetric = Intersection
 
 
 def calc_intersection_metrics(
-    metrics: Dict[str, Intersection],
+    metrics: Dict[str, IntersectionMetric],
     reco: pd.DataFrame,
     ref_reco: Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]],
 ) -> Dict[str, float]:
@@ -109,7 +109,7 @@ def calc_intersection_metrics(
 
     Parameters
     ----------
-    metrics : dict(str -> PopularityMetric)
+    metrics : dict(str -> IntersectionMetric)
         Dict of metric objects to calculate,
         where key is metric name and value is metric object.
     reco : pd.DataFrame
