@@ -10,7 +10,7 @@ from scipy import sparse
 
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, DenseFeatures, SparseFeatures
-from rectools.metrics import Precision, Recall
+from rectools.metrics import Intersection, Precision, Recall
 from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
 from rectools.model_selection.cross_validate import _gen_2x_internal_ids_dataset
@@ -147,6 +147,11 @@ class TestCrossValidate:
             "precision@2": Precision(2),
             "recall@1": Recall(1),
         }
+        self.metrics_intersection: tp.Dict[str, MetricAtK] = {
+            "precision@2": Precision(2),
+            "recall@1": Recall(1),
+            "intersection": Intersection(1),
+        }
 
         self.models = {
             "popular": PopularModel(),
@@ -265,6 +270,173 @@ class TestCrossValidate:
                 {"model": "als", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0},
                 {"model": "als", "i_split": 1, "precision@2": 0.375, "recall@1": 0.25},
             ],
+        }
+
+        assert actual == expected
+
+    @pytest.mark.parametrize(
+        "ref_models,validate_ref_models,expected_metrics",
+        (
+            (
+                ["popular"],
+                False,
+                [
+                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0, "intersection_popular": 0.5},
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_popular": 0.75,
+                    },
+                ],
+            ),
+            (
+                ["popular"],
+                True,
+                [
+                    {
+                        "model": "popular",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.5,
+                        "intersection_popular": 1.0,
+                    },
+                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0, "intersection_popular": 0.5},
+                    {
+                        "model": "popular",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.25,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_popular": 0.75,
+                    },
+                ],
+            ),
+            (
+                ["random"],
+                False,
+                [
+                    {"model": "popular", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5, "intersection_random": 0.5},
+                    {
+                        "model": "popular",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.25,
+                        "intersection_random": 0.75,
+                    },
+                ],
+            ),
+            (
+                ["random"],
+                True,
+                [
+                    {"model": "popular", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5, "intersection_random": 0.5},
+                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0, "intersection_random": 1.0},
+                    {
+                        "model": "popular",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.25,
+                        "intersection_random": 0.75,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_random": 1.0,
+                    },
+                ],
+            ),
+            (["random", "popular"], False, []),
+            (
+                ["random", "popular"],
+                True,
+                [
+                    {
+                        "model": "popular",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.5,
+                        "intersection_random": 0.5,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.0,
+                        "intersection_random": 1.0,
+                        "intersection_popular": 0.5,
+                    },
+                    {
+                        "model": "popular",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.25,
+                        "intersection_random": 0.75,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_random": 1.0,
+                        "intersection_popular": 0.75,
+                    },
+                ],
+            ),
+        ),
+    )
+    def test_happy_path_with_intersection(
+        self,
+        ref_models: tp.Optional[tp.List[str]],
+        validate_ref_models: bool,
+        expected_metrics: tp.List[tp.Dict[str, tp.Any]],
+    ) -> None:
+        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
+
+        actual = cross_validate(
+            dataset=self.dataset,
+            splitter=splitter,
+            metrics=self.metrics_intersection,
+            models=self.models,
+            k=2,
+            filter_viewed=False,
+            ref_models=ref_models,
+            validate_ref_models=validate_ref_models,
+        )
+
+        expected = {
+            "splits": [
+                {
+                    "i_split": 0,
+                    "test": 2,
+                    "test_items": 2,
+                    "test_users": 2,
+                    "train": 2,
+                    "train_items": 2,
+                    "train_users": 2,
+                },
+                {
+                    "i_split": 1,
+                    "test": 4,
+                    "test_items": 3,
+                    "test_users": 4,
+                    "train": 6,
+                    "train_items": 2,
+                    "train_users": 4,
+                },
+            ],
+            "metrics": expected_metrics,
         }
 
         assert actual == expected
