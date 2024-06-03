@@ -74,7 +74,7 @@ class _AUCMetric(MetricAtK):
         score for specific number of user false positives and ranked test positives that is derived
         from provided `k` parameter but is not equal to it.
         The following methods are available:
-        - `ignore` - don'c check for insufficient recommendations lists, handle all of insufficient
+        - `ignore` - don't check for insufficient recommendations lists, handle all of insufficient
         cases as if algorithms are not able to retrieve users unpredicted test positives on any k
         level. This will understate the metric value;
         - `exclude` - exclude all users with insufficient recommendations lists from metrics
@@ -110,16 +110,22 @@ class _AUCMetric(MetricAtK):
         cls._check(reco, interactions=interactions)
 
         outer_merged = outer_merge_reco(reco, interactions)
-        outer_merged["__tp"] = (~outer_merged[Columns.Rank].isna()) & (outer_merged["__test_positive"])
-        outer_merged["__fp"] = (~outer_merged[Columns.Rank].isna()) & (~outer_merged["__test_positive"])
-        outer_merged["__fp_cumsum"] = outer_merged.groupby(Columns.User)["__fp"].cumsum()
-        outer_merged["__test_pos_cumsum"] = outer_merged.groupby(Columns.User)["__test_positive"].cumsum()
+        recommended_mask = ~outer_merged[Columns.Rank].isna()
+        outer_merged["__tp"] = recommended_mask & outer_merged["__test_positive"]
+        outer_merged["__fp"] = recommended_mask & ~outer_merged["__test_positive"]
 
-        n_pos = outer_merged.groupby(Columns.User)["__test_pos_cumsum"].max()
+        stats = outer_merged.groupby(Columns.User).agg(
+            __fp_cumsum=("__fp", "cumsum"),
+            __test_pos_cumsum=("__test_positive", "cumsum"),
+            n_pos=("__test_positive", "sum"),
+            n_fp=("__fp", "sum"),
+        )
+        n_pos = stats["n_pos"].dropna().rename_axis(Columns.User)
+        users_n_fp = stats["n_fp"].dropna().rename_axis(Columns.User)
+        outer_merged = pd.concat([outer_merged, stats[["__fp_cumsum", "__test_pos_cumsum"]]], axis=1)
 
         # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
         # We calculate and keep number of false positives for all other users
-        users_n_fp = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
         n_fp_insufficient = users_n_fp[users_n_fp < k_max]
         users_with_fn = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
         n_fp_insufficient = n_fp_insufficient[n_fp_insufficient.index.isin(users_with_fn)]
@@ -279,7 +285,7 @@ class PAUC(_AUCMetric):
         It fill be enough to have :math:`n^+` (number of user positives) + `k` recommended items for
         each user.
         The following methods are available:
-        - `ignore` - don'c check for insufficient recommendations lists, handle all of insufficient
+        - `ignore` - don't check for insufficient recommendations lists, handle all of insufficient
         cases as if algorithms are not able to retrieve users unpredicted test positives on any k
         level. This will understate the metric value if recommendation lists are not sufficient;
         - `exclude` - exclude all users with insufficient recommendations lists from metrics
@@ -387,7 +393,7 @@ class PAP(_AUCMetric):
         positives that is derived from provided `k` parameter but is not equal to it.
         It fill be enough to have `k` * 2 recommended items for each user.
         The following methods are available:
-        - `ignore` - don'c check for insufficient recommendations lists, handle all of insufficient
+        - `ignore` - don't check for insufficient recommendations lists, handle all of insufficient
         cases as if algorithms are not able to retrieve users unpredicted test positives on any k
         level. This will understate the metric value if recommendation lists are not sufficient;
         - `exclude` - exclude all users with insufficient recommendations lists from metrics
