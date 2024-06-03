@@ -113,7 +113,7 @@ def outer_merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataF
     pd.DataFrame
         Result of merging with added `__test_positive` boolean column.
     """
-    prepared_interactions = interactions.drop_duplicates(Columns.UserItem).reindex(columns=Columns.UserItem).copy()
+    prepared_interactions = interactions.reindex(columns=Columns.UserItem).drop_duplicates().copy()
     prepared_interactions["__test_positive"] = True
     test_users = prepared_interactions[Columns.User].drop_duplicates()
     prepared_reco = reco.merge(test_users, on=Columns.User, how="inner").reindex(

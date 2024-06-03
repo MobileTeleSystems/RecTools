@@ -27,7 +27,7 @@ from rectools.utils import select_by_type
 class InsufficientHandling(str, Enum):
     """Strategy for handling insufficient reommendations cases"""
 
-    SKIP = "skip"
+    IGNORE = "ignore"
     EXCLUDE = "exclude"
     RAISE = "raise"
 
@@ -44,17 +44,17 @@ class AUCFitted:
         Columns.Rank. Precomputed columns include "__test_positive", "__tp", "__fp", "__fp_cumsum",
         "__test_pos_cumcum". All ranks for all users are present with no skipping.
         Null ranks are specified for test interactions that were not predicted in recommendations.
-    num_pos : pd.Series
+    n_pos : pd.Series
         Number of positive items for each user in test insteractions.
-    num_fp_insufficient : pd.Series
+    n_fp_insufficient : pd.Series
         Number of false positive items for each user in `outer_merged_enriched` that had at least
         one false negative. This users will be checked for insufficient cases processing.
 
     """
 
     outer_merged_enriched: pd.DataFrame = attr.ib()
-    num_pos: pd.Series = attr.ib()
-    num_fp_insufficient: pd.Series = attr.ib()
+    n_pos: pd.Series = attr.ib()
+    n_fp_insufficient: pd.Series = attr.ib()
 
 
 class _AUCMetric(MetricAtK):
@@ -68,14 +68,14 @@ class _AUCMetric(MetricAtK):
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
-    insufficient_handling : {"skip", "raise", "exclude"}, default `"skip"`
+    insufficient_handling : {"ignore", "raise", "exclude"}, default `"ignore"`
         Method of handling users with insufficient recommendations for metric calculation.
         ROC AUC based metrics with `k` parameter often need more then `k` recommendations
         for each user. This happens because this metrics calculate ROC AUC
         score for specific number of user false positives and ranked test positives that is derived
         from provided `k` parameter but is not equal to it.
         The following methods are available:
-        - `skip` - don'c check for insufficient recommendations lists, handle all of insufficient
+        - `ignore` - don'c check for insufficient recommendations lists, handle all of insufficient
         cases as if algorithms are not able to retrieve users unpredicted test positives on any k
         level. This will understate the metric value;
         - `exclude` - exclude all users with insufficient recommendations lists from metrics
@@ -89,7 +89,7 @@ class _AUCMetric(MetricAtK):
         will still get an error when `insufficient_handling` is set to `raise`.
     """
 
-    def __init__(self, k: int, insufficient_handling: tp.Optional[str] = "skip") -> None:
+    def __init__(self, k: int, insufficient_handling: tp.Optional[str] = "ignore") -> None:
         super().__init__(k=k)
         try:
             self.insufficient_handling = InsufficientHandling(insufficient_handling)
@@ -116,34 +116,34 @@ class _AUCMetric(MetricAtK):
         outer_merged["__fp_cumsum"] = outer_merged.groupby(Columns.User)["__fp"].cumsum()
         outer_merged["__test_pos_cumsum"] = outer_merged.groupby(Columns.User)["__test_positive"].cumsum()
 
-        num_pos = outer_merged.groupby(Columns.User)["__test_pos_cumsum"].max()
+        n_pos = outer_merged.groupby(Columns.User)["__test_pos_cumsum"].max()
 
         # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
         # We calculate and keep number of false positives for all other users
-        users_num_fp = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
-        num_fp_insufficient = users_num_fp[users_num_fp < k_max]
+        users_n_fp = outer_merged.groupby(Columns.User)["__fp_cumsum"].max()
+        n_fp_insufficient = users_n_fp[users_n_fp < k_max]
         users_with_fn = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
-        num_fp_insufficient = num_fp_insufficient[num_fp_insufficient.index.isin(users_with_fn)]
+        n_fp_insufficient = n_fp_insufficient[n_fp_insufficient.index.isin(users_with_fn)]
 
-        return AUCFitted(outer_merged, num_pos, num_fp_insufficient)
+        return AUCFitted(outer_merged, n_pos, n_fp_insufficient)
 
     def _get_sufficient_reco_explanation(self) -> str:
         raise NotImplementedError()
 
     def _handle_insufficient_cases(
-        self, outer_merged: pd.DataFrame, num_pos: pd.Series, num_fp_insufficient: pd.Series, metric_name: str
+        self, outer_merged: pd.DataFrame, n_pos: pd.Series, n_fp_insufficient: pd.Series, metric_name: str
     ) -> pd.Series:
-        if self.insufficient_handling == InsufficientHandling.SKIP:
-            return outer_merged, num_pos
+        if self.insufficient_handling == InsufficientHandling.IGNORE:
+            return outer_merged, n_pos
 
-        insufficient_users = num_fp_insufficient[num_fp_insufficient < self.k].index.values
+        insufficient_users = n_fp_insufficient[n_fp_insufficient < self.k].index.values
         if not insufficient_users.any():
-            return outer_merged, num_pos
+            return outer_merged, n_pos
 
         if self.insufficient_handling == InsufficientHandling.EXCLUDE:
             outer_merged_suf = outer_merged[~outer_merged[Columns.User].isin(insufficient_users)]
-            num_pos_suf = num_pos[~num_pos.index.isin(insufficient_users)]
-            return outer_merged_suf, num_pos_suf
+            n_pos_suf = n_pos[~n_pos.index.isin(insufficient_users)]
+            return outer_merged_suf, n_pos_suf
 
         raise ValueError(
             f"""
@@ -153,13 +153,13 @@ class _AUCMetric(MetricAtK):
             There are {len(insufficient_users)} users with less then required negatives.
             For correct {metric_name} computation please provide each user with sufficient number
             of recommended items. {self._get_sufficient_reco_explanation()}
-            You can disable this error by specifying `insufficient_handling`="{InsufficientHandling.SKIP}" or
+            You can disable this error by specifying `insufficient_handling`="{InsufficientHandling.IGNORE}" or
             by excluding all users with insuffissient recommendations from metric computation
             with specifying `insufficient_handling` = "{InsufficientHandling.EXCLUDE}".
             """
         )
 
-    def _calc_roc_auc(self, cropped_outer_merged: pd.DataFrame, num_pos: pd.Series) -> pd.Series:
+    def _calc_roc_auc(self, cropped_outer_merged: pd.DataFrame, n_pos: pd.Series) -> pd.Series:
         """
         Calculate ROC AUC given that all data has already been prepared, merged, enriched and cropped following
         metric specific logic.
@@ -167,8 +167,8 @@ class _AUCMetric(MetricAtK):
         cropped = cropped_outer_merged.copy()
         cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
         auc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
-        auc_denominator = num_pos * self.k
-        auc = (auc_numenator / (auc_denominator)).fillna(0)
+        auc_denominator = n_pos * self.k
+        auc = (auc_numenator / auc_denominator).fillna(0)
         return auc
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
@@ -271,7 +271,7 @@ class PAUC(_AUCMetric):
     k : int
         Number of top irrelevant items for user to be taken for ROC AUC computation. This does not
         equal `k` for classic `@k` metrics.
-    insufficient_handling : {"skip", "raise", "exclude"}, default `"skip"`
+    insufficient_handling : {"ignore", "raise", "exclude"}, default `"ignore"`
         Method of handling users with insufficient recommendation lists for metric calculation.
         pAUC@k needs more then `k` recommendations for each user. This happens because this metris
         calculate ROC AUC score for specific number of user false positives and ranked test
@@ -279,7 +279,7 @@ class PAUC(_AUCMetric):
         It fill be enough to have :math:`n^+` (number of user positives) + `k` recommended items for
         each user.
         The following methods are available:
-        - `skip` - don'c check for insufficient recommendations lists, handle all of insufficient
+        - `ignore` - don'c check for insufficient recommendations lists, handle all of insufficient
         cases as if algorithms are not able to retrieve users unpredicted test positives on any k
         level. This will understate the metric value if recommendation lists are not sufficient;
         - `exclude` - exclude all users with insufficient recommendations lists from metrics
@@ -342,13 +342,13 @@ class PAUC(_AUCMetric):
         # Keep k first false positives for roc auc computation, keep all predicted test positives
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
 
-        cropped_suf, num_pos_suf = self._handle_insufficient_cases(
+        cropped_suf, n_pos_suf = self._handle_insufficient_cases(
             outer_merged=cropped,
-            num_pos=fitted.num_pos,
-            num_fp_insufficient=fitted.num_fp_insufficient,
+            n_pos=fitted.n_pos,
+            n_fp_insufficient=fitted.n_fp_insufficient,
             metric_name="PAUC",
         )
-        return self._calc_roc_auc(cropped_suf, num_pos_suf)
+        return self._calc_roc_auc(cropped_suf, n_pos_suf)
 
 
 class PAP(_AUCMetric):
@@ -380,14 +380,14 @@ class PAP(_AUCMetric):
     k : int
         Number of top irrelevant items for user to be taken for ROC AUC computation. This does not
         equal `k` for classic `@k` metrics.
-    insufficient_handling : {"skip", "raise", "exclude"}, default `"skip"`
+    insufficient_handling : {"ignore", "raise", "exclude"}, default `"ignore"`
         Method of handling users with insufficient recommendation lists for metric calculation.
         pAp@k needs more then `k` recommendations for each user. This happens because this metris
         calculate ROC AUC score for specific number of user false positives and ranked test
         positives that is derived from provided `k` parameter but is not equal to it.
         It fill be enough to have `k` * 2 recommended items for each user.
         The following methods are available:
-        - `skip` - don'c check for insufficient recommendations lists, handle all of insufficient
+        - `ignore` - don'c check for insufficient recommendations lists, handle all of insufficient
         cases as if algorithms are not able to retrieve users unpredicted test positives on any k
         level. This will understate the metric value if recommendation lists are not sufficient;
         - `exclude` - exclude all users with insufficient recommendations lists from metrics
@@ -454,13 +454,13 @@ class PAP(_AUCMetric):
             & (~outer_merged[Columns.Rank].isna())
         ]
 
-        cropped_suf, num_pos_suf = self._handle_insufficient_cases(
+        cropped_suf, n_pos_suf = self._handle_insufficient_cases(
             outer_merged=cropped,
-            num_pos=fitted.num_pos.clip(upper=self.k),
-            num_fp_insufficient=fitted.num_fp_insufficient,
+            n_pos=fitted.n_pos.clip(upper=self.k),
+            n_fp_insufficient=fitted.n_fp_insufficient,
             metric_name="PAP",
         )
-        return self._calc_roc_auc(cropped_suf, num_pos_suf)
+        return self._calc_roc_auc(cropped_suf, n_pos_suf)
 
 
 AucMetric = tp.Union[PAUC, PAP]
@@ -481,7 +481,7 @@ def calc_auc_metrics(
 
     Parameters
     ----------
-    metrics : dict(str -> (AucMetric))
+    metrics : dict(str -> AucMetric)
         Dict of metric objects to calculate,
         where key is metric name and value is metric object.
     reco : pd.DataFrame

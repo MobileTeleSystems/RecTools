@@ -34,8 +34,8 @@ class TestPAUC:
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (1, InsufficientHandling.SKIP, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
-            (3, InsufficientHandling.SKIP, [0, 0, 1, 1, 1 / 12], [1, 2, 3, 4, 5]),
+            (1, InsufficientHandling.IGNORE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
+            (3, InsufficientHandling.IGNORE, [0, 0, 1, 1, 1 / 12], [1, 2, 3, 4, 5]),
             (1, InsufficientHandling.EXCLUDE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
             (3, InsufficientHandling.EXCLUDE, [0, 1, 1, 1 / 12], [1, 3, 4, 5]),  # user 2 was excluded
         ),
@@ -85,7 +85,7 @@ class TestPAUC:
             metric.calc(reco, interactions)
 
     @pytest.mark.parametrize(
-        "insufficient_handling", [InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP]
+        "insufficient_handling", [InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.IGNORE]
     )
     def test_when_no_interactions(self, insufficient_handling: str) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
@@ -96,7 +96,7 @@ class TestPAUC:
 
     @pytest.mark.parametrize("k", (1, 3))
     @pytest.mark.parametrize(
-        "insufficient_handling", (InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP)
+        "insufficient_handling", (InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.IGNORE)
     )
     def test_when_duplicates_in_interactions_sufficient(self, k: int, insufficient_handling: str) -> None:
         reco = pd.DataFrame(
@@ -123,7 +123,7 @@ class TestPAUC:
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (1, InsufficientHandling.SKIP, [2 / 3, 0], [1, 2]),
+            (1, InsufficientHandling.IGNORE, [2 / 3, 0], [1, 2]),
             (1, InsufficientHandling.EXCLUDE, [2 / 3, 0], [1, 2]),
         ),
     )
@@ -160,8 +160,8 @@ class TestPAP:
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (1, InsufficientHandling.SKIP, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
-            (3, InsufficientHandling.SKIP, [0, 0, 1, 1, 1 / 9], [1, 2, 3, 4, 5]),
+            (1, InsufficientHandling.IGNORE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
+            (3, InsufficientHandling.IGNORE, [0, 0, 1, 1, 1 / 9], [1, 2, 3, 4, 5]),
             (1, InsufficientHandling.EXCLUDE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
             (3, InsufficientHandling.EXCLUDE, [0, 1, 1, 1 / 9], [1, 3, 4, 5]),  # user 2 was excluded
         ),
@@ -211,7 +211,7 @@ class TestPAP:
             metric.calc(reco, interactions)
 
     @pytest.mark.parametrize(
-        "insufficient_handling", [InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP]
+        "insufficient_handling", [InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.IGNORE]
     )
     def test_when_no_interactions(self, insufficient_handling: str) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
@@ -222,7 +222,7 @@ class TestPAP:
 
     @pytest.mark.parametrize("k", (1, 3))
     @pytest.mark.parametrize(
-        "insufficient_handling", (InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.SKIP)
+        "insufficient_handling", (InsufficientHandling.RAISE, InsufficientHandling.EXCLUDE, InsufficientHandling.IGNORE)
     )
     def test_when_duplicates_in_interactions_sufficient(self, k: int, insufficient_handling: str) -> None:
         reco = pd.DataFrame(
@@ -250,7 +250,7 @@ class TestPAP:
     @pytest.mark.parametrize(
         "k, insufficient_handling, expected_pauc, expected_users",
         (
-            (2, InsufficientHandling.SKIP, [1 / 2, 0], [1, 2]),
+            (2, InsufficientHandling.IGNORE, [1 / 2, 0], [1, 2]),
             (2, InsufficientHandling.EXCLUDE, [0], [2]),
         ),
     )
@@ -277,9 +277,3 @@ class TestPAP:
             dtype=float,
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
-
-
-# # # TODO: exclude -> nan?
-
-
-# # # TODO: exclude -> nan?
