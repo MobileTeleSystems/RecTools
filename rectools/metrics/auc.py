@@ -21,7 +21,6 @@ import pandas as pd
 
 from rectools import Columns
 from rectools.metrics.base import MetricAtK, outer_merge_reco
-from rectools.utils import select_by_type
 
 
 class InsufficientHandling(str, Enum):
@@ -164,11 +163,12 @@ class _AUCMetric(MetricAtK):
         Calculate ROC AUC given that all data has already been prepared, merged, enriched and cropped following
         metric specific logic.
         """
-        cropped = cropped_outer_merged.copy()
-        cropped["__auc_numenator_gain"] = (self.k - cropped["__fp_cumsum"]) * cropped["__tp"]
-        auc_numenator = cropped.groupby(Columns.User)["__auc_numenator_gain"].sum()
+        auc_numenator_gain = (self.k - cropped_outer_merged["__fp_cumsum"]) * cropped_outer_merged["__tp"]
+        auc_numenator_gain.name = "__auc_numenator_gain"
+        user_auc_numenator = pd.concat([cropped_outer_merged[Columns.User], auc_numenator_gain], axis=1)
+        auc_numenator = user_auc_numenator.groupby(Columns.User)["__auc_numenator_gain"].sum()
         auc_denominator = n_pos * self.k
-        auc = (auc_numenator / auc_denominator).fillna(0)
+        auc = (auc_numenator / auc_denominator).fillna(0)  # TODO: what if order was changed?
         return auc
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
@@ -498,11 +498,9 @@ def calc_auc_metrics(
     """
     results = {}
 
-    auc_metrics: tp.Dict[str, AucMetric] = select_by_type(metrics, AucMetric)
-    if auc_metrics:
-        k_max = max(metric.k for metric in metrics.values())
-        fitted = _AUCMetric.fit(reco, interactions, k_max)
-        for name, metric in auc_metrics.items():
-            results[name] = metric.calc_from_fitted(fitted)
+    k_max = max(metric.k for metric in metrics.values())
+    fitted = _AUCMetric.fit(reco, interactions, k_max)
+    for name, metric in metrics.items():
+        results[name] = metric.calc_from_fitted(fitted)
 
     return results
