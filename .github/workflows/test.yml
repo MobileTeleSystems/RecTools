@@ -21,7 +21,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install poetry
-        run: pip install urllib3==1.26.15 poetry==1.4.0
+        run: pip install urllib3==1.26.15 poetry==1.8.3
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -71,4 +71,5 @@ jobs:
         run: make test
 
       - name: Upload coverage
+        if: matrix.python-version == '3.9'
         uses: codecov/codecov-action@v3

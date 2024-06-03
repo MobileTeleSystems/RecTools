@@ -55,10 +55,16 @@ class UserToItemAnnRecommender(RequirementUnavailable):
 class VisualApp(RequirementUnavailable):
     """Dummy class, which is returned if there are no dependencies required for the model"""
 
-    requirement = "ipywidgets"
+    requirement = "visuals"
 
 
 class ItemToItemVisualApp(RequirementUnavailable):
     """Dummy class, which is returned if there are no dependencies required for the model"""
 
-    requirement = "ipywidgets"
+    requirement = "visuals"
+
+
+class MetricsApp(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "visuals"

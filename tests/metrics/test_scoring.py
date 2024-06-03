@@ -27,6 +27,7 @@ from rectools.metrics import (
     Accuracy,
     AvgRecPopularity,
     HitRate,
+    Intersection,
     IntraListDiversity,
     MeanInvUserFreq,
     PairwiseHammingDistanceCalculator,
@@ -68,6 +69,22 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         ).set_index(Columns.Item)
         self.calculator = PairwiseHammingDistanceCalculator(features_df)
         self.catalog = list(range(10))
+        self.ref_recos = {
+            "one": pd.DataFrame(
+                {
+                    Columns.User: [1, 1, 2, 3, 5],
+                    Columns.Item: [1, 3, 1, 1, 2],
+                    Columns.Rank: [1, 2, 1, 3, 2],
+                }
+            ),
+            "two": pd.DataFrame(
+                {
+                    Columns.User: [1, 1, 2, 3, 5],
+                    Columns.Item: [1, 2, 1, 1, 1],
+                    Columns.Rank: [1, 2, 3, 1, 1],
+                }
+            ),
+        }
 
     def test_success(self) -> None:
         metrics = {
@@ -88,10 +105,13 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "arp": AvgRecPopularity(k=2),
             "ild": IntraListDiversity(k=3, distance_calculator=self.calculator),
             "serendipity": Serendipity(k=3),
+            "intersection": Intersection(k=2, ref_k=2),
             "custom": MetricAtK(k=1),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
-            actual = calc_metrics(metrics, self.reco, self.interactions, self.prev_interactions, self.catalog)
+            actual = calc_metrics(
+                metrics, self.reco, self.interactions, self.prev_interactions, self.catalog, self.ref_recos
+            )
         expected = {
             "prec@1": 0.25,
             "prec@2": 0.375,
@@ -110,6 +130,8 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "arp": 2.75,
             "ild": 0.25,
             "serendipity": 0,
+            "intersection_one": 0.375,
+            "intersection_two": 0.75,
         }
         assert actual == expected
 
@@ -125,6 +147,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (Serendipity(k=1), ["reco", "interactions", "prev_interactions"]),
             (PAP(k=1), ["reco"]),
             (PAUC(k=1), ["reco"]),
+            (Intersection(k=1), ["reco"]),
         ),
     )
     def test_raises(self, metric: MetricAtK, arg_names: tp.List[str]) -> None:

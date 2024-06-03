@@ -87,11 +87,6 @@ Install all extensions:
 pip install rectools[all]
 ```
 
-**Important:** If you're using `poetry` and you want to add `rectools` to your project, then you should either install `rectools` without `lightfm` extras or use `poetry==1.4.0` and add to your `poetry.toml` file the next lines:
-```
-[experimental]
-new-installer = false
-```
 
 ## Recommender Models
 The table below lists recommender models that are available in RecTools. 
@@ -114,7 +109,7 @@ The table below lists recommender models that are available in RecTools.
 - For getting recommendations `filter_viewed` and `items_to_recommend` options are available
 - For item-to-item recommendations use `recommend_to_items` method
 - For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
-
+- For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.** Check [documentation](https://rectools.readthedocs.io/en/stable/features.html#models) to see which models support this scenarios.
 
 ## Contribution
 [Contributing guide](CONTRIBUTING.rst)

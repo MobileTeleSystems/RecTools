@@ -36,6 +36,7 @@ Metrics
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
 `metrics.HitRate`
+`metrics.Intersection`
 
 Tools
 -----
@@ -53,6 +54,7 @@ from .distances import (
     SparsePairwiseHammingDistanceCalculator,
 )
 from .diversity import IntraListDiversity
+from .intersection import Intersection
 from .novelty import MeanInvUserFreq
 from .popularity import AvgRecPopularity
 from .ranking import MAP, MRR, NDCG
@@ -79,4 +81,5 @@ __all__ = (
     "PairwiseDistanceCalculator",
     "PairwiseHammingDistanceCalculator",
     "SparsePairwiseHammingDistanceCalculator",
+    "Intersection",
 )
