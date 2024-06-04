@@ -88,34 +88,3 @@ def debias_wrapper(
         "or `SimpleClassificationMetric` (`MCC`, `Accuracy`) "
         "or `RankingMetric` (`MAP`, `NDCG`, `MRR`)."
     )
-    if isinstance(metric, Precision):
-        debias_metric = DebiasPrecision(k=k, iqr_coef=iqr_coef, random_state=random_state)
-    elif isinstance(metric, Recall):
-        debias_metric = DebiasRecall(k=k, iqr_coef=iqr_coef, random_state=random_state)  # type: ignore
-    elif isinstance(metric, F1Beta):
-        debias_metric = DebiasF1Beta(  # type: ignore
-            k=k, beta=metric.beta, iqr_coef=iqr_coef, random_state=random_state
-        )
-    elif isinstance(metric, MCC):
-        debias_metric = DebiasMCC(k=k, iqr_coef=iqr_coef, random_state=random_state)  # type: ignore
-    elif isinstance(metric, Accuracy):
-        debias_metric = DebiasAccuracy(k=k, iqr_coef=iqr_coef, random_state=random_state)  # type: ignore
-    elif isinstance(metric, MAP):
-        debias_metric = DebiasMAP(  # type: ignore
-            k=k, divide_by_k=metric.divide_by_k, iqr_coef=iqr_coef, random_state=random_state
-        )
-    elif isinstance(metric, NDCG):
-        debias_metric = DebiasNDCG(  # type: ignore
-            k=k, log_base=metric.log_base, iqr_coef=iqr_coef, random_state=random_state
-        )
-    elif isinstance(metric, MRR):
-        debias_metric = DebiasMRR(k=k, iqr_coef=iqr_coef, random_state=random_state)  # type: ignore
-
-    if debias_metric is not None:
-        return debias_metric
-
-    raise TypeError(
-        "`metric` must be either  `ClassificationMetric` (`Precision`, `Recall`, `F1Beta`) "
-        "or `SimpleClassificationMetric` (`MCC`, `Accuracy`) "
-        "or `RankingMetric` (`MAP`, `NDCG`, `MRR`)."
-    )

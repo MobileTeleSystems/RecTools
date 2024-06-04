@@ -95,6 +95,13 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
 
 
 @attr.s
+class DebiasConfig:
+    """TODO"""
+    iqr_coef: float = attr.ib(default=1.5)
+    random_state: int = attr.ib(default=32)
+
+
+@attr.s
 class DebiasMetricAtK(MetricAtK):
     """
     Base class of debias metrics that depends on `k` -
