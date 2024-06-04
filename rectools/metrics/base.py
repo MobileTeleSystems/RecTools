@@ -115,10 +115,8 @@ def outer_merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataF
     """
     prepared_interactions = interactions.reindex(columns=Columns.UserItem).drop_duplicates().copy()
     prepared_interactions["__test_positive"] = True
-    test_users = prepared_interactions[Columns.User].drop_duplicates()
-    prepared_reco = reco.merge(test_users, on=Columns.User, how="inner").reindex(
-        columns=Columns.UserItem + [Columns.Rank]
-    )
+    test_users = prepared_interactions[Columns.User].unique()
+    prepared_reco = reco[reco[Columns.User].isin(test_users)].reindex(columns=Columns.UserItem + [Columns.Rank])
     merged = pd.merge(
         prepared_interactions,
         prepared_reco,

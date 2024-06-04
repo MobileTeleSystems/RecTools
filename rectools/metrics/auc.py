@@ -127,7 +127,7 @@ class _AUCMetric(MetricAtK):
         # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
         # We calculate and keep number of false positives for all other users
         n_fp_insufficient = users_n_fp[users_n_fp < k_max]
-        users_with_fn = outer_merged[outer_merged[Columns.Rank].isna()][Columns.User].unique()
+        users_with_fn = outer_merged.loc[outer_merged[Columns.Rank].isna(), Columns.User].unique()
         n_fp_insufficient = n_fp_insufficient[n_fp_insufficient.index.isin(users_with_fn)]
 
         return AUCFitted(outer_merged, n_pos, n_fp_insufficient)
