@@ -48,7 +48,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
         Dict of metric objects to calculate,
         where key is metric name and value is metric object.
     reco : pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
     interactions : pd.DataFrame, optional
         Interactions table with columns `Columns.User`, `Columns.Item`.
         Obligatory only for some types of metrics.

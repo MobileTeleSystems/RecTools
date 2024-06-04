@@ -21,7 +21,7 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.metrics.base import MetricAtK, merge_reco
+from rectools.metrics.base import DebiasMetricAtK, MetricAtK, merge_reco
 from rectools.utils import log_at_base, select_by_type
 
 
@@ -526,11 +526,182 @@ class MRR(_RankingMetric):
         return per_user.mean()
 
 
+@attr.s
+class DebiasMAP(MAP, DebiasMetricAtK):
+    """
+    Debias Mean Average Precision at k (MAP@k).
+
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    divide_by_k : bool, default False
+        If ``True``, ``k`` will be used as divider in ``AP@k``.
+        If ``False``, number of relevant items for each user will be used.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
+
+    def fit(self, merged: pd.DataFrame, k_max: int) -> MAPFitted:  # type: ignore[override]
+        """
+        Prepare intermediate data for effective calculation with using downsampling for popularity items.
+
+        You can use this method to prepare some intermediate data
+        for later calculation. It can optimize calculations if
+        you want calculate metric value for different `k`.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+        k_max : int
+             k is number of items at the top of recommendations list that will be used to calculate metric.
+             So `k_max` is maximum number of items for which you want to calculate metric.
+
+        Returns
+        -------
+        MAPFitted
+        """
+        merged_wo_popularity = self.make_downsample(merged)
+        return MAP.fit(merged=merged_wo_popularity, k_max=k_max)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        interactions_wo_popularity = self.make_downsample(interactions)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+
+@attr.s
+class DebiasNDCG(NDCG, DebiasMetricAtK):
+    """
+    Debias Normalized Discounted Cumulative Gain at k (NDCG@k).
+
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    log_base : int, default ``2``
+        Base of logarithm used to weight relevant items.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        interactions_wo_popularity = self.make_downsample(interactions)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users from merged recommendations with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        merged_wo_popularity = self.make_downsample(merged)
+        return super().calc_per_user_from_merged(merged=merged_wo_popularity)
+
+
+@attr.s
+class DebiasMRR(MRR, DebiasMetricAtK):
+    """
+    Debias Mean Reciprocal Rank at k (MRR@k).
+
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    iqr_coef : float, default 1.5
+        Coefficient for defining as the maximum value inside the border.
+    random_state : float, default 32
+        Pseudorandom number generator state to control the down-sampling.
+    """
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        interactions_wo_popularity = self.make_downsample(interactions)
+        return super().calc_per_user(reco=reco, interactions=interactions_wo_popularity)
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users from merged recommendations with using downsampling for popularity items.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        merged_wo_popularity = self.make_downsample(merged)
+        return super().calc_per_user_from_merged(merged=merged_wo_popularity)
+
+
 RankingMetric = tp.Union[NDCG, MAP, MRR]
+DebiasRankingMetric = tp.Union[DebiasNDCG, DebiasMAP, DebiasMRR]
 
 
 def calc_ranking_metrics(
-    metrics: tp.Dict[str, RankingMetric],
+    metrics: tp.Dict[str, tp.Union[RankingMetric, DebiasRankingMetric]],
     merged: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
@@ -567,7 +738,16 @@ def calc_ranking_metrics(
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
         fitted = MAP.fit(merged, k_max)
+
+        debias_map_metrics = select_by_type(metrics, DebiasMAP)
+        if debias_map_metrics:
+            debias_k_max = max(metric.k for metric in debias_map_metrics.values())
+            debias_fitted = debias_map_metrics[list(debias_map_metrics.keys())[0]].fit(merged, debias_k_max)
+
         for name, map_metric in map_metrics.items():
-            results[name] = map_metric.calc_from_fitted(fitted)
+            if isinstance(map_metric, DebiasMAP):
+                results[name] = map_metric.calc_from_fitted(debias_fitted)
+            else:
+                results[name] = map_metric.calc_from_fitted(fitted)
 
     return results

@@ -45,6 +45,7 @@ Tools
 """
 
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
+from .debias import debias_wrapper
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -77,4 +78,5 @@ __all__ = (
     "PairwiseHammingDistanceCalculator",
     "SparsePairwiseHammingDistanceCalculator",
     "Intersection",
+    "debias_wrapper",
 )
