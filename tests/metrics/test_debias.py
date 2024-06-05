@@ -227,7 +227,7 @@ class TestDebias:
             "debias_mcc@3": MCC(k=3),
             "debias_hitrate@3": HitRate(k=3),
             "debias_map@3": MAP(k=3),
-            "debias_ndcg@3": NDCG(k=3, log_base=3),
+            "debias_ndcg@3": NDCG(k=3),
             "debias_mrr@3": MRR(k=3),
         }
 
@@ -240,4 +240,5 @@ class TestDebias:
         expected = calc_metrics(
             metrics=metrics, reco=recommendations, interactions=interactions_downsampling, catalog=catalog
         )
+        print(actual, expected)
         assert actual == expected

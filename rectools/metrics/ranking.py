@@ -594,16 +594,20 @@ def calc_ranking_metrics(
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
-        fitted = {
-            metric.debias_config: (
-                MAP.fit(make_downsample(merged, metric.debias_config), k_max)
-                if metric.debias_config is not None
-                else MAP.fit(merged, k_max)
+        fitted = MAP.fit(merged, k_max)
+        fitted_debias = {
+            f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}": MAP.fit(
+                make_downsample(merged, metric.debias_config), k_max
             )
             for metric in map_metrics.values()
+            if metric.debias_config is not None
         }
 
         for name, map_metric in map_metrics.items():
-            results[name] = map_metric.calc_from_fitted(fitted[map_metric.debias_config])
+            results[name] = map_metric.calc_from_fitted(
+                fitted_debias[f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}"]
+                if map_metric.debias_config is not None
+                else fitted
+            )
 
     return results

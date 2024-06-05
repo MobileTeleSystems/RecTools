@@ -460,12 +460,13 @@ def calc_classification_metrics(
         If unexpected metric is present in `metrics`.
     """
     k_map = defaultdict(list)
-    merged_values = {}
+    merged_debias = {}
     for name, metric in metrics.items():
         k_map[metric.k].append(name)
-        merged_values[metric.debias_config] = (
-            make_downsample(merged, metric.debias_config) if metric.debias_config is not None else merged
-        )
+        if metric.debias_config is not None:
+            merged_debias[f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}"] = make_downsample(
+                merged, metric.debias_config
+            )
 
     results = {}
     for k, k_metrics in k_map.items():
@@ -473,7 +474,14 @@ def calc_classification_metrics(
         for metric_name in k_metrics:
             metric = metrics[metric_name]
 
-            confusion_df = calc_confusions(merged_values[metric.debias_config], k)
+            confusion_df = calc_confusions(
+                (
+                    merged_debias[f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}"]
+                    if metric.debias_config is not None
+                    else merged
+                ),
+                k,
+            )
 
             if isinstance(metric, SimpleClassificationMetric):
                 res = metric.calc_from_confusion_df(confusion_df)
