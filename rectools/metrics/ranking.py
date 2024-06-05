@@ -605,7 +605,7 @@ def calc_ranking_metrics(
 
         for name, map_metric in map_metrics.items():
             results[name] = map_metric.calc_from_fitted(
-                fitted_debias[f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}"]
+                fitted_debias[f"{map_metric.debias_config.iqr_coef}_{map_metric.debias_config.random_state}"]
                 if map_metric.debias_config is not None
                 else fitted
             )

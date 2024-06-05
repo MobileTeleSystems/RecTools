@@ -463,6 +463,8 @@ def calc_classification_metrics(
     merged_debias = {}
     for name, metric in metrics.items():
         k_map[metric.k].append(name)
+        if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
+            raise TypeError(f"Unexpected classification metric {metric}")
         if metric.debias_config is not None:
             merged_debias[f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}"] = make_downsample(
                 merged, metric.debias_config
