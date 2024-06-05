@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 """Ranking recommendations metrics."""
+
 import typing as tp
 
 import attr
@@ -21,11 +22,10 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.metrics.base import DebiasConfig, MetricAtK, merge_reco
+from rectools.metrics.base import MetricAtK, merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-
-# TODO `make_downsample`
+from .debias import DebiasConfig, make_downsample
 
 
 @attr.s
@@ -168,7 +168,7 @@ class MAP(_RankingMetric):
     divide_by_k: bool = attr.ib(default=False)
 
     @classmethod
-    def fit(cls, merged: pd.DataFrame, k_max: int, debias_config: tp.Optional[DebiasConfig] = None) -> MAPFitted:
+    def fit(cls, merged: pd.DataFrame, k_max: int) -> MAPFitted:
         """
         Prepare intermediate data for effective calculation.
 
@@ -189,9 +189,6 @@ class MAP(_RankingMetric):
         -------
         MAPFitted
         """
-        if debias_config is not None:
-            merged = make_downsample(merged)
-
         users = np.unique(merged[Columns.User])
         if users.size == 0:
             prec_at_k_csr = sparse.csr_matrix(np.array([]).reshape(0, 0))
@@ -251,7 +248,7 @@ class MAP(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions)
+            interactions = make_downsample(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -378,7 +375,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions)
+            interactions = make_downsample(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -418,7 +415,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_confis is not None:
-            merged = make_downsample(merged)
+            merged = make_downsample(merged, self.debias_config)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
@@ -498,7 +495,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions)
+            interactions = make_downsample(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -520,7 +517,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = make_downsample(merged)
+            merged = make_downsample(merged, self.debias_config)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
         min_rank_per_user = (
@@ -589,9 +586,14 @@ def calc_ranking_metrics(
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
-        fitted = MAP.fit(merged, k_max, MAP.debias_config)
+        merged = {
+            metric.debias_config: make_downsample(metric.debias_config) 
+            if metric.debias_config is not None else metric.debias_config: merged
+            for metric in map_metrics.values()
+        }
 
         for name, map_metric in map_metrics.items():
+            fitted = MAP.fit(merged[map_metric.debias_config], k_max)
             results[name] = map_metric.calc_from_fitted(fitted)
 
     return results
