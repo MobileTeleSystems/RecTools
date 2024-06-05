@@ -14,14 +14,17 @@
 
 """Debias module."""
 
-import typing as tp
+import attr
+import pandas as pd
+
+from rectools import Columns
 
 
 @attr.s
 class DebiasConfig:
     """
     Config with debias method parameters.
-    
+
     Parameters
     ----------
     iqr_coef : float, default 1.5
@@ -34,7 +37,7 @@ class DebiasConfig:
     random_state: int = attr.ib(default=32)
 
 
-def make_downsample(self, interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
+def make_downsample(interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
     """
     Downsample the size of interactions, excluding some interactions with popular items.
 
@@ -98,8 +101,6 @@ def make_downsample(self, interactions: pd.DataFrame, debias_config: DebiasConfi
             how="left",
             on=Columns.UserItem,
         )
-        interactions_result[Columns.Rank] = interactions_result[Columns.Rank].astype(
-            interactions[Columns.Rank].dtypes
-        )
+        interactions_result[Columns.Rank] = interactions_result[Columns.Rank].astype(interactions[Columns.Rank].dtypes)
 
     return interactions_result

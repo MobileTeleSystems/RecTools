@@ -41,8 +41,9 @@ class _RankingMetric(MetricAtK):
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
     debias_config : DebiasConfig, default None
-        TODO
+        Config with debias method parameters (iqr_coef, random_state).
     """
+
     debias_config: DebiasConfig = attr.ib(default=None)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
@@ -105,6 +106,7 @@ class MAPFitted:
     users: np.ndarray = attr.ib()
     n_relevant_items: np.ndarray = attr.ib()
 
+
 @attr.s
 class MAP(_RankingMetric):
     r"""
@@ -134,6 +136,8 @@ class MAP(_RankingMetric):
     divide_by_k : bool, default False
         If ``True``, ``k`` will be used as divider in ``AP@k``.
         If ``False``, number of relevant items for each user will be used.
+    debias_config : DebiasConfig, default None
+        Config with debias method parameters (iqr_coef, random_state).
 
     Examples
     --------
@@ -325,10 +329,12 @@ class NDCG(_RankingMetric):
 
     Parameters
     ----------
-     k : int
+    k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
-     log_base : int, default ``2``
+    log_base : int, default ``2``
         Base of logarithm used to weight relevant items.
+    debias_config : DebiasConfig, default None
+        Config with debias method parameters (iqr_coef, random_state).
 
     Examples
     --------
@@ -414,7 +420,7 @@ class NDCG(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if self.debias_confis is not None:
+        if self.debias_config is not None:
             merged = make_downsample(merged, self.debias_config)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
@@ -449,8 +455,10 @@ class MRR(_RankingMetric):
 
     Parameters
     ----------
-     k : int
+    k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
+    debias_config : DebiasConfig, default None
+            Config with debias method parameters (iqr_coef, random_state).
 
     Examples
     --------
@@ -586,14 +594,16 @@ def calc_ranking_metrics(
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
-        merged = {
-            metric.debias_config: make_downsample(metric.debias_config) 
-            if metric.debias_config is not None else metric.debias_config: merged
+        fitted = {
+            metric.debias_config: (
+                MAP.fit(make_downsample(merged, metric.debias_config), k_max)
+                if metric.debias_config is not None
+                else MAP.fit(merged, k_max)
+            )
             for metric in map_metrics.values()
         }
 
         for name, map_metric in map_metrics.items():
-            fitted = MAP.fit(merged[map_metric.debias_config], k_max)
-            results[name] = map_metric.calc_from_fitted(fitted)
+            results[name] = map_metric.calc_from_fitted(fitted[map_metric.debias_config])
 
     return results

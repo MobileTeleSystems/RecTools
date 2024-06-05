@@ -25,21 +25,17 @@ from rectools.metrics import (
     MRR,
     NDCG,
     Accuracy,
+    DebiasConfig,
     F1Beta,
-    MeanInvUserFreq,
+    HitRate,
     Precision,
     Recall,
     calc_metrics,
-    debias_wrapper,
+    make_downsample,
 )
-from rectools.metrics.base import DebiasMetricAtK, merge_reco
-from rectools.metrics.classification import (
-    DebiasAccuracy,
-    DebiasClassificationMetric,
-    DebiasMCC,
-    DebiasSimpleClassificationMetric,
-)
-from rectools.metrics.ranking import DebiasMAP, DebiasRankingMetric
+from rectools.metrics.base import merge_reco
+from rectools.metrics.classification import ClassificationMetric, SimpleClassificationMetric
+from rectools.metrics.ranking import RankingMetric
 
 
 class TestDebias:
@@ -73,18 +69,23 @@ class TestDebias:
         return list(range(10))
 
     @pytest.fixture
-    def interactions_downsampling(self, interactions: pd.DataFrame) -> pd.DataFrame:
-        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
-        return metric_debias.make_downsample(interactions)
+    def debias_config(self) -> DebiasConfig:
+        return DebiasConfig()
 
     @pytest.fixture
-    def merged_downsampling(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> pd.DataFrame:
-        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
-        merged = merge_reco(recommendations, interactions)
-        return metric_debias.make_downsample(merged)
+    def interactions_downsampling(self, interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
+        return make_downsample(interactions, debias_config)
 
-    def test_make_downsample(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> None:
-        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
+    @pytest.fixture
+    def merged_downsampling(
+        self, interactions: pd.DataFrame, recommendations: pd.DataFrame, debias_config: DebiasConfig
+    ) -> pd.DataFrame:
+        merged = merge_reco(recommendations, interactions)
+        return make_downsample(merged, debias_config)
+
+    def test_make_downsample(
+        self, interactions: pd.DataFrame, recommendations: pd.DataFrame, debias_config: DebiasConfig
+    ) -> None:
         merged = merge_reco(recommendations, interactions)
 
         expected_result = pd.DataFrame(
@@ -100,15 +101,16 @@ class TestDebias:
             on=Columns.UserItem,
         )
 
-        interactions_downsampling = metric_debias.make_downsample(interactions)
-        merged_downsampling = metric_debias.make_downsample(merged)
+        interactions_downsampling = make_downsample(interactions, debias_config)
+        merged_downsampling = make_downsample(merged, debias_config)
 
         pd.testing.assert_frame_equal(interactions_downsampling, expected_result[Columns.UserItem], check_like=True)
         pd.testing.assert_frame_equal(merged_downsampling, expected_result, check_like=True)
 
-    def test_make_downsample_with_empty_data(self, empty_interactions: pd.DataFrame) -> None:
-        metric_debias = DebiasMetricAtK(k=1, iqr_coef=1.5, random_state=32)
-        interactions_downsampling = metric_debias.make_downsample(empty_interactions)
+    def test_make_downsample_with_empty_data(
+        self, empty_interactions: pd.DataFrame, debias_config: DebiasConfig
+    ) -> None:
+        interactions_downsampling = make_downsample(empty_interactions, debias_config)
 
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
@@ -125,6 +127,8 @@ class TestDebias:
             Accuracy(k=3),
             MCC(k=1),
             MCC(k=3),
+            HitRate(k=1),
+            HitRate(k=3),
             MAP(k=1),
             MAP(k=3),
             NDCG(k=1),
@@ -135,28 +139,29 @@ class TestDebias:
     )
     def test_debias_metric_calc(
         self,
-        metric: tp.Union[DebiasClassificationMetric, DebiasSimpleClassificationMetric, DebiasRankingMetric],
+        metric: tp.Union[ClassificationMetric, SimpleClassificationMetric, RankingMetric],
         interactions: pd.DataFrame,
         recommendations: pd.DataFrame,
+        debias_config: DebiasConfig,
         interactions_downsampling: pd.DataFrame,
         catalog: tp.List[int],
     ) -> None:
-        debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
-
-        if isinstance(debias_metric, (DebiasAccuracy, DebiasMCC)):
+        metric_debias = metric
+        metric_debias.debias_config = debias_config
+        if isinstance(metric_debias, ClassificationMetric):
             expected_result_per_user = metric.calc_per_user(  # type: ignore
                 recommendations, interactions_downsampling, catalog
             )
-            result_per_user = debias_metric.calc_per_user(recommendations, interactions, catalog)
+            result_per_user = metric_debias.calc_per_user(recommendations, interactions, catalog)
 
             expected_result_mean = metric.calc(recommendations, interactions_downsampling, catalog)  # type: ignore
-            result_mean = debias_metric.calc(recommendations, interactions, catalog)
+            result_mean = metric_debias.calc(recommendations, interactions, catalog)
         else:
             expected_result_per_user = metric.calc_per_user(recommendations, interactions_downsampling)  # type: ignore
-            result_per_user = debias_metric.calc_per_user(recommendations, interactions)
+            result_per_user = metric_debias.calc_per_user(recommendations, interactions)
 
             expected_result_mean = metric.calc(recommendations, interactions_downsampling)  # type: ignore
-            result_mean = debias_metric.calc(recommendations, interactions)
+            result_mean = metric_debias.calc(recommendations, interactions)
 
         pd.testing.assert_series_equal(result_per_user, expected_result_per_user)
         assert result_mean == expected_result_mean
@@ -169,6 +174,7 @@ class TestDebias:
             F1Beta(k=3),
             Accuracy(k=3),
             MCC(k=3),
+            HitRate(k=3),
             MAP(k=3),
             NDCG(k=3),
             MRR(k=3),
@@ -176,54 +182,41 @@ class TestDebias:
     )
     def test_when_no_interactions(
         self,
-        metric: tp.Union[DebiasClassificationMetric, DebiasClassificationMetric, DebiasRankingMetric],
+        metric: tp.Union[ClassificationMetric, SimpleClassificationMetric, RankingMetric],
         recommendations: pd.DataFrame,
+        debias_config: DebiasConfig,
         empty_interactions: pd.DataFrame,
         catalog: tp.List[int],
     ) -> None:
-        debias_metric = debias_wrapper(metric, iqr_coef=1.5, random_state=32)
+        metric.debias_config = debias_config
+
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
-        if isinstance(debias_metric, (DebiasAccuracy, DebiasMCC)):
-            result_metric_per_user = debias_metric.calc_per_user(recommendations, empty_interactions, catalog)
-            assert np.isnan(debias_metric.calc(recommendations, empty_interactions, catalog))
+        if isinstance(metric, ClassificationMetric):
+            result_metric_per_user = metric.calc_per_user(recommendations, empty_interactions, catalog)
+            assert np.isnan(metric.calc(recommendations, empty_interactions, catalog))
         else:
-            result_metric_per_user = debias_metric.calc_per_user(recommendations, empty_interactions)
-            assert np.isnan(debias_metric.calc(recommendations, empty_interactions))
+            result_metric_per_user = metric.calc_per_user(recommendations, empty_interactions)
+            assert np.isnan(metric.calc(recommendations, empty_interactions))
         pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user)
-
-    def test_when_metric_no_classification_or_ranking(self) -> None:
-        with pytest.raises(TypeError):
-            debias_wrapper(MeanInvUserFreq(k=1), iqr_coef=1.5, random_state=32)  # type: ignore
-
-    def test_map_fit(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> None:
-        merged = merge_reco(recommendations, interactions)
-        debias_metric = debias_wrapper(MAP(k=3), iqr_coef=1.5, random_state=32)
-        merged_downsampling = debias_metric.make_downsample(merged)
-
-        expected_fitted = MAP.fit(merged_downsampling, 3)
-        if isinstance(debias_metric, DebiasMAP):
-            actual_fitted = debias_metric.fit(merged, 3)
-
-        np.allclose(actual_fitted.precision_at_k.A, expected_fitted.precision_at_k.A)
-        np.testing.assert_equal(actual_fitted.users, expected_fitted.users)
-        np.testing.assert_equal(actual_fitted.n_relevant_items, expected_fitted.n_relevant_items)
 
     def test_calc_metrics(
         self,
         interactions: pd.DataFrame,
         recommendations: pd.DataFrame,
+        debias_config: DebiasConfig,
         interactions_downsampling: pd.DataFrame,
         catalog: tp.List[int],
     ) -> None:
         debias_metrics = {
-            "debias_precision@3": debias_wrapper(Precision(k=3), iqr_coef=1.5, random_state=32),
-            "debias_recall@3": debias_wrapper(Recall(k=3), iqr_coef=1.5, random_state=32),
-            "debias_f1beta@3": debias_wrapper(F1Beta(k=3), iqr_coef=1.5, random_state=32),
-            "debias_accuracy@3": debias_wrapper(Accuracy(k=3), iqr_coef=1.5, random_state=32),
-            "debias_mcc@3": debias_wrapper(MCC(k=3), iqr_coef=1.5, random_state=32),
-            "debias_map@3": debias_wrapper(MAP(k=3), iqr_coef=1.5, random_state=32),
-            "debias_ndcg@3": debias_wrapper(NDCG(k=3, log_base=3), iqr_coef=1.5, random_state=32),
-            "debias_mrr@3": debias_wrapper(MRR(k=3), iqr_coef=1.5, random_state=32),
+            "debias_precision@3": Precision(k=3, debias_config=debias_config),
+            "debias_recall@3": Recall(k=3, debias_config=debias_config),
+            "debias_f1beta@3": F1Beta(k=3, debias_config=debias_config),
+            "debias_accuracy@3": Accuracy(k=3, debias_config=debias_config),
+            "debias_mcc@3": MCC(k=3, debias_config=debias_config),
+            "debias_hitrate@3": HitRate(k=3, debias_config=debias_config),
+            "debias_map@3": MAP(k=3, debias_config=debias_config),
+            "debias_ndcg@3": NDCG(k=3, debias_config=debias_config),
+            "debias_mrr@3": MRR(k=3, debias_config=debias_config),
         }
 
         metrics = {
@@ -232,13 +225,14 @@ class TestDebias:
             "debias_f1beta@3": F1Beta(k=3),
             "debias_accuracy@3": Accuracy(k=3),
             "debias_mcc@3": MCC(k=3),
+            "debias_hitrate@3": HitRate(k=3),
             "debias_map@3": MAP(k=3),
             "debias_ndcg@3": NDCG(k=3, log_base=3),
             "debias_mrr@3": MRR(k=3),
         }
 
         actual = calc_metrics(
-            metrics=debias_metrics,  # type: ignore[arg-type]
+            metrics=debias_metrics,
             reco=recommendations,
             interactions=interactions,
             catalog=catalog,
