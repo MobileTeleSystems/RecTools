@@ -36,6 +36,18 @@ class DebiasConfig:
     iqr_coef: float = attr.ib(default=1.5)
     random_state: int = attr.ib(default=32)
 
+    @property
+    def keyname(self) -> str:
+        """
+        Compose a config's key name based on the iqr_coef and random_state parameters.
+
+        Returns
+        -------
+        str
+            String representing the key name in the format `"{iqr_coef}_{random_state}"`.
+        """
+        return f"{self.iqr_coef}_{self.random_state}"
+
 
 def make_downsample(interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
     """
@@ -64,7 +76,7 @@ def make_downsample(interactions: pd.DataFrame, debias_config: DebiasConfig) -> 
     Returns
     -------
     pd.DataFrame
-        downsampling interactions.
+        Downsampling interactions.
     """
     if len(interactions) == 0:
         return interactions

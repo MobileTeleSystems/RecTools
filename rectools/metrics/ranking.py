@@ -595,19 +595,27 @@ def calc_ranking_metrics(
     if map_metrics:
         k_max = max(metric.k for metric in map_metrics.values())
         fitted = MAP.fit(merged, k_max)
-        fitted_debias = {
-            f"{metric.debias_config.iqr_coef}_{metric.debias_config.random_state}": MAP.fit(
-                make_downsample(merged, metric.debias_config), k_max
-            )
-            for metric in map_metrics.values()
-            if metric.debias_config is not None
-        }
+
+        k_max_debias: tp.Dict[str, tp.List[tp.Union[int, pd.DataFrame]]] = {}
+        for map_metric in map_metrics.values():
+            if map_metric.debias_config is not None:
+                if map_metric.debias_config.keyname not in k_max_debias:
+                    k_max_debias[map_metric.debias_config.keyname] = [
+                        map_metric.k,
+                        make_downsample(merged, map_metric.debias_config),
+                    ]
+                else:
+                    k_max_debias[map_metric.debias_config.keyname][0] = max(
+                        k_max_debias[map_metric.debias_config.keyname][0], map_metric.k
+                    )
+
+        fitted_debias = {}
+        for debias_config_name, (k_max_d, merged_d) in k_max_debias.items():
+            fitted_debias[debias_config_name] = MAP.fit(merged_d, k_max_d)
 
         for name, map_metric in map_metrics.items():
             results[name] = map_metric.calc_from_fitted(
-                fitted_debias[f"{map_metric.debias_config.iqr_coef}_{map_metric.debias_config.random_state}"]
-                if map_metric.debias_config is not None
-                else fitted
+                fitted_debias[map_metric.debias_config.keyname] if map_metric.debias_config is not None else fitted
             )
 
     return results
