@@ -240,5 +240,4 @@ class TestDebias:
         expected = calc_metrics(
             metrics=metrics, reco=recommendations, interactions=interactions_downsampling, catalog=catalog
         )
-        print(actual, expected)
         assert actual == expected
