@@ -22,7 +22,7 @@ import pandas as pd
 from rectools import Columns
 
 
-@attr.s
+@attr.s(frozen=True)
 class DebiasConfig:
     """
     Config with debias method parameters.
@@ -37,18 +37,6 @@ class DebiasConfig:
 
     iqr_coef: float = attr.ib(default=1.5)
     random_state: tp.Optional[int] = attr.ib(default=None)
-
-    @property
-    def keyname(self) -> str:
-        """
-        Compose a config's key name based on the iqr_coef and random_state parameters.
-
-        Returns
-        -------
-        str
-            String representing the key name in the format `"{iqr_coef}_{random_state}"`.
-        """
-        return f"{self.iqr_coef}_{self.random_state}"
 
 
 def make_debias(interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:

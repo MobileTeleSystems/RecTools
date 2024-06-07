@@ -596,17 +596,17 @@ def calc_ranking_metrics(
         k_max = max(metric.k for metric in map_metrics.values())
         fitted = MAP.fit(merged, k_max)
 
-        k_max_debias: tp.Dict[str, tp.List[tp.Union[int, pd.DataFrame]]] = {}
+        k_max_debias: tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]] = {}
         for map_metric in map_metrics.values():
             if map_metric.debias_config is not None:
-                if map_metric.debias_config.keyname not in k_max_debias:
-                    k_max_debias[map_metric.debias_config.keyname] = [
+                if map_metric.debias_config not in k_max_debias:
+                    k_max_debias[map_metric.debias_config] = [
                         map_metric.k,
                         make_debias(merged, map_metric.debias_config),
                     ]
                 else:
-                    k_max_debias[map_metric.debias_config.keyname][0] = max(
-                        k_max_debias[map_metric.debias_config.keyname][0], map_metric.k
+                    k_max_debias[map_metric.debias_config][0] = max(
+                        k_max_debias[map_metric.debias_config][0], map_metric.k
                     )
 
         fitted_debias = {}
@@ -615,7 +615,7 @@ def calc_ranking_metrics(
 
         for name, map_metric in map_metrics.items():
             results[name] = map_metric.calc_from_fitted(
-                fitted_debias[map_metric.debias_config.keyname] if map_metric.debias_config is not None else fitted
+                fitted_debias[map_metric.debias_config] if map_metric.debias_config is not None else fitted
             )
 
     return results

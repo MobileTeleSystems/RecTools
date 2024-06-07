@@ -462,8 +462,8 @@ def calc_classification_metrics(
         k_map[metric.k].append(name)
         if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
             raise TypeError(f"Unexpected classification metric {metric}")
-        if metric.debias_config is not None and metric.debias_config.keyname not in merged_debias:
-            merged_debias[metric.debias_config.keyname] = make_debias(merged, metric.debias_config)
+        if metric.debias_config is not None and metric.debias_config not in merged_debias:
+            merged_debias[metric.debias_config] = make_debias(merged, metric.debias_config)
 
     results = {}
     for k, k_metrics in k_map.items():
@@ -472,7 +472,7 @@ def calc_classification_metrics(
             metric = metrics[metric_name]
 
             confusion_df = calc_confusions(
-                (merged_debias[metric.debias_config.keyname] if metric.debias_config is not None else merged),
+                (merged_debias[metric.debias_config] if metric.debias_config is not None else merged),
                 k,
             )
 
