@@ -70,7 +70,7 @@ class TestDebias:
 
     @pytest.fixture
     def debias_config(self) -> DebiasConfig:
-        return DebiasConfig()
+        return DebiasConfig(iqr_coef=1.5, random_state=32)
 
     @pytest.fixture
     def interactions_downsampling(self, interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
@@ -88,17 +88,29 @@ class TestDebias:
     ) -> None:
         merged = merge_reco(recommendations, interactions)
 
-        expected_max_border = 5
+        expected_result = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7],
+                Columns.Item: [1, 2, 1, 1, 2, 3, 4, 5, 6, 1, 2, 3, 1],
+            }
+        )
+        expected_result = pd.merge(
+            expected_result,
+            recommendations,
+            how="left",
+            on=Columns.UserItem,
+        )
 
         interactions_downsampling = make_debias(interactions, debias_config)
         merged_downsampling = make_debias(merged, debias_config)
 
-        assert (
-            interactions_downsampling[Columns.Item].value_counts().max() <= expected_max_border
-        ), "Interactions: the maximum number of item interactions is greater than the expected threshold"
-        assert (
-            merged_downsampling[Columns.Item].value_counts().max() <= expected_max_border
-        ), "Merged interactions: the maximum number of item interactions is greater than the expected threshold"
+        pd.testing.assert_frame_equal(
+            interactions_downsampling.sort_values(Columns.UserItem, ignore_index=True),
+            expected_result[Columns.UserItem],
+        )
+        pd.testing.assert_frame_equal(
+            merged_downsampling.sort_values(Columns.UserItem, ignore_index=True), expected_result
+        )
 
     def test_make_debias_with_empty_data(self, empty_interactions: pd.DataFrame, debias_config: DebiasConfig) -> None:
         interactions_downsampling = make_debias(empty_interactions, debias_config)
@@ -143,16 +155,16 @@ class TestDebias:
             expected_result_per_user = metric.calc_per_user(  # type: ignore
                 recommendations, interactions_downsampling, catalog
             )
-            result_per_user = metric_debias.calc_per_user(recommendations, interactions_downsampling, catalog)
+            result_per_user = metric_debias.calc_per_user(recommendations, interactions, catalog)
 
             expected_result_mean = metric.calc(recommendations, interactions_downsampling, catalog)  # type: ignore
-            result_mean = metric_debias.calc(recommendations, interactions_downsampling, catalog)
+            result_mean = metric_debias.calc(recommendations, interactions, catalog)
         else:
             expected_result_per_user = metric.calc_per_user(recommendations, interactions_downsampling)  # type: ignore
-            result_per_user = metric_debias.calc_per_user(recommendations, interactions_downsampling)
+            result_per_user = metric_debias.calc_per_user(recommendations, interactions)
 
             expected_result_mean = metric.calc(recommendations, interactions_downsampling)  # type: ignore
-            result_mean = metric_debias.calc(recommendations, interactions_downsampling)
+            result_mean = metric_debias.calc(recommendations, interactions)
 
         pd.testing.assert_series_equal(result_per_user, expected_result_per_user)
         assert result_mean == expected_result_mean
@@ -180,6 +192,7 @@ class TestDebias:
         catalog: tp.List[int],
     ) -> None:
         metric.debias_config = debias_config
+
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         if isinstance(metric, ClassificationMetric):
             result_metric_per_user = metric.calc_per_user(recommendations, empty_interactions, catalog)
@@ -224,7 +237,7 @@ class TestDebias:
         actual = calc_metrics(
             metrics=debias_metrics,
             reco=recommendations,
-            interactions=interactions_downsampling,
+            interactions=interactions,
             catalog=catalog,
         )
         expected = calc_metrics(

@@ -99,6 +99,5 @@ def make_debias(interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.D
             how="left",
             on=Columns.UserItem,
         )
-        interactions_result[Columns.Rank] = interactions_result[Columns.Rank].astype(interactions[Columns.Rank].dtypes)
 
     return interactions_result
