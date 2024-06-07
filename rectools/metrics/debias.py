@@ -14,6 +14,8 @@
 
 """Debias module."""
 
+import typing as tp
+
 import attr
 import pandas as pd
 
@@ -29,12 +31,12 @@ class DebiasConfig:
     ----------
     iqr_coef : float, default 1.5
         Coefficient for defining as the maximum value inside the border.
-    random_state : float, default 32
+    random_state : float, default None
         Pseudorandom number generator state to control the down-sampling.
     """
 
     iqr_coef: float = attr.ib(default=1.5)
-    random_state: int = attr.ib(default=32)
+    random_state: tp.Optional[int] = attr.ib(default=None)
 
     @property
     def keyname(self) -> str:
@@ -49,7 +51,7 @@ class DebiasConfig:
         return f"{self.iqr_coef}_{self.random_state}"
 
 
-def make_downsample(interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
+def make_debias(interactions: pd.DataFrame, debias_config: DebiasConfig) -> pd.DataFrame:
     """
     Downsample the size of interactions, excluding some interactions with popular items.
 
@@ -81,7 +83,7 @@ def make_downsample(interactions: pd.DataFrame, debias_config: DebiasConfig) -> 
     if len(interactions) == 0:
         return interactions
 
-    item_popularity = interactions[Columns.Item].value_counts()
+    item_popularity = interactions.groupby(Columns.Item)[Columns.User].agg("nunique")
 
     quantiles = item_popularity.quantile(q=[0.25, 0.75])
     q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
@@ -90,21 +92,17 @@ def make_downsample(interactions: pd.DataFrame, debias_config: DebiasConfig) -> 
 
     item_outside_max_border = item_popularity[item_popularity > max_border].index
 
-    interactions_result = interactions[~interactions[Columns.Item].isin(item_outside_max_border)]
-    interactions_downsampling = interactions[interactions[Columns.Item].isin(item_outside_max_border)]
+    mask_outside_max_border = interactions[Columns.Item].isin(item_outside_max_border)
+    interactions_result = interactions[~mask_outside_max_border]
+    interactions_downsampling = interactions[mask_outside_max_border]
 
     interactions_downsampling = (
-        interactions_downsampling.groupby(Columns.Item, as_index=False)[Columns.User]
-        .agg(lambda users: users.sample(max_border, random_state=debias_config.random_state).tolist())
-        .explode(Columns.User)
+        interactions_downsampling.sample(frac=1.0, random_state=debias_config.random_state)
+        .groupby(Columns.Item)
+        .head(max_border)
     )
 
-    interactions_result = pd.concat([interactions_result, interactions_downsampling]).sort_values(
-        Columns.User, ignore_index=True
-    )
-
-    interactions_result[Columns.User] = interactions_result[Columns.User].astype(interactions[Columns.User].dtypes)
-    interactions_result[Columns.Item] = interactions_result[Columns.Item].astype(interactions[Columns.Item].dtypes)
+    interactions_result = pd.concat([interactions_result, interactions_downsampling])
 
     if Columns.Rank in interactions.columns:
         interactions_result = pd.merge(

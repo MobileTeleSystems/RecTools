@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import MetricAtK, merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasConfig, make_downsample
+from .debias import DebiasConfig, make_debias
 
 
 @attr.s
@@ -252,7 +252,7 @@ class MAP(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions, self.debias_config)
+            interactions = make_debias(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -381,7 +381,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions, self.debias_config)
+            interactions = make_debias(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -421,7 +421,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = make_downsample(merged, self.debias_config)
+            merged = make_debias(merged, self.debias_config)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
@@ -458,7 +458,7 @@ class MRR(_RankingMetric):
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
     debias_config : DebiasConfig, default None
-            Config with debias method parameters (iqr_coef, random_state).
+        Config with debias method parameters (iqr_coef, random_state).
 
     Examples
     --------
@@ -503,7 +503,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions, self.debias_config)
+            interactions = make_debias(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -525,7 +525,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = make_downsample(merged, self.debias_config)
+            merged = make_debias(merged, self.debias_config)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
         min_rank_per_user = (
@@ -602,7 +602,7 @@ def calc_ranking_metrics(
                 if map_metric.debias_config.keyname not in k_max_debias:
                     k_max_debias[map_metric.debias_config.keyname] = [
                         map_metric.k,
-                        make_downsample(merged, map_metric.debias_config),
+                        make_debias(merged, map_metric.debias_config),
                     ]
                 else:
                     k_max_debias[map_metric.debias_config.keyname][0] = max(

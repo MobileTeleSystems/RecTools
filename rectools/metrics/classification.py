@@ -24,7 +24,7 @@ import pandas as pd
 from rectools import Columns
 
 from .base import Catalog, MetricAtK, merge_reco
-from .debias import DebiasConfig, make_downsample
+from .debias import DebiasConfig, make_debias
 
 TP = "__TP"
 FP = "__FP"
@@ -91,7 +91,7 @@ class ClassificationMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions, self.debias_config)
+            interactions = make_debias(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         confusion_df = make_confusions(reco, interactions, self.k)
@@ -200,7 +200,7 @@ class SimpleClassificationMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_downsample(interactions, self.debias_config)
+            interactions = make_debias(interactions, self.debias_config)
 
         self._check(reco, interactions=interactions)
         confusion_df = make_confusions(reco, interactions, self.k)
@@ -419,10 +419,7 @@ class HitRate(SimpleClassificationMetric):
 
 
 def calc_classification_metrics(
-    metrics: tp.Dict[
-        str,
-        tp.Union[ClassificationMetric, SimpleClassificationMetric],
-    ],
+    metrics: tp.Dict[str, tp.Union[ClassificationMetric, SimpleClassificationMetric]],
     merged: pd.DataFrame,
     catalog: tp.Optional[Catalog] = None,
 ) -> tp.Dict[str, float]:
@@ -466,7 +463,7 @@ def calc_classification_metrics(
         if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
             raise TypeError(f"Unexpected classification metric {metric}")
         if metric.debias_config is not None and metric.debias_config.keyname not in merged_debias:
-            merged_debias[metric.debias_config.keyname] = make_downsample(merged, metric.debias_config)
+            merged_debias[metric.debias_config.keyname] = make_debias(merged, metric.debias_config)
 
     results = {}
     for k, k_metrics in k_map.items():
