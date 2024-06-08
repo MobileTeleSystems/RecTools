@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## Unreleased
+
+### Added
+- Extended Theory&Practice RecSys baselines tutorial ([#139](https://github.com/MobileTeleSystems/RecTools/pull/139))
+- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140))
+- `Intersection` metric ([#148](https://github.com/MobileTeleSystems/RecTools/pull/148))
+
+### Fixed
+- Used the latest version of `lightfm` that allows to install it using `poetry>=1.5.0` ([#141](https://github.com/MobileTeleSystems/RecTools/pull/141))
+- Added restriction to `pytorch` version for MacOSX + x86_64 that allows to install it on such platforms ([#142](https://github.com/MobileTeleSystems/RecTools/pull/142))
+
+
 ## [0.6.0] - 13.05.2024
 
 ### Added 
