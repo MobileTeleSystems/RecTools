@@ -43,26 +43,31 @@ class TestMetricsApp:
                 layout_kwargs=layout_kwargs,
             )
             _ = app.fig
+    
+    def test_display(
+        self,
+    ) -> None:
+        app = MetricsApp.construct(
+            models_metrics=DF_METRICS,
+            show_legend=True,
+            auto_display=False,
+        )
+        app.display()
 
-    def test_no_metric_columns(self) -> None:
+    @pytest.mark.parametrize("column", (Columns.Model, Columns.Split, "metric"))
+    def test_missed_metric_column(self, column: str) -> None:
+        models_metrics = pd.DataFrame(
+            {
+                Columns.Model: ["Model1", "Model2"],
+                Columns.Split: [0, 0],
+                "metric": [0.1, 0.2],
+            }
+        )
+        models_metrics.drop(columns=column, inplace=True)
+        
         with pytest.raises(KeyError):
-            MetricsApp.construct(
-                models_metrics=pd.DataFrame(
-                    {
-                        Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
-                        Columns.Split: [0, 0, 1, 1, 2, 2],
-                    }
-                ),
-            )
+            MetricsApp.construct(models_metrics=models_metrics)
 
-    def test_no_model_column(self) -> None:
-        with pytest.raises(KeyError):
-            MetricsApp.construct(
-                models_metrics=pd.DataFrame(
-                    {
-                        Columns.Split: [0, 0, 1, 1, 2, 2],
-                        "prec@10": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-                        "recall": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-                    }
-                ),
-            )
+    def test_model_metrics_is_not_dataframe(self) -> None:
+        with pytest.raises(ValueError):
+            MetricsApp.construct(models_metrics=1)
