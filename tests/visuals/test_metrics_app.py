@@ -43,7 +43,7 @@ class TestMetricsApp:
                 layout_kwargs=layout_kwargs,
             )
             _ = app.fig
-    
+
     def test_display(
         self,
     ) -> None:
@@ -64,7 +64,7 @@ class TestMetricsApp:
             }
         )
         models_metrics.drop(columns=column, inplace=True)
-        
+
         with pytest.raises(KeyError):
             MetricsApp.construct(models_metrics=models_metrics)
 
