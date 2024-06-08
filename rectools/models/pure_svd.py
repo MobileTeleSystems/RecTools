@@ -36,7 +36,7 @@ class PureSVDModel(VectorModel):
     factors : int, default ``10``
         The number of latent factors to compute.
     tol : float, default 0
-        Tolerance for singular values. Zero (default) means machine precision.
+        Tolerance for singular values. Zero means machine precision.
     maxiter : int, optional, default ``None``
         Maximum number of iterations.
     random_state : int, optional, default ``None``
