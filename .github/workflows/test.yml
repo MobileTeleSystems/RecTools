@@ -72,4 +72,9 @@ jobs:
 
       - name: Upload coverage
         if: matrix.python-version == '3.9'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
