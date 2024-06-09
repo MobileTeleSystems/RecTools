@@ -96,7 +96,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         The keys from `models` argument to compute intersection metrics. These models
         recommendations will be used as `ref_reco` for other models intersection metrics calculation.
         Obligatory only if `IntersectionMetric` instances present in `metrics`.
-    validate_ref_models : bool, defautl False
+    validate_ref_models : bool, default False
         If True include models specified in `ref_models` to all metrics calculations
         and receive their metrics from cross-validation.
 
