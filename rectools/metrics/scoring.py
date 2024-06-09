@@ -112,6 +112,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     """
     merged = None
     results = {}
+    expected_results_len = len(metrics)
 
     # Classification
     classification_metrics = select_by_type(metrics, (ClassificationMetric, SimpleClassificationMetric))
@@ -173,7 +174,6 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
 
     # Intersection
     intersection_metrics = select_by_type(metrics, IntersectionMetric)
-    intersection_additional_metrics_len = 0
     if intersection_metrics:
         if not ref_reco:
             raise ValueError("For calculating intersection metrics it's necessary to set 'ref_reco'")
@@ -183,8 +183,8 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
             ref_reco,
         )
         results.update(intersection_values)
-        intersection_additional_metrics_len += len(intersection_values) - len(intersection_metrics)
+        expected_results_len += len(intersection_values) - len(intersection_metrics)
 
-    if len(results) < len(metrics) + intersection_additional_metrics_len:
+    if len(results) < expected_results_len:
         warnings.warn("Custom metrics are not supported.")
     return results

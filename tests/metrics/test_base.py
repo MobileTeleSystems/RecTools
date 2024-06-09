@@ -23,8 +23,10 @@ from rectools.metrics.base import MetricAtK
 
 
 class SomeMetric(MetricAtK):
-    def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame, prev_interactions: pd.DataFrame) -> None:
-        self._check(reco, interactions, prev_interactions)
+    def calc(
+        self, reco: pd.DataFrame, interactions: pd.DataFrame, prev_interactions: pd.DataFrame, ref_reco: pd.DataFrame
+    ) -> None:
+        self._check(reco, interactions, prev_interactions, ref_reco)
 
 
 class TestMetricAtK:
@@ -42,13 +44,18 @@ class TestMetricAtK:
             [[10, 100], [10, 200], [20, 200]],
             columns=[Columns.User, Columns.Item],
         )
+        ref_reco = pd.DataFrame(
+            [[10, 100, 1], [10, 300, 2], [20, 200, 1]],
+            columns=[Columns.User, Columns.Item, Columns.Rank],
+        )
         return {
             "reco": reco,
             "interactions": interactions,
             "prev_interactions": prev_interactions,
+            "ref_reco": ref_reco,
         }
 
-    @pytest.mark.parametrize("table", ("reco", "interactions", "prev_interactions"))
+    @pytest.mark.parametrize("table", ("reco", "interactions", "prev_interactions", "ref_reco"))
     @pytest.mark.parametrize("column", (Columns.User, Columns.Item, Columns.Rank))
     def test_check_columns(self, data: tp.Dict[str, pd.DataFrame], table: str, column: str) -> None:
         if column not in data[table]:
@@ -61,20 +68,22 @@ class TestMetricAtK:
         assert table in err_text.lower()
         assert column in err_text.lower()
 
-    def test_check_rank_type(self, data: tp.Dict[str, pd.DataFrame]) -> None:
-        data["reco"][Columns.Rank] = data["reco"][Columns.Rank].astype(float)
+    @pytest.mark.parametrize("table", ("reco", "ref_reco"))
+    def test_check_rank_type(self, data: tp.Dict[str, pd.DataFrame], table: str) -> None:
+        data[table][Columns.Rank] = data[table][Columns.Rank].astype(float)
         metric = SomeMetric(1)
         with warnings.catch_warnings(record=True) as w:
             metric.calc(**data)
             assert len(w) == 1
-            for phrase in (Columns.Rank, "reco", "dtype", "integer"):
+            for phrase in (Columns.Rank, table, "dtype", "integer"):
                 assert phrase in str(w[-1].message)
 
-    def test_check_min_rank(self, data: tp.Dict[str, pd.DataFrame]) -> None:
-        data["reco"][Columns.Rank] = data["reco"][Columns.Rank].map({1: 3, 2: 2})
+    @pytest.mark.parametrize("table", ("reco", "ref_reco"))
+    def test_check_min_rank(self, data: tp.Dict[str, pd.DataFrame], table: str) -> None:
+        data[table][Columns.Rank] = data[table][Columns.Rank].map({1: 3, 2: 2})
         metric = SomeMetric(1)
         with warnings.catch_warnings(record=True) as w:
             metric.calc(**data)
             assert len(w) == 1
-            for phrase in (Columns.Rank, "reco", "min value", "1"):
+            for phrase in (Columns.Rank, table, "min value", "1"):
                 assert phrase in str(w[-1].message)

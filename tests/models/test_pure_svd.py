@@ -194,8 +194,10 @@ class TestPureSVDModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
-        model = PureSVDModel(factors=3)
+    @pytest.mark.parametrize("tol, random_state", ((0, None), (0, 42), (0.3, 42)))
+    def test_second_fit_refits_model(self, dataset: Dataset, tol: float, random_state: tp.Optional[int]) -> None:
+        # If `tol` is greater than 0, and `random_state` is None, the results can be different.
+        model = PureSVDModel(factors=3, tol=tol, random_state=random_state)
         assert_second_fit_refits_model(model, dataset)
 
     @pytest.mark.parametrize(

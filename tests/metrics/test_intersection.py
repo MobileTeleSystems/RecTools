@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics.intersection import Intersection
+from rectools.metrics.intersection import Intersection, calc_intersection_metrics
 
 
 class TestIntersection:
@@ -65,3 +65,42 @@ class TestIntersection:
 
         metric = intersection_metric.calc(reco, empty_ref_reco)
         assert np.isnan(metric)
+
+
+class TestCalcIntersectionMetrics:
+
+    @pytest.fixture
+    def reco(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2],
+                Columns.Item: [3, 2, 1],
+                Columns.Rank: [1, 2, 1],
+            }
+        )
+
+    @pytest.fixture
+    def ref_reco(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2],
+                Columns.Item: [3, 5, 1],
+                Columns.Rank: [1, 2, 1],
+            }
+        )
+
+    def test_single_ref_reco(self, reco: pd.DataFrame, ref_reco: pd.DataFrame) -> None:
+        actual = calc_intersection_metrics(
+            metrics={"int": Intersection(k=2, ref_k=1)},
+            reco=reco,
+            ref_reco=ref_reco,
+        )
+        assert actual == {"int": 0.75}
+
+    def test_multiple_ref_reco(self, reco: pd.DataFrame, ref_reco: pd.DataFrame) -> None:
+        actual = calc_intersection_metrics(
+            metrics={"int": Intersection(k=2, ref_k=1)},
+            reco=reco,
+            ref_reco={"one": ref_reco, "two": ref_reco},
+        )
+        assert actual == {"int_one": 0.75, "int_two": 0.75}
