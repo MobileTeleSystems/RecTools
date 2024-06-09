@@ -74,7 +74,7 @@ class Intersection(MetricAtK):
 
         if ref_reco.shape[0] == 0:
             return pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
-        
+
         # Optimisation for cross_validate
         if ref_reco is reco:
             return pd.Series(
