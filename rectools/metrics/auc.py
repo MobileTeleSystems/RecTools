@@ -179,8 +179,8 @@ class _AUCMetric(MetricAtK):
         user_auc_numenator = pd.concat([cropped_outer_merged[Columns.User], auc_numenator_gain], axis=1)
         auc_numenator = user_auc_numenator.groupby(Columns.User)["__auc_numenator_gain"].sum()
         auc_denominator = n_pos * self.k
-        auc = (auc_numenator / auc_denominator).fillna(0)  # TODO: what if order was changed?
-        return auc
+        auc = auc_numenator.rename("numenator").to_frame().join(auc_denominator.rename("denominator"), how="outer")
+        return (auc["numenator"] / auc["denominator"]).fillna(0)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
