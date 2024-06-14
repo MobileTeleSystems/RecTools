@@ -254,6 +254,26 @@ class Precision(SimpleClassificationMetric):
 
 
 @attr.s
+class RPrecision(SimpleClassificationMetric):
+    """
+    Ratio of relevant items among top-`k` recommended items taking into account
+    number of user test items.
+
+    The RPrecision equals to ``tp / min(k, tp+fn)``
+    ``tp + fn`` is the total number of items in user test interactions.
+
+    Parameters
+    ----------
+    k : int
+        Number of items in top of recommendations list that will be used to calculate metric.
+    """
+
+    def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
+        denominator = np.minimum(self.k, confusion_df[TP] + confusion_df[FN])
+        return confusion_df[TP] / denominator
+
+
+@attr.s
 class Recall(SimpleClassificationMetric):
     """
     Ratio of relevant recommended items among all items user interacted with

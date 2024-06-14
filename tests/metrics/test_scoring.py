@@ -32,6 +32,7 @@ from rectools.metrics import (
     PairwiseHammingDistanceCalculator,
     PartialAUC,
     Precision,
+    RPrecision,
     Recall,
     Serendipity,
     calc_metrics,
@@ -90,6 +91,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         metrics = {
             "prec@1": Precision(k=1),
             "prec@2": Precision(k=2),
+            "rprec@2": RPrecision(k=2),
             "recall@1": Recall(k=1),
             "accuracy@1": Accuracy(k=1),
             "hitrate@1": HitRate(k=1),
@@ -115,6 +117,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         expected = {
             "prec@1": 0.25,
             "prec@2": 0.375,
+            "rprec@2": 0.5,
             "recall@1": 0.125,
             "accuracy@1": 0.825,
             "hitrate@1": 0.25,
