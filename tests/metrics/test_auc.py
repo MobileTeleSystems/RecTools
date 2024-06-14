@@ -21,18 +21,18 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics.auc import PAP, PAUC, InsufficientHandling
+from rectools.metrics.auc import PAP, InsufficientHandling, PartialAUC
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
 
-class TestPAUC:
+class TestPartialAUC:
     def test_raises_when_incorrect_insufficient_handling(self) -> None:
         with pytest.raises(ValueError):
-            PAUC(k=1, insufficient_handling="strange")
+            PartialAUC(k=1, insufficient_handling="strange")
 
     @pytest.mark.parametrize(
-        "k, insufficient_handling, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_partial_auc, expected_users",
         (
             (1, InsufficientHandling.IGNORE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
             (3, InsufficientHandling.IGNORE, [0, 0, 1, 1, 1 / 12], [1, 2, 3, 4, 5]),
@@ -41,7 +41,7 @@ class TestPAUC:
         ),
     )
     def test_calc(
-        self, k: int, insufficient_handling: str, expected_pauc: tp.List[float], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_partial_auc: tp.List[float], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -57,9 +57,9 @@ class TestPAUC:
             }
         )
 
-        metric = PAUC(k=k, insufficient_handling=insufficient_handling)
+        metric = PartialAUC(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
-            expected_pauc,
+            expected_partial_auc,
             index=pd.Series(expected_users, name=Columns.User),
             dtype=float,
         )
@@ -80,7 +80,7 @@ class TestPAUC:
                 Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
             }
         )
-        metric = PAUC(k=3, insufficient_handling=InsufficientHandling.RAISE)
+        metric = PartialAUC(k=3, insufficient_handling=InsufficientHandling.RAISE)
         with pytest.raises(ValueError):
             metric.calc(reco, interactions)
 
@@ -90,7 +90,7 @@ class TestPAUC:
     def test_when_no_interactions(self, insufficient_handling: str) -> None:
         reco = pd.DataFrame([[1, 1, 1], [2, 1, 1]], columns=[Columns.User, Columns.Item, Columns.Rank])
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
-        metric = PAUC(k=3, insufficient_handling=insufficient_handling)
+        metric = PartialAUC(k=3, insufficient_handling=insufficient_handling)
         pd.testing.assert_series_equal(metric.calc_per_user(reco, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(metric.calc(reco, EMPTY_INTERACTIONS))
 
@@ -112,7 +112,7 @@ class TestPAUC:
                 Columns.Item: [1, 2, 1, 1, 2, 3],
             }
         )
-        metric = PAUC(k=k, insufficient_handling=insufficient_handling)
+        metric = PartialAUC(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
             [1, 0],
             index=pd.Series([1, 2], name=Columns.User),
@@ -121,14 +121,14 @@ class TestPAUC:
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
     @pytest.mark.parametrize(
-        "k, insufficient_handling, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_partial_auc, expected_users",
         (
             (1, InsufficientHandling.IGNORE, [2 / 3, 0], [1, 2]),
             (1, InsufficientHandling.EXCLUDE, [2 / 3, 0], [1, 2]),
         ),
     )
     def test_when_duplicates_in_interactions_insufficient(
-        self, k: int, insufficient_handling: str, expected_pauc: tp.List[int], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_partial_auc: tp.List[int], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -143,9 +143,9 @@ class TestPAUC:
                 Columns.Item: [1, 2, 1, 1, 2, 3, 10],  # last positive is not in reco
             }
         )
-        metric = PAUC(k=k, insufficient_handling=insufficient_handling)
+        metric = PartialAUC(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
-            expected_pauc,
+            expected_partial_auc,
             index=pd.Series(expected_users, name=Columns.User),
             dtype=float,
         )
@@ -158,7 +158,7 @@ class TestPAP:
             PAP(k=1, insufficient_handling="strange")
 
     @pytest.mark.parametrize(
-        "k, insufficient_handling, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_partial_auc, expected_users",
         (
             (1, InsufficientHandling.IGNORE, [0, 0, 1, 1, 0], [1, 2, 3, 4, 5]),
             (3, InsufficientHandling.IGNORE, [0, 0, 1, 1, 1 / 9], [1, 2, 3, 4, 5]),
@@ -167,7 +167,7 @@ class TestPAP:
         ),
     )
     def test_calc(
-        self, k: int, insufficient_handling: str, expected_pauc: tp.List[float], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_partial_auc: tp.List[float], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -185,7 +185,7 @@ class TestPAP:
 
         metric = PAP(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
-            expected_pauc,
+            expected_partial_auc,
             index=pd.Series(expected_users, name=Columns.User),
             dtype=float,
         )
@@ -248,14 +248,14 @@ class TestPAP:
 
     # this one is actually useful
     @pytest.mark.parametrize(
-        "k, insufficient_handling, expected_pauc, expected_users",
+        "k, insufficient_handling, expected_partial_auc, expected_users",
         (
             (2, InsufficientHandling.IGNORE, [1 / 2, 0], [1, 2]),
             (2, InsufficientHandling.EXCLUDE, [0], [2]),
         ),
     )
     def test_when_duplicates_in_interactions_insufficient(
-        self, k: int, insufficient_handling: str, expected_pauc: tp.List[int], expected_users: tp.List[int]
+        self, k: int, insufficient_handling: str, expected_partial_auc: tp.List[int], expected_users: tp.List[int]
     ) -> None:
         reco = pd.DataFrame(
             {
@@ -272,7 +272,7 @@ class TestPAP:
         )
         metric = PAP(k=k, insufficient_handling=insufficient_handling)
         expected_metric_per_user = pd.Series(
-            expected_pauc,
+            expected_partial_auc,
             index=pd.Series(expected_users, name=Columns.User),
             dtype=float,
         )

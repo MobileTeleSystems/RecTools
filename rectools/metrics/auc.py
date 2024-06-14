@@ -256,7 +256,7 @@ class _AUCMetric(MetricAtK):
         raise NotImplementedError()
 
 
-class PAUC(_AUCMetric):
+class PartialAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
     pAUC@k measures ROC AUC score for ranking of the top-k irrelevant items and all relevant items
@@ -323,11 +323,11 @@ class PAUC(_AUCMetric):
     ...         Columns.Item: [1, 2, 1, 3, 1, 2],
     ...     }
     ... )
-    >>> PAUC(k=1).calc_per_user(reco, interactions).values
+    >>> PartialAUC(k=1).calc_per_user(reco, interactions).values
     array([1., 1., 0.])
-    >>> PAUC(k=3).calc_per_user(reco, interactions).values
+    >>> PartialAUC(k=3).calc_per_user(reco, interactions).values
     array([1.        , 1.        , 0.33333333])
-    >>> PAUC(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
+    >>> PartialAUC(k=3, insufficient_handling="exclude").calc_per_user(reco, interactions).values
     array([1., 1.])
     """
 
@@ -478,7 +478,7 @@ class PAP(_AUCMetric):
         return self._calc_roc_auc(cropped_suf, n_pos_suf)
 
 
-AucMetric = tp.Union[PAUC, PAP]
+AucMetric = tp.Union[PartialAUC, PAP]
 
 
 def calc_auc_metrics(
