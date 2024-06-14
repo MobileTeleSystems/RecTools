@@ -116,14 +116,14 @@ class _AUCMetric(MetricAtK):
         outer_merged["__tp"] = recommended_mask & outer_merged["__test_positive"]
         outer_merged["__fp"] = recommended_mask & ~outer_merged["__test_positive"]
 
-        stats = outer_merged.groupby(Columns.User).agg(
-            __fp_cumsum=("__fp", "cumsum"),
-            __test_pos_cumsum=("__test_positive", "cumsum"),
-            n_pos=("__test_positive", "sum"),
-            n_fp=("__fp", "sum"),
-        )
+        grouped = outer_merged.groupby(Columns.User, sort=False)
+
+        # perform cumcum and sum aggs separately otherwise row order can be affected
+        cumsum_stats = grouped.agg(__fp_cumsum=("__fp", "cumsum"), __test_pos_cumsum=("__test_positive", "cumsum"))
+        stats = grouped.agg(n_pos=("__test_positive", "sum"), n_fp=("__fp", "sum"))
+
         n_pos = stats["n_pos"].dropna().rename_axis(Columns.User)
-        outer_merged = pd.concat([outer_merged, stats[["__fp_cumsum", "__test_pos_cumsum"]]], axis=1)
+        outer_merged = pd.concat([outer_merged, cumsum_stats[["__fp_cumsum", "__test_pos_cumsum"]]], axis=1)
 
         if insufficient_handling_needed:
             # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
