@@ -18,6 +18,7 @@ from enum import Enum
 
 import attr
 import pandas as pd
+from attrs import define, field
 
 from rectools import Columns
 from rectools.metrics.base import MetricAtK, outer_merge_reco
@@ -56,6 +57,7 @@ class AUCFitted:
     n_fp_insufficient: pd.Series = attr.ib()
 
 
+@define
 class _AUCMetric(MetricAtK):
     """
     ROC AUC based metric base class.
@@ -88,18 +90,18 @@ class _AUCMetric(MetricAtK):
         will still get an error when `insufficient_handling` is set to `raise`.
     """
 
-    def __init__(self, k: int, insufficient_handling: tp.Optional[str] = "ignore") -> None:
-        super().__init__(k=k)
-        try:
-            self.insufficient_handling = InsufficientHandling(insufficient_handling)
-        except ValueError:
-            possible_values = {item.value for item in InsufficientHandling.__members__.values()}
-            raise ValueError(
-                f"`insufficient_handling` must be one of the {possible_values}. Got {insufficient_handling}."
-            )
+    insufficient_handling: tp.Optional[str] = field(default="ignore")
+
+    @insufficient_handling.validator
+    def _check_insufficient_handling(self, attribute: str, value: str) -> None:
+        possible_values = {item.value for item in InsufficientHandling.__members__.values()}
+        if value not in possible_values:
+            raise ValueError(f"`insufficient_handling` must be one of the {possible_values}. Got {value}.")
 
     @classmethod
-    def fit(cls, reco: pd.DataFrame, interactions: pd.DataFrame, k_max: int) -> AUCFitted:
+    def fit(
+        cls, reco: pd.DataFrame, interactions: pd.DataFrame, k_max: int, insufficient_handling_needed: bool
+    ) -> AUCFitted:
         """
         Prepare intermediate data for effective calculation.
 
@@ -121,14 +123,17 @@ class _AUCMetric(MetricAtK):
             n_fp=("__fp", "sum"),
         )
         n_pos = stats["n_pos"].dropna().rename_axis(Columns.User)
-        users_n_fp = stats["n_fp"].dropna().rename_axis(Columns.User)
         outer_merged = pd.concat([outer_merged, stats[["__fp_cumsum", "__test_pos_cumsum"]]], axis=1)
 
-        # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
-        # We calculate and keep number of false positives for all other users
-        n_fp_insufficient = users_n_fp[users_n_fp < k_max]
-        users_with_fn = outer_merged.loc[outer_merged[Columns.Rank].isna(), Columns.User].unique()
-        n_fp_insufficient = n_fp_insufficient[n_fp_insufficient.index.isin(users_with_fn)]
+        if insufficient_handling_needed:
+            # Every user with FP count more then k_max has sufficient recommendations for partial AUC based metrics
+            # We calculate and keep number of false positives for all other users
+            users_n_fp = stats["n_fp"].dropna().rename_axis(Columns.User)
+            n_fp_insufficient = users_n_fp[users_n_fp < k_max]
+            users_with_fn = outer_merged.loc[~recommended_mask, Columns.User].unique()
+            n_fp_insufficient = n_fp_insufficient[n_fp_insufficient.index.isin(users_with_fn)]
+        else:
+            n_fp_insufficient = pd.Series([])
 
         return AUCFitted(outer_merged, n_pos, n_fp_insufficient)
 
@@ -136,13 +141,13 @@ class _AUCMetric(MetricAtK):
         raise NotImplementedError()
 
     def _handle_insufficient_cases(
-        self, outer_merged: pd.DataFrame, n_pos: pd.Series, n_fp_insufficient: pd.Series, metric_name: str
+        self, outer_merged: pd.DataFrame, n_pos: pd.Series, n_fp_insufficient: pd.Series
     ) -> pd.Series:
         if self.insufficient_handling == InsufficientHandling.IGNORE:
             return outer_merged, n_pos
 
         insufficient_users = n_fp_insufficient[n_fp_insufficient < self.k].index.values
-        if not insufficient_users.any():
+        if len(insufficient_users) == 0:
             return outer_merged, n_pos
 
         if self.insufficient_handling == InsufficientHandling.EXCLUDE:
@@ -152,11 +157,11 @@ class _AUCMetric(MetricAtK):
 
         raise ValueError(
             f"""
-            {metric_name}@{self.k} metric requires at least {self.k} negatives in
+            {self.__class__.__name__}@{self.k} metric requires at least {self.k} negatives in
             recommendations for each user. Or all items from user test interactions ranked in
             recommendations - meaning that all other recommended items will be negatives.
             There are {len(insufficient_users)} users with less then required negatives.
-            For correct {metric_name} computation please provide each user with sufficient number
+            For correct {self.__class__.__name__} computation please provide each user with sufficient number
             of recommended items. {self._get_sufficient_reco_explanation()}
             You can disable this error by specifying `insufficient_handling`="{InsufficientHandling.IGNORE}" or
             by excluding all users with insuffissient recommendations from metric computation
@@ -213,7 +218,8 @@ class _AUCMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         self._check(reco, interactions=interactions)
-        fitted = self.fit(reco, interactions, k_max=self.k)
+        insufficient_handling_needed = self.insufficient_handling != InsufficientHandling.IGNORE
+        fitted = self.fit(reco, interactions, self.k, insufficient_handling_needed)
         return self.calc_per_user_from_fitted(fitted)
 
     def calc_from_fitted(self, fitted: AUCFitted) -> float:
@@ -254,7 +260,11 @@ class PAUC(_AUCMetric):
     r"""
     Partial AUC at k (pAUC@k).
     pAUC@k measures ROC AUC score for ranking of the top-k irrelevant items and all relevant items
-    for each user. Averaged between users. For one user the formula is:
+    for each user. IMPORTANT: this metric requires more then `k` recommended items for each user.
+    It fill be enough to have :math:`n^+` (number of user positives) + `k` recommended items for
+    each user. Read more in `insufficient_handling` parameter description.
+
+    Metric is averaged between users. For one user the formula is:
 
     .. math::
         pAUC@k = \frac{1}{kn_+}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
@@ -349,10 +359,7 @@ class PAUC(_AUCMetric):
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
 
         cropped_suf, n_pos_suf = self._handle_insufficient_cases(
-            outer_merged=cropped,
-            n_pos=fitted.n_pos,
-            n_fp_insufficient=fitted.n_fp_insufficient,
-            metric_name="PAUC",
+            outer_merged=cropped, n_pos=fitted.n_pos, n_fp_insufficient=fitted.n_fp_insufficient
         )
         return self._calc_roc_auc(cropped_suf, n_pos_suf)
 
@@ -362,8 +369,11 @@ class PAP(_AUCMetric):
     Partial AUC + precision@k (pAp@k) joint classification and ranking metric.
     pAp@k measures AUC between the top-k irrelevant items and top-β relevant items, where β is the
     minimum of k and the number of relevant items. The metric behaves like prec@k when the number of
-    relevant items are larger than k and like pAUC otherwise.  Averaged between users. For one user
-    the formula is:
+    relevant items are larger than k and like pAUC otherwise. IMPORTANT: this metric requires more
+    then `k` recommended items for each user. It fill be enough to have `k` * 2 recommended items
+    for each user. Read more in `insufficient_handling` parameter description.
+
+    Metric is averaged between users. For one user the formula is:
 
     .. math::
         pAp@k = \frac{1}{k\beta}\sum_{{x_i}\in S^+}\sum_{{x_j}\in S^-}\mathbb{1}[s(x_i)\geq s(x_j)]
@@ -464,7 +474,6 @@ class PAP(_AUCMetric):
             outer_merged=cropped,
             n_pos=fitted.n_pos.clip(upper=self.k),
             n_fp_insufficient=fitted.n_fp_insufficient,
-            metric_name="PAP",
         )
         return self._calc_roc_auc(cropped_suf, n_pos_suf)
 
@@ -505,7 +514,10 @@ def calc_auc_metrics(
     results = {}
 
     k_max = max(metric.k for metric in metrics.values())
-    fitted = _AUCMetric.fit(reco, interactions, k_max)
+    insufficient_handling_needed = (
+        sum(metric.insufficient_handling != InsufficientHandling.IGNORE for metric in metrics.values()) > 0
+    )
+    fitted = _AUCMetric.fit(reco, interactions, k_max, insufficient_handling_needed)
     for name, metric in metrics.items():
         results[name] = metric.calc_from_fitted(fitted)
 
