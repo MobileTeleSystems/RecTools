@@ -49,15 +49,15 @@ class MetricAtK:
         reco: pd.DataFrame,
         interactions: tp.Optional[pd.DataFrame] = None,
         prev_interactions: tp.Optional[pd.DataFrame] = None,
+        ref_reco: tp.Optional[pd.DataFrame] = None,
     ) -> None:
         cls._check_columns(reco, "reco", (Columns.User, Columns.Item, Columns.Rank))
         cls._check_columns(interactions, "interactions", (Columns.User, Columns.Item))
         cls._check_columns(prev_interactions, "prev_interactions", (Columns.User, Columns.Item))
+        cls._check_columns(ref_reco, "ref_reco", (Columns.User, Columns.Item, Columns.Rank))
 
-        if reco[Columns.Rank].dtype.kind not in ("i", "u"):
-            warnings.warn(f"Expected integer dtype of '{Columns.Rank}' column in 'reco' dataframe.")
-        if int(round(reco[Columns.Rank].min())) != 1:
-            warnings.warn(f"Expected min value of '{Columns.Rank}' column in 'reco' dataframe to be equal to 1.")
+        cls._check_rank_column(reco, "reco")
+        cls._check_rank_column(ref_reco, "ref_reco")
 
     @staticmethod
     def _check_columns(df: tp.Optional[pd.DataFrame], name: str, required_columns: tp.Iterable[str]) -> None:
@@ -67,6 +67,15 @@ class MetricAtK:
         actual_columns = set(df.columns)
         if not actual_columns >= required_columns:
             raise KeyError(f"Missed columns {required_columns - actual_columns} in '{name}' dataframe")
+
+    @staticmethod
+    def _check_rank_column(reco: pd.DataFrame, df_name: str) -> None:
+        if reco is None or reco.empty:
+            return
+        if reco[Columns.Rank].dtype.kind not in ("i", "u"):
+            warnings.warn(f"Expected integer dtype of '{Columns.Rank}' column in '{df_name}' dataframe.")
+        if int(round(reco[Columns.Rank].min())) != 1:
+            warnings.warn(f"Expected min value of '{Columns.Rank}' column in '{df_name}' dataframe to be equal to 1.")
 
 
 def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
