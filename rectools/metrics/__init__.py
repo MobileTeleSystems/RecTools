@@ -38,6 +38,7 @@ Metrics
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
 `metrics.Intersection`
+`metrics.Completeness`
 
 Tools
 -----
@@ -55,6 +56,7 @@ from .distances import (
     SparsePairwiseHammingDistanceCalculator,
 )
 from .diversity import IntraListDiversity
+from .dq import Completeness
 from .intersection import Intersection
 from .novelty import MeanInvUserFreq
 from .popularity import AvgRecPopularity
@@ -84,4 +86,5 @@ __all__ = (
     "PairwiseHammingDistanceCalculator",
     "SparsePairwiseHammingDistanceCalculator",
     "Intersection",
+    "Completeness"
 )

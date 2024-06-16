@@ -30,6 +30,7 @@ from .novelty import NoveltyMetric, calc_novelty_metrics
 from .popularity import PopularityMetric, calc_popularity_metrics
 from .ranking import RankingMetric, calc_ranking_metrics
 from .serendipity import SerendipityMetric, calc_serendipity_metrics
+from .dq import DQMetric, calc_dq_metrics
 
 
 def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
@@ -196,4 +197,11 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
 
     if len(results) < expected_results_len:
         warnings.warn("Custom metrics are not supported.")
+
+    # DQ
+    dq_metrics = select_by_type(metrics, DQMetric)
+    if dq_metrics:
+        dq_values = calc_dq_metrics(dq_metrics, reco)
+        results.update(dq_values)
+        
     return results
