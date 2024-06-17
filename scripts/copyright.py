@@ -107,14 +107,14 @@ def make_header(file_path: str) -> str:
 
 
 def add_header(content: str, header: str) -> str:
-    if content:
-        header += ""  ###
+    if content[0] != "\n":
+        header += "\n"
     return header + content
 
 
 def replace_header(content: str, new_header: str) -> str:
-    fixed_content = remove_header(content)
-    fixed_content = add_header(content, new_header)
+    content_no_header = remove_header(content)
+    fixed_content = add_header(content_no_header, new_header)
     return fixed_content
 
 
@@ -137,6 +137,8 @@ def process_file(file_path: Path, check: bool) -> bool:
         logger.error(f"{file_path}: file have a license info, but header cannot be extracted. Manual fix required.")
         return False
     
+    print(current_header)
+    print(correct_header)
     if current_header != correct_header:
         logger.info(f"{file_path}: incorrect license header")
         if check:
