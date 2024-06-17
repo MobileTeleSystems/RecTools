@@ -526,7 +526,211 @@ class MRR(_RankingMetric):
         return per_user.mean()
 
 
-RankingMetric = tp.Union[NDCG, MAP, MRR]
+@attr.s
+class PFound(_RankingMetric):
+    r"""
+    PFound at k (NDCG@k).
+
+    Estimates relevance of recommendations taking in account their order.
+
+    .. math::
+        pFound@K = \sum_{i=1}^{k} pLook_{i}\ pRel_{i}
+
+    where
+        - :math:`pLook_{1} = 1`
+        - :math:`pLook_{i} = pLook_{i-1}\ (1 - pRel_{i-1})\ (1 - pBreak)` is a probability
+          of viewing the i-th recommendation from the list;
+        - :math:`pRel_{i}` is a probability that the i-th item will be relevant;
+        - :math:`PBreak = 0.15` (default value) is a probability that the user will stop browsing
+          due to external reason.
+
+    Parameters
+    ----------
+     k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+     p_break : float, default ``0.15``
+        The probability that the user will stop browsing due to external reason.
+
+    Examples
+    --------
+    >>> reco = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4],
+    ...         Columns.Item: [7, 8, 1, 2, 1, 2, 3, 4, 1, 2, 3],
+    ...         Columns.Rank: [1, 2, 1, 2, 1, 2, 3, 4, 1, 2, 3],
+    ...         Columns.Score: [0.9, 0.8, 0.92, 0.86, 0.9, 0.8, 0.7, 0.6, 0.86, 0.82, 0.8],
+    ...     }
+    ... )
+    >>> interactions = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 3, 3, 3, 4, 4, 4],
+    ...         Columns.Item: [1, 2, 1, 1, 3, 4, 1, 2, 3],
+    ...     }
+    ... )
+    >>> # Here
+    >>> #    - for user ``1`` we return non-relevant recommendations;
+    >>> #    - for user ``2`` we return 2 items and relevant is first;
+    >>> #    - for user ``3`` we return 4 items, 1st, 3rd and 4th are relevant;
+    >>> #    - for user ``4`` we return 3 items and all are relevant;
+    >>> PFound(k=1).calc_per_user(reco, interactions).values
+    array([0.  , 0.92, 0.9 , 0.86])
+    >>> PFound(k=3).calc_per_user(reco, interactions).values
+    array([0.       , 0.92     , 0.950575 , 0.9721456])
+    """
+
+    p_break: float = attr.ib(default=0.15)
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`, `Columns.Score`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        self._check(reco, interactions=interactions)
+        merged_reco = merge_reco(reco, interactions)
+        return self.calc_per_user_from_merged(merged_reco)
+
+    def calc_from_merged(self, merged: pd.DataFrame) -> float:
+        """
+        Calculate metric value from merged recommendations.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        float
+            Value of metric (average between users).
+        """
+        per_user = self.calc_per_user_from_merged(merged)
+        return per_user.mean()
+
+    @staticmethod
+    def add_missing_values(top_k: pd.DataFrame) -> pd.DataFrame:
+        """
+        Adding missing values for each user if the ranks have gaps
+        because the evaluation of the value `pLook[i]`
+        depends on the values `pLook[i - 1]`.
+
+        Parameters
+        ----------
+        top_k : pd.DataFrame
+            Result after selecting top k for each user.
+
+        Returns
+        -------
+        pd.DataFrame
+            Top k values without gaps for each user.
+
+        Examples
+        --------
+        >>> top_k = pd.DataFrame(
+        ...     {
+        ...         Columns.User: [3, 3, 3, 4, 4, 5, 5],
+        ...         Columns.Rank: [1, 2, 3, 1, 4, 3, 6],
+        ...         Columns.Score: [0.88, 0.8, 0.76, 0.9, 0.6, 0.8, 0.5],
+        ...     }
+        ... )
+        >>> PFound(k=10).add_missing_values(top_k)
+            user_id  rank  score
+        0         3     1   0.88
+        1         3     2   0.80
+        2         3     3   0.76
+        3         4     1   0.90
+        4         4     2   0.00
+        5         4     3   0.00
+        6         4     4   0.60
+        7         5     1   0.00
+        8         5     2   0.00
+        9         5     3   0.80
+        10        5     4   0.00
+        11        5     5   0.00
+        12        5     6   0.50
+        """
+        rank_per_user = top_k.groupby(Columns.User)[Columns.Rank].agg([len, list]).reset_index()
+        rank_min_max = top_k.groupby(Columns.User)[Columns.Rank].agg(["min", "max"]).reset_index()
+        top_k_missing_values_per_user = top_k[Columns.User].unique()[
+            (rank_per_user["len"] != rank_min_max["max"] - rank_min_max["min"] + 1)
+            | (((rank_min_max["max"] != 1) & (rank_min_max["min"] != 1)) & (rank_min_max["max"] == rank_min_max["min"]))
+        ]
+
+        missing_values = []
+        for user in top_k_missing_values_per_user:
+            missing_value_per_user = [
+                (user, rank, 0)
+                for rank in range(1, int(rank_min_max[rank_min_max[Columns.User] == user]["max"].iloc[0]))
+                if rank not in rank_per_user[rank_min_max[Columns.User] == user]["list"].iloc[0]
+            ]
+            missing_values.extend(missing_value_per_user)
+
+        top_k = (
+            pd.concat([top_k, pd.DataFrame(missing_values, columns=top_k.columns)], ignore_index=True)
+            .sort_values([Columns.User, Columns.Rank])
+            .reset_index(drop=True)
+        )
+
+        return top_k
+
+    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users from merged recommendations.
+
+        Parameters
+        ----------
+        merged : pd.DataFrame
+            Result of merging recommendations and interactions tables.
+            Can be obtained using `merge_reco` function.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        if Columns.Score not in merged:
+            raise KeyError("No 'Columns.Score' column for recommendations")
+
+        if len(merged) != 0:
+            user_without_relevance_item = pd.Series(
+                data=0,
+                index=merged[Columns.User].unique()[
+                    (merged.groupby(Columns.User)[Columns.Rank].min() > self.k)
+                    | (merged.groupby(Columns.User)[Columns.Rank].min().isna())
+                ],
+            )
+
+            top_k = merged[merged[Columns.Rank] <= self.k]
+            del top_k[Columns.Item]
+
+            top_k = self.add_missing_values(top_k.copy())
+            top_k["pLook"] = (1 - top_k.groupby(Columns.User)[Columns.Score].shift(fill_value=0)) * (1 - self.p_break)
+            top_k.loc[top_k[Columns.Rank] == 1, "pLook"] = 1
+            top_k["pLook"] = top_k.groupby(Columns.User)["pLook"].cumprod()
+            top_k["pFound_by_item"] = top_k[Columns.Score] * top_k["pLook"]
+
+            pfound_per_user = (
+                top_k.groupby(Columns.User)["pFound_by_item"].sum().append(user_without_relevance_item).sort_index()
+            )
+            pfound_per_user.index.name = Columns.User
+
+            return pfound_per_user
+        else:
+            return pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
+
+
+RankingMetric = tp.Union[NDCG, MAP, MRR, PFound]
 
 
 def calc_ranking_metrics(
@@ -558,8 +762,8 @@ def calc_ranking_metrics(
     """
     results = {}
 
-    for ranking_metric_cls in [NDCG, MRR]:
-        ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
+    for ranking_metric_cls in [NDCG, MRR, PFound]:
+        ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR, PFound]] = select_by_type(metrics, ranking_metric_cls)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(merged)
 
