@@ -90,7 +90,7 @@ class _AUCMetric(MetricAtK):
         will still get an error when `insufficient_handling` is set to `raise`.
     """
 
-    insufficient_handling: tp.Optional[str] = field(default="ignore")
+    insufficient_handling: str = field(default="ignore")
 
     @insufficient_handling.validator
     def _check_insufficient_handling(self, attribute: str, value: str) -> None:
@@ -514,8 +514,8 @@ def calc_auc_metrics(
     results = {}
 
     k_max = max(metric.k for metric in metrics.values())
-    insufficient_handling_needed = (
-        sum(metric.insufficient_handling != InsufficientHandling.IGNORE for metric in metrics.values()) > 0
+    insufficient_handling_needed = any(
+        metric.insufficient_handling != InsufficientHandling.IGNORE for metric in metrics.values()
     )
     fitted = _AUCMetric.fit(reco, interactions, k_max, insufficient_handling_needed)
     for name, metric in metrics.items():

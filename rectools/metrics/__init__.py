@@ -76,6 +76,8 @@ __all__ = (
     "NDCG",
     "PartialAUC",
     "PAP",
+    "PartialAUC",
+    "PAP",
     "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",
