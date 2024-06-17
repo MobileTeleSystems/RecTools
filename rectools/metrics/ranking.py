@@ -22,14 +22,14 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.metrics.base import MetricAtK, merge_reco
+from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasConfig, make_debias
+from .debias import DebiasConfig, DibiasableMetrikAtK
 
 
 @attr.s
-class _RankingMetric(MetricAtK):
+class _RankingMetric(DibiasableMetrikAtK):
     """
     Simple classification metric base class.
 
@@ -43,8 +43,6 @@ class _RankingMetric(MetricAtK):
     debias_config : DebiasConfig, default None
         Config with debias method parameters (iqr_coef, random_state).
     """
-
-    debias_config: DebiasConfig = attr.ib(default=None)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
@@ -252,7 +250,7 @@ class MAP(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_debias(interactions, self.debias_config)
+            interactions = self.make_debias(interactions)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -381,7 +379,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_debias(interactions, self.debias_config)
+            interactions = self.make_debias(interactions)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -421,7 +419,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = make_debias(merged, self.debias_config)
+            merged = self.make_debias(merged)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
@@ -503,7 +501,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_debias(interactions, self.debias_config)
+            interactions = self.make_debias(interactions)
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
@@ -525,7 +523,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = make_debias(merged, self.debias_config)
+            merged = self.make_debias(merged)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
         min_rank_per_user = (
@@ -602,7 +600,7 @@ def calc_ranking_metrics(
                 if map_metric.debias_config not in k_max_debias:
                     k_max_debias[map_metric.debias_config] = [
                         map_metric.k,
-                        make_debias(merged, map_metric.debias_config),
+                        map_metric.make_debias(merged),
                     ]
                 else:
                     k_max_debias[map_metric.debias_config][0] = max(

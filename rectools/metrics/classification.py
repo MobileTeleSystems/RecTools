@@ -23,8 +23,8 @@ import pandas as pd
 
 from rectools import Columns
 
-from .base import Catalog, MetricAtK, merge_reco
-from .debias import DebiasConfig, make_debias
+from .base import Catalog, merge_reco
+from .debias import DibiasableMetrikAtK
 
 TP = "__TP"
 FP = "__FP"
@@ -34,7 +34,7 @@ LIKED = "__LIKED"
 
 
 @attr.s
-class ClassificationMetric(MetricAtK):
+class ClassificationMetric(DibiasableMetrikAtK):
     """
     Classification metric base class.
 
@@ -47,9 +47,12 @@ class ClassificationMetric(MetricAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     debias_config : DebiasConfig, default None
         Config with debias method parameters (iqr_coef, random_state).
+    is_confusion_df_debiased : bool, default False
+        If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
+        If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
     """
 
-    debias_config: DebiasConfig = attr.ib(default=None)
+    is_confusion_df_debiased: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> float:
         """
@@ -91,7 +94,7 @@ class ClassificationMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_debias(interactions, self.debias_config)
+            interactions = self.make_debias(interactions)
 
         self._check(reco, interactions=interactions)
         confusion_df = make_confusions(reco, interactions, self.k)
@@ -138,6 +141,9 @@ class ClassificationMetric(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        if not self.is_confusion_df_debiased and self.debias_config is not None:
+            raise ValueError("When `is_confusion_df_debiased` is False, than argument `debias_config` must be is None")
+
         if TN not in confusion_df:
             confusion_df[TN] = len(catalog) - self.k - confusion_df[FN]
         return self._calc_per_user_from_confusion_df(confusion_df, catalog).rename(None)
@@ -147,7 +153,7 @@ class ClassificationMetric(MetricAtK):
 
 
 @attr.s
-class SimpleClassificationMetric(MetricAtK):
+class SimpleClassificationMetric(DibiasableMetrikAtK):
     """
     Simple classification metric base class.
 
@@ -160,9 +166,12 @@ class SimpleClassificationMetric(MetricAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     debias_config : DebiasConfig, default None
         Config with debias method parameters (iqr_coef, random_state).
+    is_confusion_df_debiased : bool, default False
+        If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
+        If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
     """
 
-    debias_config: DebiasConfig = attr.ib(default=None)
+    is_confusion_df_debiased: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
@@ -200,7 +209,7 @@ class SimpleClassificationMetric(MetricAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            interactions = make_debias(interactions, self.debias_config)
+            interactions = self.make_debias(interactions)
 
         self._check(reco, interactions=interactions)
         confusion_df = make_confusions(reco, interactions, self.k)
@@ -243,6 +252,9 @@ class SimpleClassificationMetric(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        if not self.is_confusion_df_debiased and self.debias_config is not None:
+            raise ValueError("When `is_confusion_df_debiased` is False, than argument `debias_config` must be is None")
+
         return self._calc_per_user_from_confusion_df(confusion_df).rename(None)
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
@@ -463,7 +475,7 @@ def calc_classification_metrics(
         if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
             raise TypeError(f"Unexpected classification metric {metric}")
         if metric.debias_config is not None and metric.debias_config not in merged_debias:
-            merged_debias[metric.debias_config] = make_debias(merged, metric.debias_config)
+            merged_debias[metric.debias_config] = metric.make_debias(merged)
 
     results = {}
     for k, k_metrics in k_map.items():
@@ -482,8 +494,6 @@ def calc_classification_metrics(
                 if catalog is None:
                     raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
                 res = metric.calc_from_confusion_df(confusion_df, catalog)
-            else:
-                raise TypeError(f"Unexpected classification metric {metric}")
             results[metric_name] = res
 
     return results
