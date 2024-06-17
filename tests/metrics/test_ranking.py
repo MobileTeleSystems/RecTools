@@ -21,9 +21,11 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
+from rectools.metrics import DebiasConfig
 from rectools.metrics.ranking import MAP, MRR, NDCG
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
+DEBIAS_CONFIG = DebiasConfig(iqr_coef=1.5, random_state=32)
 
 
 class TestMAP:
@@ -193,3 +195,56 @@ class TestMRR:
             dtype=float,
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
+
+
+class TestDebiasMetric:
+    def setup_method(self) -> None:
+        self.metrics = {
+            "MAP": MAP(k=3),
+            "NDCG": NDCG(k=3),
+            "MRR": MRR(k=3),
+        }
+
+        self.metrics_debias = {
+            "MAP_debias": MAP(k=3, debias_config=DEBIAS_CONFIG),
+            "NDCG_debias": NDCG(k=3, debias_config=DEBIAS_CONFIG),
+            "MRR_debias": MRR(k=3, debias_config=DEBIAS_CONFIG),
+        }
+
+        self.reco = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2, 3, 3, 3, 3, 3, 4, 5, 5, 5, 7, 8, 9],
+                Columns.Item: [1, 3, 1, 1, 2, 3, 4, 5, 1, 1, 2, 3, 1, 2, 1],
+                Columns.Rank: [9, 1, 3, 1, 3, 5, 7, 9, 1, 1, 2, 3, 2, 1, 1],
+            }
+        )
+        self.interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 6, 7, 8],
+                Columns.Item: [1, 2, 1, 1, 2, 3, 4, 5, 6, 1, 1, 2, 3, 1, 1, 1],
+            }
+        )
+
+    def test_calc(self) -> None:
+        for metric_name, metric in self.metrics.items():
+            metric_debias = self.metrics_debias[f"{metric_name}_debias"]
+
+            downsample_interactions = metric_debias.make_debias(interactions=self.interactions)
+
+            expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
+            result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)
+            result_calc = metric_debias.calc(self.reco, self.interactions)
+
+            pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
+            assert result_calc == expected_metric_per_user_downsample.mean()
+
+    def test_when_no_interactions(self) -> None:
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
+
+        for metric_debias in self.metrics_debias.values():
+
+            pd.testing.assert_series_equal(
+                metric_debias.calc_per_user(self.reco, EMPTY_INTERACTIONS),
+                expected_metric_per_user,
+            )
+            assert np.isnan(metric_debias.calc(self.reco, EMPTY_INTERACTIONS))
