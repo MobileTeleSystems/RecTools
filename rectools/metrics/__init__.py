@@ -23,17 +23,19 @@ Metrics
 -------
 `metrics.Precision`
 `metrics.Recall`
-`metrics.F1Beta`
-`metrics.Accuracy`
-`metrics.MCC`
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
+`metrics.HitRate`
+`metrics.PartialAUC`
+`metrics.PAP`
+`metrics.F1Beta`
+`metrics.Accuracy`
+`metrics.MCC`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
-`metrics.HitRate`
 `metrics.Intersection`
 
 Tools
@@ -44,6 +46,7 @@ Tools
 `metrics.SparsePairwiseHammingDistanceCalculator`
 """
 
+from .auc import PAP, PartialAUC
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .distances import (
     PairwiseDistanceCalculator,
@@ -67,6 +70,8 @@ __all__ = (
     "HitRate",
     "MAP",
     "NDCG",
+    "PartialAUC",
+    "PAP",
     "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",
