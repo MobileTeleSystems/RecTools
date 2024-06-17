@@ -18,38 +18,30 @@ import typing as tp
 
 import attr
 import pandas as pd
+import numpy as np
 
 from rectools import Columns
 from rectools.metrics.base import MetricAtK
-
+from rectools.utils import fast_isin_for_sorted_test_elements
 
 @attr.s
-class Completeness(MetricAtK):
+class _RecoDQMetric(MetricAtK):
     """
-    Completeness metric.
+    Recommendations data quality metric base class.
 
-    Calculate the ratio of provided recommendations to the total of required `k` for each user.
-    This metrics help to identify situations when recommendation lists are not fully filled.
+    Warning: This class should not be used directly.
+    Use derived classes instead.
 
     Parameters
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
-
-    Examples
-    --------
-    >>> reco = pd.DataFrame(
-    ...     {
-    ...         Columns.User: [1, 1, 2, 2, 2, 3, 3, 3, 3, 3],
-    ...         Columns.Item: [1, 2, 1, 2, 3, 1, 2, 3, 4, 5],
-    ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3, 4, 5],
-    ...     }
-    ... )
-    >>> Completeness(k=1).calc_per_user(reco).values
-    array([1., 1., 1.])
-    >>> Completeness(k=4).calc_per_user(reco).values
-    array([0.5 , 0.75, 1.  ])
+    deep: bool, default `False`
+        Whether to calculated detailed value of the metric for each user. Otherwise just the share of
+        users with identified problems will be returned (this is the default behaviour).
     """
+    
+    deep: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame) -> float:
         """
@@ -82,14 +74,174 @@ class Completeness(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        reco_k = reco.query(f"{Columns.Rank} <= @self.k")
-        num_recommended_per_user = reco_k.groupby(Columns.User).size()
+        raise NotImplementedError()
+
+
+class RecoEmpty(_RecoDQMetric):
+    """
+    Empty rows in recommendations table when `k` recommendations are required for each user.
+    This metric helps to identify situations when recommendation lists are not fully filled.
+
+    Parameters
+    ----------
+    k : int
+        Number required recommendations  for each user that will be used to calculate metric.
+    deep: bool, default `False`
+        Whether to calculated detailed value of the metric for each user. Otherwise just the share of
+        users with identified problems will be returned (this is the default behaviour).
+
+    Examples
+    --------
+    >>> reco = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 2, 3, 3, 3, 3, 3],
+    ...         Columns.Item: [1, 2, 1, 2, 3, 1, 2, 3, 4, 5],
+    ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3, 4, 5],
+    ...     }
+    ... )
+    >>> RecoEmpty(k=1).calc_per_user(reco).values
+    array([0., 0., 0.])
+    >>> RecoEmpty(k=4).calc_per_user(reco).values
+    array([1., 1., 0.])
+    >>> RecoEmpty(k=4, deep=True).calc_per_user(reco).values
+    array([0.5 , 0.25, 0.  ])
+    """
+
+    def calc_per_user(self, reco: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        reco_k = reco.query(f"{Columns.Rank} <= @self.k").drop_duplicates(subset=[Columns.User, Columns.Rank])
         all_users = reco[Columns.User].unique()
-        completeness_per_user = num_recommended_per_user.reindex(all_users, fill_value=0) / self.k
-        return completeness_per_user
+        n_unique_per_user = reco_k.groupby(Columns.User).size().reindex(all_users, fill_value=0)
+        
+        if self.deep:
+            return 1 - n_unique_per_user / self.k
+        
+        return (n_unique_per_user < self.k).astype("float")
 
 
-DQMetric = Completeness
+class RecoDuplicated(_RecoDQMetric):
+    """
+    Duplicated items recommended to the same user in recommendations table.
+    This metrics help to identify situations when recommendation lists have duplicated items for users.
+
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+    deep: bool, default `False`
+        Whether to calculated detailed value of the metric for each user. Otherwise just the share of
+        users with identified problems will be returned (this is the default behaviour).
+
+    Examples
+    --------
+    >>> reco = pd.DataFrame(
+    ...     {
+    ...         Columns.User: [1, 1, 2, 2, 2, 3, 3, 3, 3, 3],
+    ...         Columns.Item: [1, 2, 1, 1, 3, 1, 2, 2, 1, 5],
+    ...         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3, 4, 5],
+    ...     }
+    ... )
+    >>> RecoDuplicated(k=1).calc_per_user(reco).values
+    array([0., 0., 0.])
+    >>> RecoDuplicated(k=4).calc_per_user(reco).values
+    array([0., 1., 1.])
+    >>> RecoDuplicated(k=4, deep=True).calc_per_user(reco).values
+    array([0. , 0.25, 0.5  ])
+    """
+
+    def calc_per_user(self, reco: pd.DataFrame) -> pd.Series:
+        """
+        Calculate metric values for all users.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        reco_k = reco.query(f"{Columns.Rank} <= @self.k").copy()
+        reco_k["__duplicated"] = reco_k.duplicated(subset=Columns.UserItem)
+        
+        if self.deep:
+            return reco_k.groupby(Columns.User)["__duplicated"].sum().rename(None) / self.k
+        
+        return reco_k.groupby(Columns.User)["__duplicated"].any().astype("float").rename(None)
+    
+
+class TestUsersNotCovered(MetricAtK):
+    """
+    Recommendations data quality metric to calsulate share of test users that are not present in
+    recommendations table.
+
+    Parameters
+    ----------
+    k : int
+        Number of items at the top of recommendations list that will be used to calculate metric.
+        
+    Examples
+    --------
+    TODO
+    """
+
+    def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame,) -> float:
+        """
+        Calculate metric value.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        float
+            Value of metric (average between users).
+        """
+        per_user = self.calc_per_user(reco, interactions)
+        return per_user.mean()
+
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame,) -> pd.Series:
+        """
+        Calculate metric values for all users.
+
+        Parameters
+        ----------
+        reco : pd.DataFrame
+            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        interactions : pd.DataFrame
+            Interactions table with columns `Columns.User`, `Columns.Item`.
+
+        Returns
+        -------
+        pd.Series
+            Values of metric (index - user id, values - metric value for every user).
+        """
+        self._check(reco, interactions=interactions)
+        test_users = interactions[Columns.User].unique()
+        reco_users = np.unique(reco[Columns.User])
+        not_covered = fast_isin_for_sorted_test_elements(test_users, reco_users, invert=True)
+        return pd.Series(not_covered, index=test_users, dtype="float")
+
+
+DQMetric = tp.Union[RecoEmpty, RecoDuplicated, TestUsersNotCovered]
 
 
 def calc_dq_metrics(
@@ -116,5 +268,6 @@ def calc_dq_metrics(
         Dictionary where keys are the same as keys in `metrics`
         and values are metric calculation results.
     """
+    # TODO: add TestUsersNotCoverded
     results = {name: metric.calc(reco) for name, metric in metrics.items()}
     return results

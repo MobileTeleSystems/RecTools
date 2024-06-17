@@ -28,7 +28,7 @@ from rectools.utils import log_at_base, select_by_type
 @attr.s
 class _RankingMetric(MetricAtK):
     """
-    Simple classification metric base class.
+    Ranking  metric base class.
 
     Warning: This class should not be used directly.
     Use derived classes instead.
