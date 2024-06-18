@@ -149,7 +149,11 @@ class ClassificationMetric(DibiasableMetrikAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         if not is_confusion_df_debiased and self.debias_config is not None:
-            raise ValueError("You have specified `debias_config` for metric but `confusin_df` is not assumed to be de-biased. Please make de-biasing for `confusion_df` and specify `is_confusion_df_debiased` as `True` or otherwise use a metric with `debias_config` = `None`")
+            raise ValueError(
+                "You have specified `debias_config` for metric but `confusin_df` is not assumed to be de-biased. "
+                "Please make de-biasing for `confusion_df` and specify `is_confusion_df_debiased` as `True` "
+                "or otherwise use a metric with `debias_config` = `None`"
+            )
 
         if TN not in confusion_df:
             confusion_df[TN] = len(catalog) - self.k - confusion_df[FN]
@@ -265,7 +269,11 @@ class SimpleClassificationMetric(DibiasableMetrikAtK):
             Values of metric (index - user id, values - metric value for every user).
         """
         if not is_confusion_df_debiased and self.debias_config is not None:
-            raise ValueError("You have specified `debias_config` for metric but `confusin_df` is not assumed to be de-biased. Please make de-biasing for `confusion_df` and specify `is_confusion_df_debiased` as `True` or otherwise use a metric with `debias_config` = `None`")
+            raise ValueError(
+                "You have specified `debias_config` for metric but `confusin_df` is not assumed to be de-biased. "
+                "Please make de-biasing for `confusion_df` and specify `is_confusion_df_debiased` as `True` "
+                "or otherwise use a metric with `debias_config` = `None`"
+            )
 
         return self._calc_per_user_from_confusion_df(confusion_df).rename(None)
 
