@@ -115,12 +115,11 @@ class DibiasableMetrikAtK(MetricAtK):
 
         interactions_result = pd.concat([interactions_result, interactions_downsampling])
 
-        if Columns.Rank in interactions.columns:
-            interactions_result = pd.merge(
-                interactions_result[Columns.UserItem],
-                interactions,
-                how="left",
-                on=Columns.UserItem,
-            )
+        interactions_result = pd.merge(
+            interactions_result[Columns.UserItem],
+            interactions,
+            how="left",
+            on=Columns.UserItem,
+        )
 
         return interactions_result
