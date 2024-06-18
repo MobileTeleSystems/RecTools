@@ -47,12 +47,7 @@ class ClassificationMetric(DibiasableMetrikAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     debias_config : DebiasConfig, default None
         Config with debias method parameters (iqr_coef, random_state).
-    is_confusion_df_debiased : bool, default False
-        If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
-        If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
     """
-
-    is_confusion_df_debiased: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame, catalog: Catalog) -> float:
         """
