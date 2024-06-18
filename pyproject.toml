@@ -117,6 +117,8 @@ flake8-docstrings = "1.7.0"
 pep8-naming = "0.13.3"
 pytest-cov = "5.0.0"
 pytest-mock = "3.14.0"
+click = "8.1.7"
+gitpython = "3.1.43"
 
 
 [tool.black]
