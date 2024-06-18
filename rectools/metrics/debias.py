@@ -65,7 +65,7 @@ class DibiasableMetrikAtK(MetricAtK):
 
         Algorithm:
 
-            1. Calculate item popularity distribution from interactions;
+            1. Calculate item "popularity" (here: number of unique users that had interaction with the item) distribution from interactions;
             2. Find first (Q1) and third (Q3) quartiles in items popularity distribution;
             3. Calculate IQR = Q3 - Q1;
             4. Calculate maximum value inside by formula: Q3 + iqr_coef * IQR;
