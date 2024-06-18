@@ -93,14 +93,18 @@ class ClassificationMetric(DibiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        is_confusion_df_debiased = False
         if self.debias_config is not None:
             interactions = self.make_debias(interactions)
+            is_confusion_df_debiased = True
 
         self._check(reco, interactions=interactions)
         confusion_df = make_confusions(reco, interactions, self.k)
-        return self.calc_per_user_from_confusion_df(confusion_df, catalog)
+        return self.calc_per_user_from_confusion_df(confusion_df, catalog, is_confusion_df_debiased)
 
-    def calc_from_confusion_df(self, confusion_df: pd.DataFrame, catalog: Catalog) -> float:
+    def calc_from_confusion_df(
+        self, confusion_df: pd.DataFrame, catalog: Catalog, is_confusion_df_debiased: bool = False
+    ) -> float:
         """
         Calculate metric value from prepared confusion matrix.
 
@@ -113,16 +117,21 @@ class ClassificationMetric(DibiasableMetrikAtK):
             See its description for details.
         catalog : collection
             Collection of unique item ids that could be used for recommendations.
+        is_confusion_df_debiased : bool, default False
+            If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
+            If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_confusion_df(confusion_df, catalog)
+        per_user = self.calc_per_user_from_confusion_df(confusion_df, catalog, is_confusion_df_debiased)
         return per_user.mean()
 
-    def calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame, catalog: Catalog) -> pd.Series:
+    def calc_per_user_from_confusion_df(
+        self, confusion_df: pd.DataFrame, catalog: Catalog, is_confusion_df_debiased: bool = False
+    ) -> pd.Series:
         """
         Calculate metric values for all users from prepared confusion matrix.
 
@@ -135,13 +144,16 @@ class ClassificationMetric(DibiasableMetrikAtK):
             See its description for details.
         catalog : collection
             Collection of unique item ids that could be used for recommendations.
+        is_confusion_df_debiased : bool, default False
+            If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
+            If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if not self.is_confusion_df_debiased and self.debias_config is not None:
+        if not is_confusion_df_debiased and self.debias_config is not None:
             raise ValueError("When `is_confusion_df_debiased` is False, than argument `debias_config` must be is None")
 
         if TN not in confusion_df:
@@ -166,12 +178,7 @@ class SimpleClassificationMetric(DibiasableMetrikAtK):
         Number of items at the top of recommendations list that will be used to calculate metric.
     debias_config : DebiasConfig, default None
         Config with debias method parameters (iqr_coef, random_state).
-    is_confusion_df_debiased : bool, default False
-        If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
-        If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
     """
-
-    is_confusion_df_debiased: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
@@ -208,14 +215,16 @@ class SimpleClassificationMetric(DibiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        is_confusion_df_debiased = False
         if self.debias_config is not None:
             interactions = self.make_debias(interactions)
+            is_confusion_df_debiased = True
 
         self._check(reco, interactions=interactions)
         confusion_df = make_confusions(reco, interactions, self.k)
-        return self.calc_per_user_from_confusion_df(confusion_df)
+        return self.calc_per_user_from_confusion_df(confusion_df, is_confusion_df_debiased)
 
-    def calc_from_confusion_df(self, confusion_df: pd.DataFrame) -> float:
+    def calc_from_confusion_df(self, confusion_df: pd.DataFrame, is_confusion_df_debiased: bool = False) -> float:
         """
         Calculate metric value from prepared confusion matrix.
 
@@ -226,16 +235,21 @@ class SimpleClassificationMetric(DibiasableMetrikAtK):
             Columns are: `Columns.User`, `LIKED`, `TP`, `FP`, `FN`.
             This table can be generated by `make_confusions` (or `calc_confusions`) function.
             See its description for details.
+        is_confusion_df_debiased : bool, default False
+            If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
+            If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_confusion_df(confusion_df)
+        per_user = self.calc_per_user_from_confusion_df(confusion_df, is_confusion_df_debiased)
         return per_user.mean()
 
-    def calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
+    def calc_per_user_from_confusion_df(
+        self, confusion_df: pd.DataFrame, is_confusion_df_debiased: bool = False
+    ) -> pd.Series:
         """
         Calculate metric values for all users from prepared confusion matrix.
 
@@ -246,13 +260,16 @@ class SimpleClassificationMetric(DibiasableMetrikAtK):
             Columns are: `Columns.User`, `LIKED`, `TP`, `FP`, `FN`.
             This table can be generated by `make_confusions` (or `calc_confusions`) function.
             See its description for details.
+        is_confusion_df_debiased : bool, default False
+            If ``True``, indicator that a debias mechanism was applied before the confusion_df was computed.
+            If ``False``, indicator that no debias mechanism was applied before the confusion_df was computed.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if not self.is_confusion_df_debiased and self.debias_config is not None:
+        if not is_confusion_df_debiased and self.debias_config is not None:
             raise ValueError("When `is_confusion_df_debiased` is False, than argument `debias_config` must be is None")
 
         return self._calc_per_user_from_confusion_df(confusion_df).rename(None)
@@ -489,11 +506,15 @@ def calc_classification_metrics(
             )
 
             if isinstance(metric, SimpleClassificationMetric):
-                res = metric.calc_from_confusion_df(confusion_df)
+                res = metric.calc_from_confusion_df(
+                    confusion_df, is_confusion_df_debiased=metric.debias_config is not None
+                )
             elif isinstance(metric, ClassificationMetric):
                 if catalog is None:
                     raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
-                res = metric.calc_from_confusion_df(confusion_df, catalog)
+                res = metric.calc_from_confusion_df(
+                    confusion_df, catalog, is_confusion_df_debiased=metric.debias_config is not None
+                )
             results[metric_name] = res
 
     return results

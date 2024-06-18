@@ -20,8 +20,8 @@ import pytest
 
 from rectools import Columns
 from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall
-from rectools.metrics.base import MetricAtK
-from rectools.metrics.classification import ClassificationMetric, calc_classification_metrics
+from rectools.metrics.base import MetricAtK, merge_reco
+from rectools.metrics.classification import ClassificationMetric, calc_classification_metrics, calc_confusions
 
 RECO = pd.DataFrame(
     {
@@ -44,7 +44,7 @@ DEBIAS_CONFIG = DebiasConfig(iqr_coef=1.5, random_state=32)
 class TestPrecision:
     def setup_method(self) -> None:
         self.metric = Precision(k=2)
-        self.metric_debias = Precision(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True)
+        self.metric_debias = Precision(k=2, debias_config=DEBIAS_CONFIG)
 
     def test_calc(self) -> None:
         expected_metric_per_user = pd.Series(
@@ -197,12 +197,12 @@ class TestDebiasMetric:
         }
 
         self.metrics_debias = {
-            "precision_debias": Precision(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True),
-            "recall_debias": Recall(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True),
-            "accuracy_debias": Accuracy(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True),
-            "f1beta_debias": F1Beta(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True),
-            "mcc_debias": MCC(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True),
-            "hitrate_debias": HitRate(k=2, debias_config=DEBIAS_CONFIG, is_confusion_df_debiased=True),
+            "precision_debias": Precision(k=2, debias_config=DEBIAS_CONFIG),
+            "recall_debias": Recall(k=2, debias_config=DEBIAS_CONFIG),
+            "accuracy_debias": Accuracy(k=2, debias_config=DEBIAS_CONFIG),
+            "f1beta_debias": F1Beta(k=2, debias_config=DEBIAS_CONFIG),
+            "mcc_debias": MCC(k=2, debias_config=DEBIAS_CONFIG),
+            "hitrate_debias": HitRate(k=2, debias_config=DEBIAS_CONFIG),
         }
 
     def test_calc(self) -> None:
@@ -241,3 +241,11 @@ class TestDebiasMetric:
                     expected_metric_per_user,
                 )
                 assert np.isnan(metric_debias.calc(RECO, EMPTY_INTERACTIONS))  # type: ignore
+
+    def test_raises(self) -> None:
+        metric_debias = self.metrics_debias["precision_debias"]
+        merged = merge_reco(RECO, INTERACTIONS)
+        downsample_merged = metric_debias.make_debias(merged)
+        confusion_df = calc_confusions(downsample_merged, k=2)
+        with pytest.raises(ValueError):
+            metric_debias.calc_from_confusion_df(confusion_df)  # type: ignore
