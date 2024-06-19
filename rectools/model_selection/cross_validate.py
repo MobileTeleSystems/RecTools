@@ -1,3 +1,17 @@
+#  Copyright 2023-2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 
 import numpy as np
@@ -61,6 +75,8 @@ def cross_validate(  # pylint: disable=too-many-locals
     filter_viewed: bool,
     items_to_recommend: tp.Optional[ExternalIds] = None,
     prefer_warm_inference_over_cold: bool = True,
+    ref_models: tp.Optional[tp.List[str]] = None,
+    validate_ref_models: bool = False,
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -76,7 +92,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         where key is metric name and value is metric object.
     models : dict(str -> ModelBase)
         Dict of initialized model objects to fit and measure quality,
-        where key is metric name and value is metric object.
+        where key is model name and value is model object.
     k : int
         Derived number of recommendations for every user.
         For some models actual number of recommendations may be less than `k`.
@@ -90,6 +106,13 @@ def cross_validate(  # pylint: disable=too-many-locals
         Set to `True` to enable "warm" recommendations for all applicable models.
         Set to `False` to treat all new users and items as "cold" and not to provide features for them.
         If new users and items are filtered from test in splitter, this argument has no effect.
+    ref_models : list(str), optional, default None
+        The keys from `models` argument to compute intersection metrics. These models
+        recommendations will be used as `ref_reco` for other models intersection metrics calculation.
+        Obligatory only if `IntersectionMetric` instances present in `metrics`.
+    validate_ref_models : bool, default False
+        If True include models specified in `ref_models` to all metrics calculations
+        and receive their metrics from cross-validation.
 
     Returns
     -------
@@ -119,6 +142,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     for train_ids, test_ids, split_info in split_iterator:
         split_infos.append(split_info)
 
+        # ### Prepare split data
         interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
         # We need to avoid fitting models on sparse matrices with all zero rows/columns =>
         # => we need to create a fold dataset which contains only hot users and items for current training
@@ -137,21 +161,43 @@ def cross_validate(  # pylint: disable=too-many-locals
         else:
             item_ids_to_recommend = None
 
-        for model_name, model in models.items():
+        # ### Train ref models if any
+        ref_reco = {}
+        for model_name in ref_models or []:
+            model = models[model_name]
             model.fit(fold_dataset)
-            reco = model.recommend(  # 1x internal
+            ref_reco[model_name] = model.recommend(
                 users=test_users,
                 dataset=fold_dataset,
                 k=k,
                 filter_viewed=filter_viewed,
                 items_to_recommend=item_ids_to_recommend,
             )
+
+        # ### Generate recommendations and calc metrics
+        for model_name, model in models.items():
+            if model_name in ref_reco and not validate_ref_models:
+                continue
+
+            if model_name in ref_reco:
+                reco = ref_reco[model_name]
+            else:
+                model.fit(fold_dataset)
+                reco = model.recommend(  # 1x internal
+                    users=test_users,
+                    dataset=fold_dataset,
+                    k=k,
+                    filter_viewed=filter_viewed,
+                    items_to_recommend=item_ids_to_recommend,
+                )
+
             metric_values = calc_metrics(
                 metrics,
                 reco=reco,
                 interactions=interactions_df_test,
                 prev_interactions=interactions_df_train,
                 catalog=catalog,
+                ref_reco=ref_reco,
             )
             res = {"model": model_name, "i_split": split_info["i_split"]}
             res.update(metric_values)

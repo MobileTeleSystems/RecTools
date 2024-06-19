@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -21,21 +21,24 @@ import pandas as pd
 
 from rectools.utils import select_by_type
 
+from .auc import AucMetric, calc_auc_metrics
 from .base import Catalog, MetricAtK, merge_reco
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
+from .intersection import IntersectionMetric, calc_intersection_metrics
 from .novelty import NoveltyMetric, calc_novelty_metrics
 from .popularity import PopularityMetric, calc_popularity_metrics
 from .ranking import RankingMetric, calc_ranking_metrics
 from .serendipity import SerendipityMetric, calc_serendipity_metrics
 
 
-def calc_metrics(  # noqa  # pylint: disable=too-many-branches
+def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
     metrics: tp.Dict[str, MetricAtK],
     reco: pd.DataFrame,
     interactions: tp.Optional[pd.DataFrame] = None,
     prev_interactions: tp.Optional[pd.DataFrame] = None,
     catalog: tp.Optional[Catalog] = None,
+    ref_reco: tp.Optional[tp.Union[pd.DataFrame, tp.Dict[tp.Hashable, pd.DataFrame]]] = None,
 ) -> tp.Dict[str, float]:
     """
     Calculate metrics.
@@ -57,6 +60,11 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
     catalog : collection, optional
         Collection of unique item ids that could be used for recommendations.
         Obligatory only if `ClassificationMetric` or `SerendipityMetric` instances present in `metrics`.
+    ref_reco : Union[pd.DataFrame, Dict[Hashable, pd.DataFrame]], optional
+        Reference recommendations table(s) with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        For multiple intersection calculations we can pass multiple models recommendations in a dict:
+        ``ref_reco = {"one": ref_reco_one, "two": ref_reco_two}``
+        Obligatory only if `IntersectionMetric` instances present in `metrics`.
 
     Returns
     -------
@@ -105,6 +113,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
     """
     merged = None
     results = {}
+    expected_results_len = len(metrics)
 
     # Classification
     classification_metrics = select_by_type(metrics, (ClassificationMetric, SimpleClassificationMetric))
@@ -123,6 +132,14 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
         merged = merged if merged is not None else merge_reco(reco, interactions)
         ranking_values = calc_ranking_metrics(ranking_metrics, merged)
         results.update(ranking_values)
+
+    # AUC based ranking
+    auc_metrics = select_by_type(metrics, AucMetric)
+    if auc_metrics:
+        if interactions is None:
+            raise ValueError("For calculating AUC-like metrics it's necessary to set 'interactions'")
+        auc_values = calc_auc_metrics(auc_metrics, reco, interactions)
+        results.update(auc_values)
 
     # Novelty
     novelty_metrics = select_by_type(metrics, NoveltyMetric)
@@ -164,6 +181,19 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches
         )
         results.update(serendipity_values)
 
-    if len(results) < len(metrics):
+    # Intersection
+    intersection_metrics = select_by_type(metrics, IntersectionMetric)
+    if intersection_metrics:
+        if not ref_reco:
+            raise ValueError("For calculating intersection metrics it's necessary to set 'ref_reco'")
+        intersection_values = calc_intersection_metrics(
+            intersection_metrics,
+            reco,
+            ref_reco,
+        )
+        results.update(intersection_values)
+        expected_results_len += len(intersection_values) - len(intersection_metrics)
+
+    if len(results) < expected_results_len:
         warnings.warn("Custom metrics are not supported.")
     return results

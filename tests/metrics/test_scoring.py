@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,12 +22,15 @@ from rectools.metrics import (
     MAP,
     MRR,
     NDCG,
+    PAP,
     Accuracy,
     AvgRecPopularity,
     HitRate,
+    Intersection,
     IntraListDiversity,
     MeanInvUserFreq,
     PairwiseHammingDistanceCalculator,
+    PartialAUC,
     Precision,
     Recall,
     Serendipity,
@@ -66,6 +69,22 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         ).set_index(Columns.Item)
         self.calculator = PairwiseHammingDistanceCalculator(features_df)
         self.catalog = list(range(10))
+        self.ref_recos = {
+            "one": pd.DataFrame(
+                {
+                    Columns.User: [1, 1, 2, 3, 5],
+                    Columns.Item: [1, 3, 1, 1, 2],
+                    Columns.Rank: [1, 2, 1, 3, 2],
+                }
+            ),
+            "two": pd.DataFrame(
+                {
+                    Columns.User: [1, 1, 2, 3, 5],
+                    Columns.Item: [1, 2, 1, 1, 1],
+                    Columns.Rank: [1, 2, 3, 1, 1],
+                }
+            ),
+        }
 
     def test_success(self) -> None:
         metrics = {
@@ -77,15 +96,22 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "map@1": MAP(k=1),
             "map@2": MAP(k=2),
             "ndcg@1": NDCG(k=1, log_base=3),
+            "pauc@1": PartialAUC(k=1),
+            "pauc@2": PartialAUC(k=2),
+            "pap@1": PAP(k=1),
+            "pap@2": PAP(k=2),
             "mrr@1": MRR(k=1),
             "miuf": MeanInvUserFreq(k=3),
             "arp": AvgRecPopularity(k=2),
             "ild": IntraListDiversity(k=3, distance_calculator=self.calculator),
             "serendipity": Serendipity(k=3),
+            "intersection": Intersection(k=2, ref_k=2),
             "custom": MetricAtK(k=1),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
-            actual = calc_metrics(metrics, self.reco, self.interactions, self.prev_interactions, self.catalog)
+            actual = calc_metrics(
+                metrics, self.reco, self.interactions, self.prev_interactions, self.catalog, self.ref_recos
+            )
         expected = {
             "prec@1": 0.25,
             "prec@2": 0.375,
@@ -95,11 +121,17 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "map@1": 0.125,
             "map@2": 0.375,
             "ndcg@1": 0.25,
+            "pauc@1": 0.25,
+            "pauc@2": 0.375,
+            "pap@1": 0.25,
+            "pap@2": 0.375,
             "mrr@1": 0.25,
             "miuf": 0.125,
             "arp": 2.75,
             "ild": 0.25,
             "serendipity": 0,
+            "intersection_one": 0.375,
+            "intersection_two": 0.75,
         }
         assert actual == expected
 
@@ -113,6 +145,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (Serendipity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco", "interactions"]),
             (Serendipity(k=1), ["reco", "interactions", "prev_interactions"]),
+            (PAP(k=1), ["reco"]),
+            (PartialAUC(k=1), ["reco"]),
+            (Intersection(k=1), ["reco"]),
         ),
     )
     def test_raises(self, metric: MetricAtK, arg_names: tp.List[str]) -> None:
