@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from rectools.metrics import (
     MCC,
     MRR,
     NDCG,
+    PAP,
     Accuracy,
     AvgRecPopularity,
     DebiasConfig,
@@ -32,6 +33,7 @@ from rectools.metrics import (
     IntraListDiversity,
     MeanInvUserFreq,
     PairwiseHammingDistanceCalculator,
+    PartialAUC,
     Precision,
     Recall,
     Serendipity,
@@ -98,6 +100,10 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "map@1": MAP(k=1),
             "map@2": MAP(k=2),
             "ndcg@1": NDCG(k=1, log_base=3),
+            "pauc@1": PartialAUC(k=1),
+            "pauc@2": PartialAUC(k=2),
+            "pap@1": PAP(k=1),
+            "pap@2": PAP(k=2),
             "mrr@1": MRR(k=1),
             "miuf": MeanInvUserFreq(k=3),
             "arp": AvgRecPopularity(k=2),
@@ -119,6 +125,10 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "map@1": 0.125,
             "map@2": 0.375,
             "ndcg@1": 0.25,
+            "pauc@1": 0.25,
+            "pauc@2": 0.375,
+            "pap@1": 0.25,
+            "pap@2": 0.375,
             "mrr@1": 0.25,
             "miuf": 0.125,
             "arp": 2.75,
@@ -139,6 +149,8 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (Serendipity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco", "interactions"]),
             (Serendipity(k=1), ["reco", "interactions", "prev_interactions"]),
+            (PAP(k=1), ["reco"]),
+            (PartialAUC(k=1), ["reco"]),
             (Intersection(k=1), ["reco"]),
         ),
     )

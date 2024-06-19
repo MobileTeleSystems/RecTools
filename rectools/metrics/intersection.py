@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 from typing import Dict, Hashable, Optional, Union
 
 import attr
@@ -7,10 +21,9 @@ import pandas as pd
 from rectools import Columns
 from rectools.metrics.base import MetricAtK
 from rectools.metrics.classification import Recall
-from rectools.utils import select_by_type
 
 
-@attr.s(auto_attribs=True)
+@attr.s
 class Intersection(MetricAtK):
     """
     Metric to measure intersection in user-item pairs between recommendation lists.
@@ -71,12 +84,12 @@ class Intersection(MetricAtK):
         pd.Series:
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check(reco)
-        assert set(ref_reco.columns) >= {Columns.User, Columns.Item, Columns.Rank}
+        self._check(reco, ref_reco=ref_reco)
 
         if ref_reco.shape[0] == 0:
             return pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
+        # Optimisation for cross_validate
         if ref_reco is reco:
             return pd.Series(
                 data=1,
@@ -86,9 +99,8 @@ class Intersection(MetricAtK):
 
         filtered_reco = reco[reco[Columns.Rank] <= self.k]
 
-        if self.ref_k is None:
-            self.ref_k = self.k
-        recall = Recall(k=self.ref_k)
+        ref_k = self.ref_k if self.ref_k is not None else self.k
+        recall = Recall(k=ref_k)
 
         return recall.calc_per_user(ref_reco, filtered_reco[Columns.UserItem])
 
@@ -125,13 +137,11 @@ def calc_intersection_metrics(
     """
     results = {}
 
-    intersection_metrics: Dict[str, Intersection] = select_by_type(metrics, Intersection)
-    if isinstance(ref_reco, pd.DataFrame):
-        for name, metric in intersection_metrics.items():
-            results[name] = metric.calc(reco, ref_reco)
-    else:
-        for name, metric in intersection_metrics.items():
-            for key, ref_r in ref_reco.items():
-                results[f"{name}_{key}"] = metric.calc(reco, ref_r)
+    for metric_name, metric in metrics.items():
+        if isinstance(ref_reco, pd.DataFrame):
+            results[metric_name] = metric.calc(reco, ref_reco)
+        else:
+            for ref_reco_name, ref_reco_df in ref_reco.items():
+                results[f"{metric_name}_{ref_reco_name}"] = metric.calc(reco, ref_reco_df)
 
     return results

@@ -1,3 +1,17 @@
+#  Copyright 2023-2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 
 import numpy as np
@@ -52,60 +66,6 @@ def _gen_2x_internal_ids_dataset(
     return dataset
 
 
-def _get_ref_reco(
-    ref_models: tp.List[str],
-    models: tp.Dict[str, ModelBase],
-    test_users: np.ndarray,
-    fold_dataset: Dataset,
-    k: int,
-    filter_viewed: bool,
-    internal_item_ids_to_recommend: tp.Optional[np.ndarray] = None,
-) -> tp.Dict[str, pd.DataFrame]:
-    """
-    Construct the value of the `ref_reco` parameter for the calc_metrics() method.
-
-    Parameters
-    ----------
-    ref_models: list(str)
-        The keys from `models` argument to fit model and get reference recommendations.
-    models : dict(str -> ModelBase)
-        Dict of initialized model objects from which we select reference models,
-        where key is model name and value is model object.
-    test_users: np.ndarray
-        Array of user ids to recommend for.
-    fold_dataset: Dataset
-         Dataset that contains 2nd level of internal ids.
-    k: int
-        Derived number of recommendations for every user.
-        For some models actual number of recommendations may be less than `k`.
-    filter_viewed: bool
-        Whether to filter from recommendations items that user has already interacted with.
-    internal_item_ids_to_recommend: np.ndarray, optional
-        Whitelist of internal item ids.
-        If given, only these items will be used for recommendations.
-
-    Returns
-    -------
-    dict(str -> pd.DataFrame)
-        A dictionary in which the keys are the model names from `ref_models`
-        and the values are the recommendations for that models.
-    """
-    ref_reco = {}
-
-    for model_name in ref_models:
-        model = models[model_name]
-        model.fit(fold_dataset)
-        ref_reco[model_name] = model.recommend(
-            users=test_users,
-            dataset=fold_dataset,
-            k=k,
-            filter_viewed=filter_viewed,
-            items_to_recommend=internal_item_ids_to_recommend,
-        )
-
-    return ref_reco
-
-
 def cross_validate(  # pylint: disable=too-many-locals
     dataset: Dataset,
     splitter: Splitter,
@@ -146,13 +106,13 @@ def cross_validate(  # pylint: disable=too-many-locals
         Set to `True` to enable "warm" recommendations for all applicable models.
         Set to `False` to treat all new users and items as "cold" and not to provide features for them.
         If new users and items are filtered from test in splitter, this argument has no effect.
-    ref_models : list(str), optional
+    ref_models : list(str), optional, default None
         The keys from `models` argument to compute intersection metrics. These models
         recommendations will be used as `ref_reco` for other models intersection metrics calculation.
         Obligatory only if `IntersectionMetric` instances present in `metrics`.
-    validate_ref_models : bool
+    validate_ref_models : bool, default False
         If True include models specified in `ref_models` to all metrics calculations
-        and receive their metrics from cross-validation. Default: False.
+        and receive their metrics from cross-validation.
 
     Returns
     -------
@@ -182,6 +142,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     for train_ids, test_ids, split_info in split_iterator:
         split_infos.append(split_info)
 
+        # ### Prepare split data
         interactions_df_train = interactions.df.iloc[train_ids]  # 1x internal
         # We need to avoid fitting models on sparse matrices with all zero rows/columns =>
         # => we need to create a fold dataset which contains only hot users and items for current training
@@ -200,18 +161,20 @@ def cross_validate(  # pylint: disable=too-many-locals
         else:
             item_ids_to_recommend = None
 
-        ref_reco: tp.Dict[str, pd.DataFrame] = {}
-        if ref_models is not None:
-            ref_reco = _get_ref_reco(
-                ref_models=ref_models,
-                models=models,
-                test_users=test_users,
-                fold_dataset=fold_dataset,
+        # ### Train ref models if any
+        ref_reco = {}
+        for model_name in ref_models or []:
+            model = models[model_name]
+            model.fit(fold_dataset)
+            ref_reco[model_name] = model.recommend(
+                users=test_users,
+                dataset=fold_dataset,
                 k=k,
                 filter_viewed=filter_viewed,
-                internal_item_ids_to_recommend=item_ids_to_recommend,
+                items_to_recommend=item_ids_to_recommend,
             )
 
+        # ### Generate recommendations and calc metrics
         for model_name, model in models.items():
             if model_name in ref_reco and not validate_ref_models:
                 continue

@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import pandas as pd
 
 from rectools.utils import select_by_type
 
+from .auc import AucMetric, calc_auc_metrics
 from .base import Catalog, MetricAtK, merge_reco
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
@@ -112,6 +113,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     """
     merged = None
     results = {}
+    expected_results_len = len(metrics)
 
     # Classification
     classification_metrics = select_by_type(metrics, (ClassificationMetric, SimpleClassificationMetric))
@@ -130,6 +132,14 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
         merged = merged if merged is not None else merge_reco(reco, interactions)
         ranking_values = calc_ranking_metrics(ranking_metrics, merged)
         results.update(ranking_values)
+
+    # AUC based ranking
+    auc_metrics = select_by_type(metrics, AucMetric)
+    if auc_metrics:
+        if interactions is None:
+            raise ValueError("For calculating AUC-like metrics it's necessary to set 'interactions'")
+        auc_values = calc_auc_metrics(auc_metrics, reco, interactions)
+        results.update(auc_values)
 
     # Novelty
     novelty_metrics = select_by_type(metrics, NoveltyMetric)
@@ -173,7 +183,6 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
 
     # Intersection
     intersection_metrics = select_by_type(metrics, IntersectionMetric)
-    intersection_additional_metrics_len = 0
     if intersection_metrics:
         if not ref_reco:
             raise ValueError("For calculating intersection metrics it's necessary to set 'ref_reco'")
@@ -183,8 +192,8 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
             ref_reco,
         )
         results.update(intersection_values)
-        intersection_additional_metrics_len += len(intersection_values) - len(intersection_metrics)
+        expected_results_len += len(intersection_values) - len(intersection_metrics)
 
-    if len(results) < len(metrics) + intersection_additional_metrics_len:
+    if len(results) < expected_results_len:
         warnings.warn("Custom metrics are not supported.")
     return results

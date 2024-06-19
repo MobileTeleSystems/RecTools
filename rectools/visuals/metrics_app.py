@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 from functools import lru_cache
 
@@ -110,11 +124,6 @@ class MetricsApp:
         """Sorted list of fold identifiers from the `models_metrics`."""
         return sorted(self.models_metrics[Columns.Split].unique())
 
-    @property
-    def n_folds(self) -> int:
-        """Total number of unique folds available in the `models_metrics`."""
-        return len(self.fold_ids)
-
     def _validate_input_data(self) -> None:
         if not isinstance(self.models_metrics, pd.DataFrame):
             raise ValueError("Incorrect input type. `metrics_data` should be a DataFrame")
@@ -126,7 +135,7 @@ class MetricsApp:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
 
     @lru_cache
-    def _make_chart_data(self, fold_number: int) -> pd.DataFrame:
+    def _make_chart_data(self, fold_number: int) -> pd.DataFrame:  # pragma: no cover
         return self.models_metrics[self.models_metrics[Columns.Split] == fold_number].drop(columns=Columns.Split)
 
     @lru_cache
@@ -147,7 +156,7 @@ class MetricsApp:
             for model in self.model_names:
                 df = data[data[Columns.Model] == model]
                 hover = f"<b>{model}</b><br>{metric_x.value}: %{{x}}<br>{metric_y.value}: %{{y}}<extra></extra>"
-                if model in existing_traces:
+                if model in existing_traces:  # pragma: no cover
                     trace = existing_traces[model]
                     trace.x = df[metric_x.value]
                     trace.y = df[metric_y.value]
@@ -185,7 +194,7 @@ class MetricsApp:
         layout_params.update(self.layout_kwargs)
         fig_widget = go.FigureWidget(layout=layout_params)
 
-        def update(event: tp.Callable[..., tp.Any]) -> None:
+        def update(event: tp.Callable[..., tp.Any]) -> None:  # pragma: no cover
             self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i)
             self._update_fold_visibility(use_avg, fold_i)
 

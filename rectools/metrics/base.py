@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -49,15 +49,15 @@ class MetricAtK:
         reco: pd.DataFrame,
         interactions: tp.Optional[pd.DataFrame] = None,
         prev_interactions: tp.Optional[pd.DataFrame] = None,
+        ref_reco: tp.Optional[pd.DataFrame] = None,
     ) -> None:
         cls._check_columns(reco, "reco", (Columns.User, Columns.Item, Columns.Rank))
         cls._check_columns(interactions, "interactions", (Columns.User, Columns.Item))
         cls._check_columns(prev_interactions, "prev_interactions", (Columns.User, Columns.Item))
+        cls._check_columns(ref_reco, "ref_reco", (Columns.User, Columns.Item, Columns.Rank))
 
-        if reco[Columns.Rank].dtype.kind not in ("i", "u"):
-            warnings.warn(f"Expected integer dtype of '{Columns.Rank}' column in 'reco' dataframe.")
-        if int(round(reco[Columns.Rank].min())) != 1:
-            warnings.warn(f"Expected min value of '{Columns.Rank}' column in 'reco' dataframe to be equal to 1.")
+        cls._check_rank_column(reco, "reco")
+        cls._check_rank_column(ref_reco, "ref_reco")
 
     @staticmethod
     def _check_columns(df: tp.Optional[pd.DataFrame], name: str, required_columns: tp.Iterable[str]) -> None:
@@ -67,6 +67,15 @@ class MetricAtK:
         actual_columns = set(df.columns)
         if not actual_columns >= required_columns:
             raise KeyError(f"Missed columns {required_columns - actual_columns} in '{name}' dataframe")
+
+    @staticmethod
+    def _check_rank_column(reco: pd.DataFrame, df_name: str) -> None:
+        if reco is None or reco.empty:
+            return
+        if reco[Columns.Rank].dtype.kind not in ("i", "u"):
+            warnings.warn(f"Expected integer dtype of '{Columns.Rank}' column in '{df_name}' dataframe.")
+        if int(round(reco[Columns.Rank].min())) != 1:
+            warnings.warn(f"Expected min value of '{Columns.Rank}' column in '{df_name}' dataframe to be equal to 1.")
 
 
 def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
@@ -92,3 +101,41 @@ def merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
         how="left",
     )
     return merged
+
+
+def outer_merge_reco(reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merge recommendation table with interactions table with outer join. All ranks for all users are
+    present with no skipping. Null ranks will be specified for test interactions that were not
+    predicted in recommendations.
+    This method is useful for AUC based ranking metrics.
+
+    Parameters
+    ----------
+    reco : pd.DataFrame
+        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+    interactions : pd.DataFrame
+        Interactions table with columns `Columns.User`, `Columns.Item`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Result of merging with added `__test_positive` boolean column.
+    """
+    prepared_interactions = interactions.reindex(columns=Columns.UserItem).drop_duplicates()
+    prepared_interactions["__test_positive"] = True
+    test_users = prepared_interactions[Columns.User].unique()
+    prepared_reco = reco[reco[Columns.User].isin(test_users)].reindex(columns=Columns.UserItem + [Columns.Rank])
+    merged = pd.merge(
+        prepared_interactions,
+        prepared_reco,
+        on=Columns.UserItem,
+        how="outer",
+    )
+    max_rank = prepared_reco.groupby(Columns.User)[Columns.Rank].max()
+    full_ranks = max_rank.apply(lambda a: list(range(1, a + 1))).explode().rename(Columns.Rank)
+    ranked_reco = merged.merge(full_ranks, on=[Columns.User, Columns.Rank], how="outer").sort_values(
+        [Columns.User, Columns.Rank]
+    )
+    ranked_reco["__test_positive"] = ranked_reco["__test_positive"].fillna(False)
+    return ranked_reco
