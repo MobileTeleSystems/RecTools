@@ -14,6 +14,8 @@
 
 # pylint: disable=attribute-defined-outside-init
 
+import typing as tp
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,7 +23,12 @@ import pytest
 from rectools import Columns
 from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall
 from rectools.metrics.base import MetricAtK, merge_reco
-from rectools.metrics.classification import ClassificationMetric, calc_classification_metrics, calc_confusions
+from rectools.metrics.classification import (
+    ClassificationMetric,
+    SimpleClassificationMetric,
+    calc_classification_metrics,
+    calc_confusions,
+)
 
 RECO = pd.DataFrame(
     {
@@ -242,10 +249,19 @@ class TestDebiasMetric:
                 )
                 assert np.isnan(metric_debias.calc(RECO, EMPTY_INTERACTIONS))  # type: ignore
 
-    def test_raises(self) -> None:
-        metric_debias = self.metrics_debias["precision_debias"]
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            Precision(k=3, debias_config=DEBIAS_CONFIG),
+            Accuracy(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raises(self, metric: tp.Union[ClassificationMetric, SimpleClassificationMetric]) -> None:
         merged = merge_reco(RECO, INTERACTIONS)
-        downsample_merged = metric_debias.make_debias(merged)
+        downsample_merged = metric.make_debias(merged)
         confusion_df = calc_confusions(downsample_merged, k=2)
         with pytest.raises(ValueError):
-            metric_debias.calc_from_confusion_df(confusion_df)  # type: ignore
+            if isinstance(metric, ClassificationMetric):
+                metric.calc_from_confusion_df(confusion_df, CATALOG)
+            else:
+                metric.calc_from_confusion_df(confusion_df)
