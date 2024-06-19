@@ -21,7 +21,7 @@ class TestMetricsApp:
     @pytest.mark.parametrize("show_legend", (True, False))
     @pytest.mark.parametrize("auto_display", (True, False))
     @pytest.mark.parametrize(
-        "layout_kwargs",
+        "scatter_kwargs",
         (
             None,
             {"width": None, "height": None, "title": None},
@@ -33,14 +33,14 @@ class TestMetricsApp:
         self,
         show_legend: bool,
         auto_display: bool,
-        layout_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
+        scatter_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
     ) -> None:
         with patch("rectools.visuals.metrics_app.MetricsApp.display", MagicMock()):
             app = MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 show_legend=show_legend,
                 auto_display=auto_display,
-                layout_kwargs=layout_kwargs,
+                scatter_kwargs=scatter_kwargs,
             )
             _ = app.fig
 
