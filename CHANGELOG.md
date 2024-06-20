@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Intersection` metric ([#148](https://github.com/MobileTeleSystems/RecTools/pull/148))
 - `PartialAUC` and `PAP` metrics  ([#149](https://github.com/MobileTeleSystems/RecTools/pull/149))
 - New params (`tol`, `maxiter`, `random_state`) to the `PureSVD` model ([#130](https://github.com/MobileTeleSystems/RecTools/pull/130))
+- Add metadata support for `MetricApp` ([#154](https://github.com/MobileTeleSystems/RecTools/pull/154))
 
 ### Fixed
 - Used the latest version of `lightfm` that allows to install it using `poetry>=1.5.0` ([#141](https://github.com/MobileTeleSystems/RecTools/pull/141))
