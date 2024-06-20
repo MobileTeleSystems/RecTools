@@ -44,17 +44,19 @@ class MetricsApp:
         scatter_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
         self.models_metrics = models_metrics
-        self.models_metadata = (
-            models_metadata
-            if models_metadata is not None
-            else models_metrics[Columns.Model].drop_duplicates().to_frame()
-        )
+        self._validate_models_metrics()
+
+        if models_metadata is not None:
+            self.models_metadata: pd.DataFrame = models_metadata
+        else:
+            self.models_metadata = models_metrics[Columns.Model].drop_duplicates().to_frame()
+        self._validate_models_metadata()
+
         self.show_legend = show_legend
         self.auto_display = auto_display
         self.scatter_kwargs = scatter_kwargs if scatter_kwargs is not None else {}
         self.fig = go.Figure()
 
-        self._validate_input_data()
         if self.auto_display:
             self.display()
 
@@ -87,8 +89,8 @@ class MetricsApp:
             Specifies whether to display the chart legend.
         auto_display : bool, default True
             Automatically displays the widgets immediately after initialization.
-        layout_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional, default None
-            Additional arguments from `plotly.graph_objects.Layout`
+        scatter_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional, default None
+            Additional arguments from `plotly.express.scatter`
 
         Returns
         -------
@@ -99,7 +101,7 @@ class MetricsApp:
         --------
         Create interactive widget
 
-        >>> example_df = pd.DataFrame(
+        >>> metrics_df = pd.DataFrame(
         ...    {
         ...        Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
         ...        Columns.Split: [0, 0, 1, 1, 2, 2],
@@ -107,8 +109,17 @@ class MetricsApp:
         ...        "recall@10": [0.041, 0.045, 0.055, 0.08, 0.036, 0.021],
         ...        "novelty@10": [2.6, 11.3, 4.3, 9.8, 3.3, 11.2],
         ...    })
+        >>> # Optional metainfo about models
+        >>> metadata_df = pd.DataFrame(
+        ...    {
+        ...        Columns.Model: ["Model1", "Model2"],
+        ...        "factors": [64, 32],
+        ...        "regularization": [0.05, 0.05],
+        ...        "alpha": [2.0, 0.5],
+        ...    })
         >>> app = MetricsApp.construct(
-        ...    models_metrics=example_df,
+        ...    models_metrics=metrics_df,
+        ...    models_metadata=metadata_df,
         ...    show_legend=True,
         ...    auto_display=False,
         ...    scatter_kwargs={"width": 800, "height": 600})
@@ -144,7 +155,7 @@ class MetricsApp:
         """Sorted list of fold identifiers from the `models_metrics`."""
         return sorted(self.models_metrics[Columns.Split].unique())
 
-    def _validate_input_data(self) -> None:
+    def _validate_models_metrics(self) -> None:
         if not isinstance(self.models_metrics, pd.DataFrame):
             raise ValueError("Incorrect input type. `metrics_data` should be a DataFrame")
         if Columns.Split not in self.models_metrics.columns:
@@ -154,6 +165,7 @@ class MetricsApp:
         if len(self.models_metrics.columns) < 3:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
 
+    def _validate_models_metadata(self) -> None:
         if not isinstance(self.models_metadata, pd.DataFrame):
             raise ValueError("Incorrect input type. `models_metadata` should be a DataFrame")
         if Columns.Model not in self.models_metadata.columns:
