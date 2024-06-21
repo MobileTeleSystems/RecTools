@@ -237,6 +237,10 @@ class MetricsApp:
                 fig_widget.data[i].x = trace.x
                 fig_widget.data[i].y = trace.y
                 fig_widget.data[i].marker = trace.marker
+                fig_widget.data[i].text = trace.text
+                fig_widget.data[i].hoverinfo = trace.hoverinfo
+                fig_widget.data[i].hovertemplate = trace.hovertemplate
+                fig_widget.data[i].customdata = trace.customdata
 
         fig_widget.layout.update(self.fig.layout)
         self.fig.layout.margin = None  # keep separate chart non-truncated
