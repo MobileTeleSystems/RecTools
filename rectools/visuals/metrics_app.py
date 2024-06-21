@@ -223,7 +223,7 @@ class MetricsApp:
         fold_i: widgets.Dropdown,
         meta_feature: widgets.Dropdown,
         use_meta: widgets.Checkbox,
-    ) -> None:
+    ) -> None:  # pragma: no cover
         data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
         color_clmn = meta_feature.value if use_meta.value else Columns.Model
 
@@ -265,7 +265,7 @@ class MetricsApp:
         self.fig = self._create_chart(data, metric_x.value, metric_y.value, Columns.Model)
         fig_widget = go.FigureWidget(data=self.fig.data, layout=self.fig.layout)
 
-        def update(event: tp.Callable[..., tp.Any]) -> None:
+        def update(event: tp.Callable[..., tp.Any]) -> None:  # pragma: no cover
             self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i, meta_feature, use_meta)
             self._update_fold_visibility(use_avg, fold_i)
             self._update_meta_visibility(use_meta, meta_feature)
