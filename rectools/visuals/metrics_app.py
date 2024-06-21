@@ -231,14 +231,14 @@ class MetricsApp:
         if use_meta.value:
             data[color_clmn] = data[color_clmn].astype(str)
 
-        scatter = self._create_chart(data, metric_x.value, metric_y.value, color_clmn)
+        self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn)
         with fig_widget.batch_update():
-            for i, trace in enumerate(scatter.data):
+            for i, trace in enumerate(self.fig.data):
                 fig_widget.data[i].x = trace.x
                 fig_widget.data[i].y = trace.y
                 fig_widget.data[i].marker = trace.marker
 
-        fig_widget.layout.update(scatter.layout)
+        fig_widget.layout.update(self.fig.layout)
         self.fig.layout.margin = None  # keep separate chart non-truncated
 
     def _update_fold_visibility(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> None:
