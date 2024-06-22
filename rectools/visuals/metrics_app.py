@@ -161,9 +161,16 @@ class MetricsApp:
         if Columns.Split not in self.models_metrics.columns:
             raise KeyError("Missing `Split` column in `metrics_data` DataFrame")
         if Columns.Model not in self.models_metrics.columns:
-            raise KeyError("Missing `Model`` column in `metrics_data` DataFrame")
+            raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
         if len(self.models_metrics.columns) < 3:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
+        if self.models_metrics.isnull().values.any():
+            raise ValueError("Found NaN values in `metrics_data`")
+        models_names_with_folds = self.models_metrics[Columns.Model].astype(str) + self.models_metrics[
+            Columns.Split
+        ].astype(str)
+        if models_names_with_folds.nunique() != len(models_names_with_folds):
+            raise ValueError("`Model` values of `metrics_data` should be unique")
 
     def _validate_models_metadata(self) -> None:
         if not isinstance(self.models_metadata, pd.DataFrame):
@@ -171,7 +178,9 @@ class MetricsApp:
         if Columns.Model not in self.models_metadata.columns:
             raise KeyError("Missing `Model`` column in `models_metadata` DataFrame")
         if self.models_metadata[Columns.Model].nunique() != len(self.models_metadata):
-            raise ValueError("Found ambiguous values in `Model` column of `models_metadata`")
+            raise ValueError("`Model` values of `models_metadata`  should be unique`")
+        if self.models_metadata[Columns.Model].isnull().any():
+            raise ValueError("Found NaN values in `Model` column")
 
     @lru_cache
     def _make_chart_data(self, fold_number: int) -> pd.DataFrame:
@@ -202,7 +211,6 @@ class MetricsApp:
             x=metric_x,
             y=metric_y,
             color=color,
-            category_orders={color: sorted(data[color].unique())},
             symbol=Columns.Model,
             **scatter_kwargs,
         )
@@ -226,21 +234,28 @@ class MetricsApp:
     ) -> None:  # pragma: no cover
         data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
         color_clmn = meta_feature.value if use_meta.value else Columns.Model
-
-        # Ensuring that the color mapping treats the data as categorical
-        if use_meta.value:
-            data[color_clmn] = data[color_clmn].astype(str)
+        data[color_clmn] = data[color_clmn].astype(str)  # to treat colors as categorical
 
         self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn)
+
+        if use_meta.value:
+            # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
+            nometa_trace_name2idx = {trace.name.split(" ", 1)[1]: idx for idx, trace in enumerate(self.fig.data)}
+        else:
+            nometa_trace_name2idx = {trace.name: idx for idx, trace in enumerate(self.fig.data)}
+
         with fig_widget.batch_update():
-            for i, trace in enumerate(self.fig.data):
-                fig_widget.data[i].x = trace.x
-                fig_widget.data[i].y = trace.y
-                fig_widget.data[i].marker = trace.marker
-                fig_widget.data[i].text = trace.text
-                fig_widget.data[i].hoverinfo = trace.hoverinfo
-                fig_widget.data[i].hovertemplate = trace.hovertemplate
-                fig_widget.data[i].customdata = trace.customdata
+            for trace in self.fig.data:
+                trace_name = trace.name.split(" ", 1)[1] if use_meta.value else trace.name
+                idx = nometa_trace_name2idx[trace_name]
+                fig_widget.data[idx].x = trace.x
+                fig_widget.data[idx].y = trace.y
+                fig_widget.data[idx].marker.color = trace.marker.color
+                fig_widget.data[idx].text = trace.text
+                fig_widget.data[idx].name = trace.name
+                fig_widget.data[idx].legendgroup = trace.legendgroup
+                fig_widget.data[idx].hoverinfo = trace.hoverinfo
+                fig_widget.data[idx].hovertemplate = trace.hovertemplate
 
         fig_widget.layout.update(self.fig.layout)
         self.fig.layout.margin = None  # keep separate chart non-truncated

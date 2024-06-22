@@ -108,6 +108,28 @@ class TestMetricsApp:
         with pytest.raises(KeyError):
             MetricsApp.construct(models_metrics=models_metrics)
 
+    def test_models_metrics_has_nan(self) -> None:
+        models_metrics = pd.DataFrame(
+            {
+                Columns.Model: ["Model1", "Model2"],
+                Columns.Split: [0, 0],
+                "metric": [0.1, None],
+            }
+        )
+        with pytest.raises(ValueError):
+            MetricsApp.construct(models_metrics=models_metrics)
+
+    def test_models_metrics_has_non_unique_models_names(self) -> None:
+        models_metrics = pd.DataFrame(
+            {
+                Columns.Model: ["Model1", "Model1"],
+                Columns.Split: [0, 0],
+                "metric": [0.1, 0.2],
+            }
+        )
+        with pytest.raises(ValueError):
+            MetricsApp.construct(models_metrics=models_metrics)
+
     def test_models_metadata_is_not_dataframe(self) -> None:
         with pytest.raises(ValueError):
             MetricsApp.construct(models_metrics=DF_METRICS, models_metadata=1)
@@ -124,6 +146,13 @@ class TestMetricsApp:
             MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 models_metadata=pd.DataFrame({Columns.Model: ["Model1", "Model2", "Model2"]}),
+            )
+
+    def test_models_metadata_has_nan_in_models_names(self) -> None:
+        with pytest.raises(ValueError):
+            MetricsApp.construct(
+                models_metrics=DF_METRICS,
+                models_metadata=pd.DataFrame({Columns.Model: ["Model1", "Model2", None]}),
             )
 
     def test_model_names(self) -> None:
