@@ -556,7 +556,7 @@ RankingMetric = tp.Union[NDCG, MAP, MRR]
 
 
 def calc_ranking_metrics(
-    metrics: tp.Dict[str, tp.Union[RankingMetric]],
+    metrics: tp.Dict[str, RankingMetric],
     merged: pd.DataFrame,
 ) -> tp.Dict[str, float]:
     """
