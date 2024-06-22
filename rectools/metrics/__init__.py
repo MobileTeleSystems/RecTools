@@ -40,7 +40,7 @@ Metrics
 `metrics.Intersection`
 `metrics.RecoEmpty`
 `metrics.RecoDuplicated`
-`metrics.TestUsersNotCovered`
+`metrics.UsersNotCovered`
 
 Tools
 -----
@@ -58,7 +58,7 @@ from .distances import (
     SparsePairwiseHammingDistanceCalculator,
 )
 from .diversity import IntraListDiversity
-from .dq import RecoEmpty, RecoDuplicated, TestUsersNotCovered
+from .dq import RecoDuplicated, RecoEmpty, UsersNotCovered
 from .intersection import Intersection
 from .novelty import MeanInvUserFreq
 from .popularity import AvgRecPopularity
@@ -92,5 +92,5 @@ __all__ = (
     "Intersection",
     "RecoEmpty",
     "RecoDuplicated",
-    "TestUsersNotCovered"
+    "UsersNotCovered",
 )

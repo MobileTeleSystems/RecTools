@@ -25,12 +25,12 @@ from .auc import AucMetric, calc_auc_metrics
 from .base import Catalog, MetricAtK, merge_reco
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
+from .dq import DQMetric, calc_dq_metrics
 from .intersection import IntersectionMetric, calc_intersection_metrics
 from .novelty import NoveltyMetric, calc_novelty_metrics
 from .popularity import PopularityMetric, calc_popularity_metrics
 from .ranking import RankingMetric, calc_ranking_metrics
 from .serendipity import SerendipityMetric, calc_serendipity_metrics
-from .dq import DQMetric, calc_dq_metrics
 
 
 def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
@@ -201,7 +201,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     # DQ
     dq_metrics = select_by_type(metrics, DQMetric)
     if dq_metrics:
-        dq_values = calc_dq_metrics(dq_metrics, reco)
+        dq_values = calc_dq_metrics(dq_metrics, reco, interactions)
         results.update(dq_values)
-        
+
     return results

@@ -17,10 +17,10 @@
 import pandas as pd
 
 from rectools import Columns
-from rectools.metrics import RecoEmpty, RecoDuplicated, TestUsersNotCovered
+from rectools.metrics import RecoDuplicated, RecoEmpty, UsersNotCovered
 
 
-class TestEmpty:
+class TestRecoEmpty:
     def setup_method(self) -> None:
         self.metric = RecoEmpty(k=2, deep=False)
         self.deep_metric = RecoEmpty(k=2, deep=True)
@@ -34,21 +34,22 @@ class TestEmpty:
 
     def test_calc_deep(self) -> None:
         expected_metric_per_user = pd.Series(
-            [0., 0.5, 1., 0.5],
+            [0.0, 0.5, 1.0, 0.5],
             index=pd.Series([1, 2, 3, 4], name=Columns.User),
         )
         pd.testing.assert_series_equal(self.deep_metric.calc_per_user(self.reco), expected_metric_per_user)
         assert self.deep_metric.calc(self.reco) == expected_metric_per_user.mean()
-        
+
     def test_calc_default(self) -> None:
         expected_metric_per_user = pd.Series(
-            [0., 1., 1., 1.],
+            [0, 1, 1, 1],
             index=pd.Series([1, 2, 3, 4], name=Columns.User),
         )
         pd.testing.assert_series_equal(self.metric.calc_per_user(self.reco), expected_metric_per_user)
         assert self.metric.calc(self.reco) == expected_metric_per_user.mean()
 
-class TestDuplicated:
+
+class TestRecoDuplicated:
     def setup_method(self) -> None:
         self.metric = RecoDuplicated(k=4, deep=False)
         self.deep_metric = RecoDuplicated(k=4, deep=True)
@@ -62,16 +63,41 @@ class TestDuplicated:
 
     def test_calc_deep(self) -> None:
         expected_metric_per_user = pd.Series(
-            [0., 0.25, 0.5],
+            [0.0, 0.25, 0.5],
             index=pd.Series([1, 2, 3], name=Columns.User),
         )
         pd.testing.assert_series_equal(self.deep_metric.calc_per_user(self.reco), expected_metric_per_user)
         assert self.deep_metric.calc(self.reco) == expected_metric_per_user.mean()
-        
+
     def test_calc_default(self) -> None:
         expected_metric_per_user = pd.Series(
-            [0., 1., 1.],
+            [0, 1, 1],
             index=pd.Series([1, 2, 3], name=Columns.User),
         )
         pd.testing.assert_series_equal(self.metric.calc_per_user(self.reco), expected_metric_per_user)
         assert self.metric.calc(self.reco) == expected_metric_per_user.mean()
+
+
+class TestUsersNotCovered:
+    def setup_method(self) -> None:
+        self.metric = UsersNotCovered(k=4)
+        self.reco = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2, 2, 2, 3, 3, 3, 3, 3],
+                Columns.Item: [1, 2, 1, 1, 3, 1, 2, 2, 1, 5],
+                Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3, 4, 5],
+            }
+        )
+        self.interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 10, 11],
+                Columns.Item: [1, 2, 1, 1, 3, 1, 2, 2, 1, 5, 5, 5],
+            }
+        )
+
+    def test_calc(self) -> None:
+        expected_metric_per_user = pd.Series([0, 0, 0, 1, 1], index=pd.Series([1, 2, 3, 10, 11], name=Columns.User))
+        pd.testing.assert_series_equal(
+            self.metric.calc_per_user(self.reco, self.interactions), expected_metric_per_user
+        )
+        assert self.metric.calc(self.reco, self.interactions) == expected_metric_per_user.mean()

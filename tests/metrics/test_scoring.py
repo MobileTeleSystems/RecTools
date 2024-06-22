@@ -34,7 +34,10 @@ from rectools.metrics import (
     Precision,
     RPrecision,
     Recall,
+    RecoDuplicated,
+    RecoEmpty,
     Serendipity,
+    UsersNotCovered,
     calc_metrics,
 )
 from rectools.metrics.base import MetricAtK
@@ -109,6 +112,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": Serendipity(k=3),
             "intersection": Intersection(k=2, ref_k=2),
             "custom": MetricAtK(k=1),
+            "empty": RecoEmpty(k=2),
+            "duplicated": RecoDuplicated(k=2),
+            "users_not_covered": UsersNotCovered(k=2),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
             actual = calc_metrics(
@@ -135,6 +141,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": 0,
             "intersection_one": 0.375,
             "intersection_two": 0.75,
+            "empty": 0.75,
+            "duplicated": 0,
+            "users_not_covered": 0.25,
         }
         assert actual == expected
 
@@ -151,6 +160,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (PAP(k=1), ["reco"]),
             (PartialAUC(k=1), ["reco"]),
             (Intersection(k=1), ["reco"]),
+            (UsersNotCovered(k=1), ["reco"]),
         ),
     )
     def test_raises(self, metric: MetricAtK, arg_names: tp.List[str]) -> None:
