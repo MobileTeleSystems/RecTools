@@ -38,8 +38,8 @@ Metrics
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
 `metrics.Intersection`
-`metrics.Empty`
-`metrics.Duplicated`
+`metrics.RecoEmpty`
+`metrics.RecoDuplicated`
 `metrics.TestUsersNotCovered`
 
 Tools
