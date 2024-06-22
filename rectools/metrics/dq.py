@@ -204,7 +204,7 @@ class UsersNotCovered(MetricAtK):
     ...         Columns.Rank: [1, 2, 2],
     ...     }
     ... )
-    ... interactions = pd.DataFrame(
+    >>> interactions = pd.DataFrame(
     ...     {
     ...         Columns.User: [1, 2, 3, 4],
     ...         Columns.Item: [1, 1, 1, 1],

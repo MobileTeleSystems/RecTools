@@ -23,7 +23,6 @@ Metrics
 -------
 `metrics.Precision`
 `metrics.Recall`
-`metrics.RPrecision`
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
@@ -51,7 +50,7 @@ Tools
 """
 
 from .auc import PAP, PartialAUC
-from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, RPrecision, Recall
+from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -69,7 +68,6 @@ from .serendipity import Serendipity
 __all__ = (
     "Precision",
     "Recall",
-    "RPrecision",
     "F1Beta",
     "Accuracy",
     "MCC",

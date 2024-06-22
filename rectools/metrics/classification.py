@@ -239,37 +239,28 @@ class Precision(SimpleClassificationMetric):
     """
     Ratio of relevant items among top-`k` recommended items.
 
-    The precision@k equals to ``tp / k``
+    The Precision@k equals to ``tp / k``
     where ``tp`` is the number of relevant recommendations
     among first ``k`` items in the top of recommendation list.
-
-    Parameters
-    ----------
-    k : int
-        Number of items in top of recommendations list that will be used to calculate metric.
-    """
-
-    def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
-        return confusion_df[TP] / self.k
-
-
-@attr.s
-class RPrecision(SimpleClassificationMetric):
-    """
-    Ratio of relevant items among top-`k` recommended items taking into account
-    number of user test items.
 
     The RPrecision equals to ``tp / min(k, tp+fn)``
     ``tp + fn`` is the total number of items in user test interactions.
 
+
     Parameters
     ----------
     k : int
         Number of items in top of recommendations list that will be used to calculate metric.
+    r_precision: bool, default `False`
+        Whether to calculate RPrecision instead of simple Precision. If `True` number of user
+        true positives (`tp`) will be divided by minimum of `k` and number of user test positives
+        (`tp+fn`).
     """
 
+    r_precision: bool = attr.ib(default=False)
+
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
-        denominator = np.minimum(self.k, confusion_df[TP] + confusion_df[FN])
+        denominator = np.minimum(self.k, confusion_df[TP] + confusion_df[FN]) if self.r_precision else self.k
         return confusion_df[TP] / denominator
 
 
