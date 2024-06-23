@@ -11,6 +11,14 @@
 [![Contributors](https://img.shields.io/github/contributors/MobileTeleSystems/RecTools.svg)](https://github.com/MobileTeleSystems/RecTools/graphs/contributors)
 [![Telegram](https://img.shields.io/badge/channel-telegram-blue)](https://t.me/RecTools_Support)
 
+<p align="center">
+  <a href="https://rectools.readthedocs.io/en/stable/">Documentation</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/tree/main/examples">Examples</a> |
+    <a href="https://github.com/MobileTeleSystems/RecTools/tree/main/examples/tutorials">Tutorials</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/blob/main/CONTRIBUTING.rst">Contribution Guide</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/releases">Release Notes</a>
+</p>
+
 RecTools is an easy-to-use Python library which makes the process of building recommendation systems easier, 
 faster and more structured than ever before.
 It includes built-in toolkits for data processing and metrics calculation, 
@@ -19,8 +27,7 @@ and model selection framework.
 The aim is to collect ready-to-use solutions and best practices in one place to make processes 
 of creating your first MVP and deploying model to production as fast and easy as possible.
 
-For more details, see the [Documentation](https://rectools.readthedocs.io/) 
-and [Tutorials](https://github.com/MobileTeleSystems/RecTools/tree/main/examples).
+
 
 ## Get started
 
@@ -89,14 +96,14 @@ pip install rectools[all]
 
 
 ## Recommender Models
-The table below lists recommender models that are available in RecTools. 
+The table below lists recommender models that are available in RecTools. See [Recommender baselines extended tutorial](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/tutorials/baselines_extended_tutorial.ipynb) for deep dive into theory & practice.
 
 | Model | Type | Description | Extra features |
 |----|----|-----------|--------|
 | [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! [Check our boost to metrics](examples/5_benchmark_iALS_with_features.ipynb) |
-| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Collaborative Filtering | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
+| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Nearest Neighbours | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
 | [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | `rectools.models.LightFMWrapperModel` - Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
-| EASE | Collaborative Filtering | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | - |
+| EASE | Linear Autoencoder | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | - |
 | PureSVD | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix | - |
 | DSSM | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
 | Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
@@ -155,6 +162,8 @@ make clean
 - [Alexander Butenko](https://github.com/iomallach)
 - [Andrey Semenov](https://github.com/In48semenov)
 - [Mike Sokolov](https://github.com/mikesokolovv)
+- [Maya Spirina](https://github.com/spirinamayya)
+- [Grigoriy Gusarov](https://github.com/Gooogr)
 
-Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup) 
+Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup), [Maxim Lukin](https://github.com/groundmax)
 
