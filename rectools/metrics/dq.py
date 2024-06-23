@@ -80,8 +80,11 @@ class _RecoDQMetric(MetricAtK):
 
 class RecoEmpty(_RecoDQMetric):
     """
-    Empty rows in recommendations table when `k` recommendations are required for each user.
-    This metric helps to identify situations when recommendation lists are not fully filled.
+    Presence of empty rows in recommendations table when `k` recommendations are required for each
+    user. This metric helps to identify situations when recommendation lists are not fully filled.
+    Specify `deep=False` to calculate share of user with any number of empty rows at first `k`
+    positions.
+    Specify `deep=True` to calculate mean share of empty rows for each user at first `k` positions.
 
     Parameters
     ----------
@@ -135,7 +138,12 @@ class RecoEmpty(_RecoDQMetric):
 class RecoDuplicated(_RecoDQMetric):
     """
     Duplicated items recommended to the same user in recommendations table.
-    This metrics help to identify situations when recommendation lists have duplicated items for users.
+    This metrics help to identify situations when recommendation lists have duplicated items for
+    same users.
+    Specify `deep=False` to calculate share of user with any number of duplicated itemd at first `k`
+    positions.
+    Specify `deep=True` to calculate mean share of duplicated items for each user at first `k`
+    positions.
 
     Parameters
     ----------
@@ -143,7 +151,7 @@ class RecoDuplicated(_RecoDQMetric):
         Number of items at the top of recommendations list that will be used to calculate metric.
     deep: bool, default `False`
         Whether to calculated detailed value of the metric for each user. Otherwise just the share of
-        users with identified problems will be returned (this is the default behaviour).
+        users with identified problem will be returned (this is the default behaviour).
 
     Examples
     --------
@@ -187,8 +195,8 @@ class RecoDuplicated(_RecoDQMetric):
 
 class UsersNotCovered(MetricAtK):
     """
-    Recommendations data quality metric to calsulate share of test users that are not present in
-    recommendations table.
+    Recommendations data quality metric to calculate share of users from test interactions that are
+    not present in recommendations table and don't have any recommendations at first `k` positions.
 
     Parameters
     ----------

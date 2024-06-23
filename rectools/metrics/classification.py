@@ -243,8 +243,8 @@ class Precision(SimpleClassificationMetric):
     where ``tp`` is the number of relevant recommendations
     among first ``k`` items in the top of recommendation list.
 
-    The RPrecision equals to ``tp / min(k, tp+fn)``
-    ``tp + fn`` is the total number of items in user test interactions.
+    The R-Precision equals to ``tp / min(k, tp+fn)``
+    where ``tp + fn`` is the total number of items in user test interactions.
 
 
     Parameters
@@ -252,9 +252,9 @@ class Precision(SimpleClassificationMetric):
     k : int
         Number of items in top of recommendations list that will be used to calculate metric.
     r_precision: bool, default `False`
-        Whether to calculate RPrecision instead of simple Precision. If `True` number of user
-        true positives (`tp`) will be divided by minimum of `k` and number of user test positives
-        (`tp+fn`).
+        Whether to calculate R-Precision instead of simple Precision. If `True` number of user
+        true positives (`tp`) in recommendations will be divided by minimum of `k` and number of
+        user test positives (`tp+fn`) instead of division by `k`.
     """
 
     r_precision: bool = attr.ib(default=False)
