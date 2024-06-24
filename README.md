@@ -97,7 +97,8 @@ pip install rectools[all]
 
 
 ## Recommender Models
-The table below lists recommender models that are available in RecTools. See [Recommender baselines extended tutorial](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/tutorials/baselines_extended_tutorial.ipynb) for deep dive into theory & practice.
+The table below lists recommender models that are available in RecTools.  
+See [recommender baselines extended tutorial](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/tutorials/baselines_extended_tutorial.ipynb) for deep dive into theory & practice of our supported models.
 
 | Model | Type | Description | Tutorials & Benchmarks |
 |----|----|---------|--------|
@@ -107,7 +108,7 @@ The table below lists recommender models that are available in RecTools. See [Re
 | EASE | Linear Autoencoder | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#EASE) |
 | PureSVD | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#PureSVD) |
 | DSSM | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss.<br>*Supports: user/item features, warm inference*  | - |
-| Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items.<br>Supports: cold inference | - |
+| Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items and also accepts params like time window and type of popularity computation.<br>*Supports: cold inference* | - |
 | Popular in Category | Heuristic |  `rectools.models.PopularInCategoryModel` - Model that computes poularity within category and applies mixing strategy to increase Diversity.<br>*Supports: cold inference*| - |
 | Random |  Heuristic | `rectools.models.RandomModel` - Simple random algorithm useful to benchmark Novelty, Coverage, etc.<br>*Supports: cold inference*| - |
 
