@@ -9,6 +9,7 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/MobileTeleSystems/RecTools/test.yml?branch=main&label=tests)](https://github.com/MobileTeleSystems/RecTools/actions/workflows/test.yml?query=branch%3Amain++)
 
 [![Contributors](https://img.shields.io/github/contributors/MobileTeleSystems/RecTools.svg)](https://github.com/MobileTeleSystems/RecTools/graphs/contributors)
+[![Downloads](https://static.pepy.tech/badge/rectools)](https://pepy.tech/project/rectools)
 [![Telegram](https://img.shields.io/badge/channel-telegram-blue)](https://t.me/RecTools_Support)
 
 <p align="center">
