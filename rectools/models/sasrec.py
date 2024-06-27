@@ -10,11 +10,13 @@ import pandas as pd
 import pydantic
 import torch
 import tqdm
+from lightning_fabric import seed_everything
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from rectools import AnyIds
 from rectools.dataset import Dataset as RecDataset
+
 from .base import ModelBase
 
 logger = logging.getLogger(__name__)
@@ -28,55 +30,53 @@ class SasRecRecommenderModel(ModelBase):
         lr: float,
         batch_size: int,
         epochs: int,
-        l2_emb: float,
         device: str,
         num_blocks: int,
         hidden_units: int,
         num_heads: int,
-        maxlen: int,
         dropout_rate: float,
-        name: str,
-        hidden_units_item: int,
         use_pos_emb: bool = True,
-        use_sm_head: bool = False,
-        min_score: Optional[float] = None,
-        negative_samples: int = 1,  # 0 if no sampling, number of negatives othervise
         loss: str = "bce",
         verbose: int = 0,
+        random_state: int = None,
     ):
         super().__init__(verbose=verbose)
-        self.min_score = min_score
         self.session_maxlen = session_maxlen
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
-        self.l2_emb = l2_emb
         self.device = device
-        self.negative_samples = negative_samples
         self.loss = loss
         self.num_blocks = num_blocks
         self.hidden_units = hidden_units
         self.num_heads = num_heads
-        self.maxlen = maxlen
         self.dropout_rate = dropout_rate
-        self.name = name
-        self.hidden_units_item = hidden_units_item
         self.use_pos_emb = use_pos_emb
-        self.use_sm_head = use_sm_head
+        self.random_state = random_state
 
-    def _fit(
+        if self.random_state is not None:
+            torch.use_deterministic_algorithms(True)
+            seed_everything(self.random_state, workers=True)
+
+    def fit(
         self,
         dataset: RecDataset,
     ):
         user_item_interactions = dataset.get_raw_interactions()
+
         user_item_interactions["user_id"] = user_item_interactions["user_id"].astype(str)
         user_item_interactions["item_id"] = user_item_interactions["item_id"].astype(str)
-        item_features = pd.DataFrame()
-        item_features["item_id"] = user_item_interactions["item_id"].copy().drop_duplicates()
+
+        users = user_item_interactions["user_id"].value_counts()
+        users = users[users >= 2]
+        users = users.index.to_list()
+        user_item_interactions = user_item_interactions[(user_item_interactions["user_id"].isin(users))]
+
+        item_features = user_item_interactions["item_id"].copy().drop_duplicates()
         user_features = None
 
         logger.info("converting datasets to task format")
-        self.task_converter = SequenceTaskConverter(self.min_score)
+        self.task_converter = SequenceTaskConverter()
         train_x, train_y = self.task_converter.train_transform(
             user_item_interactions=user_item_interactions,
             user_features=user_features,
@@ -100,15 +100,11 @@ class SasRecRecommenderModel(ModelBase):
             num_blocks=self.num_blocks,
             hidden_units=self.hidden_units,
             num_heads=self.num_heads,
-            maxlen=self.maxlen,
+            num_embeddings=self.session_maxlen,
             dropout_rate=self.dropout_rate,
-            name=self.name,
-            hidden_units_item=self.hidden_units_item,
             use_pos_emb=self.use_pos_emb,
-            use_sm_head=self.use_sm_head,
             dataset_stats=dataset_stats,
         )
-
 
         logger.info("building trainer")
         trainer = Trainer(
@@ -116,9 +112,7 @@ class SasRecRecommenderModel(ModelBase):
             lr=self.lr,
             batch_size=self.batch_size,
             epochs=self.epochs,
-            l2_emb=self.l2_emb,
             device=self.device,
-            negative_samples=self.negative_samples,
             loss=self.loss,
         )
         trainer.fit(train_dataloader)
@@ -126,22 +120,22 @@ class SasRecRecommenderModel(ModelBase):
 
     def recommend(
         self,
+        users: List[str],
         dataset: RecDataset,
         k: int,
-        test_users: List[str],
         items_to_recommend: tp.Optional[AnyIds] = None,
     ):
         train = dataset.get_raw_interactions()
 
         train["user_id"] = train["user_id"].astype(str)
         train["item_id"] = train["item_id"].astype(str)
-        item_features = pd.DataFrame()
-        item_features["item_id"] = train["item_id"].copy().drop_duplicates().astype(str)
-        user_features = pd.DataFrame()
-        user_features["user_id"] = train["user_id"].copy().drop_duplicates().astype(str)
+        item_features = train["item_id"].copy().drop_duplicates().astype(str)
+        user_features = train["user_id"].copy().drop_duplicates().astype(str)
 
-        rec_df = train[train["user_id"].isin(test_users)]
-        recommender = SASRecRecommeder(self.processor, self.model, self.task_converter)
+        rec_df = train[train["user_id"].isin(users)]
+        recommender = SASRecRecommender(self.processor, self.model, self.task_converter)
+
+        items_to_recommend = train["item_id"].drop_duplicates().astype(str)
 
         recs = recommender.recommend(
             user_item_interactions=rec_df,
@@ -170,17 +164,11 @@ class SequenceTaskTarget:
 class SequenceTaskConverter:
     """Convert database data to use in particular model"""
 
-    def __init__(
-        self, 
-        min_score: Optional[float] = None
-    ):
-        self.min_score = min_score
-
     def train_transform(
         self,
         user_item_interactions: pd.DataFrame,
-        user_features: pd.DataFrame,
-        item_features: pd.DataFrame,
+        user_features: pd.Series,
+        item_features: pd.Series,
     ) -> Tuple[SequenceTaskData, SequenceTaskTarget]:
         """Convert user-item interaction to sessions and extract target.
         Prepare other features
@@ -188,8 +176,8 @@ class SequenceTaskConverter:
         users, sessions, weights = self._interactions2sessions(user_item_interactions)
         sessions_x, sessions_y, x_weights, y_weights = self._sessions2xy(sessions, weights)
 
-        item_features = item_features.sort_values("item_id")
-        items = item_features["item_id"].to_list()
+        item_features = item_features.sort_values()
+        items = item_features.to_list()
 
         return (
             SequenceTaskData(
@@ -209,14 +197,14 @@ class SequenceTaskConverter:
     def inference_transform(
         self,
         user_item_interactions: pd.DataFrame,
-        user_features: pd.DataFrame,
-        item_features: pd.DataFrame,
+        user_features: pd.Series,
+        item_features: pd.Series,
     ) -> SequenceTaskData:
         """Convert user-item interaction to sessions and prepare other features"""
         users, sessions, weights = self._interactions2sessions(user_item_interactions)
 
-        item_features = item_features.sort_values("item_id")
-        items = item_features["item_id"].to_list()
+        item_features = item_features.sort_values()
+        items = item_features.to_list()
 
         return SequenceTaskData(
             users=users,
@@ -228,9 +216,6 @@ class SequenceTaskConverter:
     def _interactions2sessions(
         self, user_item_interactions: pd.DataFrame
     ) -> Tuple[List[str], List[List[str]], List[List[float]]]:
-        if self.min_score is not None:
-            logger.info("filter out interactions with score lower than %s", self.min_score)
-            user_item_interactions = user_item_interactions[user_item_interactions["weight"] >= self.min_score]
 
         sessions = user_item_interactions.sort_values("datetime").groupby("user_id")[["item_id", "weight"]].agg(list)
         users, sessions, weights = (
@@ -359,6 +344,7 @@ class SASRecProcessor:
         Returns SASRecModelInput. sessions of size [batch_size, maxlen],
             model input of size ([items_cnt], [items_cnt, item_tags_maxlen])
         """
+
         item_mapping = self._build_items_mapping(x.items)
 
         # TODO use weights in model
@@ -383,6 +369,7 @@ class SASRecProcessor:
 
     def transform_target(self, y: SequenceTaskTarget, model_input: SASRecModelInput) -> SASRecTargetInput:
         """Кeplace target ids with internal integer id. Assumed that no issues with missing mappings are possible"""
+
         item_mapping = self._build_items_mapping(model_input.items)
 
         next_watch, weights = self._sessions_transform(y.next_watch, y.weights, item_mapping)
@@ -524,16 +511,6 @@ class ItemModelIdemb(nn.Module):
         )
 
 
-# TODO make list of all models and list it during error
-
-
-def build_item_model(name: str, hidden_units_item: int, dataset_stats: DatasetStats):
-    if name == "idemb":
-        return ItemModelIdemb.from_config(hidden_units_item, dataset_stats)
-
-    raise TypeError(f"model {name} not supported")
-
-
 class TransformerEncoder(nn.Module):
     def __init__(
         self,
@@ -557,9 +534,7 @@ class TransformerEncoder(nn.Module):
             new_attn_layernorm = torch.nn.LayerNorm(self.hidden_units, eps=1e-8)
             self.attention_layernorms.append(new_attn_layernorm)
 
-            new_attn_layer = torch.nn.MultiheadAttention(
-                self.hidden_units, self.num_heads, self.dropout_rate
-            )
+            new_attn_layer = torch.nn.MultiheadAttention(self.hidden_units, self.num_heads, self.dropout_rate)
             self.attention_layers.append(new_attn_layer)
 
             new_fwd_layernorm = torch.nn.LayerNorm(self.hidden_units, eps=1e-8)
@@ -578,8 +553,6 @@ class TransformerEncoder(nn.Module):
             seqs = torch.transpose(seqs, 0, 1)
             q = self.attention_layernorms[i](seqs)
             mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
-            # key_padding_mask=timeline_mask
-            # need_weights=False) this arg do not work?
             seqs = q + mha_outputs
             seqs = torch.transpose(seqs, 0, 1)
 
@@ -596,30 +569,24 @@ class SASRec(torch.nn.Module):
         num_blocks: int,
         hidden_units: int,
         num_heads: int,
-        maxlen: int,
+        num_embeddings: int,
         dropout_rate: float,
-        name: str,
-        hidden_units_item: int,
         dataset_stats: DatasetStats,
         use_pos_emb: bool = True,
-        use_sm_head: bool = False,
     ):
         super().__init__()
         self.num_blocks = num_blocks
         self.hidden_units = hidden_units
         self.num_heads = num_heads
-        self.maxlen = maxlen
+        self.num_embeddings = num_embeddings
         self.dropout_rate = dropout_rate
-        self.name = name
-        self.hidden_units_item = hidden_units_item
         self.use_pos_emb = use_pos_emb
-        self.use_sm_head = use_sm_head
         self.dataset_stats = dataset_stats
 
-        self.item_model = build_item_model(self.name, self.hidden_units_item, dataset_stats)
+        self.item_model = ItemModelIdemb.from_config(hidden_units, dataset_stats)
 
         if self.use_pos_emb:
-            self.pos_emb = torch.nn.Embedding(self.maxlen, self.hidden_units)
+            self.pos_emb = torch.nn.Embedding(self.num_embeddings, self.hidden_units)
         self.emb_dropout = torch.nn.Dropout(p=self.dropout_rate)
 
         self.encoder = TransformerEncoder(
@@ -735,22 +702,15 @@ class Trainer:
         lr: float,
         batch_size: int,
         epochs: int,
-        l2_emb: float,
         device: str,
-        negative_samples: int = 1,  # 0 if no sampling, number of negatives othervise
         loss: str = "bce",
     ):
         self.model = model
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
-        self.l2_emb = l2_emb
         self.device = device
-        self.negative_samples = negative_samples
         self.loss = loss
-
-        # self.writer = None
-        self.tracker = None
 
         self.optimizer = None
         self.loss_func = None
@@ -765,10 +725,12 @@ class Trainer:
         self,
         train_dataloader: DataLoader,
     ) -> SASRec:
+
         if not self.inited:
             self.init()
 
         self.model.to(self.device)
+
         xavier_normal_init(self.model)
         self.model.train()  # enable model training
 
@@ -801,10 +763,6 @@ class Trainer:
         loss = loss * w
         n = (loss > 0).to(loss.dtype)
         loss = torch.sum(loss) / torch.sum(n)
-        # reg_loss = torch.zeros_like(loss)
-        # for param in model.item_emb.parameters():
-        #     reg_loss += self.config.l2_emb * torch.norm(param)
-
         joint_loss = loss  # + reg_loss
         joint_loss.backward()
         self.optimizer.step()
@@ -821,59 +779,6 @@ class Trainer:
             raise Exception(f"loss {self.loss} is not supported")
 
         logger.info("used %s loss", self.loss)
-
-
-class SingletonMeta(type):
-    def __init__(cls, name, bases, namespace):
-        super().__init__(name, bases, namespace)
-        cls.instance = None
-
-    def __call__(cls, *args, **kwargs):
-        if cls.instance is None:
-            cls.instance = super().__call__(*args, **kwargs)
-
-        return cls.instance
-
-
-class ModelRegistryException(Exception):
-    pass
-
-
-class ModelRegistry(metaclass=SingletonMeta):
-    def __init__(self):
-        self._name2cls = {}
-        self._cls2name = {}
-
-    def get_cls_by_name(self, name: str):
-        if name not in self._name2cls:
-            raise ModelRegistryException(f"model with name {name} not found")
-
-        return self._name2cls[name]
-
-    def get_name_by_cls(self, cls):
-        if cls not in self._cls2name:
-            raise ModelRegistryException(f"model with class {cls} not found")
-
-        return self._cls2name[cls]
-
-    def register_model(self, cls):
-        name = cls.__name__
-
-        if name in self._name2cls:
-            # raise ModelRegistryException(f"model {cls} already registered")
-            logger.warning("model %s already registered", cls)
-
-        self._name2cls[name] = cls
-        self._cls2name[cls] = name
-
-
-MODEL_REGISTRY = ModelRegistry()
-
-
-def register_model(cls):
-    MODEL_REGISTRY.register_model(cls)
-
-    return cls
 
 
 def collect_recs(
@@ -919,8 +824,7 @@ def collect_recs(
     return recs
 
 
-@register_model
-class SASRecRecommeder:
+class SASRecRecommender:
     def __init__(
         self,
         processor: SASRecProcessor,
@@ -940,8 +844,8 @@ class SASRecRecommeder:
     def recommend(
         self,
         user_item_interactions: pd.DataFrame,
-        user_features: pd.DataFrame,
-        item_features: pd.DataFrame,
+        user_features: pd.Series,
+        item_features: pd.Series,
         top_k: int,
         candidate_items: Sequence[str],
         batch_size: int = 128,
@@ -964,7 +868,7 @@ class SASRecRecommeder:
 
         # filter out unnecessary items to speed up calculation
         items = user_item_interactions["item_id"].drop_duplicates().to_list() + list(candidate_items)
-        item_features = item_features[item_features["item_id"].isin(items)]
+        item_features = item_features[item_features.isin(items)]
 
         x = self.task_converter.inference_transform(
             user_item_interactions=user_item_interactions,
@@ -1002,13 +906,13 @@ class SASRecRecommeder:
         return recs
 
     # TODO move implementation to processor
-    def get_supported_items(self, item_features: pd.DataFrame) -> List[str]:
+    def get_supported_items(self, item_features: pd.Series) -> List[str]:
         supported_ids = set(self.processor.item_id_encoder.tokens())
-        mask = item_features["item_id"].isin(supported_ids)
+        mask = item_features.isin(supported_ids)
 
         item_features = item_features[mask]
 
-        return item_features["item_id"].to_list()
+        return item_features.to_list()
 
     def _filter_candidate_items(self, candidate_items: Sequence[str], supported_items: Sequence[str]) -> List[str]:
         supported_candidate_items = list(set(candidate_items).intersection(supported_items))
@@ -1025,7 +929,7 @@ class SASRecRecommeder:
         user_item_interactions: pd.DataFrame,
         item_features: pd.DataFrame,
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        item_features = item_features[item_features["item_id"].isin(supported_items)]
+        item_features = item_features[item_features.isin(supported_items)]
         user_item_interactions = user_item_interactions[user_item_interactions["item_id"].isin(supported_items)]
 
         return user_item_interactions, item_features
