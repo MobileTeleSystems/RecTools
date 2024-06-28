@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasConfig, DibiasableMetrikAtK
+from .debias import DibiasableMetrikAtK, calc_debias_for_fit_metrics
 
 
 @attr.s
@@ -594,19 +594,7 @@ def calc_ranking_metrics(
         k_max = max(metric.k for metric in map_metrics.values())
         fitted = MAP.fit(merged, k_max)
 
-        k_max_debias: tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]] = {}
-        for map_metric in map_metrics.values():
-            if map_metric.debias_config is not None:
-                if map_metric.debias_config not in k_max_debias:
-                    k_max_debias[map_metric.debias_config] = [
-                        map_metric.k,
-                        map_metric.make_debias(merged),
-                    ]
-                else:
-                    k_max_debias[map_metric.debias_config][0] = max(
-                        k_max_debias[map_metric.debias_config][0], map_metric.k
-                    )
-
+        k_max_debias = calc_debias_for_fit_metrics(metrics, merged)  # type: ignore
         fitted_debias = {}
         for debias_config_name, (k_max_d, merged_d) in k_max_debias.items():
             fitted_debias[debias_config_name] = MAP.fit(merged_d, k_max_d)

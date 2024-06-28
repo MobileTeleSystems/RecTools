@@ -92,7 +92,13 @@ class DibiasableMetrikAtK(MetricAtK):
         if len(interactions) == 0:
             return interactions
 
-        num_users_interacted_with_item = interactions.drop_duplicates(subset=Columns.UserItem)[
+        if "__test_positive" in interactions.columns:
+            interactions_not_test = interactions[~interactions["__test_positive"]]
+            interactions_for_debiasing = interactions[interactions["__test_positive"]]
+        else:
+            interactions_for_debiasing = interactions.copy()
+
+        num_users_interacted_with_item = interactions_for_debiasing.drop_duplicates(subset=Columns.UserItem)[
             Columns.Item
         ].value_counts()
 
@@ -103,9 +109,9 @@ class DibiasableMetrikAtK(MetricAtK):
 
         item_outside_max_border = num_users_interacted_with_item[num_users_interacted_with_item > max_border].index
 
-        mask_outside_max_border = interactions[Columns.Item].isin(item_outside_max_border)
-        interactions_result = interactions[~mask_outside_max_border]
-        interactions_downsampling = interactions[mask_outside_max_border]
+        mask_outside_max_border = interactions_for_debiasing[Columns.Item].isin(item_outside_max_border)
+        interactions_debiasing = interactions_for_debiasing[~mask_outside_max_border]
+        interactions_downsampling = interactions_for_debiasing[mask_outside_max_border]
 
         interactions_downsampling = (
             interactions_downsampling.sample(frac=1.0, random_state=self.debias_config.random_state)
@@ -113,13 +119,45 @@ class DibiasableMetrikAtK(MetricAtK):
             .head(max_border)
         )
 
-        interactions_result = pd.concat([interactions_result, interactions_downsampling])
-
-        interactions_result = pd.merge(
-            interactions_result[Columns.UserItem],
-            interactions,
-            how="left",
-            on=Columns.UserItem,
-        )
+        result_dfs = [interactions_debiasing, interactions_downsampling]
+        if "__test_positive" in interactions.columns:
+            result_dfs.append(interactions_not_test)
+        interactions_result = pd.concat(result_dfs, ignore_index=True)
 
         return interactions_result
+
+
+def calc_debias_for_fit_metrics(
+    metrics: tp.Dict[str, DibiasableMetrikAtK], interactions: pd.DataFrame
+) -> tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]]:
+    """
+    Calculate for each debias config `k_max` and de-basing `interactions`
+    to then apply them in the `fit` methods of the corresponding metrics.
+
+    Parameters
+    ----------
+    metrics : tp.Dict[str, MetricAtK
+        Dict of metric objects to calculate,
+        where key is metric name and value is metric object.
+    interactions : pd.DataFrame
+        Interactions or merging table with columns `Columns.User`, `Columns.Item`, `Columns.Rank` (for merging).
+        Obligatory only for some types of metrics.
+
+    Returns
+    -------
+    dict(DebiasConfig->list[(int | pd.DataFrame)])
+        Dictionary, where key is debias config
+        and values are a list of the corresponding k_max and de-basing interactions.
+    """
+    k_max_debias: tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]] = {}
+    for metric in metrics.values():
+        if metric.debias_config is not None:
+            if metric.debias_config not in k_max_debias:
+                k_max_debias[metric.debias_config] = [
+                    metric.k,
+                    metric.make_debias(interactions),
+                ]
+            else:
+                k_max_debias[metric.debias_config][0] = max(k_max_debias[metric.debias_config][0], metric.k)
+
+    return k_max_debias

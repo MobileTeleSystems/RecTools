@@ -21,9 +21,11 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
+from rectools.metrics import DebiasConfig
 from rectools.metrics.auc import PAP, InsufficientHandling, PartialAUC
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
+DEBIAS_CONFIG = DebiasConfig(iqr_coef=1.5, random_state=32)
 
 
 class TestPartialAUC:
@@ -151,6 +153,42 @@ class TestPartialAUC:
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
+    @pytest.mark.parametrize(
+        "k, insufficient_handling",
+        (
+            (1, InsufficientHandling.IGNORE),
+            (3, InsufficientHandling.IGNORE),
+            (1, InsufficientHandling.EXCLUDE),
+            (3, InsufficientHandling.EXCLUDE),  # user 2 was excluded
+        ),
+    )
+    def test_calc_debias(self, k: int, insufficient_handling: str) -> None:
+        reco = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
+                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
+            }
+        )
+        interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+            }
+        )
+
+        metric = PartialAUC(k=k, insufficient_handling=insufficient_handling)
+        metric_debias = PartialAUC(k=k, insufficient_handling=insufficient_handling, debias_config=DEBIAS_CONFIG)
+
+        interactions_debiasing = metric_debias.make_debias(interactions)
+        expected_metric_per_user = metric.calc_per_user(reco, interactions_debiasing)
+
+        print("metric_debias.calc_per_user:", metric_debias.calc_per_user(reco, interactions))
+        print("expected_metric_per_user:", expected_metric_per_user)
+        # print("interactions_debiasing:", interactions_debiasing)
+        pd.testing.assert_series_equal(metric_debias.calc_per_user(reco, interactions), expected_metric_per_user)
+        assert np.allclose(metric_debias.calc(reco, interactions), expected_metric_per_user.mean())
+
 
 class TestPAP:
     def test_raises_when_incorrect_insufficient_handling(self) -> None:
@@ -277,3 +315,35 @@ class TestPAP:
             dtype=float,
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
+
+    # @pytest.mark.parametrize(
+    #     "k, insufficient_handling",
+    #     (
+    #         (1, InsufficientHandling.IGNORE),
+    #         (3, InsufficientHandling.IGNORE),
+    #         (1, InsufficientHandling.EXCLUDE),
+    #         (3, InsufficientHandling.EXCLUDE),  # user 2 was excluded
+    #     ),
+    # )
+    # def test_calc_debias(self, k: int, insufficient_handling: str) -> None:
+    #     reco = pd.DataFrame(
+    #         {
+    #             Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+    #             Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
+    #             Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
+    #         }
+    #     )
+    #     interactions = pd.DataFrame(
+    #         {
+    #             Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+    #             Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+    #         }
+    #     )
+
+    #     metric_debias = PAP(k=k, insufficient_handling=insufficient_handling, debias_config=DEBIAS_CONFIG)
+
+    #     interactions_debiasing = metric_debias.make_debias(interactions)
+    #     expected_metric_per_user = metric_debias.calc_per_user(reco, interactions_debiasing)
+
+    #     pd.testing.assert_series_equal(metric_debias.calc_per_user(reco, interactions), expected_metric_per_user)
+    #     assert np.allclose(metric_debias.calc(reco, interactions), expected_metric_per_user.mean())

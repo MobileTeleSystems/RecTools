@@ -172,6 +172,8 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "debias_map@3": MAP(k=3, debias_config=debias_config),
             "debias_ndcg@3": NDCG(k=3, debias_config=debias_config),
             "debias_mrr@3": MRR(k=3, debias_config=debias_config),
+            "debias_pap@3": PAP(k=3, debias_config=debias_config),
+            "debias_partauc@3": PartialAUC(k=3, debias_config=debias_config),
         }
         metrics = {
             "debias_precision@3": Precision(k=3),
@@ -184,6 +186,8 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "debias_map@3": MAP(k=3),
             "debias_ndcg@3": NDCG(k=3),
             "debias_mrr@3": MRR(k=3),
+            "debias_pap@3": PAP(k=3),
+            "debias_partauc@3": PartialAUC(k=3),
         }
 
         interactions_downsampling = DibiasableMetrikAtK(k=3, debias_config=debias_config).make_debias(self.interactions)
