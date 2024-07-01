@@ -18,7 +18,7 @@ import pytest
 from rectools import Columns
 from rectools.metrics import DebiasConfig
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DibiasableMetrikAtK
+from rectools.metrics.debias import DebiasableMetrikAtK
 
 
 class TestDebias:
@@ -48,11 +48,11 @@ class TestDebias:
         return pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
     @pytest.fixture
-    def debias_metric(self) -> DibiasableMetrikAtK:
-        return DibiasableMetrikAtK(k=10, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32))
+    def debias_metric(self) -> DebiasableMetrikAtK:
+        return DebiasableMetrikAtK(k=10, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32))
 
     def test_make_debias(
-        self, interactions: pd.DataFrame, recommendations: pd.DataFrame, debias_metric: DibiasableMetrikAtK
+        self, interactions: pd.DataFrame, recommendations: pd.DataFrame, debias_metric: DebiasableMetrikAtK
     ) -> None:
         merged = merge_reco(recommendations, interactions)
 
@@ -81,7 +81,7 @@ class TestDebias:
         )
 
     def test_make_debias_with_empty_data(
-        self, empty_interactions: pd.DataFrame, debias_metric: DibiasableMetrikAtK
+        self, empty_interactions: pd.DataFrame, debias_metric: DebiasableMetrikAtK
     ) -> None:
         interactions_downsampling = debias_metric.make_debias(empty_interactions)
 

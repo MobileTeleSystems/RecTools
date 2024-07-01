@@ -128,7 +128,7 @@ class DebiasableMetrikAtK(MetricAtK):
 
 
 def calc_debias_for_fit_metrics(
-    metrics: tp.Dict[str, DibiasableMetrikAtK], interactions: pd.DataFrame
+    metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
 ) -> tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]]:
     """
     Calculate for each debias config `k_max` and de-basing `interactions`

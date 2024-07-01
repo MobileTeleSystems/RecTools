@@ -43,7 +43,7 @@ from rectools.metrics import (
     calc_metrics,
 )
 from rectools.metrics.base import MetricAtK
-from rectools.metrics.debias import DibiasableMetrikAtK
+from rectools.metrics.debias import DebiasableMetrikAtK
 
 
 class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
@@ -202,7 +202,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "debias_partauc@3": PartialAUC(k=3),
         }
 
-        interactions_downsampling = DibiasableMetrikAtK(k=3, debias_config=debias_config).make_debias(self.interactions)
+        interactions_downsampling = DebiasableMetrikAtK(k=3, debias_config=debias_config).make_debias(self.interactions)
 
         actual = calc_metrics(
             metrics=debias_metrics,  # type: ignore

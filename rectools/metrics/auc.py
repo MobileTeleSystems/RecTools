@@ -22,7 +22,7 @@ from attrs import define, field
 
 from rectools import Columns
 from rectools.metrics.base import outer_merge_reco
-from rectools.metrics.debias import DibiasableMetrikAtK, calc_debias_for_fit_metrics
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debias_for_fit_metrics
 
 
 class InsufficientHandling(str, Enum):
@@ -59,7 +59,7 @@ class AUCFitted:
 
 
 @define
-class _AUCMetric(DibiasableMetrikAtK):
+class _AUCMetric(DebiasableMetrikAtK):
     """
     ROC AUC based metric base class.
 

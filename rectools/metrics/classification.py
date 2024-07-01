@@ -24,7 +24,7 @@ import pandas as pd
 from rectools import Columns
 
 from .base import Catalog, merge_reco
-from .debias import DibiasableMetrikAtK
+from .debias import DebiasableMetrikAtK
 
 TP = "__TP"
 FP = "__FP"
@@ -34,7 +34,7 @@ LIKED = "__LIKED"
 
 
 @attr.s
-class ClassificationMetric(DibiasableMetrikAtK):
+class ClassificationMetric(DebiasableMetrikAtK):
     """
     Classification metric base class.
 
@@ -164,7 +164,7 @@ class ClassificationMetric(DibiasableMetrikAtK):
 
 
 @attr.s
-class SimpleClassificationMetric(DibiasableMetrikAtK):
+class SimpleClassificationMetric(DebiasableMetrikAtK):
     """
     Simple classification metric base class.
 

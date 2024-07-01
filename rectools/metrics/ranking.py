@@ -25,11 +25,11 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DibiasableMetrikAtK, calc_debias_for_fit_metrics
+from .debias import DebiasableMetrikAtK, calc_debias_for_fit_metrics
 
 
 @attr.s
-class _RankingMetric(DibiasableMetrikAtK):
+class _RankingMetric(DebiasableMetrikAtK):
     """
     Ranking  metric base class.
 
