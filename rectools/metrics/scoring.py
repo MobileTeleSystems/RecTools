@@ -200,7 +200,6 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     if cross_dq_metrics:
         if interactions is None:
             raise ValueError("For calculating some of the required DQ metrics it's necessary to set 'interactions'")
-        print(cross_dq_metrics)
         cross_dq_values = calc_cross_dq_metrics(cross_dq_metrics, reco, interactions)
         results.update(cross_dq_values)
 
