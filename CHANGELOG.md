@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New params (`tol`, `maxiter`, `random_state`) to the `PureSVD` model ([#130](https://github.com/MobileTeleSystems/RecTools/pull/130))
 - Recommendations data quality metrics: `SufficientReco`, `UnrepeatedReco`, `CoveredUsers` ([#155](https://github.com/MobileTeleSystems/RecTools/pull/155))
 - `r_precision` parameter to `Precision` metric ([#155](https://github.com/MobileTeleSystems/RecTools/pull/155))
-- `Debias` mechanism for classification and ranking metrics. New parameter `is_confusion_df_debiased` for `calc_from_confusion_df` and `calc_per_user_from_confusion_df` methods of classification metrics [#152](https://github.com/MobileTeleSystems/RecTools/pull/152)
+- `Debias` mechanism for classification, ranking and auc metrics. New parameter `is_debiased` to `calc_from_confusion_df`, `calc_per_user_from_confusion_df` methods of classification metrics and `calc_from_fitted`, `calc_per_user_from_fitted` methods of auc metrics [#152](https://github.com/MobileTeleSystems/RecTools/pull/152)
 
 ### Fixed
 - Used the latest version of `lightfm` that allows to install it using `poetry>=1.5.0` ([#141](https://github.com/MobileTeleSystems/RecTools/pull/141))
