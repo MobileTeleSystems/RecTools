@@ -187,16 +187,19 @@ class UnrepeatedReco(_RecoDQMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         self._check(reco)
-        reco_k = reco.query(f"{Columns.Rank} <= @self.k").copy()
-        reco_k["__unrepeated"] = ~reco_k.duplicated(subset=Columns.UserItem)
 
-        if self.deep:
-            stats = reco_k.groupby(Columns.User).agg(
-                __n_unrepeated=("__unrepeated", "sum"), __n_reco=(Columns.User, "size")
-            )
-            return stats["__n_unrepeated"] / stats["__n_reco"]
+        # Turn on Copy-on-Write and prevent `SettingWithCopyWarning`
+        with pd.option_context("mode.copy_on_write", True):
+            reco_k = reco.query(f"{Columns.Rank} <= @self.k")
+            reco_k["__unrepeated"] = ~reco_k.duplicated(subset=Columns.UserItem)
 
-        return reco_k.groupby(Columns.User)["__unrepeated"].all().astype("int").rename(None)
+            if self.deep:
+                stats = reco_k.groupby(Columns.User).agg(
+                    __n_unrepeated=("__unrepeated", "sum"), __n_reco=(Columns.User, "size")
+                )
+                return stats["__n_unrepeated"] / stats["__n_reco"]
+
+            return reco_k.groupby(Columns.User)["__unrepeated"].all().astype("int").rename(None)
 
 
 class CoveredUsers(MetricAtK):
