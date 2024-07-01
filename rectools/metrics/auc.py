@@ -185,7 +185,7 @@ class _AUCMetric(DibiasableMetrikAtK):
         auc = auc_numenator.rename("numenator").to_frame().join(auc_denominator.rename("denominator"), how="outer")
         return (auc["numenator"] / auc["denominator"]).fillna(0)
 
-    def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame, is_interactions_debiased: bool = False) -> float:
+    def calc(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> float:
         """
         Calculate metric value.
 
@@ -195,22 +195,16 @@ class _AUCMetric(DibiasableMetrikAtK):
             Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         interactions : pd.DataFrame
             Interactions table with columns `Columns.User`, `Columns.Item`.
-        is_interactions_debiased : bool, default False
-            If ``True``, indicator that a debias mechanism has been applied before.
-            If ``False``, indicator that the debias mechanism has not been applied before
-            and then it will be applied if it was needed.
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user(reco, interactions, is_interactions_debiased)
+        per_user = self.calc_per_user(reco, interactions)
         return per_user.mean()
 
-    def calc_per_user(
-        self, reco: pd.DataFrame, interactions: pd.DataFrame, is_interactions_debiased: bool = False
-    ) -> pd.Series:
+    def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
         Calculate metric values for all users.
 
@@ -220,22 +214,23 @@ class _AUCMetric(DibiasableMetrikAtK):
             Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
         interactions : pd.DataFrame
             Interactions table with columns `Columns.User`, `Columns.Item`.
-        is_interactions_debiased : bool, default False
-            If ``True``, indicator that a debias mechanism has been applied before.
-            If ``False``, indicator that the debias mechanism has not been applied before
-            and then it will be applied if it was needed.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        is_debiased = False
+        if self.debias_config is not None:
+            interactions = self.make_debias(interactions)
+            is_debiased = True
+
         self._check(reco, interactions=interactions)
         insufficient_handling_needed = self.insufficient_handling != InsufficientHandling.IGNORE
         fitted = self.fit(reco, interactions, self.k, insufficient_handling_needed)
-        return self.calc_per_user_from_fitted(fitted, is_interactions_debiased)
+        return self.calc_per_user_from_fitted(fitted, is_debiased)
 
-    def calc_from_fitted(self, fitted: AUCFitted, is_interactions_debiased: bool = False) -> float:
+    def calc_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> float:
         """
         Calculate metric value from fitted data.
 
@@ -243,7 +238,7 @@ class _AUCMetric(DibiasableMetrikAtK):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
-        is_interactions_debiased : bool, default False
+        is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
             If ``False``, indicator that the debias mechanism has not been applied before
             and then it will be applied if it was needed.
@@ -253,10 +248,10 @@ class _AUCMetric(DibiasableMetrikAtK):
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_fitted(fitted, is_interactions_debiased)
+        per_user = self.calc_per_user_from_fitted(fitted, is_debiased)
         return per_user.mean()
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_interactions_debiased: bool = False) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from from fitted data.
 
@@ -264,7 +259,7 @@ class _AUCMetric(DibiasableMetrikAtK):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
-        is_interactions_debiased : bool, default False
+        is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
             If ``False``, indicator that the debias mechanism has not been applied before
             and then it will be applied if it was needed.
@@ -362,7 +357,7 @@ class PartialAUC(_AUCMetric):
             not too high.
             """
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_interactions_debiased: bool = False) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from from fitted data.
 
@@ -370,7 +365,7 @@ class PartialAUC(_AUCMetric):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
-        is_interactions_debiased : bool, default False
+        is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
             If ``False``, indicator that the debias mechanism has not been applied before
             and then it will be applied if it was needed.
@@ -380,11 +375,17 @@ class PartialAUC(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        outer_merged = fitted.outer_merged_enriched
-        if not is_interactions_debiased and self.debias_config is not None:
-            # TODO: correctly take into account the degradation for external_merged
-            outer_merged = self.make_debias(outer_merged)
+        if not is_debiased and self.debias_config is not None:
+            raise ValueError(
+                "You have specified `debias_config` for metric "
+                "but `AUCFitted.outer_merged_enriched` is not assumed to be de-biased. "
+                "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
+                "before applying `.fit` method to the `interactons` data "
+                "and specify `is_debiased` as `True` "
+                "or otherwise use a metric with `debias_config` = `None`"
+            )
 
+        outer_merged = fitted.outer_merged_enriched
         # Keep k first false positives for roc auc computation, keep all predicted test positives
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
         cropped_suf, n_pos_suf = self._handle_insufficient_cases(
@@ -478,7 +479,7 @@ class PAP(_AUCMetric):
             for all users.
             """
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_interactions_debiased: bool = False) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from outer merged recommendations.
 
@@ -486,7 +487,7 @@ class PAP(_AUCMetric):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
-        is_interactions_debiased : bool, default False
+        is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
             If ``False``, indicator that the debias mechanism has not been applied before
             and then it will be applied if it was needed.
@@ -496,11 +497,17 @@ class PAP(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        outer_merged = fitted.outer_merged_enriched
-        if not is_interactions_debiased and self.debias_config is not None:
-            # TODO: correctly take into account the degradation for external_merged
-            outer_merged = self.make_debias(outer_merged)
+        if not is_debiased and self.debias_config is not None:
+            raise ValueError(
+                "You have specified `debias_config` for metric "
+                "but `AUCFitted.outer_merged_enriched` is not assumed to be de-biased. "
+                "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
+                "before applying `.fit` method to the `interactons` data "
+                "and specify `is_debiased` as `True` "
+                "or otherwise use a metric with `debias_config` = `None`"
+            )
 
+        outer_merged = fitted.outer_merged_enriched
         # Keep k first false positives and k first predicted test positives for roc auc computation
         cropped = outer_merged[
             (outer_merged["__test_pos_cumsum"] <= self.k)
