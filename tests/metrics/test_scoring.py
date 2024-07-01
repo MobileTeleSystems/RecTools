@@ -26,6 +26,7 @@ from rectools.metrics import (
     PAP,
     Accuracy,
     AvgRecPopularity,
+    CoveredUsers,
     DebiasConfig,
     F1Beta,
     HitRate,
@@ -37,6 +38,8 @@ from rectools.metrics import (
     Precision,
     Recall,
     Serendipity,
+    SufficientReco,
+    UnrepeatedReco,
     calc_metrics,
 )
 from rectools.metrics.base import MetricAtK
@@ -94,6 +97,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         metrics = {
             "prec@1": Precision(k=1),
             "prec@2": Precision(k=2),
+            "rprec@2": Precision(k=2, r_precision=True),
             "recall@1": Recall(k=1),
             "accuracy@1": Accuracy(k=1),
             "hitrate@1": HitRate(k=1),
@@ -111,6 +115,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": Serendipity(k=3),
             "intersection": Intersection(k=2, ref_k=2),
             "custom": MetricAtK(k=1),
+            "sufficient": SufficientReco(k=2),
+            "unrepeated": UnrepeatedReco(k=2),
+            "covered_users": CoveredUsers(k=2),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
             actual = calc_metrics(
@@ -119,6 +126,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         expected = {
             "prec@1": 0.25,
             "prec@2": 0.375,
+            "rprec@2": 0.5,
             "recall@1": 0.125,
             "accuracy@1": 0.825,
             "hitrate@1": 0.25,
@@ -136,6 +144,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": 0,
             "intersection_one": 0.375,
             "intersection_two": 0.75,
+            "sufficient": 0.25,
+            "unrepeated": 1,
+            "covered_users": 0.75,
         }
         assert actual == expected
 
@@ -152,6 +163,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (PAP(k=1), ["reco"]),
             (PartialAUC(k=1), ["reco"]),
             (Intersection(k=1), ["reco"]),
+            (CoveredUsers(k=1), ["reco"]),
         ),
     )
     def test_raises(self, metric: MetricAtK, arg_names: tp.List[str]) -> None:

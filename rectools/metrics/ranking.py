@@ -31,7 +31,7 @@ from .debias import DibiasableMetrikAtK, calc_debias_for_fit_metrics
 @attr.s
 class _RankingMetric(DibiasableMetrikAtK):
     """
-    Simple classification metric base class.
+    Ranking  metric base class.
 
     Warning: This class should not be used directly.
     Use derived classes instead.

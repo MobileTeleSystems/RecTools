@@ -51,6 +51,7 @@ DEBIAS_CONFIG = DebiasConfig(iqr_coef=1.5, random_state=32)
 class TestPrecision:
     def setup_method(self) -> None:
         self.metric = Precision(k=2)
+        self.r_precision = Precision(k=2, r_precision=True)
         self.metric_debias = Precision(k=2, debias_config=DEBIAS_CONFIG)
 
     def test_calc(self) -> None:
@@ -61,10 +62,23 @@ class TestPrecision:
         pd.testing.assert_series_equal(self.metric.calc_per_user(RECO, INTERACTIONS), expected_metric_per_user)
         assert self.metric.calc(RECO, INTERACTIONS) == expected_metric_per_user.mean()
 
+        expected_metric_per_user_r_prec = pd.Series(
+            [0.5, 1, 0.0, 0.0],
+            index=pd.Series([1, 3, 4, 5], name=Columns.User),
+        )
+        pd.testing.assert_series_equal(
+            self.r_precision.calc_per_user(RECO, INTERACTIONS), expected_metric_per_user_r_prec
+        )
+        assert self.r_precision.calc(RECO, INTERACTIONS) == expected_metric_per_user_r_prec.mean()
+
     def test_when_no_interactions(self) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
         pd.testing.assert_series_equal(self.metric.calc_per_user(RECO, EMPTY_INTERACTIONS), expected_metric_per_user)
         assert np.isnan(self.metric.calc(RECO, EMPTY_INTERACTIONS))
+        pd.testing.assert_series_equal(
+            self.r_precision.calc_per_user(RECO, EMPTY_INTERACTIONS), expected_metric_per_user
+        )
+        assert np.isnan(self.r_precision.calc(RECO, EMPTY_INTERACTIONS))
 
 
 class TestRecall:
