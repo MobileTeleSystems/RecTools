@@ -42,7 +42,7 @@ class DebiasConfig:
 
 
 @attr.s
-class DibiasableMetrikAtK(MetricAtK):
+class DebiasableMetrikAtK(MetricAtK):
     """
     Classification metric base class.
 
