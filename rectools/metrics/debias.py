@@ -131,8 +131,7 @@ def calc_debias_for_fit_metrics(
     Parameters
     ----------
     metrics : tp.Dict[str, MetricAtK
-        Dict of metric objects to calculate,
-        where key is metric name and value is metric object.
+        Dict of metric objects to calculate, where key is metric name and value is metric object.
     interactions : pd.DataFrame
         Interactions or merging table with columns `Columns.User`, `Columns.Item`, `Columns.Rank` (for merging).
         Obligatory only for some types of metrics.
