@@ -377,7 +377,6 @@ class PartialAUC(_AUCMetric):
                 "You have specified `debias_config` for metric "
                 "but `AUCFitted.outer_merged_enriched` is not assumed to be de-biased. "
                 "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
-                "before applying `.fit` method to the `interactons` data "
                 "and specify `is_debiased` as `True` "
                 "or otherwise use a metric with `debias_config` = `None`"
             )
