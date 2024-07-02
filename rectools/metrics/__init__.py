@@ -51,6 +51,7 @@ Tools
 
 from .auc import PAP, PartialAUC
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
+from .debias import DebiasConfig
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -89,4 +90,5 @@ __all__ = (
     "SufficientReco",
     "UnrepeatedReco",
     "CoveredUsers",
+    "DebiasConfig",
 )

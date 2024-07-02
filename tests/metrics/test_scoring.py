@@ -20,12 +20,15 @@ import pytest
 from rectools import Columns
 from rectools.metrics import (
     MAP,
+    MCC,
     MRR,
     NDCG,
     PAP,
     Accuracy,
     AvgRecPopularity,
     CoveredUsers,
+    DebiasConfig,
+    F1Beta,
     HitRate,
     Intersection,
     IntraListDiversity,
@@ -40,6 +43,7 @@ from rectools.metrics import (
     calc_metrics,
 )
 from rectools.metrics.base import MetricAtK
+from rectools.metrics.debias import DebiasableMetrikAtK
 
 
 class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
@@ -166,3 +170,50 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         kwargs = {name: getattr(self, name) for name in arg_names}
         with pytest.raises(ValueError):
             calc_metrics({"m": metric}, **kwargs)
+
+    def test_success_debias(self) -> None:
+        debias_config = DebiasConfig(iqr_coef=1.5, random_state=32)
+        debias_metrics = {
+            "debias_precision@3": Precision(k=3, debias_config=debias_config),
+            "debias_recall@3": Recall(k=3, debias_config=debias_config),
+            "debias_f1beta@3": F1Beta(k=3, debias_config=debias_config),
+            "debias_accuracy@3": Accuracy(k=3, debias_config=debias_config),
+            "debias_mcc@3": MCC(k=3, debias_config=debias_config),
+            "debias_hitrate@3": HitRate(k=3, debias_config=debias_config),
+            "debias_map@1": MAP(k=1, debias_config=debias_config),
+            "debias_map@3": MAP(k=3, debias_config=debias_config),
+            "debias_ndcg@3": NDCG(k=3, debias_config=debias_config),
+            "debias_mrr@3": MRR(k=3, debias_config=debias_config),
+            "debias_pap@3": PAP(k=3, debias_config=debias_config),
+            "debias_partauc@3": PartialAUC(k=3, debias_config=debias_config),
+        }
+        metrics = {
+            "debias_precision@3": Precision(k=3),
+            "debias_recall@3": Recall(k=3),
+            "debias_f1beta@3": F1Beta(k=3),
+            "debias_accuracy@3": Accuracy(k=3),
+            "debias_mcc@3": MCC(k=3),
+            "debias_hitrate@3": HitRate(k=3),
+            "debias_map@1": MAP(k=1),
+            "debias_map@3": MAP(k=3),
+            "debias_ndcg@3": NDCG(k=3),
+            "debias_mrr@3": MRR(k=3),
+            "debias_pap@3": PAP(k=3),
+            "debias_partauc@3": PartialAUC(k=3),
+        }
+
+        interactions_downsampling = DebiasableMetrikAtK(k=3, debias_config=debias_config).make_debias(self.interactions)
+
+        actual = calc_metrics(
+            metrics=debias_metrics,  # type: ignore
+            reco=self.reco,
+            interactions=self.interactions,
+            catalog=self.catalog,
+        )
+        expected = calc_metrics(
+            metrics=metrics,  # type: ignore
+            reco=self.reco,
+            interactions=interactions_downsampling,
+            catalog=self.catalog,
+        )
+        assert actual == expected
