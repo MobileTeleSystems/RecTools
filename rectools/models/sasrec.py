@@ -97,7 +97,6 @@ class SasRecRecommenderModel(ModelBase):
             dropout_rate=self.dropout_rate,
             use_pos_emb=self.use_pos_emb,
             n_items=len(self.processor.item_id_encoder) if self.processor.item_id_encoder is not None else -1,
-            random_state=self.random_state,
         )
 
         logger.info("building trainer")
@@ -108,7 +107,6 @@ class SasRecRecommenderModel(ModelBase):
             epochs=self.epochs,
             device=self.device,
             loss=self.loss,
-            random_state=self.random_state,
         )
         trainer.fit(train_dataloader)
         self.model = trainer.model
@@ -293,7 +291,6 @@ class Tokenizer:
         self.vocab = vocab
         self.keys = np.array(["<PAD>", *self.vocab])
         self.key2index = {e: i for i, e in enumerate(self.keys)}
-        k = 0
 
     def _is_built(self) -> bool:
         return self.vocab is not None and self.keys is not None and self.key2index is not None
@@ -306,8 +303,8 @@ class SASRecModelInput:
     item_model_input (Tuple[torch.LongTensor, torch.LongTensor]): item features input to construct
     """
 
-    sessions: (torch.LongTensor)
-    item_model_input: (Tuple[torch.LongTensor, torch.LongTensor])
+    sessions: torch.LongTensor
+    item_model_input: torch.LongTensor
     items: List[str]
     users: List[str]
 
@@ -445,7 +442,7 @@ class SequenceDataset(Dataset):
 
 
 class PointWiseFeedForward(torch.nn.Module):
-    def __init__(self, factors, dropout_rate, random_state):
+    def __init__(self, factors, dropout_rate):
         super(PointWiseFeedForward, self).__init__()
 
         self.conv1 = torch.nn.Conv1d(factors, factors, kernel_size=1)
@@ -453,11 +450,8 @@ class PointWiseFeedForward(torch.nn.Module):
         self.relu = torch.nn.ReLU()
         self.conv2 = torch.nn.Conv1d(factors, factors, kernel_size=1)
         self.dropout2 = torch.nn.Dropout(p=dropout_rate)
-        self.random_state = random_state
 
     def forward(self, inputs):
-        if self.random_state is not None:
-            torch.manual_seed(self.random_state)
 
         outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
         outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length)
@@ -470,7 +464,6 @@ class ItemModelIdemb(nn.Module):
         self,
         factors: int,
         n_items: int,
-        random_state: int = None,
     ):
         super().__init__()
 
@@ -482,11 +475,8 @@ class ItemModelIdemb(nn.Module):
 
         # TODO to config
         self.drop_layer = nn.Dropout(0.2)
-        self.random_state = random_state
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.random_state is not None:
-            torch.manual_seed(self.random_state)
             
         item_embs = self.item_emb(x)
         item_embs = self.drop_layer(item_embs)
@@ -504,7 +494,6 @@ class TransformerEncoder(nn.Module):
         factors: int,
         num_heads: int,
         dropout_rate: float,
-        random_state: int = None,
     ):
         super().__init__()
 
@@ -523,7 +512,7 @@ class TransformerEncoder(nn.Module):
             new_fwd_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
             self.forward_layernorms.append(new_fwd_layernorm)
 
-            new_fwd_layer = PointWiseFeedForward(factors, dropout_rate, random_state)
+            new_fwd_layer = PointWiseFeedForward(factors, dropout_rate)
             self.forward_layers.append(new_fwd_layer)
 
     def forward(
@@ -556,12 +545,11 @@ class SASRec(torch.nn.Module):
         dropout_rate: float,
         n_items: int,
         use_pos_emb: bool = True,
-        random_state: int = None,
     ):
         super().__init__()
         self.use_pos_emb = use_pos_emb
 
-        self.item_model = ItemModelIdemb(factors, n_items, random_state)
+        self.item_model = ItemModelIdemb(factors, n_items)
 
         if self.use_pos_emb:
             self.pos_emb = torch.nn.Embedding(session_maxlen, factors)
@@ -572,7 +560,6 @@ class SASRec(torch.nn.Module):
             factors=factors,
             num_heads=n_heads,
             dropout_rate=dropout_rate,
-            random_state=random_state,
         )
         self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
 
@@ -682,7 +669,6 @@ class Trainer:
         epochs: int,
         device: str,
         loss: str = "bce",
-        random_state: int = None,
     ):
         self.model = model
         self.lr = lr
@@ -695,7 +681,6 @@ class Trainer:
         self.loss_func = None
 
         self.inited = False
-        self.random_state = random_state
 
     def init(self):
         self._init_optimizers()
@@ -750,8 +735,6 @@ class Trainer:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98))
 
     def _init_loss_func(self):
-        if self.random_state is not None:
-            torch.manual_seed(self.random_state)
 
         if self.loss == "bce":
             self.loss_func = nn.BCEWithLogitsLoss()
