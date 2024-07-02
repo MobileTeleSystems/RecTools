@@ -240,7 +240,7 @@ class _AUCMetric(DebiasableMetrikAtK):
             Meta data that got from `.fit` method.
         is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
-            If ``False``, indicator that the debias mechanism has not been applied before
+            If ``False``, indicator that the debias mechanism has not been applied before.
 
         Returns
         -------
@@ -260,7 +260,7 @@ class _AUCMetric(DebiasableMetrikAtK):
             Meta data that got from `.fit` method.
         is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
-            If ``False``, indicator that the debias mechanism has not been applied before
+            If ``False``, indicator that the debias mechanism has not been applied before.
 
         Returns
         -------
@@ -365,22 +365,14 @@ class PartialAUC(_AUCMetric):
             Meta data that got from `.fit` method.
         is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
-            If ``False``, indicator that the debias mechanism has not been applied before
+            If ``False``, indicator that the debias mechanism has not been applied before.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if not is_debiased and self.debias_config is not None:
-            raise ValueError(
-                "You have specified `debias_config` for metric "
-                "but `AUCFitted.outer_merged_enriched` is not assumed to be de-biased. "
-                "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
-                "and specify `is_debiased` as `True` "
-                "or otherwise use a metric with `debias_config` = `None`"
-            )
-
+        self._check_debias(is_debiased, name_data="AUCFitted.outer_merged_enriched")
         outer_merged = fitted.outer_merged_enriched
         # Keep k first false positives for roc auc computation, keep all predicted test positives
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
@@ -492,16 +484,7 @@ class PAP(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if not is_debiased and self.debias_config is not None:
-            raise ValueError(
-                "You have specified `debias_config` for auc metric and tried to calculate if from fitted data"
-                "but `AUCFitted.outer_merged_enriched` is not assumed to be de-biased. "
-                "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
-                "before calculating metric from fitted data "
-                "and specify `is_debiased` as `True` "
-                "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing"
-            )
-
+        self._check_debias(is_debiased, name_data="AUCFitted.outer_merged_enriched")
         outer_merged = fitted.outer_merged_enriched
         # Keep k first false positives and k first predicted test positives for roc auc computation
         cropped = outer_merged[

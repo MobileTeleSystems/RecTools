@@ -59,6 +59,16 @@ class DebiasableMetrikAtK(MetricAtK):
 
     debias_config: DebiasConfig = attr.ib(default=None)
 
+    def _check_debias(self, is_debiased: bool, name_data: str) -> None:
+        if not is_debiased and self.debias_config is not None:
+            raise ValueError(
+                "You have specified `debias_config` for metric "
+                f"but `{name_data}` is not assumed to be de-biased. "
+                f"Please make de-biasing for `{name_data}` "
+                "and specify `is_debiased` as `True` "
+                "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing."
+            )
+
     def make_debias(self, interactions: pd.DataFrame) -> pd.DataFrame:
         """
         Downsample the size of interactions, excluding some interactions with popular items.

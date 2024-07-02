@@ -52,7 +52,6 @@ class TestPrecision:
     def setup_method(self) -> None:
         self.metric = Precision(k=2)
         self.r_precision = Precision(k=2, r_precision=True)
-        self.metric_debias = Precision(k=2, debias_config=DEBIAS_CONFIG)
 
     def test_calc(self) -> None:
         expected_metric_per_user = pd.Series(
@@ -210,6 +209,7 @@ class TestDebiasMetric:
     def setup_method(self) -> None:
         self.metrics = {
             "precision": Precision(k=2),
+            "r_precision": Precision(k=2, r_precision=True),
             "recall": Recall(k=2),
             "accuracy": Accuracy(k=2),
             "f1beta": F1Beta(k=2),
@@ -219,6 +219,7 @@ class TestDebiasMetric:
 
         self.metrics_debias = {
             "precision_debias": Precision(k=2, debias_config=DEBIAS_CONFIG),
+            "r_precision_debias": Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG),
             "recall_debias": Recall(k=2, debias_config=DEBIAS_CONFIG),
             "accuracy_debias": Accuracy(k=2, debias_config=DEBIAS_CONFIG),
             "f1beta_debias": F1Beta(k=2, debias_config=DEBIAS_CONFIG),
@@ -270,7 +271,7 @@ class TestDebiasMetric:
             Accuracy(k=3, debias_config=DEBIAS_CONFIG),
         ),
     )
-    def test_raises(self, metric: tp.Union[ClassificationMetric, SimpleClassificationMetric]) -> None:
+    def test_check_debias(self, metric: tp.Union[ClassificationMetric, SimpleClassificationMetric]) -> None:
         merged = merge_reco(RECO, INTERACTIONS)
         downsample_merged = metric.make_debias(merged)
         confusion_df = calc_confusions(downsample_merged, k=2)

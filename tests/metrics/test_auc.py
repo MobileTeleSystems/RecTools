@@ -207,7 +207,7 @@ class TestPartialAUC:
         result = metric_debias.calc_from_fitted(fitted, is_debiased=True)
         assert isinstance(result, float)
 
-    def test_raise_when_debias_used_with_fitted_incorrect(self) -> None:
+    def test_check_debias(self) -> None:
         reco = pd.DataFrame(
             {
                 Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
@@ -409,7 +409,7 @@ class TestPAP:
         result = metric_debias.calc_from_fitted(fitted, is_debiased=True)
         assert isinstance(result, float)
 
-    def test_raise_when_debias_used_with_fitted_incorrect(self) -> None:
+    def test_check_debias(self) -> None:
         reco = pd.DataFrame(
             {
                 Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],

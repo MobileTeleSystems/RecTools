@@ -146,14 +146,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if not is_debiased and self.debias_config is not None:
-            raise ValueError(
-                "You have specified `debias_config` for metric and tried to calculate if from `confusion_df` but `confusin_df` is not assumed to be de-biased. "
-                "Please make de-biasing before calculating metric from confusion_df "
-                "and specify `is_debiased` as `True` "
-                "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing"
-            )
-
+        self._check_debias(is_debiased, name_data="confusion_df")
         if TN not in confusion_df:
             confusion_df[TN] = len(catalog) - self.k - confusion_df[FN]
         return self._calc_per_user_from_confusion_df(confusion_df, catalog).rename(None)
@@ -265,15 +258,7 @@ class SimpleClassificationMetric(DebiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if not is_debiased and self.debias_config is not None:
-            raise ValueError(
-                "You have specified `debias_config` for metric but `confusin_df` is not assumed to be de-biased. "
-                "Please make de-biasing for `confusion_df` "
-                "before applying the `make_confusions` function to the `interactons` data "
-                "and specify `is_debiased` as `True` "
-                "or otherwise use a metric with `debias_config` = `None`"
-            )
-
+        self._check_debias(is_debiased, name_data="confusion_df")
         return self._calc_per_user_from_confusion_df(confusion_df).rename(None)
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
