@@ -494,7 +494,7 @@ class PAP(_AUCMetric):
         """
         if not is_debiased and self.debias_config is not None:
             raise ValueError(
-                "You have specified `debias_config` for metric "
+                "You have specified `debias_config` for auc metric and tried to calculate if from fitted data"
                 "but `AUCFitted.outer_merged_enriched` is not assumed to be de-biased. "
                 "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
                 "before applying `.fit` method to the `interactons` data "
