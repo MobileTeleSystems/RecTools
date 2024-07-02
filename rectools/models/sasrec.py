@@ -7,17 +7,16 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import pydantic
 import torch
 import tqdm
+from ordered_set import OrderedSet
 from lightning_fabric import seed_everything
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-from rectools import AnyIds
+from rectools import AnyIds, Columns
 from rectools.dataset import Dataset as RecDataset
-
-from .base import ModelBase
+from rectools.models.base import ModelBase
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +30,9 @@ class SasRecRecommenderModel(ModelBase):
         batch_size: int,
         epochs: int,
         device: str,
-        num_blocks: int,
-        hidden_units: int,
-        num_heads: int,
+        n_blocks: int,
+        factors: int,
+        n_heads: int,
         dropout_rate: float,
         use_pos_emb: bool = True,
         loss: str = "bce",
@@ -47,9 +46,9 @@ class SasRecRecommenderModel(ModelBase):
         self.epochs = epochs
         self.device = device
         self.loss = loss
-        self.num_blocks = num_blocks
-        self.hidden_units = hidden_units
-        self.num_heads = num_heads
+        self.n_blocks = n_blocks
+        self.factors = factors
+        self.n_heads = n_heads
         self.dropout_rate = dropout_rate
         self.use_pos_emb = use_pos_emb
         self.random_state = random_state
@@ -64,23 +63,18 @@ class SasRecRecommenderModel(ModelBase):
     ):
         user_item_interactions = dataset.get_raw_interactions()
 
-        user_item_interactions["user_id"] = user_item_interactions["user_id"].astype(str)
-        user_item_interactions["item_id"] = user_item_interactions["item_id"].astype(str)
+        user_item_interactions[Columns.User] = user_item_interactions[Columns.User].astype(str)
+        user_item_interactions[Columns.Item] = user_item_interactions[Columns.Item].astype(str)
 
-        users = user_item_interactions["user_id"].value_counts()
+        users = user_item_interactions[Columns.User].value_counts()
         users = users[users >= 2]
         users = users.index.to_list()
-        user_item_interactions = user_item_interactions[(user_item_interactions["user_id"].isin(users))]
-
-        item_features = user_item_interactions["item_id"].copy().drop_duplicates()
-        user_features = None
+        user_item_interactions = user_item_interactions[(user_item_interactions[Columns.User].isin(users))]
 
         logger.info("converting datasets to task format")
         self.task_converter = SequenceTaskConverter()
         train_x, train_y = self.task_converter.train_transform(
             user_item_interactions=user_item_interactions,
-            user_features=user_features,
-            item_features=item_features,
         )
 
         logger.info("building preprocessor")
@@ -95,15 +89,15 @@ class SasRecRecommenderModel(ModelBase):
 
         # init model
         logger.info("building model")
-        dataset_stats = self.processor.dataset_stats()
         self.model = SASRec(
-            num_blocks=self.num_blocks,
-            hidden_units=self.hidden_units,
-            num_heads=self.num_heads,
-            num_embeddings=self.session_maxlen,
+            n_blocks=self.n_blocks,
+            factors=self.factors,
+            n_heads=self.n_heads,
+            session_maxlen=self.session_maxlen,
             dropout_rate=self.dropout_rate,
             use_pos_emb=self.use_pos_emb,
-            dataset_stats=dataset_stats,
+            n_items=len(self.processor.item_id_encoder) if self.processor.item_id_encoder is not None else -1,
+            random_state=self.random_state,
         )
 
         logger.info("building trainer")
@@ -114,6 +108,7 @@ class SasRecRecommenderModel(ModelBase):
             epochs=self.epochs,
             device=self.device,
             loss=self.loss,
+            random_state=self.random_state,
         )
         trainer.fit(train_dataloader)
         self.model = trainer.model
@@ -127,19 +122,18 @@ class SasRecRecommenderModel(ModelBase):
     ):
         train = dataset.get_raw_interactions()
 
-        train["user_id"] = train["user_id"].astype(str)
-        train["item_id"] = train["item_id"].astype(str)
-        item_features = train["item_id"].copy().drop_duplicates().astype(str)
-        user_features = train["user_id"].copy().drop_duplicates().astype(str)
+        train[Columns.User] = train[Columns.User].astype(str)
+        train[Columns.Item] = train[Columns.Item].astype(str)
+        item_features = train[Columns.Item].copy().drop_duplicates().astype(str)
 
-        rec_df = train[train["user_id"].isin(users)]
+        rec_df = train[train[Columns.User].isin(users)]
         recommender = SASRecRecommender(self.processor, self.model, self.task_converter)
 
-        items_to_recommend = train["item_id"].drop_duplicates().astype(str)
+        if items_to_recommend is None:
+            items_to_recommend = train[Columns.Item].drop_duplicates().astype(str)
 
         recs = recommender.recommend(
             user_item_interactions=rec_df,
-            user_features=user_features,
             item_features=item_features,
             top_k=k,
             candidate_items=items_to_recommend,
@@ -167,16 +161,15 @@ class SequenceTaskConverter:
     def train_transform(
         self,
         user_item_interactions: pd.DataFrame,
-        user_features: pd.Series,
-        item_features: pd.Series,
     ) -> Tuple[SequenceTaskData, SequenceTaskTarget]:
         """Convert user-item interaction to sessions and extract target.
         Prepare other features
         """
+
         users, sessions, weights = self._interactions2sessions(user_item_interactions)
         sessions_x, sessions_y, x_weights, y_weights = self._sessions2xy(sessions, weights)
 
-        item_features = item_features.sort_values()
+        item_features = user_item_interactions[Columns.Item].drop_duplicates().sort_values()
         items = item_features.to_list()
 
         return (
@@ -197,7 +190,6 @@ class SequenceTaskConverter:
     def inference_transform(
         self,
         user_item_interactions: pd.DataFrame,
-        user_features: pd.Series,
         item_features: pd.Series,
     ) -> SequenceTaskData:
         """Convert user-item interaction to sessions and prepare other features"""
@@ -216,12 +208,15 @@ class SequenceTaskConverter:
     def _interactions2sessions(
         self, user_item_interactions: pd.DataFrame
     ) -> Tuple[List[str], List[List[str]], List[List[float]]]:
-
-        sessions = user_item_interactions.sort_values("datetime").groupby("user_id")[["item_id", "weight"]].agg(list)
+        sessions = (
+            user_item_interactions.sort_values(Columns.Datetime)
+            .groupby(Columns.User)[[Columns.Item, Columns.Weight]]
+            .agg(list)
+        )
         users, sessions, weights = (
             sessions.index.to_list(),
-            sessions["item_id"].to_list(),
-            sessions["weight"].to_list(),
+            sessions[Columns.Item].to_list(),
+            sessions[Columns.Weight].to_list(),
         )
 
         # TODO remove log here
@@ -268,7 +263,8 @@ class Tokenizer:
         self.key2index = None
 
     def fit(self, tokens: Sequence[str]) -> None:
-        vocab = set(tokens)
+        # vocab = set(tokens)
+        vocab = OrderedSet(tokens)
         self._init_mappers(vocab)
 
     def transform(self, tokens: Sequence[str]) -> np.ndarray:
@@ -297,6 +293,7 @@ class Tokenizer:
         self.vocab = vocab
         self.keys = np.array(["<PAD>", *self.vocab])
         self.key2index = {e: i for i, e in enumerate(self.keys)}
+        k = 0
 
     def _is_built(self) -> bool:
         return self.vocab is not None and self.keys is not None and self.key2index is not None
@@ -309,8 +306,8 @@ class SASRecModelInput:
     item_model_input (Tuple[torch.LongTensor, torch.LongTensor]): item features input to construct
     """
 
-    sessions: torch.LongTensor
-    item_model_input: Tuple[torch.LongTensor, torch.LongTensor]
+    sessions: (torch.LongTensor)
+    item_model_input: (Tuple[torch.LongTensor, torch.LongTensor])
     items: List[str]
     users: List[str]
 
@@ -319,11 +316,6 @@ class SASRecModelInput:
 class SASRecTargetInput:
     next_watch: torch.LongTensor
     weights: Optional[torch.LongTensor] = None
-
-
-class DatasetStats(pydantic.BaseModel):
-    item_num: int
-    user_num: int
 
 
 class SASRecProcessor:
@@ -344,7 +336,6 @@ class SASRecProcessor:
         Returns SASRecModelInput. sessions of size [batch_size, maxlen],
             model input of size ([items_cnt], [items_cnt, item_tags_maxlen])
         """
-
         item_mapping = self._build_items_mapping(x.items)
 
         # TODO use weights in model
@@ -360,16 +351,8 @@ class SASRecProcessor:
             users=x.users,
         )
 
-    def dataset_stats(self) -> DatasetStats:
-        """Returns stats about mappers for model config"""
-        return DatasetStats(
-            item_num=len(self.item_id_encoder) if self.item_id_encoder is not None else -1,
-            user_num=-1,
-        )
-
     def transform_target(self, y: SequenceTaskTarget, model_input: SASRecModelInput) -> SASRecTargetInput:
         """Кeplace target ids with internal integer id. Assumed that no issues with missing mappings are possible"""
-
         item_mapping = self._build_items_mapping(model_input.items)
 
         next_watch, weights = self._sessions_transform(y.next_watch, y.weights, item_mapping)
@@ -462,16 +445,20 @@ class SequenceDataset(Dataset):
 
 
 class PointWiseFeedForward(torch.nn.Module):
-    def __init__(self, hidden_units, dropout_rate):
+    def __init__(self, factors, dropout_rate, random_state):
         super(PointWiseFeedForward, self).__init__()
 
-        self.conv1 = torch.nn.Conv1d(hidden_units, hidden_units, kernel_size=1)
+        self.conv1 = torch.nn.Conv1d(factors, factors, kernel_size=1)
         self.dropout1 = torch.nn.Dropout(p=dropout_rate)
         self.relu = torch.nn.ReLU()
-        self.conv2 = torch.nn.Conv1d(hidden_units, hidden_units, kernel_size=1)
+        self.conv2 = torch.nn.Conv1d(factors, factors, kernel_size=1)
         self.dropout2 = torch.nn.Dropout(p=dropout_rate)
+        self.random_state = random_state
 
     def forward(self, inputs):
+        if self.random_state is not None:
+            torch.manual_seed(self.random_state)
+
         outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
         outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length)
         outputs += inputs
@@ -479,23 +466,29 @@ class PointWiseFeedForward(torch.nn.Module):
 
 
 class ItemModelIdemb(nn.Module):
-    def __init__(self, embedding_dim: int, item_num: int):
+    def __init__(
+        self,
+        factors: int,
+        n_items: int,
+        random_state: int = None,
+    ):
         super().__init__()
-        self.item_num = item_num
 
         self.item_emb = nn.Embedding(
-            num_embeddings=self.item_num,
-            embedding_dim=embedding_dim,
+            num_embeddings=n_items,
+            embedding_dim=factors,
             padding_idx=0,
         )
 
         # TODO to config
         self.drop_layer = nn.Dropout(0.2)
+        self.random_state = random_state
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        item_ids = x
-
-        item_embs = self.item_emb(item_ids)
+        if self.random_state is not None:
+            torch.manual_seed(self.random_state)
+            
+        item_embs = self.item_emb(x)
         item_embs = self.drop_layer(item_embs)
 
         return item_embs
@@ -503,44 +496,34 @@ class ItemModelIdemb(nn.Module):
     def get_device(self) -> torch.device:
         return self.item_emb.weight.device
 
-    @classmethod
-    def from_config(cls, hidden_units_item: int, dataset_stats: DatasetStats):
-        return cls(
-            embedding_dim=hidden_units_item,
-            item_num=dataset_stats.item_num,
-        )
-
 
 class TransformerEncoder(nn.Module):
     def __init__(
         self,
         num_blocks: int,
-        hidden_units: int,
+        factors: int,
         num_heads: int,
         dropout_rate: float,
+        random_state: int = None,
     ):
         super().__init__()
-        self.num_blocks = num_blocks
-        self.hidden_units = hidden_units
-        self.num_heads = num_heads
-        self.dropout_rate = dropout_rate
 
         self.attention_layernorms = torch.nn.ModuleList()  # to be Q for self-attention
         self.attention_layers = torch.nn.ModuleList()
         self.forward_layernorms = torch.nn.ModuleList()
         self.forward_layers = torch.nn.ModuleList()
 
-        for _ in range(self.num_blocks):
-            new_attn_layernorm = torch.nn.LayerNorm(self.hidden_units, eps=1e-8)
+        for _ in range(num_blocks):
+            new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
             self.attention_layernorms.append(new_attn_layernorm)
 
-            new_attn_layer = torch.nn.MultiheadAttention(self.hidden_units, self.num_heads, self.dropout_rate)
+            new_attn_layer = torch.nn.MultiheadAttention(factors, num_heads, dropout_rate)
             self.attention_layers.append(new_attn_layer)
 
-            new_fwd_layernorm = torch.nn.LayerNorm(self.hidden_units, eps=1e-8)
+            new_fwd_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
             self.forward_layernorms.append(new_fwd_layernorm)
 
-            new_fwd_layer = PointWiseFeedForward(self.hidden_units, self.dropout_rate)
+            new_fwd_layer = PointWiseFeedForward(factors, dropout_rate, random_state)
             self.forward_layers.append(new_fwd_layer)
 
     def forward(
@@ -566,36 +549,32 @@ class TransformerEncoder(nn.Module):
 class SASRec(torch.nn.Module):
     def __init__(
         self,
-        num_blocks: int,
-        hidden_units: int,
-        num_heads: int,
-        num_embeddings: int,
+        n_blocks: int,
+        factors: int,
+        n_heads: int,
+        session_maxlen: int,
         dropout_rate: float,
-        dataset_stats: DatasetStats,
+        n_items: int,
         use_pos_emb: bool = True,
+        random_state: int = None,
     ):
         super().__init__()
-        self.num_blocks = num_blocks
-        self.hidden_units = hidden_units
-        self.num_heads = num_heads
-        self.num_embeddings = num_embeddings
-        self.dropout_rate = dropout_rate
         self.use_pos_emb = use_pos_emb
-        self.dataset_stats = dataset_stats
 
-        self.item_model = ItemModelIdemb.from_config(hidden_units, dataset_stats)
+        self.item_model = ItemModelIdemb(factors, n_items, random_state)
 
         if self.use_pos_emb:
-            self.pos_emb = torch.nn.Embedding(self.num_embeddings, self.hidden_units)
-        self.emb_dropout = torch.nn.Dropout(p=self.dropout_rate)
+            self.pos_emb = torch.nn.Embedding(session_maxlen, factors)
+        self.emb_dropout = torch.nn.Dropout(p=dropout_rate)
 
         self.encoder = TransformerEncoder(
-            num_blocks=self.num_blocks,
-            hidden_units=self.hidden_units,
-            num_heads=self.num_heads,
-            dropout_rate=self.dropout_rate,
+            num_blocks=n_blocks,
+            factors=factors,
+            num_heads=n_heads,
+            dropout_rate=dropout_rate,
+            random_state=random_state,
         )
-        self.last_layernorm = torch.nn.LayerNorm(self.hidden_units, eps=1e-8)
+        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
 
     def get_model_device(self) -> torch.device:
         return self.item_model.get_device()
@@ -661,7 +640,6 @@ class SASRec(torch.nn.Module):
         Returns:
             torch.Tensor: [batch_size, candidates_count] logits for each user
         """
-
         sessions, item_model_input = x
 
         item_embs = self.item_model(item_model_input)
@@ -704,6 +682,7 @@ class Trainer:
         epochs: int,
         device: str,
         loss: str = "bce",
+        random_state: int = None,
     ):
         self.model = model
         self.lr = lr
@@ -716,6 +695,7 @@ class Trainer:
         self.loss_func = None
 
         self.inited = False
+        self.random_state = random_state
 
     def init(self):
         self._init_optimizers()
@@ -725,7 +705,6 @@ class Trainer:
         self,
         train_dataloader: DataLoader,
     ) -> SASRec:
-
         if not self.inited:
             self.init()
 
@@ -771,6 +750,9 @@ class Trainer:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98))
 
     def _init_loss_func(self):
+        if self.random_state is not None:
+            torch.manual_seed(self.random_state)
+
         if self.loss == "bce":
             self.loss_func = nn.BCEWithLogitsLoss()
         elif self.loss == "sm_ce":
@@ -788,7 +770,7 @@ def collect_recs(
     logits: np.ndarray,  # [users, candidate_items]
     top_k: int,
 ):
-    user2hist = user_item_interactions.groupby("user_id")["item_id"].agg(set).to_dict()
+    user2hist = user_item_interactions.groupby(Columns.User)[Columns.Item].agg(set).to_dict()
     candidate_items = np.array(candidate_items)
     inds = np.argsort(-logits, axis=1)
 
@@ -814,12 +796,12 @@ def collect_recs(
     recs = pd.DataFrame(
         records,
         columns=[
-            "user_id",
-            "item_id",
-            "weight",
+            Columns.User,
+            Columns.Item,
+            Columns.Weight,
         ],
-    ).explode(["item_id", "weight"])
-    recs["rank"] = recs.groupby("user_id").cumcount() + 1
+    ).explode([Columns.Item, Columns.Weight])
+    recs[Columns.Rank] = recs.groupby(Columns.User).cumcount() + 1
 
     return recs
 
@@ -844,7 +826,6 @@ class SASRecRecommender:
     def recommend(
         self,
         user_item_interactions: pd.DataFrame,
-        user_features: pd.Series,
         item_features: pd.Series,
         top_k: int,
         candidate_items: Sequence[str],
@@ -867,12 +848,11 @@ class SASRecRecommender:
         )
 
         # filter out unnecessary items to speed up calculation
-        items = user_item_interactions["item_id"].drop_duplicates().to_list() + list(candidate_items)
+        items = user_item_interactions[Columns.Item].drop_duplicates().to_list() + list(candidate_items)
         item_features = item_features[item_features.isin(items)]
 
         x = self.task_converter.inference_transform(
             user_item_interactions=user_item_interactions,
-            user_features=user_features,
             item_features=item_features,
         )
 
@@ -930,6 +910,6 @@ class SASRecRecommender:
         item_features: pd.DataFrame,
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         item_features = item_features[item_features.isin(supported_items)]
-        user_item_interactions = user_item_interactions[user_item_interactions["item_id"].isin(supported_items)]
+        user_item_interactions = user_item_interactions[user_item_interactions[Columns.Item].isin(supported_items)]
 
         return user_item_interactions, item_features
