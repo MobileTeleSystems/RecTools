@@ -148,7 +148,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         """
         if not is_debiased and self.debias_config is not None:
             raise ValueError(
-                "You have specified `debias_config` for metric but `confusin_df` is not assumed to be de-biased. "
+                "You have specified `debias_config` for metric and tried to calculate if from `confusion_df` but `confusin_df` is not assumed to be de-biased. "
                 "Please make de-biasing for `confusion_df` "
                 "before applying the `make_confusions` function to the `interactons` data "
                 "and specify `is_debiased` as `True` "
