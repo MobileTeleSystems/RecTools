@@ -486,7 +486,6 @@ class PAP(_AUCMetric):
         is_debiased : bool, default False
             If ``True``, indicator that a debias mechanism has been applied before.
             If ``False``, indicator that the debias mechanism has not been applied before
-            and then it will be applied if it was needed.
 
         Returns
         -------
