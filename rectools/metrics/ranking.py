@@ -594,7 +594,7 @@ def calc_ranking_metrics(
         k_max = max(metric.k for metric in map_metrics.values())
         fitted = MAP.fit(merged, k_max)
 
-        k_max_debias = calc_debias_for_fit_metrics(metrics, merged)  # type: ignore
+        k_max_debias = calc_debias_for_fit_metrics(map_metrics, merged)  # type: ignore
         fitted_debias = {}
         for debias_config_name, (k_max_d, merged_d) in k_max_debias.items():
             fitted_debias[debias_config_name] = MAP.fit(merged_d, k_max_d)

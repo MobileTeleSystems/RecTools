@@ -572,7 +572,7 @@ def calc_auc_metrics(
     for name, metric in metrics.items():
         results[name] = metric.calc_from_fitted(
             fitted if metric.debias_config is None else fitted_debias[metric.debias_config],
-            is_debiased=True if metric.debias_config else False,
+            is_debiased=metric.debias_config is not None,
         )
 
     return results

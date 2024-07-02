@@ -12,13 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import typing as tp
+
 import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import DebiasConfig
+from rectools.metrics import MAP, PAP, DebiasConfig, PartialAUC
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DebiasableMetrikAtK
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debias_for_fit_metrics
 
 
 class TestDebias:
@@ -86,3 +88,43 @@ class TestDebias:
         interactions_downsampling = debias_metric.make_debias(empty_interactions)
 
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
+
+    @pytest.mark.parametrize(
+        "metrics_fitted",
+        (
+            {
+                "MAP@1": MAP(k=1, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
+                "MAP@3": MAP(k=3, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
+                "MAP@2": MAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                "MAP@4": MAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                "MAP@5": MAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+            },
+            {
+                "PartialAUC@1": PartialAUC(k=1, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
+                "PartialAUC@3": PartialAUC(k=3, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
+                "PartialAUC@2": PartialAUC(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                "PartialAUC@4": PartialAUC(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                "PartialAUC@5": PartialAUC(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+            },
+            {
+                "PAP@1": PAP(k=1, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
+                "PAP@3": PAP(k=3, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
+                "PAP@2": PAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                "PAP@4": PAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                "PAP@5": PAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+            },
+        ),
+    )
+    def test_calc_debias_for_fit_metrics(
+        self, metrics_fitted: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
+    ) -> None:
+        k_max_debias = calc_debias_for_fit_metrics(metrics=metrics_fitted, interactions=interactions)
+
+        unique_debias_config = []
+        for metric in metrics_fitted.values():
+            if metric.debias_config not in unique_debias_config:
+                unique_debias_config.append(metric.debias_config)
+
+        expected_result = len(unique_debias_config)
+
+        assert len(k_max_debias) == expected_result

@@ -92,11 +92,7 @@ class DebiasableMetrikAtK(MetricAtK):
         if len(interactions) == 0:
             return interactions
 
-        if "__test_positive" in interactions.columns:
-            interactions_not_test = interactions[~interactions["__test_positive"]]
-            interactions_for_debiasing = interactions[interactions["__test_positive"]]
-        else:
-            interactions_for_debiasing = interactions.copy()
+        interactions_for_debiasing = interactions.copy()
 
         num_users_interacted_with_item = interactions_for_debiasing.drop_duplicates(subset=Columns.UserItem)[
             Columns.Item
@@ -110,7 +106,7 @@ class DebiasableMetrikAtK(MetricAtK):
         item_outside_max_border = num_users_interacted_with_item[num_users_interacted_with_item > max_border].index
 
         mask_outside_max_border = interactions_for_debiasing[Columns.Item].isin(item_outside_max_border)
-        interactions_debiasing = interactions_for_debiasing[~mask_outside_max_border]
+        interactions_result = interactions_for_debiasing[~mask_outside_max_border]
         interactions_downsampling = interactions_for_debiasing[mask_outside_max_border]
 
         interactions_downsampling = (
@@ -119,9 +115,7 @@ class DebiasableMetrikAtK(MetricAtK):
             .head(max_border)
         )
 
-        result_dfs = [interactions_debiasing, interactions_downsampling]
-        if "__test_positive" in interactions.columns:
-            result_dfs.append(interactions_not_test)
+        result_dfs = [interactions_result, interactions_downsampling]
         interactions_result = pd.concat(result_dfs, ignore_index=True)
 
         return interactions_result
