@@ -499,7 +499,7 @@ class PAP(_AUCMetric):
                 "Please make de-biasing for `AUCFitted.outer_merged_enriched` "
                 "before calculating metric from fitted data "
                 "and specify `is_debiased` as `True` "
-                "or otherwise use a metric with `debias_config` = `None`"
+                "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing"
             )
 
         outer_merged = fitted.outer_merged_enriched
