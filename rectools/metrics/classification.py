@@ -152,7 +152,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
                 "Please make de-biasing for `confusion_df` "
                 "before applying the `make_confusions` function to the `interactons` data "
                 "and specify `is_debiased` as `True` "
-                "or otherwise use a metric with `debias_config` = `None`"
+                "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing"
             )
 
         if TN not in confusion_df:
