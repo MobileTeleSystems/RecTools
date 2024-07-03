@@ -89,7 +89,7 @@ class _AUCMetric(DebiasableMetrikAtK):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
-    debias_config : DebiasConfig, default None
+    debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
     """
 
@@ -239,8 +239,7 @@ class _AUCMetric(DebiasableMetrikAtK):
         fitted : AUCFitted
             Meta data that got from `.fit` method.
         is_debiased : bool, default False
-            If ``True``, indicator that a debias mechanism has been applied before.
-            If ``False``, indicator that the debias mechanism has not been applied before.
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------

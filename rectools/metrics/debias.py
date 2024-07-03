@@ -33,7 +33,7 @@ class DebiasConfig:
     ----------
     iqr_coef : float, default 1.5
         Coefficient for defining as the maximum value inside the border.
-    random_state : float, default None
+    random_state : int, optional, default None
         Pseudorandom number generator state to control the down-sampling.
     """
 
@@ -104,9 +104,7 @@ class DebiasableMetrikAtK(MetricAtK):
 
         interactions_for_debiasing = interactions.copy()
 
-        num_users_interacted_with_item = interactions_for_debiasing.drop_duplicates(subset=Columns.UserItem)[
-            Columns.Item
-        ].value_counts()
+        num_users_interacted_with_item = interactions_for_debiasing.groupby(Columns.Item, sort=False)[Columns.User].nunique()
 
         quantiles = num_users_interacted_with_item.quantile(q=[0.25, 0.75])
         q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
@@ -133,7 +131,7 @@ class DebiasableMetrikAtK(MetricAtK):
 
 def calc_debias_for_fit_metrics(
     metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
-) -> tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]]:
+) -> tp.Dict[DebiasConfig, tp.Tuple[int, pd.DataFrame]]:
     """
     Calculate for each debias config `k_max` and de-basing `interactions`
     to then apply them in the `fit` methods of the corresponding metrics.
