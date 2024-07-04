@@ -206,63 +206,66 @@ class TestHitRate:
 
 
 class TestDebiasMetric:
-    def setup_method(self) -> None:
-        self.metrics = {
-            "precision": Precision(k=2),
-            "r_precision": Precision(k=2, r_precision=True),
-            "recall": Recall(k=2),
-            "accuracy": Accuracy(k=2),
-            "f1beta": F1Beta(k=2),
-            "mcc": MCC(k=2),
-            "hitrate": HitRate(k=2),
-        }
+    @pytest.mark.parametrize(
+        "metric, metric_debias",
+        (
+            (Precision(k=2), Precision(k=2, debias_config=DEBIAS_CONFIG)),
+            (Precision(k=2), Precision(k=2, debias_config=DEBIAS_CONFIG)),
+            (Recall(k=2), Recall(k=2, debias_config=DEBIAS_CONFIG)),
+            (Accuracy(k=2), Accuracy(k=2, debias_config=DEBIAS_CONFIG)),
+            (F1Beta(k=2), F1Beta(k=2, debias_config=DEBIAS_CONFIG)),
+            (MCC(k=2), MCC(k=2, debias_config=DEBIAS_CONFIG)),
+            (HitRate(k=2), HitRate(k=2, debias_config=DEBIAS_CONFIG)),
+        ),
+    )
+    def test_calc(
+        self,
+        metric: tp.Union[ClassificationMetric, SimpleClassificationMetric],
+        metric_debias: tp.Union[ClassificationMetric, SimpleClassificationMetric],
+    ) -> None:
+        downsample_interactions = metric_debias.make_debias(interactions_for_debiasing=INTERACTIONS)
 
-        self.metrics_debias = {
-            "precision_debias": Precision(k=2, debias_config=DEBIAS_CONFIG),
-            "r_precision_debias": Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG),
-            "recall_debias": Recall(k=2, debias_config=DEBIAS_CONFIG),
-            "accuracy_debias": Accuracy(k=2, debias_config=DEBIAS_CONFIG),
-            "f1beta_debias": F1Beta(k=2, debias_config=DEBIAS_CONFIG),
-            "mcc_debias": MCC(k=2, debias_config=DEBIAS_CONFIG),
-            "hitrate_debias": HitRate(k=2, debias_config=DEBIAS_CONFIG),
-        }
+        if isinstance(metric, ClassificationMetric):
+            expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
+        else:
+            expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions)
 
-    def test_calc(self) -> None:
-        for metric_name, metric in self.metrics.items():
-            metric_debias = self.metrics_debias[f"{metric_name}_debias"]
+        if isinstance(metric_debias, ClassificationMetric):
+            result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS, CATALOG)
+            result_calc = metric_debias.calc(RECO, INTERACTIONS, CATALOG)
+        else:
+            result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS)
+            result_calc = metric_debias.calc(RECO, INTERACTIONS)
 
-            downsample_interactions = metric_debias.make_debias(interactions=INTERACTIONS)
+        pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
+        assert result_calc == expected_metric_per_user_downsample.mean()
 
-            if isinstance(metric, ClassificationMetric):
-                expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
-                result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS, CATALOG)  # type: ignore
-                result_calc = metric_debias.calc(RECO, INTERACTIONS, CATALOG)  # type: ignore
-            else:
-                expected_metric_per_user_downsample = metric.calc_per_user(  # type: ignore
-                    RECO, downsample_interactions
-                )
-                result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS)  # type: ignore
-                result_calc = metric_debias.calc(RECO, INTERACTIONS)  # type: ignore
-
-            pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
-            assert result_calc == expected_metric_per_user_downsample.mean()
-
-    def test_when_no_interactions(self) -> None:
+    @pytest.mark.parametrize(
+        "metric_debias",
+        (
+            (Precision(k=2, debias_config=DEBIAS_CONFIG)),
+            (Precision(k=2, debias_config=DEBIAS_CONFIG)),
+            (Recall(k=2, debias_config=DEBIAS_CONFIG)),
+            (Accuracy(k=2, debias_config=DEBIAS_CONFIG)),
+            (F1Beta(k=2, debias_config=DEBIAS_CONFIG)),
+            (MCC(k=2, debias_config=DEBIAS_CONFIG)),
+            (HitRate(k=2, debias_config=DEBIAS_CONFIG)),
+        ),
+    )
+    def test_when_no_interactions(
+        self, metric_debias: tp.Union[ClassificationMetric, SimpleClassificationMetric]
+    ) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
-        for metric_debias in self.metrics_debias.values():
-            if isinstance(metric_debias, ClassificationMetric):
-                pd.testing.assert_series_equal(
-                    metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG),
-                    expected_metric_per_user,
-                )
-                assert np.isnan(metric_debias.calc(RECO, EMPTY_INTERACTIONS, CATALOG))
-            else:
-                pd.testing.assert_series_equal(
-                    metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS),  # type: ignore
-                    expected_metric_per_user,
-                )
-                assert np.isnan(metric_debias.calc(RECO, EMPTY_INTERACTIONS))  # type: ignore
+        if isinstance(metric_debias, ClassificationMetric):
+            calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG)
+            calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS, CATALOG)
+        else:
+            calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS)
+            calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS)
+
+        pd.testing.assert_series_equal(calc_per_user_result, expected_metric_per_user)
+        assert np.isnan(calc_result)
 
     @pytest.mark.parametrize(
         "metric",

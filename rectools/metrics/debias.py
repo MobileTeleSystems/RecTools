@@ -59,17 +59,17 @@ class DebiasableMetrikAtK(MetricAtK):
 
     debias_config: DebiasConfig = attr.ib(default=None)
 
-    def _check_debias(self, is_debiased: bool, name_data: str) -> None:
+    def _check_debias(self, is_debiased: bool, type_of_intermediate_values_of_interactions: str) -> None:
         if not is_debiased and self.debias_config is not None:
             raise ValueError(
                 "You have specified `debias_config` for metric "
-                f"but `{name_data}` is not assumed to be de-biased. "
-                f"Please make de-biasing for `{name_data}` "
+                f"but `{type_of_intermediate_values_of_interactions}` is not assumed to be de-biased. "
+                f"Please make de-biasing for `{type_of_intermediate_values_of_interactions}` "
                 "and specify `is_debiased` as `True` "
                 "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing."
             )
 
-    def make_debias(self, interactions: pd.DataFrame) -> pd.DataFrame:
+    def make_debias(self, interactions_for_debiasing: pd.DataFrame) -> pd.DataFrame:
         """
         Downsample the size of interactions, excluding some interactions with popular items.
 
@@ -86,25 +86,21 @@ class DebiasableMetrikAtK(MetricAtK):
 
         Parameters
         ----------
-        interactions : pd.DataFrame
+        interactions_for_debiasing : pd.DataFrame
             Table with previous user-item interactions,
             with columns `Columns.User`, `Columns.Item`.
-        iqr_coef : float, default 1.5
-            Coefficient for defining as the maximum value inside the border.
-        random_state: float, default 32
-            Pseudorandom number generator state to control the down-sampling.
 
         Returns
         -------
         pd.DataFrame
             Downsampling interactions.
         """
-        if len(interactions) == 0:
-            return interactions
+        if len(interactions_for_debiasing) == 0:
+            return interactions_for_debiasing
 
-        interactions_for_debiasing = interactions.copy()
+        debias_interactions = interactions_for_debiasing.copy()
 
-        num_users_interacted_with_item = interactions_for_debiasing.groupby(Columns.Item, sort=False)[Columns.User].nunique()
+        num_users_interacted_with_item = debias_interactions.groupby(Columns.Item, sort=False)[Columns.User].nunique()
 
         quantiles = num_users_interacted_with_item.quantile(q=[0.25, 0.75])
         q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
@@ -113,9 +109,9 @@ class DebiasableMetrikAtK(MetricAtK):
 
         item_outside_max_border = num_users_interacted_with_item[num_users_interacted_with_item > max_border].index
 
-        mask_outside_max_border = interactions_for_debiasing[Columns.Item].isin(item_outside_max_border)
-        interactions_result = interactions_for_debiasing[~mask_outside_max_border]
-        interactions_downsampling = interactions_for_debiasing[mask_outside_max_border]
+        mask_outside_max_border = debias_interactions[Columns.Item].isin(item_outside_max_border)
+        interactions_result = debias_interactions[~mask_outside_max_border]
+        interactions_downsampling = debias_interactions[mask_outside_max_border]
 
         interactions_downsampling = (
             interactions_downsampling.sample(frac=1.0, random_state=self.debias_config.random_state)
@@ -124,13 +120,13 @@ class DebiasableMetrikAtK(MetricAtK):
         )
 
         result_dfs = [interactions_result, interactions_downsampling]
-        interactions_result = pd.concat(result_dfs, ignore_index=True)
+        debias_interactions = pd.concat(result_dfs, ignore_index=True)
 
-        return interactions_result
+        return debias_interactions
 
 
-def calc_debias_for_fit_metrics(
-    metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
+def make_debias_and_search_k_max_for_sample_metrics(
+    metrics: tp.Iterable[DebiasableMetrikAtK], interactions: pd.DataFrame
 ) -> tp.Dict[DebiasConfig, tp.Tuple[int, pd.DataFrame]]:
     """
     Calculate for each debias config `k_max` and de-basing `interactions`
@@ -138,7 +134,7 @@ def calc_debias_for_fit_metrics(
 
     Parameters
     ----------
-    metrics : tp.Dict[str, MetricAtK
+    metrics : tp.Iteraple[MetricAtK]
         Dict of metric objects to calculate, where key is metric name and value is metric object.
     interactions : pd.DataFrame
         Interactions or merging table with columns `Columns.User`, `Columns.Item`, `Columns.Rank` (for merging).
@@ -150,15 +146,17 @@ def calc_debias_for_fit_metrics(
         Dictionary, where key is debias config
         and values are a list of the corresponding k_max and de-basing interactions.
     """
-    k_max_debias: tp.Dict[DebiasConfig, tp.List[tp.Union[int, pd.DataFrame]]] = {}
-    for metric in metrics.values():
+    k_max_debias: tp.Dict[DebiasConfig, tp.Tuple[int, pd.DataFrame]] = {}
+    for metric in metrics:
         if metric.debias_config is not None:
             if metric.debias_config not in k_max_debias:
-                k_max_debias[metric.debias_config] = [
+                k_max_debias[metric.debias_config] = (
                     metric.k,
                     metric.make_debias(interactions),
-                ]
+                )
             else:
-                k_max_debias[metric.debias_config][0] = max(k_max_debias[metric.debias_config][0], metric.k)
+                new_valus = list(k_max_debias[metric.debias_config])
+                new_valus[0] = max(new_valus[0], metric.k)
+                k_max_debias[metric.debias_config] = tuple(new_valus)
 
     return k_max_debias

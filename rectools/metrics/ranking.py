@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasableMetrikAtK, calc_debias_for_fit_metrics
+from .debias import DebiasableMetrikAtK, make_debias_and_search_k_max_for_sample_metrics
 
 
 @attr.s
@@ -249,15 +249,17 @@ class MAP(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        is_debiased = False
         if self.debias_config is not None:
             interactions = self.make_debias(interactions)
+            is_debiased = True
 
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
         fitted = self.fit(merged_reco, k_max=self.k)
-        return self.calc_per_user_from_fitted(fitted)
+        return self.calc_per_user_from_fitted(fitted, is_debiased)
 
-    def calc_per_user_from_fitted(self, fitted: MAPFitted) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: MAPFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from fitted data.
 
@@ -267,12 +269,15 @@ class MAP(_RankingMetric):
         ----------
         fitted : MAPFitted
             Meta data that got from `.fit` method.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="MAPFitted")
         valid_precisions = fitted.precision_at_k[:, 1 : self.k + 1]
         sum_precisions = np.asarray(valid_precisions.sum(axis=1)).reshape(-1)
         if self.divide_by_k:
@@ -282,7 +287,7 @@ class MAP(_RankingMetric):
         avg_precisions = pd.Series(sum_precisions, index=pd.Series(fitted.users, name=Columns.User)).rename(None)
         return avg_precisions
 
-    def calc_from_fitted(self, fitted: MAPFitted) -> float:
+    def calc_from_fitted(self, fitted: MAPFitted, is_debiased: bool = False) -> float:
         """
         Calculate metric value from fitted data.
 
@@ -292,13 +297,15 @@ class MAP(_RankingMetric):
         ----------
         fitted : MAPFitted
             Meta data that got from `.fit` method.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_fitted(fitted)
+        per_user = self.calc_per_user_from_fitted(fitted, is_debiased)
         return per_user.mean()
 
 
@@ -378,9 +385,6 @@ class NDCG(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if self.debias_config is not None:
-            interactions = self.make_debias(interactions)
-
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
         return self.calc_per_user_from_merged(merged_reco)
@@ -500,9 +504,6 @@ class MRR(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if self.debias_config is not None:
-            interactions = self.make_debias(interactions)
-
         self._check(reco, interactions=interactions)
         merged_reco = merge_reco(reco, interactions)
         return self.calc_per_user_from_merged(merged_reco)
@@ -591,17 +592,21 @@ def calc_ranking_metrics(
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
-        k_max = max(metric.k for metric in map_metrics.values())
-        fitted = MAP.fit(merged, k_max)
+        fitted: MAPFitted
+        k_for_fitted = tuple(metric.k for metric in map_metrics.values() if metric.debias_config is None)
+        if len(k_for_fitted) > 0:
+            k_max = max(k_for_fitted)
+            fitted = MAP.fit(merged, k_max)
 
-        k_max_debias = calc_debias_for_fit_metrics(map_metrics, merged)  # type: ignore
+        k_max_debias = make_debias_and_search_k_max_for_sample_metrics(map_metrics.values(), merged)
         fitted_debias = {}
-        for debias_config_name, (k_max_d, merged_d) in k_max_debias.items():
-            fitted_debias[debias_config_name] = MAP.fit(merged_d, k_max_d)
+        for debias_config, (k_max_d, merged_d) in k_max_debias.items():
+            fitted_debias[debias_config] = MAP.fit(merged_d, k_max_d)
 
         for name, map_metric in map_metrics.items():
+            is_debiased = map_metric.debias_config is not None
             results[name] = map_metric.calc_from_fitted(
-                fitted_debias[map_metric.debias_config] if map_metric.debias_config is not None else fitted
+                fitted=fitted_debias[map_metric.debias_config] if is_debiased else fitted, is_debiased=is_debiased
             )
 
     return results

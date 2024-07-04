@@ -146,7 +146,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, name_data="confusion_df")
+        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="confusion_df")
         if TN not in confusion_df:
             confusion_df[TN] = len(catalog) - self.k - confusion_df[FN]
         return self._calc_per_user_from_confusion_df(confusion_df, catalog).rename(None)
@@ -258,7 +258,7 @@ class SimpleClassificationMetric(DebiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, name_data="confusion_df")
+        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="confusion_df")
         return self._calc_per_user_from_confusion_df(confusion_df).rename(None)
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
@@ -486,29 +486,28 @@ def calc_classification_metrics(
     k_map = defaultdict(list)
     merged_debias = {}
     for name, metric in metrics.items():
-        k_map[metric.k].append(name)
         if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
             raise TypeError(f"Unexpected classification metric {metric}")
+        k_map[(metric.k, metric.debias_config)].append(name)
         if metric.debias_config is not None and metric.debias_config not in merged_debias:
             merged_debias[metric.debias_config] = metric.make_debias(merged)
 
     results = {}
-    for k, k_metrics in k_map.items():
+    for k_and_debias_config, k_metrics in k_map.items():
+        k = k_and_debias_config[0]
+        debias_config = k_and_debias_config[1]
+        is_debiased = debias_config is not None
 
+        confusion_df = calc_confusions(merged=merged_debias[debias_config] if is_debiased else merged, k=k)
         for metric_name in k_metrics:
             metric = metrics[metric_name]
 
-            confusion_df = calc_confusions(
-                (merged_debias[metric.debias_config] if metric.debias_config is not None else merged),
-                k,
-            )
-
             if isinstance(metric, SimpleClassificationMetric):
-                res = metric.calc_from_confusion_df(confusion_df, is_debiased=metric.debias_config is not None)
+                res = metric.calc_from_confusion_df(confusion_df, is_debiased=is_debiased)
             elif isinstance(metric, ClassificationMetric):
                 if catalog is None:
                     raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
-                res = metric.calc_from_confusion_df(confusion_df, catalog, is_debiased=metric.debias_config is not None)
+                res = metric.calc_from_confusion_df(confusion_df, catalog, is_debiased=is_debiased)
             results[metric_name] = res
 
     return results

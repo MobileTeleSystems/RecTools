@@ -175,6 +175,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         debias_config = DebiasConfig(iqr_coef=1.5, random_state=32)
         debias_metrics = {
             "debias_precision@3": Precision(k=3, debias_config=debias_config),
+            "debias_rprecision@3": Precision(k=3, r_precision=True, debias_config=debias_config),
             "debias_recall@3": Recall(k=3, debias_config=debias_config),
             "debias_f1beta@3": F1Beta(k=3, debias_config=debias_config),
             "debias_accuracy@3": Accuracy(k=3, debias_config=debias_config),
@@ -189,6 +190,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         }
         metrics = {
             "debias_precision@3": Precision(k=3),
+            "debias_rprecision@3": Precision(k=3, r_precision=True),
             "debias_recall@3": Recall(k=3),
             "debias_f1beta@3": F1Beta(k=3),
             "debias_accuracy@3": Accuracy(k=3),

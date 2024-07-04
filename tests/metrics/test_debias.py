@@ -20,7 +20,7 @@ import pytest
 from rectools import Columns
 from rectools.metrics import MAP, PAP, DebiasConfig, PartialAUC
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DebiasableMetrikAtK, calc_debias_for_fit_metrics
+from rectools.metrics.debias import DebiasableMetrikAtK, make_debias_and_search_k_max_for_sample_metrics
 
 
 class TestDebias:
@@ -115,10 +115,12 @@ class TestDebias:
             },
         ),
     )
-    def test_calc_debias_for_fit_metrics(
+    def test_make_debias_and_search_k_max_for_sample_metrics(
         self, metrics_fitted: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
     ) -> None:
-        k_max_debias = calc_debias_for_fit_metrics(metrics=metrics_fitted, interactions=interactions)
+        k_max_debias = make_debias_and_search_k_max_for_sample_metrics(
+            metrics=metrics_fitted.values(), interactions=interactions
+        )
 
         unique_debias_config = []
         for metric in metrics_fitted.values():
