@@ -22,7 +22,7 @@ from attrs import define, field
 
 from rectools import Columns
 from rectools.metrics.base import outer_merge_reco
-from rectools.metrics.debias import DebiasableMetrikAtK, make_debias_and_search_k_max_for_sample_metrics
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task
 
 
 class InsufficientHandling(str, Enum):
@@ -222,7 +222,7 @@ class _AUCMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.make_debias(interactions)
+            interactions = self.debias_interactions(interactions)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -371,7 +371,7 @@ class PartialAUC(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="AUCFitted")
+        self._check_debias(is_debiased, obj_name="AUCFitted")
         outer_merged = fitted.outer_merged_enriched
         # Keep k first false positives for roc auc computation, keep all predicted test positives
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
@@ -483,7 +483,7 @@ class PAP(_AUCMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="AUCFitted")
+        self._check_debias(is_debiased, obj_name="AUCFitted")
         outer_merged = fitted.outer_merged_enriched
         # Keep k first false positives and k first predicted test positives for roc auc computation
         cropped = outer_merged[
@@ -547,7 +547,7 @@ def calc_auc_metrics(
         k_max = max(k_for_fitted)
         fitted = _AUCMetric.fit(reco, interactions, k_max, insufficient_handling_needed)
 
-    k_max_debias = make_debias_and_search_k_max_for_sample_metrics(metrics.values(), interactions)
+    k_max_debias = calc_debiased_fit_task(metrics.values(), interactions)
     fitted_debias = {}
     for debias_config_name, (k_max_d, interactions_d) in k_max_debias.items():
         fitted_debias[debias_config_name] = _AUCMetric.fit(reco, interactions_d, k_max_d, insufficient_handling_needed)

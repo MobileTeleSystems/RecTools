@@ -20,7 +20,7 @@ import pytest
 from rectools import Columns
 from rectools.metrics import MAP, PAP, DebiasConfig, PartialAUC
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DebiasableMetrikAtK, make_debias_and_search_k_max_for_sample_metrics
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task
 
 
 class TestDebias:
@@ -71,8 +71,8 @@ class TestDebias:
             on=Columns.UserItem,
         )
 
-        interactions_downsampling = debias_metric.make_debias(interactions)
-        merged_downsampling = debias_metric.make_debias(merged)
+        interactions_downsampling = debias_metric.debias_interactions(interactions)
+        merged_downsampling = debias_metric.debias_interactions(merged)
 
         pd.testing.assert_frame_equal(
             interactions_downsampling.sort_values(Columns.UserItem, ignore_index=True),
@@ -85,7 +85,7 @@ class TestDebias:
     def test_make_debias_with_empty_data(
         self, empty_interactions: pd.DataFrame, debias_metric: DebiasableMetrikAtK
     ) -> None:
-        interactions_downsampling = debias_metric.make_debias(empty_interactions)
+        interactions_downsampling = debias_metric.debias_interactions(empty_interactions)
 
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
@@ -115,12 +115,10 @@ class TestDebias:
             },
         ),
     )
-    def test_make_debias_and_search_k_max_for_sample_metrics(
+    def test_calc_debiased_fit_task(
         self, metrics_fitted: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
     ) -> None:
-        k_max_debias = make_debias_and_search_k_max_for_sample_metrics(
-            metrics=metrics_fitted.values(), interactions=interactions
-        )
+        k_max_debias = calc_debiased_fit_task(metrics=metrics_fitted.values(), interactions=interactions)
 
         unique_debias_config = []
         for metric in metrics_fitted.values():

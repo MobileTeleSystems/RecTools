@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasableMetrikAtK, make_debias_and_search_k_max_for_sample_metrics
+from .debias import DebiasableMetrikAtK, calc_debiased_fit_task
 
 
 @attr.s
@@ -251,7 +251,7 @@ class MAP(_RankingMetric):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.make_debias(interactions)
+            interactions = self.debias_interactions(interactions)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -277,7 +277,7 @@ class MAP(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="MAPFitted")
+        self._check_debias(is_debiased, obj_name="MAPFitted")
         valid_precisions = fitted.precision_at_k[:, 1 : self.k + 1]
         sum_precisions = np.asarray(valid_precisions.sum(axis=1)).reshape(-1)
         if self.divide_by_k:
@@ -423,7 +423,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = self.make_debias(merged)
+            merged = self.debias_interactions(merged)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
@@ -524,7 +524,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = self.make_debias(merged)
+            merged = self.debias_interactions(merged)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
         min_rank_per_user = (
@@ -598,7 +598,7 @@ def calc_ranking_metrics(
             k_max = max(k_for_fitted)
             fitted = MAP.fit(merged, k_max)
 
-        k_max_debias = make_debias_and_search_k_max_for_sample_metrics(map_metrics.values(), merged)
+        k_max_debias = calc_debiased_fit_task(map_metrics.values(), merged)
         fitted_debias = {}
         for debias_config, (k_max_d, merged_d) in k_max_debias.items():
             fitted_debias[debias_config] = MAP.fit(merged_d, k_max_d)

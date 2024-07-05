@@ -90,7 +90,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.make_debias(interactions)
+            interactions = self.debias_interactions(interactions)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -146,7 +146,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="confusion_df")
+        self._check_debias(is_debiased, obj_name="confusion_df")
         if TN not in confusion_df:
             confusion_df[TN] = len(catalog) - self.k - confusion_df[FN]
         return self._calc_per_user_from_confusion_df(confusion_df, catalog).rename(None)
@@ -208,7 +208,7 @@ class SimpleClassificationMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.make_debias(interactions)
+            interactions = self.debias_interactions(interactions)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -258,7 +258,7 @@ class SimpleClassificationMetric(DebiasableMetrikAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        self._check_debias(is_debiased, type_of_intermediate_values_of_interactions="confusion_df")
+        self._check_debias(is_debiased, obj_name="confusion_df")
         return self._calc_per_user_from_confusion_df(confusion_df).rename(None)
 
     def _calc_per_user_from_confusion_df(self, confusion_df: pd.DataFrame) -> pd.Series:
@@ -490,7 +490,7 @@ def calc_classification_metrics(
             raise TypeError(f"Unexpected classification metric {metric}")
         k_map[(metric.k, metric.debias_config)].append(name)
         if metric.debias_config is not None and metric.debias_config not in merged_debias:
-            merged_debias[metric.debias_config] = metric.make_debias(merged)
+            merged_debias[metric.debias_config] = metric.debias_interactions(merged)
 
     results = {}
     for k_and_debias_config, k_metrics in k_map.items():

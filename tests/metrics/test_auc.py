@@ -180,7 +180,7 @@ class TestPartialAUC:
         metric = PartialAUC(k=k, insufficient_handling=insufficient_handling)
         metric_debias = PartialAUC(k=k, insufficient_handling=insufficient_handling, debias_config=DEBIAS_CONFIG)
 
-        interactions_debiasing = metric_debias.make_debias(interactions)
+        interactions_debiasing = metric_debias.debias_interactions(interactions)
         expected_metric_per_user = metric.calc_per_user(reco, interactions_debiasing)
 
         pd.testing.assert_series_equal(metric_debias.calc_per_user(reco, interactions), expected_metric_per_user)
@@ -382,7 +382,7 @@ class TestPAP:
         metric = PAP(k=k, insufficient_handling=insufficient_handling)
         metric_debias = PAP(k=k, insufficient_handling=insufficient_handling, debias_config=DEBIAS_CONFIG)
 
-        interactions_debiasing = metric_debias.make_debias(interactions)
+        interactions_debiasing = metric_debias.debias_interactions(interactions)
         expected_metric_per_user = metric.calc_per_user(reco, interactions_debiasing)
 
         pd.testing.assert_series_equal(metric_debias.calc_per_user(reco, interactions), expected_metric_per_user)

@@ -222,7 +222,7 @@ class TestDebiasMetric:
         ),
     )
     def test_calc(self, metric: RankingMetric, metric_debias: RankingMetric) -> None:
-        downsample_interactions = metric_debias.make_debias(interactions_for_debiasing=self.interactions)
+        downsample_interactions = metric_debias.debias_interactions(self.interactions)
 
         expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
         result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)

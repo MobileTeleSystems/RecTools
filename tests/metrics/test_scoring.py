@@ -204,7 +204,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "debias_partauc@3": PartialAUC(k=3),
         }
 
-        interactions_downsampling = DebiasableMetrikAtK(k=3, debias_config=debias_config).make_debias(self.interactions)
+        interactions_downsampling = DebiasableMetrikAtK(k=3, debias_config=debias_config).debias_interactions(
+            self.interactions
+        )
 
         actual = calc_metrics(
             metrics=debias_metrics,  # type: ignore

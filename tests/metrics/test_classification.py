@@ -210,7 +210,7 @@ class TestDebiasMetric:
         "metric, metric_debias",
         (
             (Precision(k=2), Precision(k=2, debias_config=DEBIAS_CONFIG)),
-            (Precision(k=2), Precision(k=2, debias_config=DEBIAS_CONFIG)),
+            (Precision(k=2, r_precision=True), Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG)),
             (Recall(k=2), Recall(k=2, debias_config=DEBIAS_CONFIG)),
             (Accuracy(k=2), Accuracy(k=2, debias_config=DEBIAS_CONFIG)),
             (F1Beta(k=2), F1Beta(k=2, debias_config=DEBIAS_CONFIG)),
@@ -223,7 +223,7 @@ class TestDebiasMetric:
         metric: tp.Union[ClassificationMetric, SimpleClassificationMetric],
         metric_debias: tp.Union[ClassificationMetric, SimpleClassificationMetric],
     ) -> None:
-        downsample_interactions = metric_debias.make_debias(interactions_for_debiasing=INTERACTIONS)
+        downsample_interactions = metric_debias.debias_interactions(INTERACTIONS)
 
         if isinstance(metric, ClassificationMetric):
             expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
@@ -244,7 +244,7 @@ class TestDebiasMetric:
         "metric_debias",
         (
             (Precision(k=2, debias_config=DEBIAS_CONFIG)),
-            (Precision(k=2, debias_config=DEBIAS_CONFIG)),
+            (Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG)),
             (Recall(k=2, debias_config=DEBIAS_CONFIG)),
             (Accuracy(k=2, debias_config=DEBIAS_CONFIG)),
             (F1Beta(k=2, debias_config=DEBIAS_CONFIG)),
@@ -276,7 +276,7 @@ class TestDebiasMetric:
     )
     def test_check_debias(self, metric: tp.Union[ClassificationMetric, SimpleClassificationMetric]) -> None:
         merged = merge_reco(RECO, INTERACTIONS)
-        downsample_merged = metric.make_debias(merged)
+        downsample_merged = metric.debias_interactions(merged)
         confusion_df = calc_confusions(downsample_merged, k=2)
         with pytest.raises(ValueError):
             if isinstance(metric, ClassificationMetric):
