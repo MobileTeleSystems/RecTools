@@ -26,7 +26,7 @@ from rectools import Columns
 WIDGET_WIDTH = 800
 WIDGET_HEIGHT = 500
 TOP_CHART_MARGIN = 20
-LEGEND_TITLE = "Models"
+DEFAULT_LEGEND_TITLE = "model name"
 
 
 class MetricsApp:
@@ -200,7 +200,14 @@ class MetricsApp:
             .merge(self.models_metadata, on=Columns.Model, how="left")
         )
 
-    def _create_chart(self, data: pd.DataFrame, metric_x: str, metric_y: str, color: str) -> go.Figure:
+    def _create_chart(
+        self,
+        data: pd.DataFrame,
+        metric_x: str,
+        metric_y: str,
+        color: str,
+        legend_title: str,
+    ) -> go.Figure:
         scatter_kwargs = {
             "width": WIDGET_WIDTH,
             "height": WIDGET_HEIGHT,
@@ -216,7 +223,7 @@ class MetricsApp:
         )
         layout_params = {
             "margin": {"t": TOP_CHART_MARGIN},
-            "legend_title": LEGEND_TITLE,
+            "legend_title": legend_title,
             "showlegend": self.show_legend,
         }
         fig.update_layout(layout_params)
@@ -236,12 +243,13 @@ class MetricsApp:
         color_clmn = meta_feature.value if use_meta.value else Columns.Model
         data[color_clmn] = data[color_clmn].astype(str)  # to treat colors as categorical
 
-        self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn)
-
         if use_meta.value:
+            legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}"
+            self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn, legend_title)
             # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
             nometa_trace_name2idx = {trace.name.split(" ", 1)[1]: idx for idx, trace in enumerate(self.fig.data)}
         else:
+            self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn, DEFAULT_LEGEND_TITLE)
             nometa_trace_name2idx = {trace.name: idx for idx, trace in enumerate(self.fig.data)}
 
         with fig_widget.batch_update():
@@ -278,7 +286,8 @@ class MetricsApp:
         )
 
         data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
-        self.fig = self._create_chart(data, metric_x.value, metric_y.value, Columns.Model)
+        legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
+        self.fig = self._create_chart(data, metric_x.value, metric_y.value, Columns.Model, legend_title)
         fig_widget = go.FigureWidget(data=self.fig.data, layout=self.fig.layout)
 
         def update(event: tp.Callable[..., tp.Any]) -> None:  # pragma: no cover
