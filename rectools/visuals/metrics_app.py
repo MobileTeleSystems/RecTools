@@ -278,11 +278,11 @@ class MetricsApp:
         """Display MetricsApp widget"""
         metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
         metric_y = widgets.Dropdown(description="Metric Y:", value=self.metric_names[-1], options=self.metric_names)
-        use_avg = widgets.Checkbox(description="Avg folds", value=True)
+        use_avg = widgets.Checkbox(description="Average folds", value=True)
         fold_i = widgets.Dropdown(description="Fold number:", value=self.fold_ids[0], options=self.fold_ids)
-        use_meta = widgets.Checkbox(description="Use metadata colors", value=False)
+        use_meta = widgets.Checkbox(description="Use metadata", value=False)
         meta_feature = widgets.Dropdown(
-            description="Feature:", value=self.meta_names[0] if self.meta_names else None, options=self.meta_names
+            description="Color by:", value=self.meta_names[0] if self.meta_names else None, options=self.meta_names
         )
 
         data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
@@ -314,8 +314,8 @@ class MetricsApp:
                 ),
                 widgets.VBox([widgets.HBox([use_meta, meta_feature])]),
             ]
-            tab.set_title(0, "Data & Metrics")
-            tab.set_title(1, "Metadata colors")
+            tab.set_title(0, "Metrics")
+            tab.set_title(1, "Metadata")
         else:
             tab.children = [
                 widgets.VBox(
@@ -325,7 +325,7 @@ class MetricsApp:
                     ]
                 )
             ]
-            tab.set_title(0, "Data & Metrics")
+            tab.set_title(0, "Metrics")
 
         display(widgets.VBox([tab, fig_widget]))
 
