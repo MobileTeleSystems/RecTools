@@ -23,10 +23,10 @@ from rectools.visuals.metrics_app import MetricsApp
 
 DF_METRICS = pd.DataFrame(
     {
-        Columns.Model: ["Model1", "Model2", "Model1", "Model2", "Model1", "Model2"],
-        Columns.Split: [0, 0, 1, 1, 2, 2],
-        "prec@10": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-        "recall@5": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        Columns.Model: ["Model1", "Model2", "Model1", "Model2"],
+        Columns.Split: [0, 0, 1, 1],
+        "prec@10": [0.1, 0.2, 0.3, 0.4],
+        "recall@5": [0.5, 0.6, 0.7, 0.8],
     }
 )
 
@@ -34,9 +34,22 @@ DF_METAINFO = pd.DataFrame(
     {
         Columns.Model: ["Model1", "Model2"],
         "param1": [1, None],
-        "param2": [None, 2],
+        "param2": [None, "some text"],
         "param3": [None, None],
-        "param4": [1, 2],
+        "param4": [1, 2.0],
+    }
+)
+
+DF_MERGED = pd.DataFrame(
+    {
+        Columns.Model: ["Model1", "Model2", "Model1", "Model2"],
+        Columns.Split: [0, 0, 1, 1],
+        "prec@10": [0.1, 0.2, 0.3, 0.4],
+        "recall@5": [0.5, 0.6, 0.7, 0.8],
+        "param1": [1, None, 1, None],
+        "param2": [None, "some text", None, "some text"],
+        "param3": [None, None, None, None],
+        "param4": [1, 2.0, 1, 2.0],
     }
 )
 
@@ -54,6 +67,19 @@ class TestMetricsApp:
         ),
     )
     @pytest.mark.parametrize(
+        "models_metrics",
+        (
+            DF_METRICS,
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model2"],
+                    "prec@10": [0.1, 0.2],
+                    "recall@5": [0.5, 0.6],
+                }
+            ),
+        ),
+    )
+    @pytest.mark.parametrize(
         "model_metadata",
         (
             None,
@@ -63,6 +89,7 @@ class TestMetricsApp:
     )
     def test_happy_path(
         self,
+        models_metrics: pd.DataFrame,
         model_metadata: tp.Optional[pd.DataFrame],
         show_legend: bool,
         auto_display: bool,
@@ -70,7 +97,7 @@ class TestMetricsApp:
     ) -> None:
         with patch("rectools.visuals.metrics_app.MetricsApp.display", MagicMock()):
             app = MetricsApp.construct(
-                models_metrics=DF_METRICS,
+                models_metrics=models_metrics,
                 models_metadata=model_metadata,
                 show_legend=show_legend,
                 auto_display=auto_display,
@@ -165,31 +192,25 @@ class TestMetricsApp:
         assert app.model_names == expected_model_names, f"Expected {expected_model_names}, but got {app.model_names}"
 
     @pytest.mark.parametrize("fold_number", DF_METRICS[Columns.Split].unique())
-    def test_make_chart_data(self, fold_number: int) -> None:
+    def test_make_chart_data_fold(self, fold_number: int) -> None:
         app = MetricsApp.construct(
             models_metrics=DF_METRICS,
             models_metadata=DF_METAINFO,
             auto_display=False,
         )
-        chart_data = app._make_chart_data(fold_number)  # pylint: disable=protected-access
-        expected_data = (
-            DF_METRICS[DF_METRICS[Columns.Split] == fold_number]
-            .drop(columns=Columns.Split)
-            .merge(DF_METAINFO, on=Columns.Model, how="left")
-        )
+        chart_data = app._make_chart_data_fold(fold_number)  # pylint: disable=protected-access
+        expected_data = DF_MERGED[DF_MERGED[Columns.Split] == fold_number].reset_index(drop=True)
         pd.testing.assert_frame_equal(chart_data, expected_data)
 
     @pytest.mark.parametrize("fold_number", DF_METRICS[Columns.Split].unique())
-    def test_make_chart_data_no_metadata(self, fold_number: int) -> None:
+    def test_make_chart_data_fold_no_metadata(self, fold_number: int) -> None:
         app = MetricsApp.construct(
             models_metrics=DF_METRICS,
             models_metadata=None,
             auto_display=False,
         )
-        chart_data = app._make_chart_data(fold_number)  # pylint: disable=protected-access
-        expected_data = (
-            DF_METRICS[DF_METRICS[Columns.Split] == fold_number].drop(columns=Columns.Split).reset_index(drop=True)
-        )
+        chart_data = app._make_chart_data_fold(fold_number)  # pylint: disable=protected-access
+        expected_data = DF_METRICS[DF_METRICS[Columns.Split] == fold_number].reset_index(drop=True)
         pd.testing.assert_frame_equal(chart_data, expected_data)
 
     def test_make_chart_data_avg(self) -> None:
@@ -198,15 +219,17 @@ class TestMetricsApp:
             models_metadata=DF_METAINFO,
             auto_display=False,
         )
-        chart_data_avg = app._make_chart_data_avg()  # pylint: disable=protected-access
-        expected_data_avg = (
-            DF_METRICS.drop(columns=Columns.Split)
-            .groupby(Columns.Model, sort=False)
-            .mean()
-            .reset_index(drop=False)
-            .merge(DF_METAINFO, on=Columns.Model, how="left")
-        )
-        pd.testing.assert_frame_equal(chart_data_avg, expected_data_avg)
+        chart_data = app._make_chart_data_avg()  # pylint: disable=protected-access
+        expected_data = pd.DataFrame({
+            Columns.Model: ["Model1", "Model2"],
+            "prec@10": [0.2, 0.3],
+            "recall@5": [0.6, 0.7],
+            "param1": [1, None],
+            "param2": [None, "some text"],
+            "param3": [None, None],
+            "param4": [1, 2.0],
+        })
+        pd.testing.assert_frame_equal(chart_data, expected_data)
 
     def test_make_chart_data_avg_no_metadata(self) -> None:
         app = MetricsApp.construct(
@@ -214,12 +237,10 @@ class TestMetricsApp:
             models_metadata=None,
             auto_display=False,
         )
-        chart_data_avg = app._make_chart_data_avg()  # pylint: disable=protected-access
-        expected_data_avg = (
-            DF_METRICS.drop(columns=Columns.Split)
-            .groupby(Columns.Model, sort=False)
-            .mean()
-            .reset_index(drop=False)
-            .reset_index(drop=True)
-        )
-        pd.testing.assert_frame_equal(chart_data_avg, expected_data_avg)
+        chart_data = app._make_chart_data_avg()  # pylint: disable=protected-access
+        expected_data = pd.DataFrame({
+            Columns.Model: ["Model1", "Model2"],
+            "prec@10": [0.2, 0.3],
+            "recall@5": [0.6, 0.7],
+        })
+        pd.testing.assert_frame_equal(chart_data, expected_data)

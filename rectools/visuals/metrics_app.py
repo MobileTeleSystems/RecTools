@@ -37,21 +37,16 @@ class MetricsApp:
 
     def __init__(
         self,
-        models_metrics: pd.DataFrame,
-        models_metadata: tp.Optional[pd.DataFrame] = None,
+        data: pd.DataFrame,
+        metric_names: tp.List[str],
+        meta_names: tp.List[str],
         show_legend: bool = True,
         auto_display: bool = True,
         scatter_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
-        self.models_metrics = models_metrics
-        self._validate_models_metrics()
-
-        if models_metadata is not None:
-            self.models_metadata: pd.DataFrame = models_metadata
-        else:
-            self.models_metadata = models_metrics[Columns.Model].drop_duplicates().to_frame()
-        self._validate_models_metadata()
-
+        self.data = data
+        self.metric_names = metric_names
+        self.meta_names = meta_names
         self.show_legend = show_legend
         self.auto_display = auto_display
         self.scatter_kwargs = scatter_kwargs if scatter_kwargs is not None else {}
@@ -129,76 +124,73 @@ class MetricsApp:
         >>> fig = app.fig
         >>> fig = fig.update_layout(title="Metrics comparison")
         """
-        return cls(models_metrics, models_metadata, show_legend, auto_display, scatter_kwargs)
+        cls._validate_models_metrics(models_metrics)
+        if models_metadata is None:
+            models_metadata = models_metrics[Columns.Model].drop_duplicates().to_frame()
+        cls._validate_models_metadata(models_metadata)
 
-    @property
-    @lru_cache
-    def metric_names(self) -> tp.List[str]:
-        """List of metric column names from the `models_metrics`."""
-        non_metric_columns = {Columns.Split, Columns.Model}
-        return [col for col in self.models_metrics.columns if col not in non_metric_columns]
+        merged_data = models_metrics.merge(models_metadata, on=Columns.Model, how="left")
 
-    @property
-    @lru_cache
-    def meta_names(self) -> tp.List[str]:
-        """List of metadata columns names from `models_metadata`"""
-        return [col for col in self.models_metadata.columns if col != Columns.Model]
+        metric_names = [col for col in models_metrics.columns if col not in {Columns.Split, Columns.Model}]
+        meta_names = [col for col in models_metadata.columns if col != Columns.Model]
+
+        return cls(merged_data, metric_names, meta_names, show_legend, auto_display, scatter_kwargs)
 
     @property
     @lru_cache
     def model_names(self) -> tp.List[str]:
         """Sorted list of model names from `models_metrics`."""
-        return sorted(self.models_metrics[Columns.Model].unique())
+        return sorted(self.data[Columns.Model].unique())
 
     @property
-    def fold_ids(self) -> tp.List[int]:
+    @lru_cache
+    def fold_ids(self) -> tp.Optional[tp.List[int]]:
         """Sorted list of fold identifiers from the `models_metrics`."""
-        return sorted(self.models_metrics[Columns.Split].unique())
+        if Columns.Split in self.data.columns:
+            return sorted(self.data[Columns.Split].unique())
+        else:
+            return None
 
-    def _validate_models_metrics(self) -> None:
-        if not isinstance(self.models_metrics, pd.DataFrame):
+    @staticmethod
+    def _validate_models_metrics(models_metrics: pd.DataFrame) -> None:
+        if not isinstance(models_metrics, pd.DataFrame):
             raise ValueError("Incorrect input type. `metrics_data` should be a DataFrame")
-        if Columns.Split not in self.models_metrics.columns:
-            raise KeyError("Missing `Split` column in `metrics_data` DataFrame")
-        if Columns.Model not in self.models_metrics.columns:
+        if Columns.Model not in models_metrics.columns:
             raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
-        if len(self.models_metrics.columns) < 3:
+        if len(models_metrics.columns) < 3:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
-        if self.models_metrics.isnull().values.any():
+        if models_metrics.isnull().values.any():
             raise ValueError("Found NaN values in `metrics_data`")
-        models_names_with_folds = self.models_metrics[Columns.Model].astype(str) + self.models_metrics[
-            Columns.Split
-        ].astype(str)
-        if models_names_with_folds.nunique() != len(models_names_with_folds):
-            raise ValueError("`Model` values of `metrics_data` should be unique")
+        if Columns.Split in models_metrics.columns:
+            models_names_comb = models_metrics[Columns.Model].astype(str) + models_metrics[Columns.Split].astype(str)
+            if models_names_comb.nunique() != len(models_names_comb):
+                raise ValueError(
+                    "Each combination of `Model` and `Split` in the `metrics_data` DataFrame must be unique"
+                )
 
-    def _validate_models_metadata(self) -> None:
-        if not isinstance(self.models_metadata, pd.DataFrame):
+    @staticmethod
+    def _validate_models_metadata(models_metadata) -> None:
+        if not isinstance(models_metadata, pd.DataFrame):
             raise ValueError("Incorrect input type. `models_metadata` should be a DataFrame")
-        if Columns.Model not in self.models_metadata.columns:
+        if Columns.Model not in models_metadata.columns:
             raise KeyError("Missing `Model`` column in `models_metadata` DataFrame")
-        if self.models_metadata[Columns.Model].nunique() != len(self.models_metadata):
-            raise ValueError("`Model` values of `models_metadata`  should be unique`")
-        if self.models_metadata[Columns.Model].isnull().any():
+        if models_metadata[Columns.Model].nunique() != len(models_metadata):
+            raise ValueError("`Model` values of `models_metadata` should be unique`")
+        if models_metadata[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model` column")
 
     @lru_cache
-    def _make_chart_data(self, fold_number: int) -> pd.DataFrame:
-        return (
-            self.models_metrics[self.models_metrics[Columns.Split] == fold_number]
-            .drop(columns=Columns.Split)
-            .merge(self.models_metadata, on=Columns.Model, how="left")
-        )
+    def _make_chart_data_fold(self, fold_number: int) -> pd.DataFrame:
+        return self.data[self.data[Columns.Split] == fold_number].reset_index(drop=True)
 
     @lru_cache
     def _make_chart_data_avg(self) -> pd.DataFrame:
-        return (
-            self.models_metrics.drop(columns=Columns.Split)
-            .groupby(Columns.Model, sort=False)
-            .mean()
-            .reset_index(drop=False)
-            .merge(self.models_metadata, on=Columns.Model, how="left")
-        )
+        metric_data_columns = [Columns.Model] + self.metric_names
+        meta_data_columns = [Columns.Model] + self.meta_names
+        # separate metric data because meta data could contain strings
+        metrics_data = self.data[metric_data_columns].groupby([Columns.Model], sort=False).mean().reset_index()
+        meta_data = self.data[meta_data_columns].drop_duplicates()
+        return metrics_data.merge(meta_data, on=Columns.Model, how="left").reset_index(drop=True)
 
     def _create_chart(
         self,
@@ -239,17 +231,17 @@ class MetricsApp:
         meta_feature: widgets.Dropdown,
         use_meta: widgets.Checkbox,
     ) -> None:  # pragma: no cover
-        data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
+        chart_data = chart_data = self._create_chart_data(use_avg, fold_i)
         color_clmn = meta_feature.value if use_meta.value else Columns.Model
-        data[color_clmn] = data[color_clmn].astype(str)  # to treat colors as categorical
+        chart_data[color_clmn] = chart_data[color_clmn].astype(str)  # to treat colors as categorical
 
         if use_meta.value:
             legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}"
-            self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn, legend_title)
+            self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
             # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
             nometa_trace_name2idx = {trace.name.split(" ", 1)[1]: idx for idx, trace in enumerate(self.fig.data)}
         else:
-            self.fig = self._create_chart(data, metric_x.value, metric_y.value, color_clmn, DEFAULT_LEGEND_TITLE)
+            self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, color_clmn, DEFAULT_LEGEND_TITLE)
             nometa_trace_name2idx = {trace.name: idx for idx, trace in enumerate(self.fig.data)}
 
         with fig_widget.batch_update():
@@ -274,20 +266,32 @@ class MetricsApp:
     def _update_meta_visibility(self, use_meta: widgets.Checkbox, meta_feature: widgets.Dropdown) -> None:
         meta_feature.layout.visibility = "hidden" if not use_meta.value else "visible"
 
+    def _create_chart_data(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> pd.DataFrame:
+        if use_avg.value or fold_i.value is None:
+            return self._make_chart_data_avg()
+        else:
+            return self._make_chart_data_fold(fold_i.value)
+
     def display(self) -> None:
         """Display MetricsApp widget"""
         metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
         metric_y = widgets.Dropdown(description="Metric Y:", value=self.metric_names[-1], options=self.metric_names)
         use_avg = widgets.Checkbox(description="Average folds", value=True)
-        fold_i = widgets.Dropdown(description="Fold number:", value=self.fold_ids[0], options=self.fold_ids)
+        fold_i = widgets.Dropdown(
+            description="Fold number:",
+            value=self.fold_ids[0] if self.fold_ids is not None else -1,
+            options=self.fold_ids if self.fold_ids is not None else [-1],
+        )
         use_meta = widgets.Checkbox(description="Use metadata", value=False)
         meta_feature = widgets.Dropdown(
-            description="Color by:", value=self.meta_names[0] if self.meta_names else None, options=self.meta_names
+            description="Color by:",
+            value=self.meta_names[0] if self.meta_names else None,
+            options=self.meta_names,
         )
 
-        data = self._make_chart_data_avg() if use_avg.value else self._make_chart_data(fold_i.value)
+        chart_data = self._create_chart_data(use_avg, fold_i)
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
-        self.fig = self._create_chart(data, metric_x.value, metric_y.value, Columns.Model, legend_title)
+        self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, Columns.Model, legend_title)
         fig_widget = go.FigureWidget(data=self.fig.data, layout=self.fig.layout)
 
         def update(event: tp.Callable[..., tp.Any]) -> None:  # pragma: no cover
@@ -304,27 +308,19 @@ class MetricsApp:
 
         tab = widgets.Tab()
 
+        metrics_vbox = widgets.VBox([widgets.HBox([metric_x, metric_y])])
+
         if self.meta_names:
-            tab.children = [
-                widgets.VBox(
-                    [
-                        widgets.HBox([use_avg, fold_i]),
-                        widgets.HBox([metric_x, metric_y]),
-                    ]
-                ),
-                widgets.VBox([widgets.HBox([use_meta, meta_feature])]),
-            ]
+            metadata_vbox = widgets.VBox([widgets.HBox([use_meta, meta_feature])])
+            if self.fold_ids:
+                metrics_vbox = widgets.VBox([widgets.HBox([use_avg, fold_i]), widgets.HBox([metric_x, metric_y])])
+            tab.children = [metrics_vbox, metadata_vbox]
             tab.set_title(0, "Metrics")
             tab.set_title(1, "Metadata")
         else:
-            tab.children = [
-                widgets.VBox(
-                    [
-                        widgets.HBox([use_avg, fold_i]),
-                        widgets.HBox([metric_x, metric_y]),
-                    ]
-                )
-            ]
+            if self.fold_ids:
+                metrics_vbox = widgets.VBox([widgets.HBox([use_avg, fold_i]), widgets.HBox([metric_x, metric_y])])
+            tab.children = [metrics_vbox]
             tab.set_title(0, "Metrics")
 
         display(widgets.VBox([tab, fig_widget]))
