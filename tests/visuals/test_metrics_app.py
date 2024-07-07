@@ -55,6 +55,9 @@ DF_MERGED = pd.DataFrame(
 
 
 class TestMetricsApp:
+
+    # -------------------------------------------Test happy paths------------------------------------------- #
+
     @pytest.mark.parametrize("show_legend", (True, False))
     @pytest.mark.parametrize("auto_display", (True, False))
     @pytest.mark.parametrize(
@@ -118,44 +121,90 @@ class TestMetricsApp:
         )
         app.display()
 
+    # -------------------------------------Test metrics data validation------------------------------------- #
+
     def test_models_metrics_is_not_dataframe(self) -> None:
         with pytest.raises(ValueError):
             MetricsApp.construct(models_metrics=1)
 
-    @pytest.mark.parametrize("column", (Columns.Model, Columns.Split, "metric"))
-    def test_missed_models_metrics_column(self, column: str) -> None:
-        models_metrics = pd.DataFrame(
-            {
-                Columns.Model: ["Model1", "Model2"],
-                Columns.Split: [0, 0],
-                "metric": [0.1, 0.2],
-            }
-        )
-        models_metrics.drop(columns=column, inplace=True)
+    @pytest.mark.parametrize(
+        "models_metrics",
+        (
+            pd.DataFrame(
+                {
+                    Columns.Split: [0, 0, 1, 1],
+                    "prec@10": [0.1, 0.2, 0.3, 0.4],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model2", "Model1", "Model2"],
+                    Columns.Split: [0, 0, 1, 1],
+                }
+            ),
+        ),
+    )
+    def test_missed_models_metrics_column(self, models_metrics: pd.DataFrame) -> None:
         with pytest.raises(KeyError):
             MetricsApp.construct(models_metrics=models_metrics)
 
     def test_models_metrics_has_nan(self) -> None:
         models_metrics = pd.DataFrame(
             {
-                Columns.Model: ["Model1", "Model2"],
-                Columns.Split: [0, 0],
+                Columns.Model: [None, "Model2"],
                 "metric": [0.1, None],
             }
         )
         with pytest.raises(ValueError):
             MetricsApp.construct(models_metrics=models_metrics)
 
-    def test_models_metrics_has_non_unique_models_names(self) -> None:
-        models_metrics = pd.DataFrame(
-            {
-                Columns.Model: ["Model1", "Model1"],
-                Columns.Split: [0, 0],
-                "metric": [0.1, 0.2],
-            }
-        )
+    @pytest.mark.parametrize(
+        "models_metrics",
+        (
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model1"],
+                    "metric": [0.1, 0.2],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model_1", "Model 1"],
+                    "metric": [0.1, 0.2],
+                }
+            ),
+        ),
+    )
+    def test_models_metrics_has_non_unique_models_names(self, models_metrics: pd.DataFrame) -> None:
         with pytest.raises(ValueError):
             MetricsApp.construct(models_metrics=models_metrics)
+
+    @pytest.mark.parametrize(
+        "models_metrics",
+        (
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model2", "Model1", "Model2"],
+                    Columns.Split: [0, 0, 1, 2],
+                    "prec@10": [0.1, 0.2, 0.3, 0.4],
+                    "recall@5": [0.5, 0.6, 0.7, 0.8],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model2", "Model1"],
+                    Columns.Split: [0, 0, 1],
+                    "prec@10": [0.1, 0.2, 0.3],
+                    "recall@5": [0.5, 0.6, 0.7],
+                }
+            ),
+        ),
+    )
+    def test_model_metrics_have_non_consistent_folds(self, models_metrics: pd.DataFrame) -> None:
+        with pytest.raises(ValueError):
+            MetricsApp.construct(models_metrics=models_metrics)
+
+    # --------------------------------------Test meta data validation--------------------------------------- #
 
     def test_models_metadata_is_not_dataframe(self) -> None:
         with pytest.raises(ValueError):
@@ -182,6 +231,8 @@ class TestMetricsApp:
                 models_metadata=pd.DataFrame({Columns.Model: ["Model1", "Model2", None]}),
             )
 
+    # -------------------------------------------Test properties-------------------------------------------- #
+
     def test_model_names(self) -> None:
         app = MetricsApp.construct(
             models_metrics=DF_METRICS,
@@ -190,6 +241,8 @@ class TestMetricsApp:
         )
         expected_model_names = sorted(DF_METRICS[Columns.Model].unique())
         assert app.model_names == expected_model_names, f"Expected {expected_model_names}, but got {app.model_names}"
+
+    # ----------------------------------------Test data aggregators----------------------------------------- #
 
     @pytest.mark.parametrize("fold_number", DF_METRICS[Columns.Split].unique())
     def test_make_chart_data_fold(self, fold_number: int) -> None:
@@ -220,15 +273,17 @@ class TestMetricsApp:
             auto_display=False,
         )
         chart_data = app._make_chart_data_avg()  # pylint: disable=protected-access
-        expected_data = pd.DataFrame({
-            Columns.Model: ["Model1", "Model2"],
-            "prec@10": [0.2, 0.3],
-            "recall@5": [0.6, 0.7],
-            "param1": [1, None],
-            "param2": [None, "some text"],
-            "param3": [None, None],
-            "param4": [1, 2.0],
-        })
+        expected_data = pd.DataFrame(
+            {
+                Columns.Model: ["Model1", "Model2"],
+                "prec@10": [0.2, 0.3],
+                "recall@5": [0.6, 0.7],
+                "param1": [1, None],
+                "param2": [None, "some text"],
+                "param3": [None, None],
+                "param4": [1, 2.0],
+            }
+        )
         pd.testing.assert_frame_equal(chart_data, expected_data)
 
     def test_make_chart_data_avg_no_metadata(self) -> None:
@@ -238,9 +293,11 @@ class TestMetricsApp:
             auto_display=False,
         )
         chart_data = app._make_chart_data_avg()  # pylint: disable=protected-access
-        expected_data = pd.DataFrame({
-            Columns.Model: ["Model1", "Model2"],
-            "prec@10": [0.2, 0.3],
-            "recall@5": [0.6, 0.7],
-        })
+        expected_data = pd.DataFrame(
+            {
+                Columns.Model: ["Model1", "Model2"],
+                "prec@10": [0.2, 0.3],
+                "recall@5": [0.6, 0.7],
+            }
+        )
         pd.testing.assert_frame_equal(chart_data, expected_data)

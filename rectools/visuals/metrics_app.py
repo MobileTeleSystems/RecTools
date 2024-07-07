@@ -124,12 +124,15 @@ class MetricsApp:
         >>> fig = app.fig
         >>> fig = fig.update_layout(title="Metrics comparison")
         """
-        cls._validate_models_metrics(models_metrics)
+        cls._validate_models_metrics_base(models_metrics)
+        cls._validate_models_metrics_split(models_metrics)
+        cls._validate_models_metrics_names(models_metrics)
         if models_metadata is None:
             models_metadata = models_metrics[Columns.Model].drop_duplicates().to_frame()
         cls._validate_models_metadata(models_metadata)
 
         merged_data = models_metrics.merge(models_metadata, on=Columns.Model, how="left")
+        merged_data[Columns.Model] = merged_data[Columns.Model].str.replace(" ", "_")
 
         metric_names = [col for col in models_metrics.columns if col not in {Columns.Split, Columns.Model}]
         meta_names = [col for col in models_metadata.columns if col != Columns.Model]
@@ -148,28 +151,51 @@ class MetricsApp:
         """Sorted list of fold identifiers from the `models_metrics`."""
         if Columns.Split in self.data.columns:
             return sorted(self.data[Columns.Split].unique())
-        else:
-            return None
+        return None
 
     @staticmethod
-    def _validate_models_metrics(models_metrics: pd.DataFrame) -> None:
+    def _validate_models_metrics_base(models_metrics: pd.DataFrame) -> None:
         if not isinstance(models_metrics, pd.DataFrame):
             raise ValueError("Incorrect input type. `metrics_data` should be a DataFrame")
         if Columns.Model not in models_metrics.columns:
             raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
-        if len(models_metrics.columns) < 3:
+        if len([item for item in models_metrics.columns if item not in {Columns.Model, Columns.Split}]) < 1:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
         if models_metrics.isnull().values.any():
             raise ValueError("Found NaN values in `metrics_data`")
-        if Columns.Split in models_metrics.columns:
-            models_names_comb = models_metrics[Columns.Model].astype(str) + models_metrics[Columns.Split].astype(str)
-            if models_names_comb.nunique() != len(models_names_comb):
-                raise ValueError(
-                    "Each combination of `Model` and `Split` in the `metrics_data` DataFrame must be unique"
-                )
 
     @staticmethod
-    def _validate_models_metadata(models_metadata) -> None:
+    def _validate_models_metrics_split(models_metrics: pd.DataFrame) -> None:
+        # Validate that each model have same folds
+        if Columns.Split not in models_metrics.columns:
+            return
+        grouped = models_metrics.groupby(Columns.Model)
+        # get the first group's fold counts and fold names for reference
+        ref_group = grouped.get_group(next(iter(grouped.groups.keys())))
+        ref_fold_count = ref_group[Columns.Split].nunique()
+        ref_fold_names = set(ref_group[Columns.Split].unique())
+
+        for model, group in grouped:
+            if group["i_split"].nunique() != ref_fold_count:
+                raise ValueError(f"{model} does not have the expected fold amount")
+            if set(group["i_split"].unique()) != ref_fold_names:
+                raise ValueError(f"{model} does not have the expected fold names")
+
+    @staticmethod
+    def _validate_models_metrics_names(models_metrics: pd.DataFrame) -> None:
+        # Validate that all Models names are unique
+        if Columns.Split in models_metrics.columns:
+            models_metrics[Columns.Model] = models_metrics[Columns.Model].astype(str).str.replace(" ", "_")
+            models_names_comb = models_metrics[Columns.Model] + models_metrics[Columns.Split].astype(str)
+            if models_names_comb.nunique() != len(models_names_comb):
+                raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
+        else:
+            models_metrics[Columns.Model] = models_metrics[Columns.Model].astype(str).str.replace(" ", "_")
+            if models_metrics[Columns.Model].nunique() != len(models_metrics[Columns.Model]):
+                raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
+
+    @staticmethod
+    def _validate_models_metadata(models_metadata: pd.DataFrame) -> None:
         if not isinstance(models_metadata, pd.DataFrame):
             raise ValueError("Incorrect input type. `models_metadata` should be a DataFrame")
         if Columns.Model not in models_metadata.columns:
@@ -205,6 +231,10 @@ class MetricsApp:
             "height": WIDGET_HEIGHT,
         }
         scatter_kwargs.update(self.scatter_kwargs)
+
+        data = data.sort_values(by=color, ascending=False)
+        data[color] = data[color].astype(str)  # to treat colors values as categorical
+
         fig = px.scatter(
             data,
             x=metric_x,
@@ -231,18 +261,20 @@ class MetricsApp:
         meta_feature: widgets.Dropdown,
         use_meta: widgets.Checkbox,
     ) -> None:  # pragma: no cover
-        chart_data = chart_data = self._create_chart_data(use_avg, fold_i)
+        chart_data = self._create_chart_data(use_avg, fold_i)
         color_clmn = meta_feature.value if use_meta.value else Columns.Model
-        chart_data[color_clmn] = chart_data[color_clmn].astype(str)  # to treat colors as categorical
 
-        if use_meta.value:
-            legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}"
-            self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
-            # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
-            nometa_trace_name2idx = {trace.name.split(" ", 1)[1]: idx for idx, trace in enumerate(self.fig.data)}
-        else:
-            self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, color_clmn, DEFAULT_LEGEND_TITLE)
-            nometa_trace_name2idx = {trace.name: idx for idx, trace in enumerate(self.fig.data)}
+        # Save dots symbols from the previous widget state
+        # `split(" ", 1)[-1]` removed metainfo from trace name. Thus we guarantee to map with traces from previous state
+        trace_name2symbol = {trace.name.split(" ", 1)[-1]: trace.marker.symbol for trace in self.fig.data}
+        legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
+        self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
+
+        for trace in self.fig.data:
+            trace_name = trace.name.split(" ", 1)[-1]
+            trace.marker.symbol = trace_name2symbol[trace_name]
+
+        nometa_trace_name2idx = {trace.name.split(" ", 1)[-1]: idx for idx, trace in enumerate(self.fig.data)}
 
         with fig_widget.batch_update():
             for trace in self.fig.data:
@@ -251,6 +283,7 @@ class MetricsApp:
                 fig_widget.data[idx].x = trace.x
                 fig_widget.data[idx].y = trace.y
                 fig_widget.data[idx].marker.color = trace.marker.color
+                fig_widget.data[idx].marker.symbol = trace.marker.symbol
                 fig_widget.data[idx].text = trace.text
                 fig_widget.data[idx].name = trace.name
                 fig_widget.data[idx].legendgroup = trace.legendgroup
@@ -269,8 +302,7 @@ class MetricsApp:
     def _create_chart_data(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> pd.DataFrame:
         if use_avg.value or fold_i.value is None:
             return self._make_chart_data_avg()
-        else:
-            return self._make_chart_data_fold(fold_i.value)
+        return self._make_chart_data_fold(fold_i.value)
 
     def display(self) -> None:
         """Display MetricsApp widget"""
@@ -289,6 +321,7 @@ class MetricsApp:
             options=self.meta_names,
         )
 
+        # Initialize go.FigureWidget initial chart state
         chart_data = self._create_chart_data(use_avg, fold_i)
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
         self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, Columns.Model, legend_title)
