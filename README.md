@@ -9,7 +9,16 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/MobileTeleSystems/RecTools/test.yml?branch=main&label=tests)](https://github.com/MobileTeleSystems/RecTools/actions/workflows/test.yml?query=branch%3Amain++)
 
 [![Contributors](https://img.shields.io/github/contributors/MobileTeleSystems/RecTools.svg)](https://github.com/MobileTeleSystems/RecTools/graphs/contributors)
+[![Downloads](https://static.pepy.tech/badge/rectools)](https://pepy.tech/project/rectools)
 [![Telegram](https://img.shields.io/badge/channel-telegram-blue)](https://t.me/RecTools_Support)
+
+<p align="center">
+  <a href="https://rectools.readthedocs.io/en/stable/">Documentation</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/tree/main/examples">Examples</a> |
+    <a href="https://github.com/MobileTeleSystems/RecTools/tree/main/examples/tutorials">Tutorials</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/blob/main/CONTRIBUTING.rst">Contribution Guide</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/releases">Release Notes</a>
+</p>
 
 RecTools is an easy-to-use Python library which makes the process of building recommendation systems easier, 
 faster and more structured than ever before.
@@ -19,8 +28,7 @@ and model selection framework.
 The aim is to collect ready-to-use solutions and best practices in one place to make processes 
 of creating your first MVP and deploying model to production as fast and easy as possible.
 
-For more details, see the [Documentation](https://rectools.readthedocs.io/) 
-and [Tutorials](https://github.com/MobileTeleSystems/RecTools/tree/main/examples).
+
 
 ## Get started
 
@@ -89,19 +97,20 @@ pip install rectools[all]
 
 
 ## Recommender Models
-The table below lists recommender models that are available in RecTools. 
+The table below lists recommender models that are available in RecTools.  
+See [recommender baselines extended tutorial](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/tutorials/baselines_extended_tutorial.ipynb) for deep dive into theory & practice of our supported models.
 
-| Model | Type | Description | Extra features |
-|----|----|-----------|--------|
-| [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback | Support for user/item features! [Check our boost to metrics](examples/5_benchmark_iALS_with_features.ipynb) |
-| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Collaborative Filtering | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | - |
-| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | `rectools.models.LightFMWrapperModel` - Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses | 10-25 times faster inference! [Check our boost to inference](examples/6_benchmark_lightfm_inference.ipynb)|
-| EASE | Collaborative Filtering | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | - |
-| PureSVD | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix | - |
-| DSSM | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss | - |
-| Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items | Hyperparams (time window, pop computation) |
-| Popular in Category | Heuristic |  `rectools.models.PopularInCategoryModel` - Model that computes poularity within category and applies mixing strategy to increase Diversity | Hyperparams (time window, pop computation, mixing/ratio strategy) |
-| Random |  Heuristic | `rectools.models.RandomModel` - Simple random algorithm useful to benchmark Novelty, Coverage, etc.  | - |
+| Model | Type | Description (🎏 for user/item features, 🔆 for warm inference, ❄️ for cold inference support) | Tutorials & Benchmarks |
+|----|----|---------|--------|
+| [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback. <br>🎏| 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Implicit-ALS)<br> 🚀 [50% boost to metrics with user & item features](examples/5_benchmark_iALS_with_features.ipynb) |
+| [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Nearest Neighbours | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#ItemKNN) |
+| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | `rectools.models.LightFMWrapperModel` - Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses.<br>🎏 🔆 ❄️| 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#LightFM)<br>🚀 [10-25 times faster inference with RecTools](examples/6_benchmark_lightfm_inference.ipynb)|
+| EASE | Linear Autoencoder | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#EASE) |
+| PureSVD | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#PureSVD) |
+| DSSM | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss.<br>🎏 🔆 | - |
+| Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items and also accepts params like time window and type of popularity computation.<br>❄️| - |
+| Popular in Category | Heuristic |  `rectools.models.PopularInCategoryModel` - Model that computes poularity within category and applies mixing strategy to increase Diversity.<br>❄️| - |
+| Random |  Heuristic | `rectools.models.RandomModel` - Simple random algorithm useful to benchmark Novelty, Coverage, etc.<br>❄️| - |
 
 - All of the models follow the same interface. **No exceptions**
 - No need for manual creation of sparse matrixes or mapping ids. Preparing data for models is as simple as `dataset = Dataset.construct(interactions_df)`
@@ -109,7 +118,7 @@ The table below lists recommender models that are available in RecTools.
 - For getting recommendations `filter_viewed` and `items_to_recommend` options are available
 - For item-to-item recommendations use `recommend_to_items` method
 - For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
-- For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.** Check [documentation](https://rectools.readthedocs.io/en/stable/features.html#models) to see which models support this scenarios.
+- For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.**
 
 ## Contribution
 [Contributing guide](CONTRIBUTING.rst)
@@ -155,6 +164,8 @@ make clean
 - [Alexander Butenko](https://github.com/iomallach)
 - [Andrey Semenov](https://github.com/In48semenov)
 - [Mike Sokolov](https://github.com/mikesokolovv)
+- [Maya Spirina](https://github.com/spirinamayya)
+- [Grigoriy Gusarov](https://github.com/Gooogr)
 
-Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup) 
+Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup), [Maxim Lukin](https://github.com/groundmax), [Yuri Ulianov](https://github.com/yukeeul), [Egor Kratkov](https://github.com/jegorus), [Azat Sibagatulin](https://github.com/azatnv)
 
