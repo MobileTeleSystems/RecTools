@@ -18,6 +18,8 @@ from rectools.dataset import Dataset as RecDataset
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ModelBase
 
+T = tp.TypeVar("T", bound="ModelBase")
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +40,7 @@ class SasRecRecommenderModel(ModelBase):
         use_pos_emb: bool = True,
         loss: str = "bce",
         verbose: int = 0,
-        random_state: int = None,
+        random_state: int = False,
     ):
         super().__init__(verbose=verbose)
         self.session_maxlen = session_maxlen
@@ -52,16 +54,17 @@ class SasRecRecommenderModel(ModelBase):
         self.n_heads = n_heads
         self.dropout_rate = dropout_rate
         self.use_pos_emb = use_pos_emb
-        self.random_state = random_state
 
-        if self.random_state is not None:
+        if random_state is not None:
             torch.use_deterministic_algorithms(True)
-            seed_everything(self.random_state, workers=True)
+            seed_everything(random_state, workers=True)
 
-    def fit(
+    def _fit(
         self,
         dataset: RecDataset,
-    ):
+        *args: tp.Any,
+        **kwargs: tp.Any,
+    ) -> None:
         """TODO"""
         user_item_interactions = dataset.get_raw_interactions()
 
@@ -113,11 +116,14 @@ class SasRecRecommenderModel(ModelBase):
 
     def recommend(
         self,
-        users: List[str],
+        users: AnyIds,
         dataset: RecDataset,
         k: int,
+        filter_viewed: bool = False,
         items_to_recommend: tp.Optional[AnyIds] = None,
-    ):
+        add_rank_col: bool = True,
+        assume_external_ids: bool = True,
+    ) -> pd.DataFrame:
         """TODO"""
         train = dataset.get_raw_interactions()
 
@@ -157,7 +163,7 @@ class SASRecTargetInput:
     """TODO"""
 
     next_watch: torch.LongTensor
-    weights: Optional[torch.LongTensor] = None
+    weights: torch.FloatTensor
 
 
 class SequenceTaskConverter:
@@ -173,27 +179,26 @@ class SequenceTaskConverter:
         users, sessions, weights = self._interactions2sessions(user_item_interactions)
         sessions_x, sessions_y, x_weights, y_weights = self._sessions2xy(sessions, weights)
 
+        sessions_padded, _ = self._sessions_transform(sessions_x, x_weights)
+        sessions_tensor = torch.LongTensor(sessions_padded)
+
         items = user_item_interactions[Columns.Item].drop_duplicates().sort_values().to_list()
-
-        sessions, _ = self._sessions_transform(sessions_x, x_weights)
-        sessions = torch.LongTensor(sessions)
-
         item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
         item_model_input = torch.LongTensor(item_model_input)
 
-        next_watch, weights = self._sessions_transform(sessions_y, y_weights)
-        next_watch = torch.LongTensor(next_watch)
-        weights = torch.FloatTensor(weights)
+        next_watch_padded, weights_padded = self._sessions_transform(sessions_y, y_weights)
+        next_watch_tensor = torch.LongTensor(next_watch_padded)
+        weights_tensor = torch.FloatTensor(weights_padded)
 
         return (
             SASRecModelInput(
-                sessions=sessions,
+                sessions=sessions_tensor,
                 item_model_input=item_model_input,
                 users=users,
             ),
             SASRecTargetInput(
-                next_watch=next_watch,
-                weights=weights,
+                next_watch=next_watch_tensor,
+                weights=weights_tensor,
             ),
         )
 
@@ -209,14 +214,14 @@ class SequenceTaskConverter:
 
         items = item_features.sort_values().to_list()
 
-        sessions, _ = self._sessions_transform(sessions, weights)
-        sessions = torch.LongTensor(sessions)
+        sessions_padded, _ = self._sessions_transform(sessions, weights)
+        sessions_tensor = torch.LongTensor(sessions_padded)
 
         item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
         item_model_input = torch.LongTensor(item_model_input)
 
         return SASRecModelInput(
-            sessions=sessions,
+            sessions=sessions_tensor,
             item_model_input=item_model_input,
             users=users,
         )
@@ -265,7 +270,7 @@ class SequenceTaskConverter:
         self,
         sessions: List[List[str]],
         weights: List[List[float]],
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         x = np.zeros((len(sessions), self.session_maxlen))
         w = np.zeros((len(sessions), self.session_maxlen))
         # left padding, left truncation
@@ -282,7 +287,7 @@ class SequenceTaskConverter:
         self,
         session_maxlen: int,
         user_item_interactions: pd.DataFrame,
-    ):
+    ) -> None:
         """TODO"""
         self.session_maxlen = session_maxlen
 
@@ -308,10 +313,10 @@ class SequenceDataset(Dataset):
         self.samples_cnt = self.x.sessions.shape[0]
         self.batches_cnt = math.ceil(self.samples_cnt / self.batch_size)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.batches_cnt
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple:
         batch_idx = index
         start = batch_idx * self.batch_size
         end = min(start + self.batch_size, self.samples_cnt)
@@ -337,7 +342,7 @@ class SequenceDataset(Dataset):
 class PointWiseFeedForward(torch.nn.Module):
     """TODO"""
 
-    def __init__(self, factors, dropout_rate):
+    def __init__(self, factors: int, dropout_rate: float):
         super(PointWiseFeedForward, self).__init__()
 
         self.conv1 = torch.nn.Conv1d(factors, factors, kernel_size=1)
@@ -346,7 +351,7 @@ class PointWiseFeedForward(torch.nn.Module):
         self.conv2 = torch.nn.Conv1d(factors, factors, kernel_size=1)
         self.dropout2 = torch.nn.Dropout(p=dropout_rate)
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """TODO"""
         outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
         outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length)
@@ -417,10 +422,10 @@ class TransformerEncoder(nn.Module):
 
     def forward(
         self,
-        seqs: torch.LongTensor,
+        seqs: torch.Tensor,
         attention_mask: torch.Tensor,
         timeline_mask: torch.Tensor,
-    ):
+    ) -> torch.Tensor:
         """TODO"""
         for i in range(len(self.attention_layers)):
             seqs = torch.transpose(seqs, 0, 1)
@@ -470,7 +475,7 @@ class SASRec(torch.nn.Module):
         """TODO"""
         return self.item_model.get_device()
 
-    def log2feats(self, sessions: torch.LongTensor, item_embs: torch.Tensor) -> torch.Tensor:
+    def log2feats(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
         Pass user history through item embeddings and transformer blocks.
 
@@ -508,7 +513,7 @@ class SASRec(torch.nn.Module):
     def forward(
         self,
         x: Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-    ):
+    ) -> torch.Tensor:
         """TODO"""
         sessions, item_model_input = x
         # TODO merge item model with log2feats
@@ -523,7 +528,7 @@ class SASRec(torch.nn.Module):
     def predict(
         self,
         x: Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        item_indices: torch.LongTensor,
+        item_indices: torch.Tensor,
     ) -> torch.Tensor:
         # TODO fix docstring
         """
@@ -553,13 +558,13 @@ class SASRec(torch.nn.Module):
         return logits  # preds # (U, I)
 
 
-def to_device(x, device: torch.device):
+def to_device(x: Union[Tuple, List, torch.Tensor], device: torch.device) -> Union[Tuple, torch.Tensor]:
     """TODO"""
     if isinstance(x, torch.Tensor):
         return x.to(device)
 
-    if not isinstance(x, tuple) and not isinstance(x, list):
-        raise Exception(f"expected Tuple, List or Tensor, found {type(x)}")
+    # if not isinstance(x, tuple) and not isinstance(x, list):
+    #     raise Exception(f"expected Tuple, List or Tensor, found {type(x)}")
 
     return tuple(to_device(e, device) for e in x)
 
@@ -580,15 +585,12 @@ class Trainer:
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
-        self.device = device
+        self.device = torch.device(device)
         self.loss = loss
-
-        self.optimizer = None
-        self.loss_func = None
 
         self.inited = False
 
-    def init(self):
+    def init(self) -> None:
         """TODO"""
         self._init_optimizers()
         self._init_loss_func()
@@ -596,7 +598,7 @@ class Trainer:
     def fit(
         self,
         train_dataloader: DataLoader,
-    ) -> SASRec:
+    ) -> None:
         """TODO"""
         if not self.inited:
             self.init()
@@ -611,7 +613,6 @@ class Trainer:
         # ce_criterion = torch.nn.CrossEntropyLoss()
         # https://github.com/NVIDIA/pix2pixHD/issues/9 how could an old bug appear again...
 
-        iteration = 0
         try:
             for epoch in range(epoch_start_idx, self.epochs + 1):
                 logger.info("training epoch %s", epoch)
@@ -621,14 +622,12 @@ class Trainer:
                     y = to_device(y, self.device)
                     w = to_device(w, self.device)
 
-                    self.train_step(x, y, w, iteration)
-
-                    iteration += 1
+                    self.train_step(x, y, w)
 
         except KeyboardInterrupt:
             logger.info("training interrupted")
 
-    def train_step(self, x, y, w, iteration):
+    def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> None:
         """TODO"""
         self.optimizer.zero_grad()
         logits = self.model(x)
@@ -640,10 +639,10 @@ class Trainer:
         joint_loss.backward()
         self.optimizer.step()
 
-    def _init_optimizers(self):
+    def _init_optimizers(self) -> None:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98))
 
-    def _init_loss_func(self):
+    def _init_loss_func(self) -> None:
 
         if self.loss == "bce":
             self.loss_func = nn.BCEWithLogitsLoss()
@@ -688,7 +687,7 @@ class SASRecRecommender:
         user_item_interactions: pd.DataFrame,
         item_features: pd.Series,
         top_k: int,
-        candidate_items: Sequence[str],
+        candidate_items: pd.Series,
         batch_size: int = 128,
     ) -> pd.DataFrame:
         """Accept 3 dataframes from DB and return dataset with recommends"""
@@ -700,7 +699,7 @@ class SASRecRecommender:
 
         # TODO candidate_items fix private method usage
         candidate_items_inds = list(self.task_converter.item_id_encoder.convert_to_internal(candidate_items))
-        candidate_items_inds = torch.LongTensor(candidate_items_inds).to(self.device)
+        candidate_items_inds_tensor = torch.LongTensor(candidate_items_inds).to(self.device)
 
         # TODO here we can filter users completely.
         # We need to find out where to check if we can make recs.
@@ -733,10 +732,10 @@ class SASRecRecommender:
         with torch.no_grad():
             for x_batch in tqdm.tqdm(dataloader):
                 x_batch = to_device(x_batch, device)
-                logits_batch = self.model.predict(x_batch, candidate_items_inds).detach().cpu().numpy()
+                logits_batch = self.model.predict(x_batch, candidate_items_inds_tensor).detach().cpu().numpy()
                 logits.append(logits_batch)
 
-        logits = np.concatenate(logits, axis=0)
+        logits_array = np.concatenate(logits, axis=0)
         user_item_interactions[Columns.Item] = self.task_converter.item_id_encoder.convert_to_external(
             user_item_interactions[Columns.Item]
         )
@@ -744,7 +743,7 @@ class SASRecRecommender:
             user_item_interactions=user_item_interactions,
             candidate_items=candidate_items,
             users=x.users,
-            logits=logits,
+            logits=logits_array,
             top_k=top_k,
         )
         return recs
@@ -786,10 +785,10 @@ class SASRecRecommender:
         users: List[str],
         logits: np.ndarray,  # [users, candidate_items]
         top_k: int,
-    ):
+    ) -> pd.DataFrame:
         """TODO"""
         user2hist = user_item_interactions.groupby(Columns.User)[Columns.Item].agg(set).to_dict()
-        candidate_items = np.array(candidate_items)
+        candidate_items_array = np.array(candidate_items)
         inds = np.argsort(-logits, axis=1)
 
         records = []
@@ -797,10 +796,10 @@ class SASRecRecommender:
             cur_hist = user2hist[user]
             cur_top_k = top_k + len(cur_hist)
 
-            cur_recs = candidate_items[inds[i, :cur_top_k]]
+            cur_rec = candidate_items_array[inds[i, :cur_top_k]]
             cur_scores = logits[i, inds[i, :cur_top_k]]
-            mask = [rec not in cur_hist for rec in cur_recs]
-            cur_recs = list(compress(cur_recs, mask))[:top_k]
+            mask = [rec not in cur_hist for rec in cur_rec]
+            cur_recs = list(compress(cur_rec, mask))[:top_k]
             cur_scores = list(compress(cur_scores, mask))[:top_k]
 
             records.append(
