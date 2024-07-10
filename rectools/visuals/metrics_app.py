@@ -171,15 +171,16 @@ class MetricsApp:
             return
         grouped = models_metrics.groupby(Columns.Model)
         # get the first group's fold counts and fold names for reference
-        ref_group = grouped.get_group(next(iter(grouped.groups.keys())))
+        ref_group_name = next(iter(grouped.groups.keys()))
+        ref_group = grouped.get_group(ref_group_name)
         ref_fold_count = ref_group[Columns.Split].nunique()
         ref_fold_names = set(ref_group[Columns.Split].unique())
 
         for model, group in grouped:
             if group["i_split"].nunique() != ref_fold_count:
-                raise ValueError(f"{model} does not have the expected fold amount")
+                raise ValueError(f"""{model} does not have the same fold amount as {ref_group_name}")
             if set(group["i_split"].unique()) != ref_fold_names:
-                raise ValueError(f"{model} does not have the expected fold names")
+                raise ValueError(f"{model} does not have the same fold names as {ref_group_name}")
 
     @staticmethod
     def _validate_models_metrics_names(models_metrics: pd.DataFrame) -> None:
