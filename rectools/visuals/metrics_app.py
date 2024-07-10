@@ -85,7 +85,7 @@ class MetricsApp:
         auto_display : bool, default True
             Automatically displays the widgets immediately after initialization.
         scatter_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional, default None
-            Additional arguments from `plotly.express.scatter`
+            Additional arguments for `plotly.express.scatter`
 
         Returns
         -------
