@@ -175,7 +175,7 @@ class PopularInCategoryModel(PopularModel):
         if self.n_categories:
             if len(self.category_columns) >= self.n_categories:
                 self.n_effective_categories = self.n_categories
-                relevant_categories = self.category_scores.head(self.n_categories).index
+                relevant_categories = self.category_scores.head(self.n_categories).index.to_list()
                 self.category_scores = self.category_scores.loc[relevant_categories]
                 self.category_columns = relevant_categories
             else:
@@ -188,6 +188,14 @@ class PopularInCategoryModel(PopularModel):
             self.n_effective_categories = len(self.category_columns)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
+        
+        if self.is_fitted:
+            self.category_columns = []
+            self.category_interactions = {}
+            self.models = {}
+            self.category_scores = pd.Series()
+            self.n_effective_categories = 0
+        
         self._check_category_feature(dataset)
         interactions = self._filter_interactions(dataset.interactions.df)
         self._calc_category_scores(dataset, interactions)
