@@ -42,17 +42,21 @@ class SasRecRecommenderModel(ModelBase):
     ):
         super().__init__(verbose=verbose)
         self.session_maxlen = session_maxlen
-        self.lr = lr
         self.batch_size = batch_size
-        self.epochs = epochs
-        self.device = device
-        self.loss = loss
         self.n_blocks = n_blocks
         self.factors = factors
         self.n_heads = n_heads
         self.dropout_rate = dropout_rate
         self.use_pos_emb = use_pos_emb
-
+        self.model: SASRec
+        self.task_converter: SequenceTaskConverter
+        self.trainer = Trainer(
+            lr=lr,
+            batch_size=self.batch_size,
+            epochs=epochs,
+            device=device,
+            loss=loss,
+        )
         if random_state is not None:
             torch.use_deterministic_algorithms(True)
             seed_everything(random_state, workers=True)
@@ -76,7 +80,6 @@ class SasRecRecommenderModel(ModelBase):
         )
 
         self.task_converter = SequenceTaskConverter(self.session_maxlen, user_item_interactions)
-
         user_item_interactions[Columns.Item] = self.task_converter.item_id_encoder.convert_to_internal(
             user_item_interactions[Columns.Item]
         )
@@ -102,16 +105,8 @@ class SasRecRecommenderModel(ModelBase):
         )
 
         logger.info("building trainer")
-        trainer = Trainer(
-            model=self.model,
-            lr=self.lr,
-            batch_size=self.batch_size,
-            epochs=self.epochs,
-            device=self.device,
-            loss=self.loss,
-        )
-        trainer.fit(train_dataloader)
-        self.model = trainer.model
+        self.trainer.fit(self.model, train_dataloader)
+        self.model = self.trainer.model
 
     def recommend(
         self,
@@ -167,9 +162,9 @@ class SequenceTaskConverter:
 
     def __init__(self, session_maxlen: int, user_item_interactions: pd.DataFrame):
         self.session_maxlen = session_maxlen
-        items = user_item_interactions[Columns.Item].drop_duplicates().sort_values()
         self.item_id_encoder = IdMap.from_values("PAD")
-        self.item_id_encoder = self.item_id_encoder.add_ids(list(items))
+        items = user_item_interactions[Columns.Item].drop_duplicates().sort_values()
+        self.item_id_encoder = self.item_id_encoder.add_ids(items)
 
     def train_transform(
         self,
@@ -210,10 +205,9 @@ class SequenceTaskConverter:
         """Convert user-item interaction to sessions and prepare other features"""
         sessions, weights = self._interactions2sessions(user_item_interactions)
 
-        items = item_features.sort_values().to_list()
-
         sessions_padded, _ = self._sessions_transform(sessions, weights)
 
+        items = item_features.sort_values().to_list()
         item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
         item_model_input = torch.LongTensor(item_model_input)
 
@@ -412,7 +406,7 @@ class TransformerEncoder(nn.Module):
         timeline_mask: torch.Tensor,
     ) -> torch.Tensor:
         """TODO"""
-        for i in range(len(self.attention_layers)):
+        for i, _ in enumerate(self.attention_layers):
             seqs = torch.transpose(seqs, 0, 1)
             q = self.attention_layernorms[i](seqs)
             mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
@@ -556,27 +550,28 @@ class Trainer:
 
     def __init__(
         self,
-        model: SASRec,
         lr: float,
         batch_size: int,
         epochs: int,
         device: str,
         loss: str = "bce",
     ):
-        self.model = model
+        self.model: SASRec
+        self.optimizer: torch.optim.Adam
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
         self.device = torch.device(device)
-
-        self.optimizer = self._init_optimizers()
         self.loss_func = self._init_loss_func(loss)
 
     def fit(
         self,
+        model: SASRec,
         train_dataloader: DataLoader,
     ) -> None:
         """TODO"""
+        self.model = model
+        self.optimizer = self._init_optimizers()
         self.model.to(self.device)
 
         self.xavier_normal_init(self.model)
@@ -623,15 +618,15 @@ class Trainer:
             return nn.BCEWithLogitsLoss()
         if loss == "sm_ce":
             return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
-        raise Exception(f"loss {loss} is not supported")
+        raise ValueError(f"loss {loss} is not supported")
 
     def xavier_normal_init(self, model: nn.Module) -> None:
         """TODO"""
         for name, param in model.named_parameters():
             try:
                 torch.nn.init.xavier_normal_(param.data)
-            except Exception as err:
-                logger.info("undable to init param %s with xavier: %s", name, err)
+            except ValueError as err:
+                logger.info("unable to init param %s with xavier: %s", name, err)
 
 
 class SASRecRecommender:
