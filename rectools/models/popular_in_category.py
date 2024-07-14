@@ -175,9 +175,9 @@ class PopularInCategoryModel(PopularModel):
         if self.n_categories:
             if len(self.category_columns) >= self.n_categories:
                 self.n_effective_categories = self.n_categories
-                relevant_categories = self.category_scores.head(self.n_categories).index.to_list()
+                relevant_categories = self.category_scores.head(self.n_categories).index
                 self.category_scores = self.category_scores.loc[relevant_categories]
-                self.category_columns = relevant_categories
+                self.category_columns = relevant_categories.to_list()
             else:
                 self.n_effective_categories = len(self.category_columns)
                 warnings.warn(
