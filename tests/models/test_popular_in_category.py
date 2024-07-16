@@ -428,19 +428,19 @@ class TestPopularInCategoryModel:
     @pytest.mark.parametrize("ratio_strategy", ("equal", "proportional"))
     @pytest.mark.parametrize("n_categories", (2, None))
     def test_second_fit_refits_model(
-        self, 
+        self,
         dataset: Dataset,
         popularity: str,
         category_feature: str,
         mixing_strategy: str,
         ratio_strategy: str,
-        n_categories: tp.Optional[int]
-        ) -> None:
+        n_categories: tp.Optional[int],
+    ) -> None:
         model = PopularInCategoryModel(
             category_feature=category_feature,
             popularity=popularity,
             mixing_strategy=mixing_strategy,
             ratio_strategy=ratio_strategy,
-            n_categories=n_categories
+            n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)

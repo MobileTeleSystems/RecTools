@@ -28,7 +28,7 @@ from rectools.metrics import Intersection, Precision, Recall
 from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
 from rectools.model_selection.cross_validate import _gen_2x_internal_ids_dataset
-from rectools.models import ImplicitALSWrapperModel, PopularModel, RandomModel
+from rectools.models import ImplicitALSWrapperModel, PopularInCategoryModel, PopularModel, RandomModel
 from rectools.models.base import ModelBase
 from tests.testing_utils import assert_sparse_matrix_equal
 
@@ -146,6 +146,7 @@ class TestCrossValidate:
                 [14, "f2", 1],
                 [11, "f1", "y"],
                 [11, "f2", 2],
+                [12, "f1", "y"],
             ],
             columns=["id", "feature", "value"],
         )
@@ -243,10 +244,11 @@ class TestCrossValidate:
 
     @pytest.mark.parametrize("prefer_warm_inference_over_cold", (True, False))
     def test_happy_path_with_features(self, prefer_warm_inference_over_cold: bool) -> None:
-        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
+        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)  # 2 splits
 
         models: tp.Dict[str, ModelBase] = {
             "als": ImplicitALSWrapperModel(AlternatingLeastSquares(factors=2, iterations=2, random_state=42)),
+            "pop_in_cat": PopularInCategoryModel(category_feature="f1", n_categories=2),
         }
 
         actual = cross_validate(
@@ -282,7 +284,9 @@ class TestCrossValidate:
             ],
             "metrics": [
                 {"model": "als", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0},
-                {"model": "als", "i_split": 1, "precision@2": 0.375, "recall@1": 0.25},
+                {"model": "pop_in_cat", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5},
+                {"model": "als", "i_split": 1, "precision@2": 0.375, "recall@1": 0.0},
+                {"model": "pop_in_cat", "i_split": 1, "precision@2": 0.375, "recall@1": 0.25},
             ],
         }
 
