@@ -171,8 +171,8 @@ class PopularInCategoryModel(PopularModel):
                 self.category_interactions[column_num] = category_interactions.copy()
                 col, func = self._get_groupby_col_and_agg_func(self.popularity)
                 scores_dict[column_num] = self.category_interactions[column_num][col].apply(func)
-        if empty_columns:
-            self.category_columns = [col for col in self.category_columns if col not in empty_columns]
+
+        self.category_columns = [col for col in self.category_columns if col not in empty_columns]
         self.category_scores = pd.Series(scores_dict).sort_values(ascending=False)
 
     def _define_categories_for_analysis(self) -> None:
@@ -193,12 +193,11 @@ class PopularInCategoryModel(PopularModel):
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
 
-        if self.is_fitted:
-            self.category_columns = []
-            self.category_interactions = {}
-            self.models = {}
-            self.category_scores = pd.Series()
-            self.n_effective_categories = 0
+        self.category_columns = []
+        self.category_interactions = {}
+        self.models = {}
+        self.category_scores = pd.Series()
+        self.n_effective_categories = 0
 
         self._check_category_feature(dataset)
         interactions = self._filter_interactions(dataset.interactions.df)

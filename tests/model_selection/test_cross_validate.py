@@ -244,7 +244,7 @@ class TestCrossValidate:
 
     @pytest.mark.parametrize("prefer_warm_inference_over_cold", (True, False))
     def test_happy_path_with_features(self, prefer_warm_inference_over_cold: bool) -> None:
-        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)  # 2 splits
+        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
 
         models: tp.Dict[str, ModelBase] = {
             "als": ImplicitALSWrapperModel(AlternatingLeastSquares(factors=2, iterations=2, random_state=42)),
