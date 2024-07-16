@@ -35,8 +35,9 @@ class SasRecRecommenderModel(ModelBase):
         factors: int,
         n_heads: int,
         dropout_rate: float,
+        item_net_dropout_rate: float,
         use_pos_emb: bool = True,
-        loss: str = "bce",
+        loss: str = "softmax",
         verbose: int = 0,
         random_state: int = False,
     ):
@@ -47,9 +48,11 @@ class SasRecRecommenderModel(ModelBase):
         self.factors = factors
         self.n_heads = n_heads
         self.dropout_rate = dropout_rate
+        self.item_net_dropout_rate = item_net_dropout_rate
         self.use_pos_emb = use_pos_emb
         self.model: SASRec
-        self.task_converter: SequenceTaskConverter
+        self.task_converter = SequenceTaskConverter(self.session_maxlen)
+        self.item_id_map = IdMap.from_values("PAD")
         self.trainer = Trainer(
             lr=lr,
             batch_size=self.batch_size,
@@ -64,25 +67,24 @@ class SasRecRecommenderModel(ModelBase):
     def _fit(
         self,
         dataset: RecDataset,
-        *args: tp.Any,
-        **kwargs: tp.Any,
     ) -> None:
         """TODO"""
         user_item_interactions = dataset.get_raw_interactions()
 
         users = user_item_interactions[Columns.User].value_counts()
         users = users[users >= 2]
-        users = users.index.to_list()
-        user_item_interactions = user_item_interactions[(user_item_interactions[Columns.User].isin(users))]
+        user_item_interactions = user_item_interactions[(user_item_interactions[Columns.User].isin(users.index))]
 
         user_item_interactions = (
             user_item_interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_maxlen + 1)
         )
 
-        self.task_converter = SequenceTaskConverter(self.session_maxlen, user_item_interactions)
-        user_item_interactions[Columns.Item] = self.task_converter.item_id_encoder.convert_to_internal(
+        items = user_item_interactions[Columns.Item].drop_duplicates().sort_values()
+        self.item_id_map = self.item_id_map.add_ids(items)
+        user_item_interactions[Columns.Item] = self.item_id_map.convert_to_internal(
             user_item_interactions[Columns.Item]
         )
+
         logger.info("converting datasets to task format")
         train_x, train_y = self.task_converter.train_transform(
             user_item_interactions=user_item_interactions,
@@ -101,7 +103,8 @@ class SasRecRecommenderModel(ModelBase):
             session_maxlen=self.session_maxlen,
             dropout_rate=self.dropout_rate,
             use_pos_emb=self.use_pos_emb,
-            n_items=self.task_converter.item_id_encoder.size if self.task_converter.item_id_encoder is not None else -1,
+            n_items=self.item_id_map.size,
+            item_net_dropout_rate=self.item_net_dropout_rate,
         )
 
         logger.info("building trainer")
@@ -124,7 +127,7 @@ class SasRecRecommenderModel(ModelBase):
         item_features = train[Columns.Item].drop_duplicates()
 
         rec_df = train[train[Columns.User].isin(users)]
-        recommender = SASRecRecommender(self.model, self.task_converter)
+        recommender = SASRecRecommender(self.model, self.task_converter, self.item_id_map)
 
         if items_to_recommend is None:
             items_to_recommend = item_features
@@ -140,13 +143,9 @@ class SasRecRecommenderModel(ModelBase):
 
 @dataclass
 class SASRecModelInput:
-    """
-    sessions (torch.LongTensor): [batch_size, maxlen] user history
-    item_model_input (Tuple[torch.LongTensor, torch.LongTensor]): item features input to construct
-    """
+    """sessions (torch.LongTensor): [batch_size, maxlen] user history"""
 
     sessions: torch.LongTensor
-    item_model_input: torch.LongTensor
 
 
 @dataclass
@@ -160,11 +159,8 @@ class SASRecTargetInput:
 class SequenceTaskConverter:
     """Convert database data to use in particular model"""
 
-    def __init__(self, session_maxlen: int, user_item_interactions: pd.DataFrame):
+    def __init__(self, session_maxlen: int):
         self.session_maxlen = session_maxlen
-        self.item_id_encoder = IdMap.from_values("PAD")
-        items = user_item_interactions[Columns.Item].drop_duplicates().sort_values()
-        self.item_id_encoder = self.item_id_encoder.add_ids(items)
 
     def train_transform(
         self,
@@ -178,16 +174,11 @@ class SequenceTaskConverter:
 
         sessions_padded, _ = self._sessions_transform(sessions_x, x_weights)
 
-        items = user_item_interactions[Columns.Item].drop_duplicates().sort_values().to_list()
-        item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
-        item_model_input = torch.LongTensor(item_model_input)
-
         next_watch_padded, weights_padded = self._sessions_transform(sessions_y, y_weights)
 
         return (
             SASRecModelInput(
                 sessions=sessions_padded,
-                item_model_input=item_model_input,
             ),
             SASRecTargetInput(
                 next_watch=next_watch_padded,
@@ -200,20 +191,14 @@ class SequenceTaskConverter:
     def inference_transform(
         self,
         user_item_interactions: pd.DataFrame,
-        item_features: pd.Series,
     ) -> SASRecModelInput:
         """Convert user-item interaction to sessions and prepare other features"""
         sessions, weights = self._interactions2sessions(user_item_interactions)
 
         sessions_padded, _ = self._sessions_transform(sessions, weights)
 
-        items = item_features.sort_values().to_list()
-        item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
-        item_model_input = torch.LongTensor(item_model_input)
-
         return SASRecModelInput(
             sessions=sessions_padded,
-            item_model_input=item_model_input,
         )
 
     def _interactions2sessions(
@@ -295,24 +280,18 @@ class SequenceDataset(Dataset):
     def __len__(self) -> int:
         return self.batches_cnt
 
-    def __getitem__(self, index: int) -> Tuple:
+    def __getitem__(self, index: int) -> Union[torch.Tensor, Tuple]:
         batch_idx = index
         start = batch_idx * self.batch_size
         end = min(start + self.batch_size, self.samples_cnt)
 
         # inference case
         if self.y is None:
-            return (
-                self.x.sessions[start:end],
-                self.x.item_model_input,
-            )
+            return self.x.sessions[start:end]
 
         # train case
         return (
-            (
-                self.x.sessions[start:end],
-                self.x.item_model_input,
-            ),
+            self.x.sessions[start:end],
             self.y.next_watch[start:end],
             self.y.weights[start:end],
         )
@@ -338,14 +317,10 @@ class PointWiseFeedForward(torch.nn.Module):
         return outputs
 
 
-class ItemModelIdemb(nn.Module):
+class ItemNet(nn.Module):
     """TODO"""
 
-    def __init__(
-        self,
-        factors: int,
-        n_items: int,
-    ):
+    def __init__(self, factors: int, n_items: int, item_net_dropout_rate: float):
         super().__init__()
 
         self.item_emb = nn.Embedding(
@@ -355,7 +330,7 @@ class ItemModelIdemb(nn.Module):
         )
 
         # TODO to config
-        self.drop_layer = nn.Dropout(0.2)
+        self.drop_layer = nn.Dropout(item_net_dropout_rate)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """TODO"""
@@ -431,12 +406,14 @@ class SASRec(torch.nn.Module):
         session_maxlen: int,
         dropout_rate: float,
         n_items: int,
+        item_net_dropout_rate: float,
         use_pos_emb: bool = True,
     ):
         super().__init__()
         self.use_pos_emb = use_pos_emb
+        self.n_items = n_items
 
-        self.item_model = ItemModelIdemb(factors, n_items)
+        self.item_model = ItemNet(factors, n_items, item_net_dropout_rate)
 
         if self.use_pos_emb:
             self.pos_emb = torch.nn.Embedding(session_maxlen, factors)
@@ -491,10 +468,10 @@ class SASRec(torch.nn.Module):
     # TODO check user_ids
     def forward(
         self,
-        x: Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        sessions: torch.Tensor,
+        item_model_input: torch.Tensor,
     ) -> torch.Tensor:
         """TODO"""
-        sessions, item_model_input = x
         # TODO merge item model with log2feats
         item_embs = self.item_model(item_model_input)
 
@@ -506,8 +483,9 @@ class SASRec(torch.nn.Module):
 
     def predict(
         self,
-        x: Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        sessions: torch.Tensor,
         item_indices: torch.Tensor,
+        item_model_input: torch.Tensor,
     ) -> torch.Tensor:
         # TODO fix docstring
         """
@@ -523,8 +501,6 @@ class SASRec(torch.nn.Module):
             torch.Tensor: [batch_size, candidates_count] logits for each user
 
         """
-        sessions, item_model_input = x
-
         item_embs = self.item_model(item_model_input)
         log_feats = self.log2feats(sessions, item_embs)
 
@@ -537,14 +513,6 @@ class SASRec(torch.nn.Module):
         return logits  # preds # (U, I)
 
 
-def to_device(x: Union[Tuple, List, torch.Tensor], device: torch.device) -> Union[Tuple, torch.Tensor]:
-    """TODO"""
-    if isinstance(x, torch.Tensor):
-        return x.to(device)
-
-    return tuple(to_device(e, device) for e in x)
-
-
 class Trainer:
     """TODO"""
 
@@ -554,7 +522,7 @@ class Trainer:
         batch_size: int,
         epochs: int,
         device: str,
-        loss: str = "bce",
+        loss: str = "softmax",
     ):
         self.model: SASRec
         self.optimizer: torch.optim.Adam
@@ -576,6 +544,7 @@ class Trainer:
 
         self.xavier_normal_init(self.model)
         self.model.train()  # enable model training
+        item_model_input = torch.LongTensor(list(range(self.model.n_items))).to(self.device)
 
         epoch_start_idx = 1
 
@@ -587,20 +556,30 @@ class Trainer:
                 logger.info("training epoch %s", epoch)
 
                 for x, y, w in train_dataloader:
-                    x = to_device(x, self.device)
-                    y = to_device(y, self.device)
-                    w = to_device(w, self.device)
+                    x = x.to(self.device)
+                    y = y.to(self.device)
+                    w = w.to(self.device)
 
-                    self.train_step(x, y, w)
+                    self.train_step(x, y, w, item_model_input)
 
         except KeyboardInterrupt:
-            logger.info("training interrupted")
+            logger.info("training interritem_model_inputupted")
 
-    def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> None:
+    def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor, item_model_input: torch.Tensor) -> None:
         """TODO"""
         self.optimizer.zero_grad()
-        logits = self.model(x)
-        loss = self.loss_func(logits.transpose(1, 2), y)  # loss expects logits in form of [N, C, D1]
+        logits = self.model(x, item_model_input)
+        # We are using CrossEntropyLoss with a multi-dimensional case
+
+        # Logits must be passed in form of [batch_size, n_classes, session_position],
+        # where session_position is one extra dimension
+
+        # Target label indexes must be passed in a form of [batch_size, session_position]
+        # (`0` index for "PAD" ix excluded from loss)
+
+        # Loss output will have a shape of [batch_size, session_position]
+        # and will have zeros for every `0` target label
+        loss = self.loss_func(logits.transpose(1, 2), y)
         loss = loss * w
         n = (loss > 0).to(loss.dtype)
         loss = torch.sum(loss) / torch.sum(n)
@@ -614,9 +593,7 @@ class Trainer:
 
     def _init_loss_func(self, loss: str) -> Union[nn.BCEWithLogitsLoss, nn.CrossEntropyLoss]:
 
-        if loss == "bce":
-            return nn.BCEWithLogitsLoss()
-        if loss == "sm_ce":
+        if loss == "softmax":
             return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
         raise ValueError(f"loss {loss} is not supported")
 
@@ -636,8 +613,10 @@ class SASRecRecommender:
         self,
         model: SASRec,
         task_converter: SequenceTaskConverter,
+        item_id_map: IdMap,
         device: Union[torch.device, str] = "cpu",
     ):
+        self.item_id_map = item_id_map
         self.model = model.eval()
         # TODO merge with processor
         self.task_converter = task_converter
@@ -662,9 +641,7 @@ class SASRecRecommender:
         candidate_items = self._filter_candidate_items(candidate_items, supported_items)
 
         # TODO candidate_items fix private method usage
-        candidate_items_inds = torch.LongTensor(
-            self.task_converter.item_id_encoder.convert_to_internal(candidate_items)
-        ).to(self.device)
+        candidate_items_inds = torch.LongTensor(self.item_id_map.convert_to_internal(candidate_items)).to(self.device)
 
         # TODO here we can filter users completely.
         # We need to find out where to check if we can make recs.
@@ -679,14 +656,16 @@ class SASRecRecommender:
         items = user_item_interactions[Columns.Item].drop_duplicates().to_list() + list(candidate_items)
         item_features = item_features[item_features.isin(items)]
 
-        user_item_interactions[Columns.Item] = self.task_converter.item_id_encoder.convert_to_internal(
+        user_item_interactions[Columns.Item] = self.item_id_map.convert_to_internal(
             user_item_interactions[Columns.Item]
         )
-        item_features = pd.Series(self.task_converter.item_id_encoder.convert_to_internal(item_features))
+        item_features = pd.Series(self.item_id_map.convert_to_internal(item_features))
+        items = item_features.sort_values().to_list()
+        item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
+        item_model_input = torch.LongTensor(item_model_input)
 
         x = self.task_converter.inference_transform(
             user_item_interactions=user_item_interactions,
-            item_features=item_features,
         )
 
         model_x = SequenceDataset(x=x, batch_size=batch_size)
@@ -696,12 +675,14 @@ class SASRecRecommender:
         device = self.model.get_model_device()
         with torch.no_grad():
             for x_batch in tqdm.tqdm(dataloader):
-                x_batch = to_device(x_batch, device)
-                logits_batch = self.model.predict(x_batch, candidate_items_inds).detach().cpu().numpy()
+                x_batch = x_batch.to(device)
+                logits_batch = (
+                    self.model.predict(x_batch, candidate_items_inds, item_model_input).detach().cpu().numpy()
+                )
                 logits.append(logits_batch)
 
         logits_array = np.concatenate(logits, axis=0)
-        user_item_interactions[Columns.Item] = self.task_converter.item_id_encoder.convert_to_external(
+        user_item_interactions[Columns.Item] = self.item_id_map.convert_to_external(
             user_item_interactions[Columns.Item]
         )
         users = user_item_interactions[Columns.User].drop_duplicates().sort_values()
@@ -717,7 +698,7 @@ class SASRecRecommender:
     # TODO move implementation to processor
     def get_supported_items(self, item_features: pd.Series) -> List[int]:
         """TODO"""
-        supported_ids = set(self.task_converter.item_id_encoder.get_external_sorted_by_internal())
+        supported_ids = set(self.item_id_map.get_external_sorted_by_internal())
         mask = item_features.isin(supported_ids)
 
         item_features = item_features[mask]
