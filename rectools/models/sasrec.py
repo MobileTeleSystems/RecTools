@@ -52,7 +52,7 @@ class SasRecRecommenderModel(ModelBase):
         self.use_pos_emb = use_pos_emb
         self.model: SASRec
         self.task_converter = SequenceTaskConverter(self.session_maxlen)
-        self.item_id_map = IdMap.from_values("PAD")
+        self.item_id_map: IdMap
         self.trainer = Trainer(
             lr=lr,
             batch_size=self.batch_size,
@@ -79,7 +79,8 @@ class SasRecRecommenderModel(ModelBase):
             user_item_interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_maxlen + 1)
         )
 
-        items = user_item_interactions[Columns.Item].drop_duplicates().sort_values()
+        items = np.unique(user_item_interactions[Columns.Item])
+        self.item_id_map = IdMap.from_values("PAD")
         self.item_id_map = self.item_id_map.add_ids(items)
         user_item_interactions[Columns.Item] = self.item_id_map.convert_to_internal(
             user_item_interactions[Columns.Item]
@@ -323,21 +324,31 @@ class ItemNet(nn.Module):
     def __init__(self, factors: int, n_items: int, item_net_dropout_rate: float):
         super().__init__()
 
+        self.catalogue: torch.Tensor
+        self.n_items = n_items
         self.item_emb = nn.Embedding(
             num_embeddings=n_items,
             embedding_dim=factors,
             padding_idx=0,
         )
-
-        # TODO to config
         self.drop_layer = nn.Dropout(item_net_dropout_rate)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(x)
+        item_embs = self.item_emb(self.catalogue)
         item_embs = self.drop_layer(item_embs)
-
         return item_embs
+
+    def get_all_embeddings(self) -> torch.Tensor:
+        """TODO"""
+        item_embs = self.item_emb(self.catalogue)
+        item_embs = self.drop_layer(item_embs)
+        return item_embs
+
+    def to_device(self, device: torch.device) -> None:
+        """TODO"""
+        catalogue = torch.LongTensor(list(range(self.n_items)))
+        self.catalogue = catalogue.to(device)
 
     def get_device(self) -> torch.device:
         """TODO"""
@@ -469,11 +480,10 @@ class SASRec(torch.nn.Module):
     def forward(
         self,
         sessions: torch.Tensor,
-        item_model_input: torch.Tensor,
     ) -> torch.Tensor:
         """TODO"""
         # TODO merge item model with log2feats
-        item_embs = self.item_model(item_model_input)
+        item_embs = self.item_model.get_all_embeddings()
 
         log_feats = self.log2feats(sessions, item_embs)
 
@@ -485,7 +495,6 @@ class SASRec(torch.nn.Module):
         self,
         sessions: torch.Tensor,
         item_indices: torch.Tensor,
-        item_model_input: torch.Tensor,
     ) -> torch.Tensor:
         # TODO fix docstring
         """
@@ -501,7 +510,7 @@ class SASRec(torch.nn.Module):
             torch.Tensor: [batch_size, candidates_count] logits for each user
 
         """
-        item_embs = self.item_model(item_model_input)
+        item_embs = self.item_model.get_all_embeddings()
         log_feats = self.log2feats(sessions, item_embs)
 
         final_feat = log_feats[:, -1, :]  # only use last QKV classifier, a waste
@@ -544,7 +553,7 @@ class Trainer:
 
         self.xavier_normal_init(self.model)
         self.model.train()  # enable model training
-        item_model_input = torch.LongTensor(list(range(self.model.n_items))).to(self.device)
+        self.model.item_model.to_device(self.device)
 
         epoch_start_idx = 1
 
@@ -560,15 +569,15 @@ class Trainer:
                     y = y.to(self.device)
                     w = w.to(self.device)
 
-                    self.train_step(x, y, w, item_model_input)
+                    self.train_step(x, y, w)
 
         except KeyboardInterrupt:
             logger.info("training interritem_model_inputupted")
 
-    def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor, item_model_input: torch.Tensor) -> None:
+    def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> None:
         """TODO"""
         self.optimizer.zero_grad()
-        logits = self.model(x, item_model_input)
+        logits = self.model(x)
         # We are using CrossEntropyLoss with a multi-dimensional case
 
         # Logits must be passed in form of [batch_size, n_classes, session_position],
@@ -591,7 +600,7 @@ class Trainer:
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98))
         return optimizer
 
-    def _init_loss_func(self, loss: str) -> Union[nn.BCEWithLogitsLoss, nn.CrossEntropyLoss]:
+    def _init_loss_func(self, loss: str) -> nn.CrossEntropyLoss:
 
         if loss == "softmax":
             return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
@@ -652,17 +661,9 @@ class SASRecRecommender:
             item_features=item_features,
         )
 
-        # filter out unnecessary items to speed up calculation
-        items = user_item_interactions[Columns.Item].drop_duplicates().to_list() + list(candidate_items)
-        item_features = item_features[item_features.isin(items)]
-
         user_item_interactions[Columns.Item] = self.item_id_map.convert_to_internal(
             user_item_interactions[Columns.Item]
         )
-        item_features = pd.Series(self.item_id_map.convert_to_internal(item_features))
-        items = item_features.sort_values().to_list()
-        item_model_input = np.concatenate([np.zeros_like(items[:1]), items], axis=0)
-        item_model_input = torch.LongTensor(item_model_input)
 
         x = self.task_converter.inference_transform(
             user_item_interactions=user_item_interactions,
@@ -673,12 +674,11 @@ class SASRecRecommender:
 
         logits = []
         device = self.model.get_model_device()
+        self.model.item_model.to_device(device)
         with torch.no_grad():
             for x_batch in tqdm.tqdm(dataloader):
                 x_batch = x_batch.to(device)
-                logits_batch = (
-                    self.model.predict(x_batch, candidate_items_inds, item_model_input).detach().cpu().numpy()
-                )
+                logits_batch = self.model.predict(x_batch, candidate_items_inds).detach().cpu().numpy()
                 logits.append(logits_batch)
 
         logits_array = np.concatenate(logits, axis=0)
