@@ -1,9 +1,8 @@
 import logging
-import math
 import typing as tp
 from dataclasses import dataclass
 from itertools import compress
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import List, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -51,7 +50,7 @@ class SasRecRecommenderModel(ModelBase):
         self.item_net_dropout_rate = item_net_dropout_rate
         self.use_pos_emb = use_pos_emb
         self.model: SASRec
-        self.task_converter = SequenceTaskConverter(self.session_maxlen)
+        self.task_converter = SequenceTaskConverter()
         self.item_id_map: IdMap
         self.trainer = Trainer(
             lr=lr,
@@ -87,13 +86,17 @@ class SasRecRecommenderModel(ModelBase):
         )
 
         logger.info("converting datasets to task format")
-        train_x, train_y = self.task_converter.train_transform(
+        train_x = self.task_converter.transform(
             user_item_interactions=user_item_interactions,
         )
 
         logger.info("building train dataset")
-        train_dataset = SequenceDataset(x=train_x, y=train_y, batch_size=self.batch_size)
-        train_dataloader = DataLoader(train_dataset, batch_size=None)  # batching in dataset
+        train_dataset = SequenceDataset(x=train_x, session_maxlen=self.session_maxlen)
+        fit_dataloader = DataLoader(
+            train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=lambda batch: collate_fn_train(batch, self.session_maxlen),
+        )
 
         # init model
         logger.info("building model")
@@ -109,7 +112,7 @@ class SasRecRecommenderModel(ModelBase):
         )
 
         logger.info("building trainer")
-        self.trainer.fit(self.model, train_dataloader)
+        self.trainer.fit(self.model, fit_dataloader)
         self.model = self.trainer.model
 
     def recommend(
@@ -144,68 +147,24 @@ class SasRecRecommenderModel(ModelBase):
 
 @dataclass
 class SASRecModelInput:
-    """sessions (torch.LongTensor): [batch_size, maxlen] user history"""
+    """
+    Input for SequenceDataset
+    sessions: List[List[int]] # [n_users, session_len]
+    weights: List[List[float]] # [n_users, session_len]
+    """
 
-    sessions: torch.LongTensor
-
-
-@dataclass
-class SASRecTargetInput:
-    """TODO"""
-
-    next_watch: torch.LongTensor
-    weights: torch.FloatTensor
+    sessions: List[List[int]]
+    weights: List[List[float]]
 
 
 class SequenceTaskConverter:
     """Convert database data to use in particular model"""
 
-    def __init__(self, session_maxlen: int):
-        self.session_maxlen = session_maxlen
-
-    def train_transform(
-        self,
-        user_item_interactions: pd.DataFrame,
-    ) -> Tuple[SASRecModelInput, SASRecTargetInput]:
-        """Convert user-item interaction to sessions and extract target.
-        Prepare other features
-        """
-        sessions, weights = self._interactions2sessions(user_item_interactions)
-        sessions_x, sessions_y, x_weights, y_weights = self._sessions2xy(sessions, weights)
-
-        sessions_padded, _ = self._sessions_transform(sessions_x, x_weights)
-
-        next_watch_padded, weights_padded = self._sessions_transform(sessions_y, y_weights)
-
-        return (
-            SASRecModelInput(
-                sessions=sessions_padded,
-            ),
-            SASRecTargetInput(
-                next_watch=next_watch_padded,
-                weights=weights_padded,
-            ),
-        )
-
-    # TODO What if sessions contains items not present in item features?
-    # TODO What if user's consist only of items not known by the model?
-    def inference_transform(
+    def transform(
         self,
         user_item_interactions: pd.DataFrame,
     ) -> SASRecModelInput:
-        """Convert user-item interaction to sessions and prepare other features"""
-        sessions, weights = self._interactions2sessions(user_item_interactions)
-
-        sessions_padded, _ = self._sessions_transform(sessions, weights)
-
-        return SASRecModelInput(
-            sessions=sessions_padded,
-        )
-
-    def _interactions2sessions(
-        self,
-        user_item_interactions: pd.DataFrame,
-    ) -> Tuple[List[List[int]], List[List[float]]]:
+        """Convert user-item interaction to sessions"""
         sessions = (
             user_item_interactions.sort_values(Columns.Datetime)
             .groupby(Columns.User)[[Columns.Item, Columns.Weight]]
@@ -215,50 +174,11 @@ class SequenceTaskConverter:
             sessions[Columns.Item].to_list(),
             sessions[Columns.Weight].to_list(),
         )
-        return sessions, weights
 
-    def _sessions2xy(
-        self,
-        sessions: List[List[int]],
-        weights: List[List[float]],
-    ) -> Tuple[List[List[int]], List[List[int]], List[List[float]], List[List[float]]]:
-
-        x = []
-        y = []
-        xw = []
-        yw = []
-
-        for ses, ses_weights in zip(sessions, weights):
-            cx = ses[:-1]
-            cy = ses[1:]
-            cxw = ses_weights[:-1]
-            cyw = ses_weights[1:]
-
-            assert len(cx) > 0, "too short session to generate target found"
-
-            x.append(cx)
-            y.append(cy)
-            xw.append(cxw)
-            yw.append(cyw)
-
-        return x, y, xw, yw
-
-    def _sessions_transform(
-        self,
-        sessions: List[List[int]],
-        weights: List[List[float]],
-    ) -> Tuple[torch.LongTensor, torch.FloatTensor]:
-        x = np.zeros((len(sessions), self.session_maxlen))
-        w = np.zeros((len(sessions), self.session_maxlen))
-        # left padding, left truncation
-        for i, (ses, ses_w) in enumerate(zip(sessions, weights)):
-            cur_ses = ses[-self.session_maxlen :]
-            cur_w = ses_w[-self.session_maxlen :]
-
-            x[i, -len(ses) :] = cur_ses
-            w[i, -len(ses) :] = cur_w
-
-        return torch.LongTensor(x), torch.FloatTensor(w)
+        return SASRecModelInput(
+            sessions=sessions,
+            weights=weights,
+        )
 
 
 class SequenceDataset(Dataset):
@@ -267,35 +187,70 @@ class SequenceDataset(Dataset):
     def __init__(
         self,
         x: SASRecModelInput,
-        batch_size: int,
-        y: Optional[SASRecTargetInput] = None,
+        session_maxlen: int,
     ):
         super().__init__()
         self.x = x
-        self.y = y
-        self.batch_size = batch_size
-
-        self.samples_cnt = self.x.sessions.shape[0]
-        self.batches_cnt = math.ceil(self.samples_cnt / self.batch_size)
+        self.session_maxlen = session_maxlen
 
     def __len__(self) -> int:
-        return self.batches_cnt
+        return len(self.x.sessions)
 
-    def __getitem__(self, index: int) -> Union[torch.Tensor, Tuple]:
-        batch_idx = index
-        start = batch_idx * self.batch_size
-        end = min(start + self.batch_size, self.samples_cnt)
+    def __getitem__(self, index: int) -> Tuple[List[int], List[float]]:
+        session = self.x.sessions[index]  # [session_len]
+        weights = self.x.weights[index]  # [session_len]
+        # session_len = len(session)
+        return session, weights
 
-        # inference case
-        if self.y is None:
-            return self.x.sessions[start:end]
 
-        # train case
-        return (
-            self.x.sessions[start:end],
-            self.y.next_watch[start:end],
-            self.y.weights[start:end],
-        )
+def collate_fn_train(
+    batch: List[Tuple[List[int], List[float]]],
+    session_maxlen: int,
+) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+    """TODO"""
+    sessions = list(list(zip(*batch))[0])  # [batch_size, session_len]
+    weights = list(list(zip(*batch))[1])  # [batch_size, session_len]
+    return sessions_transform_train(sessions, weights, session_maxlen)
+
+
+def collate_fn_recommend(
+    batch: List[Tuple[List[int], List[float]]],
+    session_maxlen: int,
+) -> torch.LongTensor:
+    """TODO"""
+    sessions = list(list(zip(*batch))[0])
+    return sessions_transform_recommend(sessions, session_maxlen)
+
+
+def sessions_transform_train(
+    sessions: List[List[int]],  # [batch_size, session_len]
+    weights: List[List[float]],  # [batch_size, session_len]
+    session_maxlen: int,
+) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+    """TODO"""
+    x = np.zeros((len(sessions), session_maxlen))  # [batch_size, session_maxlen]
+    y = np.zeros((len(sessions), session_maxlen))  # [batch_size, session_maxlen]
+    yw = np.zeros((len(sessions), session_maxlen))  # [batch_size, session_maxlen]
+    # left padding
+    for i, (ses, ses_weights) in enumerate(zip(sessions, weights)):
+        x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_maxlen]
+        y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_maxlen]
+        yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_maxlen]
+
+    return torch.LongTensor(x), torch.LongTensor(y), torch.LongTensor(yw)
+
+
+def sessions_transform_recommend(
+    sessions: List[List[int]],
+    sessions_maxlen: int,
+) -> torch.LongTensor:
+    """TODO"""
+    x = np.zeros((len(sessions), sessions_maxlen))
+    # left padding, left truncation
+    for i, ses in enumerate(sessions):
+        x[i, -len(ses) :] = ses[-sessions_maxlen:]
+
+    return torch.LongTensor(x)
 
 
 class PointWiseFeedForward(torch.nn.Module):
@@ -312,8 +267,10 @@ class PointWiseFeedForward(torch.nn.Module):
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """TODO"""
+        # inputs: [batch_size, factors, session_maxlen] -> outputs: [batch_size, session_maxlen, factors]
+        # [batch_size, factors, session_maxlen]
         outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
-        outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length)
+        outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length) [batch_size, session_maxlen, factors]
         outputs += inputs
         return outputs
 
@@ -341,7 +298,7 @@ class ItemNet(nn.Module):
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(self.catalogue)
+        item_embs = self.item_emb(self.catalogue)  # [n_items, factors]
         item_embs = self.drop_layer(item_embs)
         return item_embs
 
@@ -393,11 +350,11 @@ class TransformerEncoder(nn.Module):
     ) -> torch.Tensor:
         """TODO"""
         for i, _ in enumerate(self.attention_layers):
-            seqs = torch.transpose(seqs, 0, 1)
-            q = self.attention_layernorms[i](seqs)
+            seqs = torch.transpose(seqs, 0, 1)  # [session_maxlen, batch_size, factors]
+            q = self.attention_layernorms[i](seqs)  # [session_maxlen, batch_size, factors]
             mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
             seqs = q + mha_outputs
-            seqs = torch.transpose(seqs, 0, 1)
+            seqs = torch.transpose(seqs, 0, 1)  # [batch_size, session_maxlen, factors]
 
             seqs = self.forward_layernorms[i](seqs)
             seqs = self.forward_layers[i](seqs)
@@ -423,6 +380,7 @@ class SASRec(torch.nn.Module):
         super().__init__()
         self.use_pos_emb = use_pos_emb
         self.n_items = n_items
+        self.session_maxlen = session_maxlen
 
         self.item_model = ItemNet(factors, n_items, item_net_dropout_rate)
 
@@ -451,43 +409,46 @@ class SASRec(torch.nn.Module):
             torch.Tensor. [batch_size, history_len, emdedding_dim]
 
         """
-        seqs = item_embs[sessions]
+        seqs = item_embs[sessions]  # [batch_size, session_maxlen, factors]
 
         if self.use_pos_emb:
-            positions = np.tile(np.array(range(sessions.shape[1])), [sessions.shape[0], 1])
+            positions = np.tile(
+                np.array(range(sessions.shape[1])), [sessions.shape[0], 1]
+            )  # [batch_size, session_maxlen]
             seqs += self.pos_emb(torch.LongTensor(positions).to(self.get_model_device()))
 
         seqs = self.emb_dropout(seqs)
 
-        timeline_mask = sessions == 0
-        seqs *= ~timeline_mask.unsqueeze(-1)  # broadcast in last dim
+        timeline_mask = sessions == 0  # [batch_size, session_maxlen]
+        seqs *= ~timeline_mask.unsqueeze(-1)  # broadcast in last dim [batch_size, session_maxlen, factors]
 
         # TODO do we need to mask padding embs attention?
         tl = seqs.shape[1]  # time dim len for enforce causality
+        # [session_maxlen, session_maxlen]
         attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.get_model_device()))
 
         seqs = self.encoder(
             seqs=seqs,
             attention_mask=attention_mask,
             timeline_mask=timeline_mask,
-        )
+        )  # [batch_size, session_maxlen, factors]
 
-        log_feats = self.last_layernorm(seqs)  # (U, T, C) -> (U, -1, C)
+        log_feats = self.last_layernorm(seqs)  # (U, T, C) -> (U, -1, C) [batch_size, session_maxlen, factors]
 
         return log_feats
 
     # TODO check user_ids
     def forward(
         self,
-        sessions: torch.Tensor,
+        sessions: torch.Tensor,  # [batch_size, session_maxlen]
     ) -> torch.Tensor:
         """TODO"""
         # TODO merge item model with log2feats
-        item_embs = self.item_model.get_all_embeddings()
+        item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, factors]
 
-        log_feats = self.log2feats(sessions, item_embs)
+        log_feats = self.log2feats(sessions, item_embs)  # [batch_size, session_maxlen, factors]
 
-        logits = log_feats @ item_embs.T
+        logits = log_feats @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
 
         return logits
 
@@ -510,14 +471,14 @@ class SASRec(torch.nn.Module):
             torch.Tensor: [batch_size, candidates_count] logits for each user
 
         """
-        item_embs = self.item_model.get_all_embeddings()
-        log_feats = self.log2feats(sessions, item_embs)
+        item_embs = self.item_model.get_all_embeddings()  # [n_items, factors]
+        log_feats = self.log2feats(sessions, item_embs)  # [batch_size, session_maxlen, factors]
 
-        final_feat = log_feats[:, -1, :]  # only use last QKV classifier, a waste
+        final_feat = log_feats[:, -1, :]  # only use last QKV classifier, a waste [batch_size, factors]
 
-        item_embs = item_embs[item_indices]  # (U, I, C)
+        item_embs = item_embs[item_indices]  # (U, I, C) [n_items, factors]
 
-        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)  # [batch_size, n_items]
 
         return logits  # preds # (U, I)
 
@@ -544,7 +505,7 @@ class Trainer:
     def fit(
         self,
         model: SASRec,
-        train_dataloader: DataLoader,
+        fit_dataloader: DataLoader,
     ) -> None:
         """TODO"""
         self.model = model
@@ -563,11 +524,10 @@ class Trainer:
         try:
             for epoch in range(epoch_start_idx, self.epochs + 1):
                 logger.info("training epoch %s", epoch)
-
-                for x, y, w in train_dataloader:
-                    x = x.to(self.device)
-                    y = y.to(self.device)
-                    w = w.to(self.device)
+                for x, y, w in fit_dataloader:
+                    x = x.to(self.device)  # [batch_size, session_maxlen]
+                    y = y.to(self.device)  # [batch_size, session_maxlen]
+                    w = w.to(self.device)  # [batch_size, session_maxlen]
 
                     self.train_step(x, y, w)
 
@@ -577,18 +537,17 @@ class Trainer:
     def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> None:
         """TODO"""
         self.optimizer.zero_grad()
-        logits = self.model(x)
+        logits = self.model(x)  # [batch_size, session_maxlen, n_items + 1]
         # We are using CrossEntropyLoss with a multi-dimensional case
 
-        # Logits must be passed in form of [batch_size, n_classes, session_position],
-        # where session_position is one extra dimension
+        # Logits must be passed in form of [batch_size, session_maxlen, n_items + 1],
 
-        # Target label indexes must be passed in a form of [batch_size, session_position]
+        # Target label indexes must be passed in a form of [batch_size, session_maxlen]
         # (`0` index for "PAD" ix excluded from loss)
 
-        # Loss output will have a shape of [batch_size, session_position]
+        # Loss output will have a shape of [batch_size, session_maxlen]
         # and will have zeros for every `0` target label
-        loss = self.loss_func(logits.transpose(1, 2), y)
+        loss = self.loss_func(logits.transpose(1, 2), y)  # [batch_size, session_maxlen]
         loss = loss * w
         n = (loss > 0).to(loss.dtype)
         loss = torch.sum(loss) / torch.sum(n)
@@ -665,23 +624,29 @@ class SASRecRecommender:
             user_item_interactions[Columns.Item]
         )
 
-        x = self.task_converter.inference_transform(
+        x = self.task_converter.transform(
             user_item_interactions=user_item_interactions,
         )
 
-        model_x = SequenceDataset(x=x, batch_size=batch_size)
-        dataloader = DataLoader(model_x, batch_size=None)  # batching in dataset
+        model_x = SequenceDataset(x=x, session_maxlen=self.model.session_maxlen)
+        recommend_dataloader = DataLoader(
+            model_x,
+            batch_size=batch_size,
+            collate_fn=lambda batch: collate_fn_recommend(batch, self.model.session_maxlen),
+        )
 
         logits = []
         device = self.model.get_model_device()
         self.model.item_model.to_device(device)
         with torch.no_grad():
-            for x_batch in tqdm.tqdm(dataloader):
-                x_batch = x_batch.to(device)
-                logits_batch = self.model.predict(x_batch, candidate_items_inds).detach().cpu().numpy()
+            for x_batch in tqdm.tqdm(recommend_dataloader):
+                x_batch = x_batch.to(device)  # [batch_size, session_maxlen]
+                logits_batch = (
+                    self.model.predict(x_batch, candidate_items_inds).detach().cpu().numpy()
+                )  # [batch_size, n_items]
                 logits.append(logits_batch)
 
-        logits_array = np.concatenate(logits, axis=0)
+        logits_array = np.concatenate(logits, axis=0)  # [n_users, n_items]
         user_item_interactions[Columns.Item] = self.item_id_map.convert_to_external(
             user_item_interactions[Columns.Item]
         )
