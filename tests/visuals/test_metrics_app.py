@@ -144,13 +144,26 @@ class TestMetricsApp:
         with pytest.raises(KeyError):
             MetricsApp.construct(models_metrics=models_metrics)
 
-    def test_models_metrics_has_nan(self) -> None:
-        models_metrics = pd.DataFrame(
-            {
-                Columns.Model: [None, "Model2"],
-                "metric": [0.1, None],
-            }
+    @pytest.mark.parametrize(
+        "models_metrics",
+        (
+            pd.DataFrame(
+                {
+                    Columns.Model: [None, "Model2"],
+                    "metric": [0.1, None],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model2"],
+                    Columns.Split: [None, 0],
+                    "metric": [0.1, None],
+                }
+            ),
         )
+
+    )
+    def test_models_metrics_has_nan(self, models_metrics: pd.DataFrame) -> None:
         with pytest.raises(ValueError):
             MetricsApp.construct(models_metrics=models_metrics)
 
@@ -165,7 +178,8 @@ class TestMetricsApp:
             ),
             pd.DataFrame(
                 {
-                    Columns.Model: ["Model_1", "Model 1"],
+                    Columns.Model: ["Model1", "Model1"],
+                    Columns.Split: [0, 0],
                     "metric": [0.1, 0.2],
                 }
             ),
@@ -231,8 +245,17 @@ class TestMetricsApp:
             models_metadata=DF_METAINFO,
             auto_display=False,
         )
-        expected_model_names = sorted(DF_METRICS[Columns.Model].unique())
+        expected_model_names = ["Model1", "Model2"]
         assert app.model_names == expected_model_names, f"Expected {expected_model_names}, but got {app.model_names}"
+
+    def test_folds_ids(self) -> None:
+        app = MetricsApp.construct(
+            models_metrics=DF_METRICS,
+            models_metadata=DF_METAINFO,
+            auto_display=False,
+        )
+        expected_fold_ids = [0, 1]
+        assert app.fold_ids == expected_fold_ids, f"Expected {expected_fold_ids}, but got {app.fold_ids}"
 
     # ----------------------------------------Test data aggregators----------------------------------------- #
 

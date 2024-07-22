@@ -187,12 +187,10 @@ class MetricsApp:
         # Validate that all Models names are unique
         models_metrics = models_metrics.copy()
         if Columns.Split in models_metrics.columns:
-            models_metrics[Columns.Model] = models_metrics[Columns.Model].astype(str).str.replace(" ", "_")
             models_names_comb = models_metrics[Columns.Model] + models_metrics[Columns.Split].astype(str)
             if models_names_comb.nunique() != len(models_names_comb):
                 raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
         else:
-            models_metrics[Columns.Model] = models_metrics[Columns.Model].astype(str).str.replace(" ", "_")
             if models_metrics[Columns.Model].nunique() != len(models_metrics[Columns.Model]):
                 raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
 
@@ -229,7 +227,7 @@ class MetricsApp:
         metric_y: str,
         color: str,
         legend_title: str,
-    ) -> go.Figure:
+    ) -> go.Figure:  # pragma: no cover
         scatter_kwargs = {
             "width": WIDGET_WIDTH,
             "height": WIDGET_HEIGHT,
