@@ -132,7 +132,7 @@ class MetricsApp:
         cls._validate_models_metadata(models_metadata)
 
         merged_data = models_metrics.merge(models_metadata, on=Columns.Model, how="left")
-        merged_data[Columns.Model] = merged_data[Columns.Model].str.replace(" ", "_")
+        merged_data = merged_data.replace(",", ";", regex=True)
 
         metric_names = [col for col in models_metrics.columns if col not in {Columns.Split, Columns.Model}]
         meta_names = [col for col in models_metadata.columns if col != Columns.Model]
@@ -185,6 +185,7 @@ class MetricsApp:
     @staticmethod
     def _validate_models_metrics_names(models_metrics: pd.DataFrame) -> None:
         # Validate that all Models names are unique
+        models_metrics = models_metrics.copy()
         if Columns.Split in models_metrics.columns:
             models_metrics[Columns.Model] = models_metrics[Columns.Model].astype(str).str.replace(" ", "_")
             models_names_comb = models_metrics[Columns.Model] + models_metrics[Columns.Split].astype(str)
@@ -216,6 +217,10 @@ class MetricsApp:
         metrics_data = self.data[metric_data_columns].groupby([Columns.Model], sort=False).mean().reset_index()
         meta_data = self.data[meta_data_columns].drop_duplicates()
         return metrics_data.merge(meta_data, on=Columns.Model, how="left").reset_index(drop=True)
+
+    @staticmethod
+    def _trim_metadata(raw_string: str, splitter: str = ", ") -> str:
+        return raw_string.split(splitter, 1)[-1]
 
     def _create_chart_figure(
         self,
@@ -271,13 +276,13 @@ class MetricsApp:
         color_clmn = meta_feature.value if use_meta.value else Columns.Model
 
         # Save dots symbols from the previous widget state
-        # `split(" ", 1)[-1]` removed metainfo from trace name. Thus we guarantee to map with traces from previous state
-        trace_name2symbol = {trace.name.split(" ", 1)[-1]: trace.marker.symbol for trace in self.fig.data}
+        # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
+        trace_name2symbol = {self._trim_metadata(trace.name): trace.marker.symbol for trace in self.fig.data}
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
         self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
 
         for trace in self.fig.data:
-            trace_name = trace.name.split(" ", 1)[-1]
+            trace_name = self._trim_metadata(trace.name)
             trace.marker.symbol = trace_name2symbol[trace_name]
 
         with fig_widget.batch_update():
