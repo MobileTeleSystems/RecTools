@@ -178,7 +178,7 @@ class MetricsApp:
 
         for model, group in grouped:
             if group["i_split"].nunique() != ref_fold_count:
-                raise ValueError(f"""{model} does not have the same fold amount as {ref_group_name}")
+                raise ValueError(f"""{model} does not have the same fold amount as {ref_group_name}""")
             if set(group["i_split"].unique()) != ref_fold_names:
                 raise ValueError(f"{model} does not have the same fold names as {ref_group_name}")
 
