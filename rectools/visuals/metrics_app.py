@@ -233,7 +233,7 @@ class MetricsApp:
         }
         scatter_kwargs.update(self.scatter_kwargs)
 
-        data = data.sort_values(by=color, ascending=False)
+        data = data.sort_values(by=color, ascending=True)
 
         fig = px.scatter(
             data,
