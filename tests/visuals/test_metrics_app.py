@@ -160,8 +160,7 @@ class TestMetricsApp:
                     "metric": [0.1, None],
                 }
             ),
-        )
-
+        ),
     )
     def test_models_metrics_has_nan(self, models_metrics: pd.DataFrame) -> None:
         with pytest.raises(ValueError):
@@ -217,21 +216,21 @@ class TestMetricsApp:
     # --------------------------------------Test meta data validation--------------------------------------- #
 
     def test_models_metadata_missed_model_column(self) -> None:
-        with pytest.raises(KeyError):
+        with pytest.raises(KeyError, match="Missing `Model` column in `models_metadata` DataFrame"):
             MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 models_metadata=DF_METAINFO.drop(columns=Columns.Model),
             )
 
     def test_models_metadata_ambiguous_model_column(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="`Model` values of `models_metadata` should be unique`"):
             MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 models_metadata=pd.DataFrame({Columns.Model: ["Model1", "Model2", "Model2"]}),
             )
 
     def test_models_metadata_has_nan_in_models_names(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Found NaN values in `Model` column"):
             MetricsApp.construct(
                 models_metrics=DF_METRICS,
                 models_metadata=pd.DataFrame({Columns.Model: ["Model1", "Model2", None]}),
@@ -255,6 +254,19 @@ class TestMetricsApp:
             auto_display=False,
         )
         expected_fold_ids = [0, 1]
+        assert app.fold_ids == expected_fold_ids, f"Expected {expected_fold_ids}, but got {app.fold_ids}"
+
+    def test_folds_ids_no_split_column(self) -> None:
+        app = MetricsApp.construct(
+            models_metrics=pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model2"],
+                    "prec@10": [0.2, 0.3],
+                }
+            ),
+            auto_display=False,
+        )
+        expected_fold_ids = None
         assert app.fold_ids == expected_fold_ids, f"Expected {expected_fold_ids}, but got {app.fold_ids}"
 
     # ----------------------------------------Test data aggregators----------------------------------------- #

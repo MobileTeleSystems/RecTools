@@ -197,11 +197,11 @@ class MetricsApp:
     @staticmethod
     def _validate_models_metadata(models_metadata: pd.DataFrame) -> None:
         if Columns.Model not in models_metadata.columns:
-            raise KeyError("Missing `Model`` column in `models_metadata` DataFrame")
-        if models_metadata[Columns.Model].nunique() != len(models_metadata):
-            raise ValueError("`Model` values of `models_metadata` should be unique`")
+            raise KeyError("Missing `Model` column in `models_metadata` DataFrame")
         if models_metadata[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model` column")
+        if models_metadata[Columns.Model].nunique() != len(models_metadata):
+            raise ValueError("`Model` values of `models_metadata` should be unique`")
 
     @lru_cache
     def _make_chart_data_fold(self, fold_number: int) -> pd.DataFrame:
@@ -304,7 +304,9 @@ class MetricsApp:
     def _update_meta_visibility(self, use_meta: widgets.Checkbox, meta_feature: widgets.Dropdown) -> None:
         meta_feature.layout.visibility = "hidden" if not use_meta.value else "visible"
 
-    def _create_chart_data(self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown) -> pd.DataFrame:
+    def _create_chart_data(
+        self, use_avg: widgets.Checkbox, fold_i: widgets.Dropdown
+    ) -> pd.DataFrame:  # pragma: no cover
         if use_avg.value or fold_i.value is None:
             return self._make_chart_data_avg()
         return self._make_chart_data_fold(fold_i.value)
