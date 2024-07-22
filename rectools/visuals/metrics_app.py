@@ -155,18 +155,18 @@ class MetricsApp:
 
     @staticmethod
     def _validate_models_metrics_base(models_metrics: pd.DataFrame) -> None:
-        if not isinstance(models_metrics, pd.DataFrame):
-            raise ValueError("Incorrect input type. `metrics_data` should be a DataFrame")
         if Columns.Model not in models_metrics.columns:
             raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
         if len([item for item in models_metrics.columns if item not in {Columns.Model, Columns.Split}]) < 1:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
-        if models_metrics.isnull().values.any():
-            raise ValueError("Found NaN values in `metrics_data`")
+        if models_metrics[Columns.Model].isnull().values.any():
+            raise ValueError("Found NaN values in `Model`column of `metrics_data`")
+        if Columns.Split in models_metrics.columns and models_metrics[Columns.Split].isnull().values.any():
+            raise ValueError("Found NaN values in `Split`column of `metrics_data`")
 
     @staticmethod
     def _validate_models_metrics_split(models_metrics: pd.DataFrame) -> None:
-        # Validate that each model have same folds
+        # Validate that each model have same folds names
         if Columns.Split not in models_metrics.columns:
             return
         grouped = models_metrics.groupby(Columns.Model)
@@ -197,8 +197,6 @@ class MetricsApp:
 
     @staticmethod
     def _validate_models_metadata(models_metadata: pd.DataFrame) -> None:
-        if not isinstance(models_metadata, pd.DataFrame):
-            raise ValueError("Incorrect input type. `models_metadata` should be a DataFrame")
         if Columns.Model not in models_metadata.columns:
             raise KeyError("Missing `Model`` column in `models_metadata` DataFrame")
         if models_metadata[Columns.Model].nunique() != len(models_metadata):
@@ -219,7 +217,7 @@ class MetricsApp:
         meta_data = self.data[meta_data_columns].drop_duplicates()
         return metrics_data.merge(meta_data, on=Columns.Model, how="left").reset_index(drop=True)
 
-    def _create_chart(
+    def _create_chart_figure(
         self,
         data: pd.DataFrame,
         metric_x: str,
@@ -259,7 +257,7 @@ class MetricsApp:
         fig.update_coloraxes(showscale=False)
         return fig
 
-    def _update_chart(
+    def _update_figure_widget(
         self,
         fig_widget: go.FigureWidget,
         metric_x: widgets.Dropdown,
@@ -276,7 +274,7 @@ class MetricsApp:
         # `split(" ", 1)[-1]` removed metainfo from trace name. Thus we guarantee to map with traces from previous state
         trace_name2symbol = {trace.name.split(" ", 1)[-1]: trace.marker.symbol for trace in self.fig.data}
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
-        self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
+        self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
 
         for trace in self.fig.data:
             trace_name = trace.name.split(" ", 1)[-1]
@@ -328,11 +326,11 @@ class MetricsApp:
         # Initialize go.FigureWidget initial chart state
         chart_data = self._create_chart_data(use_avg, fold_i)
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
-        self.fig = self._create_chart(chart_data, metric_x.value, metric_y.value, Columns.Model, legend_title)
+        self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, Columns.Model, legend_title)
         fig_widget = go.FigureWidget(data=self.fig.data, layout=self.fig.layout)
 
         def update(event: tp.Callable[..., tp.Any]) -> None:  # pragma: no cover
-            self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i, meta_feature, use_meta)
+            self._update_figure_widget(fig_widget, metric_x, metric_y, use_avg, fold_i, meta_feature, use_meta)
             self._update_fold_visibility(use_avg, fold_i)
             self._update_meta_visibility(use_meta, meta_feature)
 
@@ -364,4 +362,4 @@ class MetricsApp:
 
         self._update_fold_visibility(use_avg, fold_i)
         self._update_meta_visibility(use_meta, meta_feature)
-        self._update_chart(fig_widget, metric_x, metric_y, use_avg, fold_i, meta_feature, use_meta)
+        self._update_figure_widget(fig_widget, metric_x, metric_y, use_avg, fold_i, meta_feature, use_meta)

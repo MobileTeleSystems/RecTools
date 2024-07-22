@@ -123,10 +123,6 @@ class TestMetricsApp:
 
     # -------------------------------------Test metrics data validation------------------------------------- #
 
-    def test_models_metrics_is_not_dataframe(self) -> None:
-        with pytest.raises(ValueError):
-            MetricsApp.construct(models_metrics=1)
-
     @pytest.mark.parametrize(
         "models_metrics",
         (
@@ -205,10 +201,6 @@ class TestMetricsApp:
             MetricsApp.construct(models_metrics=models_metrics)
 
     # --------------------------------------Test meta data validation--------------------------------------- #
-
-    def test_models_metadata_is_not_dataframe(self) -> None:
-        with pytest.raises(ValueError):
-            MetricsApp.construct(models_metrics=DF_METRICS, models_metadata=1)
 
     def test_models_metadata_missed_model_column(self) -> None:
         with pytest.raises(KeyError):
