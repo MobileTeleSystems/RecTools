@@ -234,7 +234,6 @@ class MetricsApp:
         scatter_kwargs.update(self.scatter_kwargs)
 
         data = data.sort_values(by=color, ascending=False)
-        data[color] = data[color].astype(str)  # to treat colors values as categorical
 
         fig = px.scatter(
             data,
@@ -244,12 +243,20 @@ class MetricsApp:
             symbol=Columns.Model,
             **scatter_kwargs,
         )
+
+        # Add meta-info in legend
+        for trace in fig.data:
+            if color != Columns.Model:
+                meta_value = data.set_index(Columns.Model).at[trace.name, color]
+                trace.name = f"{meta_value}, {trace.name}"
+
         layout_params = {
             "margin": {"t": TOP_CHART_MARGIN},
             "legend_title": legend_title,
             "showlegend": self.show_legend,
         }
         fig.update_layout(layout_params)
+        fig.update_coloraxes(showscale=False)
         return fig
 
     def _update_chart(
@@ -275,12 +282,8 @@ class MetricsApp:
             trace_name = trace.name.split(" ", 1)[-1]
             trace.marker.symbol = trace_name2symbol[trace_name]
 
-        nometa_trace_name2idx = {trace.name.split(" ", 1)[-1]: idx for idx, trace in enumerate(self.fig.data)}
-
         with fig_widget.batch_update():
-            for trace in self.fig.data:
-                trace_name = trace.name.split(" ", 1)[1] if use_meta.value else trace.name
-                idx = nometa_trace_name2idx[trace_name]
+            for idx, trace in enumerate(self.fig.data):
                 fig_widget.data[idx].x = trace.x
                 fig_widget.data[idx].y = trace.y
                 fig_widget.data[idx].marker.color = trace.marker.color
