@@ -163,7 +163,7 @@ class MetricsApp:
         if models_metrics[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model` column of `metrics_data`")
         if Columns.Split in models_metrics.columns and models_metrics[Columns.Split].isnull().any():
-            raise ValueError("Found NaN values in `Split`column of `metrics_data`")
+            raise ValueError("Found NaN values in `Split` column of `metrics_data`")
 
     @staticmethod
     def _validate_models_metrics_split(models_metrics: pd.DataFrame) -> None:
