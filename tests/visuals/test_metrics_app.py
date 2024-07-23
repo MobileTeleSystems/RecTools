@@ -328,3 +328,25 @@ class TestMetricsApp:
             }
         )
         pd.testing.assert_frame_equal(chart_data, expected_data)
+
+    # -----------------------------------------Test helper methods------------------------------------------ #
+
+    def test_trim_metadata_with_meta(self) -> None:
+        app = MetricsApp.construct(
+            models_metrics=DF_METRICS,
+            models_metadata=None,
+            auto_display=False,
+        )
+        test_string = "10, random"
+        expected_result = ("10", "random")
+        assert app._trim_metadata(test_string) == expected_result
+
+    def test_trim_metadata_without_meta(self) -> None:
+        app = MetricsApp.construct(
+            models_metrics=DF_METRICS,
+            models_metadata=None,
+            auto_display=False,
+        )
+        test_string = "random"
+        expected_result = ("", "random")
+        assert app._trim_metadata(test_string) == expected_result
