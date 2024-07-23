@@ -162,7 +162,7 @@ class MetricsApp:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
         if models_metrics[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model`column of `metrics_data`")
-        if Columns.Split in models_metrics.columns and models_metrics[Columns.Split].isnull().values.any():
+        if Columns.Split in models_metrics.columns and models_metrics[Columns.Split].isnull().any():
             raise ValueError("Found NaN values in `Split`column of `metrics_data`")
 
     @staticmethod
