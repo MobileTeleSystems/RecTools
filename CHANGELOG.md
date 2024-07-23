@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New params (`tol`, `maxiter`, `random_state`) to the `PureSVD` model ([#130](https://github.com/MobileTeleSystems/RecTools/pull/130))
 - Recommendations data quality metrics: `SufficientReco`, `UnrepeatedReco`, `CoveredUsers` ([#155](https://github.com/MobileTeleSystems/RecTools/pull/155))
 - `r_precision` parameter to `Precision` metric ([#155](https://github.com/MobileTeleSystems/RecTools/pull/155))
-- Add metadata support for `MetricApp` ([#154](https://github.com/MobileTeleSystems/RecTools/pull/154))
 
 ### Fixed
 - Used the latest version of `lightfm` that allows to install it using `poetry>=1.5.0` ([#141](https://github.com/MobileTeleSystems/RecTools/pull/141))
