@@ -79,7 +79,7 @@ class MetricsApp:
             An optional pandas DataFrame containing any models metadata (hyperparameters, training info, etc.).
             Used for alternative ways of coloring scatterplot points.
             Required columns:
-                - `Columns.Models` - model names
+                - `Columns.Model` - model names
                 - Any other columns with additional information
         show_legend : bool, default True
             Specifies whether to display the chart legend.
