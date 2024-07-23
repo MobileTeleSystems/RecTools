@@ -16,8 +16,9 @@
   <a href="https://rectools.readthedocs.io/en/stable/">Documentation</a> |
   <a href="https://github.com/MobileTeleSystems/RecTools/tree/main/examples">Examples</a> |
     <a href="https://github.com/MobileTeleSystems/RecTools/tree/main/examples/tutorials">Tutorials</a> |
-  <a href="https://github.com/MobileTeleSystems/RecTools/blob/main/CONTRIBUTING.rst">Contribution Guide</a> |
-  <a href="https://github.com/MobileTeleSystems/RecTools/releases">Release Notes</a>
+  <a href="https://github.com/MobileTeleSystems/RecTools/blob/main/CONTRIBUTING.rst">Contributing</a> |
+  <a href="https://github.com/MobileTeleSystems/RecTools/releases">Releases</a> |
+  <a href="https://github.com/orgs/MobileTeleSystems/projects/1">Developers Board</a>
 </p>
 
 RecTools is an easy-to-use Python library which makes the process of building recommendation systems easier, 
