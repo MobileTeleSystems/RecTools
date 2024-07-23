@@ -191,7 +191,7 @@ class MetricsApp:
             if models_names_comb.nunique() != len(models_names_comb):
                 raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
         else:
-            if models_metrics[Columns.Model].nunique() != len(models_metrics[Columns.Model]):
+            if models_metrics[Columns.Model].nunique() != len(models_metrics):
                 raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
 
     @staticmethod
