@@ -158,7 +158,7 @@ class MetricsApp:
     def _validate_models_metrics_base(models_metrics: pd.DataFrame) -> None:
         if Columns.Model not in models_metrics.columns:
             raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
-        if len([item for item in models_metrics.columns if item not in {Columns.Model, Columns.Split}]) < 1:
+        if not set(models_metrics.columns) - {Columns.Model, Columns.Split} :
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
         if models_metrics[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model` column of `metrics_data`")
