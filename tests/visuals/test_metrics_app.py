@@ -331,7 +331,7 @@ class TestMetricsApp:
 
     # -----------------------------------------Test helper methods------------------------------------------ #
 
-    def test_trim_metadata_with_meta(self) -> None:
+    def test_split_to_meta_and_model_with_meta(self) -> None:
         app = MetricsApp.construct(
             models_metrics=DF_METRICS,
             models_metadata=None,
@@ -339,9 +339,9 @@ class TestMetricsApp:
         )
         test_string = "10, random"
         expected_result = ("10", "random")
-        assert app._trim_metadata(test_string) == expected_result
+        assert app._split_to_meta_and_model(test_string) == expected_result  # pylint: disable=protected-access
 
-    def test_trim_metadata_without_meta(self) -> None:
+    def test_split_to_meta_and_model_without_meta(self) -> None:
         app = MetricsApp.construct(
             models_metrics=DF_METRICS,
             models_metadata=None,
@@ -349,4 +349,4 @@ class TestMetricsApp:
         )
         test_string = "random"
         expected_result = ("", "random")
-        assert app._trim_metadata(test_string) == expected_result
+        assert app._split_to_meta_and_model(test_string) == expected_result  # pylint: disable=protected-access

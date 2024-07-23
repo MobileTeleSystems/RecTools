@@ -186,7 +186,6 @@ class MetricsApp:
     @staticmethod
     def _validate_models_metrics_names(models_metrics: pd.DataFrame) -> None:
         # Validate that all Models names are unique
-        models_metrics = models_metrics.copy()
         if Columns.Split in models_metrics.columns:
             models_names_comb = models_metrics[Columns.Model] + models_metrics[Columns.Split].astype(str)
             if models_names_comb.nunique() != len(models_names_comb):
@@ -219,7 +218,7 @@ class MetricsApp:
 
     @staticmethod
     @lru_cache
-    def _trim_metadata(raw_string: str, splitter: str = ", ") -> tp.Tuple[str, str]:
+    def _split_to_meta_and_model(raw_string: str, splitter: str = ", ") -> tp.Tuple[str, str]:
         splitted_row = raw_string.split(splitter, 1)
         if len(splitted_row) > 1:
             meta_value, model_name = splitted_row
@@ -270,17 +269,19 @@ class MetricsApp:
 
         # Save dots symbols from the previous widget state
         # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
-        trace_name2symbol = {self._trim_metadata(trace.name)[1]: trace.marker.symbol for trace in self.fig.data}
+        model_name2symbol = {
+            self._split_to_meta_and_model(trace.name)[1]: trace.marker.symbol for trace in self.fig.data
+        }
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
         self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
 
         for trace in self.fig.data:
-            trace_name = self._trim_metadata(trace.name)[1]
-            trace.marker.symbol = trace_name2symbol[trace_name]
+            model_name = self._split_to_meta_and_model(trace.name)[1]
+            trace.marker.symbol = model_name2symbol[model_name]
 
         with fig_widget.batch_update():
             for idx, trace in enumerate(self.fig.data):
-                if self._trim_metadata(trace.name)[0] == "nan":
+                if self._split_to_meta_and_model(trace.name)[0] == "nan":
                     trace.marker.color = NAN_COLOR
                 fig_widget.data[idx].x = trace.x
                 fig_widget.data[idx].y = trace.y
