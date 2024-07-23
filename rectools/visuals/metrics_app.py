@@ -127,7 +127,6 @@ class MetricsApp:
         """
         cls._validate_models_metrics_base(models_metrics)
         cls._validate_models_metrics_split(models_metrics)
-        cls._validate_models_metrics_names(models_metrics)
         if models_metadata is None:
             models_metadata = models_metrics[Columns.Model].drop_duplicates().to_frame()
         cls._validate_models_metadata(models_metadata)
@@ -158,33 +157,31 @@ class MetricsApp:
     def _validate_models_metrics_base(models_metrics: pd.DataFrame) -> None:
         if Columns.Model not in models_metrics.columns:
             raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
-        if not set(models_metrics.columns) - {Columns.Model, Columns.Split} :
+        if not set(models_metrics.columns) - {Columns.Model, Columns.Split}:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
         if models_metrics[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model` column of `metrics_data`")
         if Columns.Split in models_metrics.columns and models_metrics[Columns.Split].isnull().any():
             raise ValueError("Found NaN values in `Split` column of `metrics_data`")
+        if Columns.Split not in models_metrics.columns and models_metrics[Columns.Model].nunique() != len(
+            models_metrics
+        ):
+            raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
 
     @staticmethod
     def _validate_models_metrics_split(models_metrics: pd.DataFrame) -> None:
-        # Validate that each model have same folds names
         if Columns.Split not in models_metrics.columns:
             return
-        splits = df.groupby(Columns.Model)["split"].apply(lfrozenset)
+
+        # Validate that each model have same folds names
+        splits = models_metrics.groupby(Columns.Model)[Columns.Split].apply(frozenset)
         splits_set = set(splits)
-        if splits_set > 1:
+        if len(splits_set) > 1:
             raise ValueError(f"All models must have the same splits. But now they are different: {splits_set}")
 
-    @staticmethod
-    def _validate_models_metrics_names(models_metrics: pd.DataFrame) -> None:
-        # Validate that all Models names are unique
-        if Columns.Split in models_metrics.columns:
-            models_names_comb = models_metrics[Columns.Model] + models_metrics[Columns.Split].astype(str)
-            if models_names_comb.nunique() != len(models_names_comb):
-                raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
-        else:
-            if models_metrics[Columns.Model].nunique() != len(models_metrics):
-                raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
+        # Validate that each row have unique model and folds names
+        if models_metrics.duplicated(subset=[Columns.Model, Columns.Split], keep=False).any():
+            raise ValueError("Each pair of `Model` and `Split` values in the `metrics_data` DataFrame must be unique")
 
     @staticmethod
     def _validate_models_metadata(models_metadata: pd.DataFrame) -> None:
