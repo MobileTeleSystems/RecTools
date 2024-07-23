@@ -45,6 +45,11 @@ class MetricsApp:
         auto_display: bool = True,
         scatter_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
+        # `self.data` - merged data created from `models_metrics` and `models_metadata`
+        # Required columns: `Columns.Models` and `Columns.Split`
+        # Any other columns should be in `metric_names` or `meta_names` list
+        # Columns from the `metric_names` list should be numeric type
+        # Columns from the `meta_names` list could be any type
         self.data = data
         self.metric_names = metric_names
         self.meta_names = meta_names
@@ -172,13 +177,11 @@ class MetricsApp:
     def _validate_models_metrics_split(models_metrics: pd.DataFrame) -> None:
         if Columns.Split not in models_metrics.columns:
             return
-
         # Validate that each model have same folds names
         splits = models_metrics.groupby(Columns.Model)[Columns.Split].apply(frozenset)
         splits_set = set(splits)
         if len(splits_set) > 1:
             raise ValueError(f"All models must have the same splits. But now they are different: {splits_set}")
-
         # Validate that each row have unique model and folds names
         if models_metrics.duplicated(subset=[Columns.Model, Columns.Split], keep=False).any():
             raise ValueError("Each pair of `Model` and `Split` values in the `metrics_data` DataFrame must be unique")
@@ -217,9 +220,9 @@ class MetricsApp:
     def _create_chart_figure(
         self,
         data: pd.DataFrame,
-        metric_x: str,
-        metric_y: str,
-        color: str,
+        x_col: str,
+        y_col: str,
+        color_col: str,
         legend_title: str,
     ) -> go.Figure:  # pragma: no cover
         scatter_kwargs = {
@@ -228,14 +231,14 @@ class MetricsApp:
         }
         scatter_kwargs.update(self.scatter_kwargs)
 
-        data = data.sort_values(by=color, ascending=True)
-        data[color] = data[color].astype(str)  # to treat colors values as categorical
+        data = data.sort_values(by=color_col, ascending=True)
+        data[color_col] = data[color_col].astype(str)  # to treat colors values as categorical
 
         fig = px.scatter(
             data,
-            x=metric_x,
-            y=metric_y,
-            color=color,
+            x=x_col,
+            y=y_col,
+            color=color_col,
             symbol=Columns.Model,
             **scatter_kwargs,
         )
@@ -254,19 +257,19 @@ class MetricsApp:
         use_meta: widgets.Checkbox,
     ) -> None:  # pragma: no cover
         chart_data = self._create_chart_data(use_avg, fold_i)
-        color_clmn = meta_feature.value if use_meta.value else Columns.Model
+        color_col = meta_feature.value if use_meta.value else Columns.Model
 
         # Save dots symbols from the previous widget state
         # Remove metainfo from trace name. Thus we guarantee to map with traces from previous state
-        model_name2symbol = {
+        model_name_to_symbol = {
             self._split_to_meta_and_model(trace.name)[1]: trace.marker.symbol for trace in self.fig.data
         }
         legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
-        self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, color_clmn, legend_title)
+        self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, color_col, legend_title)
 
         for trace in self.fig.data:
             model_name = self._split_to_meta_and_model(trace.name)[1]
-            trace.marker.symbol = model_name2symbol[model_name]
+            trace.marker.symbol = model_name_to_symbol[model_name]
 
         with fig_widget.batch_update():
             for idx, trace in enumerate(self.fig.data):
