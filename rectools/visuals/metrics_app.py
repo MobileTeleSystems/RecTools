@@ -304,7 +304,11 @@ class MetricsApp:
     def display(self) -> None:
         """Display MetricsApp widget"""
         metric_x = widgets.Dropdown(description="Metric X:", value=self.metric_names[0], options=self.metric_names)
-        metric_y = widgets.Dropdown(description="Metric Y:", value=self.metric_names[-1], options=self.metric_names)
+        metric_y = widgets.Dropdown(
+            description="Metric Y:",
+            value=self.metric_names[min(1, len(self.metric_names) - 1)],
+            options=self.metric_names,
+        )
         use_avg = widgets.Checkbox(description="Average folds", value=True)
         fold_i = widgets.Dropdown(
             description="Fold number:",
