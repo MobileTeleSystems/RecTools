@@ -160,9 +160,10 @@ class MetricsApp:
 
     @staticmethod
     def _validate_models_metrics_base(models_metrics: pd.DataFrame) -> None:
+        metric_columns = list(set(models_metrics.columns) - {Columns.Model, Columns.Split})
         if Columns.Model not in models_metrics.columns:
             raise KeyError("Missing `Model` column in `metrics_data` DataFrame")
-        if not set(models_metrics.columns) - {Columns.Model, Columns.Split}:
+        if not metric_columns:
             raise KeyError("`metrics_data` DataFrame assumed to have at least one metric column")
         if models_metrics[Columns.Model].isnull().any():
             raise ValueError("Found NaN values in `Model` column of `metrics_data`")
@@ -172,6 +173,8 @@ class MetricsApp:
             models_metrics
         ):
             raise ValueError("Each `Model` value in the `metrics_data` DataFrame must be unique")
+        if len(models_metrics[metric_columns].select_dtypes(include="number").columns) != len(metric_columns):
+            raise ValueError("All metrics columns should be numeric")
 
     @staticmethod
     def _validate_models_metrics_split(models_metrics: pd.DataFrame) -> None:

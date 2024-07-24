@@ -209,7 +209,30 @@ class TestMetricsApp:
             ),
         ),
     )
-    def test_model_metrics_have_non_consistent_folds(self, models_metrics: pd.DataFrame) -> None:
+    def test_model_metrics_has_non_consistent_folds(self, models_metrics: pd.DataFrame) -> None:
+        with pytest.raises(ValueError):
+            MetricsApp.construct(models_metrics=models_metrics)
+
+    @pytest.mark.parametrize(
+        "models_metrics",
+        (
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model1"],
+                    "metric": ["0.1", 0.2],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    Columns.Model: ["Model1", "Model1"],
+                    Columns.Split: [0, 0],
+                    "metric1": [0.1, 0.2],
+                    "metric2": ["0.3", "0.4"],
+                }
+            ),
+        ),
+    )
+    def test_models_metrics_has_non_numeric_metric_columns(self, models_metrics: pd.DataFrame) -> None:
         with pytest.raises(ValueError):
             MetricsApp.construct(models_metrics=models_metrics)
 
