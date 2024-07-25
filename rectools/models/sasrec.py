@@ -304,7 +304,7 @@ class TransformerEncoder(nn.Module):
             new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
             self.attention_layernorms.append(new_attn_layernorm)
 
-            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True)
+            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate)
             self.attention_layers.append(new_attn_layer)
 
             new_fwd_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
@@ -321,9 +321,11 @@ class TransformerEncoder(nn.Module):
     ) -> torch.Tensor:
         """TODO"""
         for i, _ in enumerate(self.attention_layers):
+            seqs = torch.transpose(seqs, 0, 1)  # [session_maxlen, batch_size, factors]
             q = self.attention_layernorms[i](seqs)  # [batch_size, session_maxlen, factors]
             mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
             seqs = q + mha_outputs
+            seqs = torch.transpose(seqs, 0, 1)  # [session_maxlen, batch_size, factors]
 
             seqs = self.forward_layernorms[i](seqs)
             seqs = self.forward_layers[i](seqs)
