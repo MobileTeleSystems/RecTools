@@ -1,6 +1,5 @@
 import logging
 import typing as tp
-from dataclasses import dataclass
 from itertools import compress
 from typing import List, Sequence, Tuple, Union
 
@@ -18,6 +17,7 @@ from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ModelBase
 
 logger = logging.getLogger(__name__)
+SequenceDatasetT = tp.TypeVar("SequenceDatasetT", bound="SequenceDatasetBase")
 
 
 class SasRecRecommenderModel(ModelBase):
@@ -50,7 +50,6 @@ class SasRecRecommenderModel(ModelBase):
         self.item_net_dropout_rate = item_net_dropout_rate
         self.use_pos_emb = use_pos_emb
         self.model: SASRec
-        self.task_converter = SequenceTaskConverter()
         self.item_id_map: IdMap
         self.trainer = Trainer(
             lr=lr,
@@ -85,13 +84,7 @@ class SasRecRecommenderModel(ModelBase):
             user_item_interactions[Columns.Item]
         )
 
-        logger.info("converting datasets to task format")
-        train_x = self.task_converter.transform(
-            user_item_interactions=user_item_interactions,
-        )
-
-        logger.info("building train dataset")
-        train_dataset = SequenceDataset(x=train_x, session_maxlen=self.session_maxlen)
+        train_dataset = SequenceDataset.from_interactions(user_item_interactions=user_item_interactions)
         fit_dataloader = DataLoader(
             train_dataset,
             batch_size=self.batch_size,
@@ -131,7 +124,7 @@ class SasRecRecommenderModel(ModelBase):
         item_features = train[Columns.Item].drop_duplicates()
 
         rec_df = train[train[Columns.User].isin(users)]
-        recommender = SASRecRecommender(self.model, self.task_converter, self.item_id_map)
+        recommender = SASRecRecommender(self.model, self.item_id_map)
 
         if items_to_recommend is None:
             items_to_recommend = item_features
@@ -145,26 +138,44 @@ class SasRecRecommenderModel(ModelBase):
         return recs
 
 
-@dataclass
-class SASRecModelInput:
-    """
-    Input for SequenceDataset
-    sessions: List[List[int]] # [n_users, session_len]
-    weights: List[List[float]] # [n_users, session_len]
-    """
-
-    sessions: List[List[int]]
-    weights: List[List[float]]
+# TODO: think about moving all data processing to SequenceDataset.from_dataset method.
+# This would also mean creating different dataset types for fit and recommend
 
 
-class SequenceTaskConverter:
-    """Convert database data to use in particular model"""
+class SequenceDatasetBase(Dataset):
+    """TODO"""
 
-    def transform(
-        self,
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_interactions(cls: tp.Type[SequenceDatasetT], user_item_interactions: pd.DataFrame) -> SequenceDatasetT:
+        """TODO"""
+        raise NotImplementedError()
+
+
+class SequenceDataset(SequenceDatasetBase):
+    """TODO"""
+
+    def __init__(self, sessions: List[List[int]], weights: List[List[float]]):
+        self.sessions = sessions
+        self.weights = weights
+
+    def __len__(self) -> int:
+        return len(self.sessions)
+
+    def __getitem__(self, index: int) -> Tuple[List[int], List[float]]:
+        session = self.sessions[index]  # [session_len]
+        weights = self.weights[index]  # [session_len]
+        # session_len = len(session)
+        return session, weights
+
+    @classmethod
+    def from_interactions(
+        cls: tp.Type[SequenceDatasetT],
         user_item_interactions: pd.DataFrame,
-    ) -> SASRecModelInput:
-        """Convert user-item interaction to sessions"""
+    ) -> SequenceDatasetT:
+        """TODO"""
         sessions = (
             user_item_interactions.sort_values(Columns.Datetime)
             .groupby(Columns.User)[[Columns.Item, Columns.Weight]]
@@ -175,32 +186,7 @@ class SequenceTaskConverter:
             sessions[Columns.Weight].to_list(),
         )
 
-        return SASRecModelInput(
-            sessions=sessions,
-            weights=weights,
-        )
-
-
-class SequenceDataset(Dataset):
-    """TODO"""
-
-    def __init__(
-        self,
-        x: SASRecModelInput,
-        session_maxlen: int,
-    ):
-        super().__init__()
-        self.x = x
-        self.session_maxlen = session_maxlen
-
-    def __len__(self) -> int:
-        return len(self.x.sessions)
-
-    def __getitem__(self, index: int) -> Tuple[List[int], List[float]]:
-        session = self.x.sessions[index]  # [session_len]
-        weights = self.x.weights[index]  # [session_len]
-        # session_len = len(session)
-        return session, weights
+        return cls(sessions=sessions, weights=weights)
 
 
 def collate_fn_train(
@@ -210,24 +196,7 @@ def collate_fn_train(
     """TODO"""
     sessions = list(list(zip(*batch))[0])  # [batch_size, session_len]
     weights = list(list(zip(*batch))[1])  # [batch_size, session_len]
-    return sessions_transform_train(sessions, weights, session_maxlen)
 
-
-def collate_fn_recommend(
-    batch: List[Tuple[List[int], List[float]]],
-    session_maxlen: int,
-) -> torch.LongTensor:
-    """TODO"""
-    sessions = list(list(zip(*batch))[0])
-    return sessions_transform_recommend(sessions, session_maxlen)
-
-
-def sessions_transform_train(
-    sessions: List[List[int]],  # [batch_size, session_len]
-    weights: List[List[float]],  # [batch_size, session_len]
-    session_maxlen: int,
-) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
-    """TODO"""
     x = np.zeros((len(sessions), session_maxlen))  # [batch_size, session_maxlen]
     y = np.zeros((len(sessions), session_maxlen))  # [batch_size, session_maxlen]
     yw = np.zeros((len(sessions), session_maxlen))  # [batch_size, session_maxlen]
@@ -240,15 +209,17 @@ def sessions_transform_train(
     return torch.LongTensor(x), torch.LongTensor(y), torch.LongTensor(yw)
 
 
-def sessions_transform_recommend(
-    sessions: List[List[int]],
-    sessions_maxlen: int,
+def collate_fn_recommend(
+    batch: List[Tuple[List[int], List[float]]],
+    session_maxlen: int,
 ) -> torch.LongTensor:
     """TODO"""
-    x = np.zeros((len(sessions), sessions_maxlen))
+    sessions = list(list(zip(*batch))[0])
+
+    x = np.zeros((len(sessions), session_maxlen))
     # left padding, left truncation
     for i, ses in enumerate(sessions):
-        x[i, -len(ses) :] = ses[-sessions_maxlen:]
+        x[i, -len(ses) :] = ses[-session_maxlen:]
 
     return torch.LongTensor(x)
 
@@ -267,7 +238,7 @@ class PointWiseFeedForward(torch.nn.Module):
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        # inputs: [batch_size, factors, session_maxlen] -> outputs: [batch_size, session_maxlen, factors]
+        # inputs: [batch_size, session_maxlen, factors] -> outputs: [batch_size, session_maxlen, factors]
         # [batch_size, factors, session_maxlen]
         outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
         outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length) [batch_size, session_maxlen, factors]
@@ -298,7 +269,7 @@ class ItemNet(nn.Module):
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(self.catalogue)  # [n_items, factors]
+        item_embs = self.item_emb(self.catalogue)  # [n_items + 1, factors]
         item_embs = self.drop_layer(item_embs)
         return item_embs
 
@@ -333,7 +304,7 @@ class TransformerEncoder(nn.Module):
             new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
             self.attention_layernorms.append(new_attn_layernorm)
 
-            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate)
+            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True)
             self.attention_layers.append(new_attn_layer)
 
             new_fwd_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
@@ -350,15 +321,13 @@ class TransformerEncoder(nn.Module):
     ) -> torch.Tensor:
         """TODO"""
         for i, _ in enumerate(self.attention_layers):
-            seqs = torch.transpose(seqs, 0, 1)  # [session_maxlen, batch_size, factors]
-            q = self.attention_layernorms[i](seqs)  # [session_maxlen, batch_size, factors]
+            q = self.attention_layernorms[i](seqs)  # [batch_size, session_maxlen, factors]
             mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
             seqs = q + mha_outputs
-            seqs = torch.transpose(seqs, 0, 1)  # [batch_size, session_maxlen, factors]
 
             seqs = self.forward_layernorms[i](seqs)
             seqs = self.forward_layers[i](seqs)
-            seqs *= ~timeline_mask.unsqueeze(-1)
+            seqs *= timeline_mask
 
         return seqs
 
@@ -400,7 +369,7 @@ class SASRec(torch.nn.Module):
         """TODO"""
         return self.item_model.get_device()
 
-    def log2feats(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
         Pass user history through item embeddings and transformer blocks.
 
@@ -409,23 +378,24 @@ class SASRec(torch.nn.Module):
             torch.Tensor. [batch_size, history_len, emdedding_dim]
 
         """
+        session_maxlen = sessions.shape[1]
         seqs = item_embs[sessions]  # [batch_size, session_maxlen, factors]
+        timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_maxlen, 1]
 
+        # TODO: add inverse positional embedding (much talked about with good feedback)
         if self.use_pos_emb:
-            positions = np.tile(
-                np.array(range(sessions.shape[1])), [sessions.shape[0], 1]
-            )  # [batch_size, session_maxlen]
+            positions = np.tile(np.array(range(session_maxlen)), [sessions.shape[0], 1])  # [batch_size, session_maxlen]
             seqs += self.pos_emb(torch.LongTensor(positions).to(self.get_model_device()))
 
+        # TODO: can omit masking pad elements in embeddings
+        seqs *= timeline_mask  # [batch_size, session_maxlen, factors]
         seqs = self.emb_dropout(seqs)
 
-        timeline_mask = sessions == 0  # [batch_size, session_maxlen]
-        seqs *= ~timeline_mask.unsqueeze(-1)  # broadcast in last dim [batch_size, session_maxlen, factors]
-
         # TODO do we need to mask padding embs attention?
-        tl = seqs.shape[1]  # time dim len for enforce causality
         # [session_maxlen, session_maxlen]
-        attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.get_model_device()))
+        attention_mask = ~torch.tril(
+            torch.ones((session_maxlen, session_maxlen), dtype=torch.bool, device=self.get_model_device())
+        )
 
         seqs = self.encoder(
             seqs=seqs,
@@ -433,9 +403,9 @@ class SASRec(torch.nn.Module):
             timeline_mask=timeline_mask,
         )  # [batch_size, session_maxlen, factors]
 
-        log_feats = self.last_layernorm(seqs)  # (U, T, C) -> (U, -1, C) [batch_size, session_maxlen, factors]
+        session_embs = self.last_layernorm(seqs)  # [batch_size, session_maxlen, factors]
 
-        return log_feats
+        return session_embs
 
     # TODO check user_ids
     def forward(
@@ -443,12 +413,12 @@ class SASRec(torch.nn.Module):
         sessions: torch.Tensor,  # [batch_size, session_maxlen]
     ) -> torch.Tensor:
         """TODO"""
-        # TODO merge item model with log2feats
+        # TODO merge item model with encode_sessions
         item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, factors]
 
-        log_feats = self.log2feats(sessions, item_embs)  # [batch_size, session_maxlen, factors]
+        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, factors]
 
-        logits = log_feats @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
+        logits = session_embs @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
 
         return logits
 
@@ -471,10 +441,10 @@ class SASRec(torch.nn.Module):
             torch.Tensor: [batch_size, candidates_count] logits for each user
 
         """
-        item_embs = self.item_model.get_all_embeddings()  # [n_items, factors]
-        log_feats = self.log2feats(sessions, item_embs)  # [batch_size, session_maxlen, factors]
+        item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, factors]
+        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, factors]
 
-        final_feat = log_feats[:, -1, :]  # only use last QKV classifier, a waste [batch_size, factors]
+        final_feat = session_embs[:, -1, :]  # only use last QKV classifier, a waste [batch_size, factors]
 
         item_embs = item_embs[item_indices]  # (U, I, C) [n_items, factors]
 
@@ -540,7 +510,8 @@ class Trainer:
         logits = self.model(x)  # [batch_size, session_maxlen, n_items + 1]
         # We are using CrossEntropyLoss with a multi-dimensional case
 
-        # Logits must be passed in form of [batch_size, session_maxlen, n_items + 1],
+        # Logits must be passed in form of [batch_size, n_items + 1, session_maxlen],
+        #  where n_items + 1 is number of classes
 
         # Target label indexes must be passed in a form of [batch_size, session_maxlen]
         # (`0` index for "PAD" ix excluded from loss)
@@ -580,14 +551,14 @@ class SASRecRecommender:
     def __init__(
         self,
         model: SASRec,
-        task_converter: SequenceTaskConverter,
+        # task_converter: SequenceTaskConverter,
         item_id_map: IdMap,
         device: Union[torch.device, str] = "cpu",
     ):
         self.item_id_map = item_id_map
         self.model = model.eval()
         # TODO merge with processor
-        self.task_converter = task_converter
+        # self.task_converter = task_converter
         self.device = device
 
         self.model.to(self.device)
@@ -624,11 +595,7 @@ class SASRecRecommender:
             user_item_interactions[Columns.Item]
         )
 
-        x = self.task_converter.transform(
-            user_item_interactions=user_item_interactions,
-        )
-
-        model_x = SequenceDataset(x=x, session_maxlen=self.model.session_maxlen)
+        model_x = SequenceDataset.from_interactions(user_item_interactions=user_item_interactions)
         recommend_dataloader = DataLoader(
             model_x,
             batch_size=batch_size,
