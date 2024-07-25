@@ -34,6 +34,9 @@ from .data import INTERACTIONS
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     def setup_method(self) -> None:
+        self._seed_everything()
+
+    def _seed_everything(self) -> None:
         seed_everything(42, workers=True)
 
     @pytest.fixture
@@ -334,4 +337,4 @@ class TestDSSMModel:
 
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = DSSMModel(deterministic=True)
-        assert_second_fit_refits_model(model, dataset)
+        assert_second_fit_refits_model(model, dataset, pre_fit_callback=self._seed_everything)
