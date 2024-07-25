@@ -71,9 +71,7 @@ typeguard = "^4.1.0"
 
 
 # The latest released version of lightfm is 1.17 and it's not compatible with PEP-517 installers (like latest poetry versions).
-# So we use the latest commit from the master branch.
-# Will update to the latest version when it's released.
-lightfm = {git = "https://github.com/lyst/lightfm", rev = "0c9c31e", python = "<3.12", optional = true}
+rectools-lightfm = {version="1.17.1", python = "<3.12", optional = true}
 
 nmslib = {version = "^2.0.4", python = "<3.11", optional = true}
 
@@ -89,12 +87,12 @@ plotly = {version="^5.22.0", optional = true}
 
 
 [tool.poetry.extras]
-lightfm = ["lightfm"]
+lightfm = ["rectools-lightfm"]
 nmslib = ["nmslib"]
 torch = ["torch", "pytorch-lightning"]
 visuals = ["ipywidgets", "plotly"]
 all = [
-    "lightfm",
+    "rectools-lightfm",
     "nmslib", 
     "torch", "pytorch-lightning",
     "ipywidgets", "plotly",
