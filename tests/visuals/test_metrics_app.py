@@ -360,9 +360,10 @@ class TestMetricsApp:
             models_metadata=None,
             auto_display=False,
         )
-        test_string = "10, random"
+        sep = ","
+        test_string = "10,random"
         expected_result = ("10", "random")
-        assert app._split_to_meta_and_model(test_string) == expected_result  # pylint: disable=protected-access
+        assert app._split_to_meta_and_model(test_string, sep) == expected_result  # pylint: disable=protected-access
 
     def test_split_to_meta_and_model_without_meta(self) -> None:
         app = MetricsApp.construct(
@@ -370,6 +371,7 @@ class TestMetricsApp:
             models_metadata=None,
             auto_display=False,
         )
+        sep = ","
         test_string = "random"
         expected_result = ("", "random")
-        assert app._split_to_meta_and_model(test_string) == expected_result  # pylint: disable=protected-access
+        assert app._split_to_meta_and_model(test_string, sep) == expected_result  # pylint: disable=protected-access

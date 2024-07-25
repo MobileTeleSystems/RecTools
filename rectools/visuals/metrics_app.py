@@ -28,6 +28,8 @@ WIDGET_HEIGHT = 500
 TOP_CHART_MARGIN = 20
 DEFAULT_LEGEND_TITLE = "model name"
 NAN_COLOR = "grey"
+META_MODEL_SEP = "❘"
+META_MODEL_SEP_REPLACEMENT = "❘;"
 
 
 class MetricsApp:
@@ -137,7 +139,7 @@ class MetricsApp:
         cls._validate_models_metadata(models_metadata)
 
         merged_data = models_metrics.merge(models_metadata, on=Columns.Model, how="left")
-        merged_data = merged_data.replace(",", ";", regex=True)
+        merged_data = merged_data.replace(META_MODEL_SEP, META_MODEL_SEP_REPLACEMENT, regex=True)
 
         metric_names = [col for col in models_metrics.columns if col not in {Columns.Split, Columns.Model}]
         meta_names = [col for col in models_metadata.columns if col != Columns.Model]
@@ -213,8 +215,8 @@ class MetricsApp:
 
     @staticmethod
     @lru_cache
-    def _split_to_meta_and_model(raw_string: str, splitter: str = ", ") -> tp.Tuple[str, str]:
-        splitted_row = raw_string.split(splitter, 1)
+    def _split_to_meta_and_model(raw_string: str, sep: str = META_MODEL_SEP) -> tp.Tuple[str, str]:
+        splitted_row = raw_string.split(sep, 1)
         if len(splitted_row) > 1:
             meta_value, model_name = splitted_row
             return meta_value, model_name
@@ -245,6 +247,10 @@ class MetricsApp:
             symbol=Columns.Model,
             **scatter_kwargs,
         )
+        # Set custom legend for meta info coloring
+        if color_col != Columns.Model:
+            for trace, meta_value, model_name in zip(fig.data, data[color_col], data[Columns.Model]):
+                trace.name = f"{meta_value}{META_MODEL_SEP}{model_name}"
         fig.update_layout(margin={"t": TOP_CHART_MARGIN}, legend_title=legend_title, showlegend=self.show_legend)
         fig.update_coloraxes(showscale=False)
         return fig
@@ -274,9 +280,11 @@ class MetricsApp:
             model_name = self._split_to_meta_and_model(trace.name)[1]
             trace.marker.symbol = model_name_to_symbol[model_name]
 
+        chart_data = chart_data.set_index(Columns.Model)
         with fig_widget.batch_update():
             for idx, trace in enumerate(self.fig.data):
-                if self._split_to_meta_and_model(trace.name)[0] == "nan":
+                model_name = self._split_to_meta_and_model(trace.name)[1]
+                if color_col != Columns.Model and pd.isna(chart_data.at[model_name, color_col]):
                     trace.marker.color = NAN_COLOR
                 fig_widget.data[idx].x = trace.x
                 fig_widget.data[idx].y = trace.y
