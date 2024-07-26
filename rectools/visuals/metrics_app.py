@@ -206,12 +206,14 @@ class MetricsApp:
 
     @lru_cache
     def _make_chart_data_avg(self) -> pd.DataFrame:
-        metric_data_columns = [Columns.Model] + self.metric_names
-        meta_data_columns = [Columns.Model] + self.meta_names
-        # separate metric data because meta data could contain strings
-        metrics_data = self.data[metric_data_columns].groupby([Columns.Model], sort=False).mean().reset_index()
-        meta_data = self.data[meta_data_columns].drop_duplicates()
-        return metrics_data.merge(meta_data, on=Columns.Model, how="left").reset_index(drop=True)
+        avg_data = self.data.groupby(Columns.Model).agg(
+            {
+                **{metric: "mean" for metric in self.metric_names},
+                **{meta: "first" for meta in self.meta_names},
+            }
+        )
+        avg_data = avg_data.reset_index()
+        return avg_data
 
     @staticmethod
     @lru_cache
