@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import typing as tp
 from copy import deepcopy
 
 import pandas as pd
@@ -20,9 +21,23 @@ from rectools.dataset import Dataset
 from rectools.models.base import ModelBase
 
 
-def assert_second_fit_refits_model(model: ModelBase, dataset: Dataset) -> None:
+def _dummy_func() -> None:
+    pass
+
+
+def assert_second_fit_refits_model(
+    model: ModelBase, dataset: Dataset, pre_fit_callback: tp.Optional[tp.Callable[[], None]] = None
+) -> None:
+    pre_fit_callback = pre_fit_callback or _dummy_func
+
+    pre_fit_callback()
     model_1 = deepcopy(model).fit(dataset)
-    model_2 = deepcopy(model).fit(dataset).fit(dataset)
+
+    pre_fit_callback()
+    model_2 = deepcopy(model).fit(dataset)
+    pre_fit_callback()
+    model_2.fit(dataset)
+
     k = dataset.item_id_map.external_ids.size
 
     reco_u2i_1 = model_1.recommend(dataset.user_id_map.external_ids, dataset, k, False)
