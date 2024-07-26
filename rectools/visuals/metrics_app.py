@@ -323,8 +323,8 @@ class MetricsApp:
         use_avg = widgets.Checkbox(description="Average folds", value=True)
         fold_i = widgets.Dropdown(
             description="Fold number:",
-            value=self.fold_ids[0] if self.fold_ids is not None else -1,
-            options=self.fold_ids if self.fold_ids is not None else [-1],
+            value=self.fold_ids[0] if self.fold_ids is not None else None,
+            options=self.fold_ids if self.fold_ids is not None else [],
         )
         use_meta = widgets.Checkbox(description="Use metadata", value=False)
         meta_feature = widgets.Dropdown(
