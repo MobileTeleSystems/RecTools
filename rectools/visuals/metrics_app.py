@@ -275,7 +275,9 @@ class MetricsApp:
         model_name_to_symbol = {
             self._split_to_meta_and_model(trace.name)[1]: trace.marker.symbol for trace in self.fig.data
         }
-        legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
+        legend_title = (
+            f"{meta_feature.value}{META_MODEL_SEP}{DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
+        )
         self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, color_col, legend_title)
 
         for trace in self.fig.data:
