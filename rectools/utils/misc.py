@@ -165,3 +165,51 @@ def select_by_type(
     """
     selected = {k: obj for k, obj in objects.items() if is_instance(obj, types)}
     return selected
+
+
+def import_object(path):
+    # Import the module and get the attribute
+    # TODO: What if object name is complex like ``a.b.c``?
+    module_path, object_name = path.rsplit('.', maxsplit=1)
+    module = importlib.import_module(module_path)
+    return getattr(module, object_name)
+
+
+def get_object_full_path(instance) -> str:
+    # TODO: should work for types, insctances, and functions
+    cls = instance.__class__
+    return f"{cls.__module__}.{cls.__qualname__}"  # TODO: qualname or name?
+
+
+def make_dict_flat(d: tp.Dict[str, tp.Any], parent_key: str = "", sep: str = ".") -> tp.Dict[str, tp.Any]:
+    # TODO: Handle lists?
+    """
+    Flatten nested dictionary.
+
+    Parameters
+    ----------
+    d : dict
+        Nested dictionary.
+    parent_key : str, default ""
+        Parent key.
+    sep : str, default "."
+        Separator.
+
+    Returns
+    -------
+    dict
+        Flattened dictionary.
+
+    Examples
+    --------
+    >>> make_dict_flat({"a": {"b": 1, "c": 2}, "d": 3})
+    {'a.b': 1, 'a.c': 2, 'd': 3}
+    """
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(make_dict_flat(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
