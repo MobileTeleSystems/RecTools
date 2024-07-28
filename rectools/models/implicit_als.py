@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+import typing_extensions as tpe
 from copy import deepcopy
 
 import implicit.gpu
@@ -22,15 +23,52 @@ from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquar
 from implicit.utils import check_random_state
 from scipy import sparse
 from tqdm.auto import tqdm
-
+from pydantic import BaseModel, BeforeValidator, WrapSerializer, SerializationInfo
+from implicit.als import AlternatingLeastSquares
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
+from rectools.utils.misc import get_object_full_path, import_object
 
 from .rank import Distance
 from .vector import Factors, VectorModel
 
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+
+T = tp.TypeVar("T")
+
+def _get_alternating_least_squares_type(spec: tp.Any) -> tp.Any:
+    if not isinstance(spec, str):  # including None
+        return spec
+    return import_object(spec)
+
+
+def _serialize_alternating_least_squares_type(type_: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
+    if type_ in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares):
+        return None
+    if info.when_used == "json":
+        return get_object_full_path(type_)
+    return type_
+
+
+AlternatingLeastSquaresType = tpe.Annotated[
+    tp.Optional[tp.Type[AnyAlternatingLeastSquares]],
+    BeforeValidator(_get_alternating_least_squares_type),
+    WrapSerializer(
+        func=_serialize_alternating_least_squares_type,
+        when_used="always",
+    )
+]
+
+class AlternatingLeastSquaresConfig(BaseModel):
+    cls: AlternatingLeastSquaresType = None
+    params: tp.Dict[str, tp.Any] = {}
+
+
+class ImplicitALSWrapperModelConfig(BaseModel):
+    model: AlternatingLeastSquaresConfig
+    verbose: int = 0
+    fit_features_together: bool = False
 
 
 class ImplicitALSWrapperModel(VectorModel):
@@ -58,9 +96,13 @@ class ImplicitALSWrapperModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
-    def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
-        super().__init__(verbose=verbose)
+    config_type = ImplicitALSWrapperModelConfig
 
+    def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
+        self._config = self._make_config(model, verbose, fit_features_together)
+
+        super().__init__(verbose=verbose)
+        
         self.model: AnyAlternatingLeastSquares
         self._model = model  # for refit; TODO: try to do it better
 
@@ -68,6 +110,60 @@ class ImplicitALSWrapperModel(VectorModel):
         self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
         if not self.use_gpu:
             self.n_threads = model.num_threads
+
+    @classmethod
+    def _make_config(cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool) -> ImplicitALSWrapperModelConfig:      
+        params = {
+            "factors": model.factors,
+            "regularization": model.regularization,
+            "alpha": model.alpha,
+            "dtype": model.dtype,
+            "iterations": model.iterations,
+            "calculate_training_loss": model.calculate_training_loss,
+            "random_state": model.random_state,
+        }
+        if isinstance(model, GPUAlternatingLeastSquares):
+            params.update({"use_gpu": True})
+        else:
+            params.update(
+                {
+                    "use_gpu": False,
+                    "use_native": model.use_native,
+                    "use_cg": model.use_cg,
+                    "num_threads": model.num_threads,
+                }
+            )
+
+        model_cls = model.__class__
+        return ImplicitALSWrapperModelConfig(
+            model=AlternatingLeastSquaresConfig(
+                cls=model_cls if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) else None,
+                params=params,
+            ),
+            verbose=verbose,
+            fit_features_together=fit_features_together,
+        )
+    
+    def get_config(self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = ".") -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
+        config = self._get_config()
+        if simple_types and not isinstance(config.model.params["random_state"], int):
+            # TODO:
+            # 1. Think about more elegant solution
+            # 2. We can add serialization for random_state in pydantic model with get/set_state, but it's not human readable
+            raise ValueError("Can't return simple types when `random_state` is not int")
+        return super().get_config(format=format, simple_types=simple_types, sep=sep)
+    
+    def _get_config(self) -> ImplicitALSWrapperModelConfig:
+        return self._config
+    
+    @classmethod
+    def _from_config(cls: tp.Type[T], config: ImplicitALSWrapperModelConfig) -> T:
+        if config.model.cls is None:
+            model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
+        else:
+            model_cls = config.model.cls
+        model = model_cls(**config.model.params)
+        return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
