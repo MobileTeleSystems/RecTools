@@ -18,12 +18,14 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import AnyIdsArray, InternalIdsArray
+from rectools.utils.misc import make_dict_flat
 
 T = tp.TypeVar("T", bound="ModelBase")
 ScoresArray = np.ndarray
@@ -34,6 +36,11 @@ SemiInternalRecoTriplet = tp.Tuple[AnyIds, InternalIds, Scores]
 RecoTriplet = tp.Tuple[AnyIds, AnyIds, Scores]
 
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, RecoTriplet)
+
+Model_T = tp.TypeVar("Model_T", bound="ModelBase")
+
+class ModelConfig(BaseModel):
+    verbose: int = 0
 
 
 class ModelBase:
@@ -46,11 +53,50 @@ class ModelBase:
 
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
+    # TODO: Make generic? 
+    # This allows to specify correct type in get_config and from_config. Also allows to make child classes correctly typed.
+    # But how to make it work with VectorModel and other intermediate classes?
+    config_type = ModelConfig  
 
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
 
+    def get_config(self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = ".") -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
+        """
+        simple_types makes sense only for format in ('dict', "flat")
+        sep makes sense only for format = "flat"
+        """
+        # TODO: make override for different return values?
+        config = self._get_config()
+        if format == "object":
+            if simple_types:
+                raise ValueError("`simple_types` is not supported for `format='object'`")
+            return config
+        
+        if simple_types:
+            config_dict = config.model_dump(mode="json")
+        else:
+            config_dict = config.model_dump(mode="python")
+
+        if format == "dict":
+            return config_dict
+        
+        return make_dict_flat(config_dict, sep=sep)  # TODO: how should we handle lists?
+    
+    def _get_config(self) -> ModelConfig:
+        raise NotImplementedError()
+    
+    @classmethod
+    def from_config(cls: tp.Type[Model_T], config: tp.Union[dict, ModelConfig]) -> Model_T:
+        if not isinstance(config, cls.config_type):
+            config = cls.config_type.model_validate(config)
+        return cls._from_config(config)
+    
+    @classmethod
+    def _from_config(cls: tp.Type[Model_T], config: ModelConfig) -> Model_T:
+        raise NotImplementedError()
+    
     def fit(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
         """
         Fit model.
