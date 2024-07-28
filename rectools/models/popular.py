@@ -78,7 +78,7 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
 
     def __init__(
         self,
-        popularity: str = "n_users",
+        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
         period: tp.Optional[timedelta] = None,
         begin_from: tp.Optional[datetime] = None,
         add_cold: bool = False,
