@@ -8,9 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+
+## [0.7.0] - 29.06.2024
+
 ### Added
 - Extended Theory&Practice RecSys baselines tutorial ([#139](https://github.com/MobileTeleSystems/RecTools/pull/139))
-- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140))
+- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140), [#154](https://github.com/MobileTeleSystems/RecTools/pull/154))
 - `Intersection` metric ([#148](https://github.com/MobileTeleSystems/RecTools/pull/148))
 - `PartialAUC` and `PAP` metrics  ([#149](https://github.com/MobileTeleSystems/RecTools/pull/149))
 - New params (`tol`, `maxiter`, `random_state`) to the `PureSVD` model ([#130](https://github.com/MobileTeleSystems/RecTools/pull/130))
