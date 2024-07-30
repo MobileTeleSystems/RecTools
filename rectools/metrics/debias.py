@@ -69,7 +69,8 @@ class DebiasableMetrikAtK(MetricAtK):
                 "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing."
             )
 
-    def debias_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
+    @classmethod
+    def debias_interactions(cls, interactions: pd.DataFrame, config: DebiasConfig) -> pd.DataFrame:
         """
         Downsample the size of interactions, excluding some interactions with popular items.
 
@@ -89,6 +90,8 @@ class DebiasableMetrikAtK(MetricAtK):
         interactions : pd.DataFrame
             Table with previous user-item interactions,
             with columns `Columns.User`, `Columns.Item`.
+        config : DebiasConfig
+            Config with debias method parameters (iqr_coef, random_state).
 
         Returns
         -------
@@ -107,7 +110,7 @@ class DebiasableMetrikAtK(MetricAtK):
         quantiles = num_users_interacted_with_item.quantile(q=[0.25, 0.75])
         q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
         iqr = q3 - q1
-        max_border = int(q3 + self.debias_config.iqr_coef * iqr)
+        max_border = int(q3 + config.iqr_coef * iqr)
 
         item_outside_max_border = num_users_interacted_with_item[num_users_interacted_with_item > max_border].index
 
@@ -116,7 +119,7 @@ class DebiasableMetrikAtK(MetricAtK):
         interactions_downsampling = interactions_for_debiasing[mask_outside_max_border]
 
         interactions_downsampling = (
-            interactions_downsampling.sample(frac=1.0, random_state=self.debias_config.random_state)
+            interactions_downsampling.sample(frac=1.0, random_state=config.random_state)
             .groupby(Columns.Item)
             .head(max_border)
         )
@@ -148,14 +151,17 @@ def calc_debiased_fit_task(
         Dictionary, where key is debias config
         and values are a list of the corresponding k_max and de-basing interactions.
     """
-    configs = set(metric.debias_config for metric in metrics if metric.debias_config is not None)
+    configs = {metric.debias_config for metric in metrics}
     max_k_for_config = {config: 0 for config in configs}
-    interactions_debased_for_config = {}
-    for metric in metrics:
-        if metric.debias_config is not None:
-            max_k_for_config[metric.debias_config] = max(max_k_for_config[metric.debias_config], metric.k)
-            if metric.debias_config not in interactions_debased_for_config:
-                interactions_debased_for_config[metric.debias_config] = metric.debias_interactions(interactions)
 
-    res = {config: (max_k_for_config[config], interactions_debased_for_config[config]) for config in configs}
+    for metric in metrics:
+        max_k_for_config[metric.debias_config] = max(max_k_for_config[metric.debias_config], metric.k)
+
+    res = {
+        config: (
+            max_k_for_config[config],
+            DebiasableMetrikAtK.debias_interactions(interactions, config) if config is not None else interactions,
+        )
+        for config in configs
+    }
     return res

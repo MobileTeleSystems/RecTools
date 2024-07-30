@@ -222,7 +222,7 @@ class _AUCMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions)
+            interactions = self.debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -536,26 +536,20 @@ def calc_auc_metrics(
     results = {}
 
     insufficient_handling_needed = any(
-        metric.insufficient_handling != InsufficientHandling.IGNORE
-        for metric in metrics.values()
-        if metric.debias_config is None
+        metric.insufficient_handling != InsufficientHandling.IGNORE for metric in metrics.values()
     )
 
-    fitted: AUCFitted
-    k_for_fitted = tuple(metric.k for metric in metrics.values() if metric.debias_config is None)
-    if len(k_for_fitted) > 0:
-        k_max = max(k_for_fitted)
-        fitted = _AUCMetric.fit(reco, interactions, k_max, insufficient_handling_needed)
-
-    k_max_debias = calc_debiased_fit_task(metrics.values(), interactions)
-    fitted_debias = {}
-    for debias_config_name, (k_max_d, interactions_d) in k_max_debias.items():
-        fitted_debias[debias_config_name] = _AUCMetric.fit(reco, interactions_d, k_max_d, insufficient_handling_needed)
+    debiased_fit_task = calc_debiased_fit_task(metrics.values(), interactions)
+    fitted_debiased = {}
+    for debias_config_name, (k_max_d, interactions_d) in debiased_fit_task.items():
+        fitted_debiased[debias_config_name] = _AUCMetric.fit(
+            reco, interactions_d, k_max_d, insufficient_handling_needed
+        )
 
     for name, metric in metrics.items():
         is_debiased = metric.debias_config is not None
         results[name] = metric.calc_from_fitted(
-            fitted=fitted_debias[metric.debias_config] if is_debiased else fitted,
+            fitted=fitted_debiased[metric.debias_config],
             is_debiased=is_debiased,
         )
 

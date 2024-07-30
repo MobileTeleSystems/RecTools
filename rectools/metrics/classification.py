@@ -15,7 +15,6 @@
 """Classification recommendations metrics."""
 
 import typing as tp
-from collections import defaultdict
 
 import attr
 import numpy as np
@@ -90,7 +89,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions)
+            interactions = self.debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -208,7 +207,7 @@ class SimpleClassificationMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions)
+            interactions = self.debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -483,33 +482,33 @@ def calc_classification_metrics(
     TypeError
         If unexpected metric is present in `metrics`.
     """
-    k_map = defaultdict(list)
-    merged_debias = {}
-    for name, metric in metrics.items():
+    for metric in metrics.values():
         if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
             raise TypeError(f"Unexpected classification metric {metric}")
-        k_map[(metric.k, metric.debias_config)].append(name)
-        if metric.debias_config is not None and metric.debias_config not in merged_debias:
-            merged_debias[metric.debias_config] = metric.debias_interactions(merged)
 
     results = {}
-    for k_and_debias_config, k_metrics in k_map.items():
-        k = k_and_debias_config[0]
-        debias_config = k_and_debias_config[1]
+    configs = set(metric.debias_config for metric in metrics.values())
+    merged_debiased = {
+        config: DebiasableMetrikAtK.debias_interactions(merged, config) if config is not None else merged
+        for config in configs
+    }
+
+    confusions = {}
+    for metric_name, metric in metrics.items():
+        k, debias_config = metric.k, metric.debias_config
+        confusion_task = (k, debias_config)
         is_debiased = debias_config is not None
+        if confusion_task not in confusions:
+            confusions[confusion_task] = calc_confusions(merged=merged_debiased[debias_config], k=k)
 
-        confusion_df = calc_confusions(merged=merged_debias[debias_config] if is_debiased else merged, k=k)
-        for metric_name in k_metrics:
-            metric = metrics[metric_name]
-
-            if isinstance(metric, SimpleClassificationMetric):
-                res = metric.calc_from_confusion_df(confusion_df, is_debiased=is_debiased)
-            elif isinstance(metric, ClassificationMetric):
-                if catalog is None:
-                    raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
-                res = metric.calc_from_confusion_df(confusion_df, catalog, is_debiased=is_debiased)
-            results[metric_name] = res
-
+        confusion_df = confusions[confusion_task]
+        if isinstance(metric, SimpleClassificationMetric):
+            res = metric.calc_from_confusion_df(confusion_df, is_debiased=is_debiased)
+        elif isinstance(metric, ClassificationMetric):
+            if catalog is None:
+                raise ValueError(f"For calculating '{metric.__class__.__name__}' it's necessary to set `catalog`")
+            res = metric.calc_from_confusion_df(confusion_df, catalog, is_debiased=is_debiased)
+        results[metric_name] = res
     return results
 
 

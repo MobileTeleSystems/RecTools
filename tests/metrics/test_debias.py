@@ -13,14 +13,17 @@
 #  limitations under the License.
 
 import typing as tp
+from collections import defaultdict
 
 import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import MAP, PAP, DebiasConfig, PartialAUC
+from rectools.metrics import MAP, PAP, PartialAUC
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task
+from rectools.metrics.debias import DebiasConfig, DebiasableMetrikAtK, calc_debiased_fit_task
+
+DEBIAS_CONFIG_DEFAULT = DebiasConfig(iqr_coef=1.5, random_state=32)
 
 
 class TestDebias:
@@ -49,13 +52,7 @@ class TestDebias:
     def empty_interactions(self) -> pd.DataFrame:
         return pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
 
-    @pytest.fixture
-    def debias_metric(self) -> DebiasableMetrikAtK:
-        return DebiasableMetrikAtK(k=10, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32))
-
-    def test_make_debias(
-        self, interactions: pd.DataFrame, recommendations: pd.DataFrame, debias_metric: DebiasableMetrikAtK
-    ) -> None:
+    def test_debias_interactions(self, interactions: pd.DataFrame, recommendations: pd.DataFrame) -> None:
         merged = merge_reco(recommendations, interactions)
 
         expected_result = pd.DataFrame(
@@ -71,8 +68,8 @@ class TestDebias:
             on=Columns.UserItem,
         )
 
-        interactions_downsampling = debias_metric.debias_interactions(interactions)
-        merged_downsampling = debias_metric.debias_interactions(merged)
+        interactions_downsampling = DebiasableMetrikAtK.debias_interactions(interactions, config=DEBIAS_CONFIG_DEFAULT)
+        merged_downsampling = DebiasableMetrikAtK.debias_interactions(merged, config=DEBIAS_CONFIG_DEFAULT)
 
         pd.testing.assert_frame_equal(
             interactions_downsampling.sort_values(Columns.UserItem, ignore_index=True),
@@ -82,49 +79,58 @@ class TestDebias:
             merged_downsampling.sort_values(Columns.UserItem, ignore_index=True), expected_result
         )
 
-    def test_make_debias_with_empty_data(
-        self, empty_interactions: pd.DataFrame, debias_metric: DebiasableMetrikAtK
-    ) -> None:
-        interactions_downsampling = debias_metric.debias_interactions(empty_interactions)
-
+    def test_debias_interactions_when_no_interactions(self, empty_interactions: pd.DataFrame) -> None:
+        interactions_downsampling = DebiasableMetrikAtK.debias_interactions(
+            empty_interactions, config=DEBIAS_CONFIG_DEFAULT
+        )
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
     @pytest.mark.parametrize(
         "metrics_fitted",
         (
             {
-                "MAP@1": MAP(k=1, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
-                "MAP@3": MAP(k=3, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
-                "MAP@2": MAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
-                "MAP@4": MAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
-                "MAP@5": MAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "dMAP@1": MAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "dMAP@3": MAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "dMAP@2": MAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                "dMAP@4": MAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                "dMAP@5": MAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "MAP@1": MAP(k=1),
+                "MAP@5": MAP(k=5),
             },
             {
-                "PartialAUC@1": PartialAUC(k=1, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
-                "PartialAUC@3": PartialAUC(k=3, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
-                "PartialAUC@2": PartialAUC(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
-                "PartialAUC@4": PartialAUC(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
-                "PartialAUC@5": PartialAUC(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "dPartialAUC@1": PartialAUC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "dPartialAUC@3": PartialAUC(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "dPartialAUC@2": PartialAUC(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                "dPartialAUC@4": PartialAUC(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                "dPartialAUC@5": PartialAUC(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "PartialAUC@1": PartialAUC(k=1),
+                "PartialAUC@5": PartialAUC(k=5),
             },
             {
-                "PAP@1": PAP(k=1, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
-                "PAP@3": PAP(k=3, debias_config=DebiasConfig(iqr_coef=1.5, random_state=32)),
-                "PAP@2": PAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
-                "PAP@4": PAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
-                "PAP@5": PAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "dPAP@1": PAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "dPAP@3": PAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "dPAP@2": PAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                "dPAP@4": PAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                "dPAP@5": PAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "PAP@1": PAP(k=1),
+                "PAP@5": PAP(k=5),
             },
         ),
     )
     def test_calc_debiased_fit_task(
         self, metrics_fitted: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
     ) -> None:
-        k_max_debias = calc_debiased_fit_task(metrics=metrics_fitted.values(), interactions=interactions)
+        debiased_fit_task = calc_debiased_fit_task(metrics=metrics_fitted.values(), interactions=interactions)
 
-        unique_debias_config = []
+        unique_debias_config_expected = set()
+        k_max_expected: tp.Dict[DebiasConfig, int] = defaultdict(int)
         for metric in metrics_fitted.values():
-            if metric.debias_config not in unique_debias_config:
-                unique_debias_config.append(metric.debias_config)
+            unique_debias_config_expected.add(metric.debias_config)
+            k_max_expected[metric.debias_config] = max(k_max_expected[metric.debias_config], metric.k)
 
-        expected_result = len(unique_debias_config)
+        num_unique_configs_expected = len(unique_debias_config_expected)
 
-        assert len(k_max_debias) == expected_result
+        assert len(debiased_fit_task) == num_unique_configs_expected
+        assert set(debiased_fit_task.keys()) == unique_debias_config_expected
+        for value in k_max_expected:
+            assert debiased_fit_task[value][0] == k_max_expected[value]

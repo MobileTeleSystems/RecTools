@@ -28,6 +28,7 @@ from rectools.metrics import (
     AvgRecPopularity,
     CoveredUsers,
     DebiasConfig,
+    DebiasableMetrikAtK,
     F1Beta,
     HitRate,
     Intersection,
@@ -43,7 +44,6 @@ from rectools.metrics import (
     calc_metrics,
 )
 from rectools.metrics.base import MetricAtK
-from rectools.metrics.debias import DebiasableMetrikAtK
 
 
 class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
@@ -204,9 +204,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "debias_partauc@3": PartialAUC(k=3),
         }
 
-        interactions_downsampling = DebiasableMetrikAtK(k=3, debias_config=debias_config).debias_interactions(
-            self.interactions
-        )
+        interactions_downsampling = DebiasableMetrikAtK.debias_interactions(self.interactions, config=debias_config)
 
         actual = calc_metrics(
             metrics=debias_metrics,  # type: ignore

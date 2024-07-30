@@ -14,14 +14,12 @@
 
 # pylint: disable=attribute-defined-outside-init
 
-import typing as tp
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall
+from rectools.metrics import MCC, Accuracy, DebiasConfig, DebiasableMetrikAtK, F1Beta, HitRate, Precision, Recall
 from rectools.metrics.base import MetricAtK, merge_reco
 from rectools.metrics.classification import (
     ClassificationMetric,
@@ -205,37 +203,28 @@ class TestHitRate:
         assert np.isnan(self.metric.calc(RECO, EMPTY_INTERACTIONS))
 
 
-class TestDebiasMetric:
+class TestDebiasableClassificationMetric:
     @pytest.mark.parametrize(
         "metric, metric_debias",
         (
-            (Precision(k=2), Precision(k=2, debias_config=DEBIAS_CONFIG)),
-            (Precision(k=2, r_precision=True), Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG)),
-            (Recall(k=2), Recall(k=2, debias_config=DEBIAS_CONFIG)),
-            (Accuracy(k=2), Accuracy(k=2, debias_config=DEBIAS_CONFIG)),
-            (F1Beta(k=2), F1Beta(k=2, debias_config=DEBIAS_CONFIG)),
-            (MCC(k=2), MCC(k=2, debias_config=DEBIAS_CONFIG)),
-            (HitRate(k=2), HitRate(k=2, debias_config=DEBIAS_CONFIG)),
+            (
+                Accuracy(k=2),
+                Accuracy(k=2, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                MCC(k=2),
+                MCC(k=2, debias_config=DEBIAS_CONFIG),
+            ),
         ),
     )
-    def test_calc(
-        self,
-        metric: tp.Union[ClassificationMetric, SimpleClassificationMetric],
-        metric_debias: tp.Union[ClassificationMetric, SimpleClassificationMetric],
-    ) -> None:
-        downsample_interactions = metric_debias.debias_interactions(INTERACTIONS)
+    def test_calc(self, metric: ClassificationMetric, metric_debias: ClassificationMetric) -> None:
+        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
+            INTERACTIONS, config=metric_debias.debias_config
+        )
+        expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
 
-        if isinstance(metric, ClassificationMetric):
-            expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
-        else:
-            expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions)
-
-        if isinstance(metric_debias, ClassificationMetric):
-            result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS, CATALOG)
-            result_calc = metric_debias.calc(RECO, INTERACTIONS, CATALOG)
-        else:
-            result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS)
-            result_calc = metric_debias.calc(RECO, INTERACTIONS)
+        result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS, CATALOG)
+        result_calc = metric_debias.calc(RECO, INTERACTIONS, CATALOG)
 
         pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
         assert result_calc == expected_metric_per_user_downsample.mean()
@@ -243,26 +232,15 @@ class TestDebiasMetric:
     @pytest.mark.parametrize(
         "metric_debias",
         (
-            (Precision(k=2, debias_config=DEBIAS_CONFIG)),
-            (Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG)),
-            (Recall(k=2, debias_config=DEBIAS_CONFIG)),
-            (Accuracy(k=2, debias_config=DEBIAS_CONFIG)),
-            (F1Beta(k=2, debias_config=DEBIAS_CONFIG)),
-            (MCC(k=2, debias_config=DEBIAS_CONFIG)),
-            (HitRate(k=2, debias_config=DEBIAS_CONFIG)),
+            Accuracy(k=2, debias_config=DEBIAS_CONFIG),
+            MCC(k=2, debias_config=DEBIAS_CONFIG),
         ),
     )
-    def test_when_no_interactions(
-        self, metric_debias: tp.Union[ClassificationMetric, SimpleClassificationMetric]
-    ) -> None:
+    def test_when_no_interactions(self, metric_debias: ClassificationMetric) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
-        if isinstance(metric_debias, ClassificationMetric):
-            calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG)
-            calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS, CATALOG)
-        else:
-            calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS)
-            calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS)
+        calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG)
+        calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS, CATALOG)
 
         pd.testing.assert_series_equal(calc_per_user_result, expected_metric_per_user)
         assert np.isnan(calc_result)
@@ -270,16 +248,126 @@ class TestDebiasMetric:
     @pytest.mark.parametrize(
         "metric",
         (
-            Precision(k=3, debias_config=DEBIAS_CONFIG),
+            Accuracy(k=3),
             Accuracy(k=3, debias_config=DEBIAS_CONFIG),
+            MCC(k=3),
+            MCC(k=3, debias_config=DEBIAS_CONFIG),
         ),
     )
-    def test_check_debias(self, metric: tp.Union[ClassificationMetric, SimpleClassificationMetric]) -> None:
+    def test_raise_when_correct_is_debias(self, metric: ClassificationMetric) -> None:
         merged = merge_reco(RECO, INTERACTIONS)
-        downsample_merged = metric.debias_interactions(merged)
-        confusion_df = calc_confusions(downsample_merged, k=2)
+        confusion_df = calc_confusions(merged, k=metric.k)
+        result = metric.calc_from_confusion_df(confusion_df, CATALOG, is_debiased=metric.debias_config is not None)
+        assert isinstance(result, float)
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            Accuracy(k=3, debias_config=DEBIAS_CONFIG),
+            MCC(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raise_when_incorrect_is_debias(self, metric: ClassificationMetric) -> None:
+        merged = merge_reco(RECO, INTERACTIONS)
+        confusion_df = calc_confusions(merged, k=metric.k)
         with pytest.raises(ValueError):
-            if isinstance(metric, ClassificationMetric):
-                metric.calc_from_confusion_df(confusion_df, CATALOG)
-            else:
-                metric.calc_from_confusion_df(confusion_df)
+            metric.calc_from_confusion_df(confusion_df, CATALOG)
+
+
+class TestDebiasableSimpleClassificationMetric:
+    @pytest.mark.parametrize(
+        "metric, metric_debias",
+        (
+            (
+                Precision(k=2),
+                Precision(k=2, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                Precision(k=2, r_precision=True),
+                Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                Recall(k=2),
+                Recall(k=2, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                F1Beta(k=2),
+                F1Beta(k=2, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                HitRate(k=2),
+                HitRate(k=2, debias_config=DEBIAS_CONFIG),
+            ),
+        ),
+    )
+    def test_calc(
+        self,
+        metric: SimpleClassificationMetric,
+        metric_debias: SimpleClassificationMetric,
+    ) -> None:
+        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
+            INTERACTIONS, config=metric_debias.debias_config
+        )
+        expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions)
+
+        result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS)
+        result_calc = metric_debias.calc(RECO, INTERACTIONS)
+
+        pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
+        assert result_calc == expected_metric_per_user_downsample.mean()
+
+    @pytest.mark.parametrize(
+        "metric_debias",
+        (
+            Precision(k=2, debias_config=DEBIAS_CONFIG),
+            Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG),
+            Recall(k=2, debias_config=DEBIAS_CONFIG),
+            F1Beta(k=2, debias_config=DEBIAS_CONFIG),
+            HitRate(k=2, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_when_no_interactions(self, metric_debias: SimpleClassificationMetric) -> None:
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
+
+        calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS)
+        calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS)
+
+        pd.testing.assert_series_equal(calc_per_user_result, expected_metric_per_user)
+        assert np.isnan(calc_result)
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            Precision(k=3),
+            Precision(k=3, debias_config=DEBIAS_CONFIG),
+            Precision(k=3, r_precision=True),
+            Precision(k=3, r_precision=True, debias_config=DEBIAS_CONFIG),
+            Recall(k=3),
+            Recall(k=3, debias_config=DEBIAS_CONFIG),
+            F1Beta(k=3),
+            F1Beta(k=3, debias_config=DEBIAS_CONFIG),
+            HitRate(k=3),
+            HitRate(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raise_when_correct_is_debias(self, metric: SimpleClassificationMetric) -> None:
+        merged = merge_reco(RECO, INTERACTIONS)
+        confusion_df = calc_confusions(merged, k=metric.k)
+        result = metric.calc_from_confusion_df(confusion_df, is_debiased=metric.debias_config is not None)
+        assert isinstance(result, float)
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            Precision(k=3, debias_config=DEBIAS_CONFIG),
+            Precision(k=3, r_precision=True, debias_config=DEBIAS_CONFIG),
+            Recall(k=3, debias_config=DEBIAS_CONFIG),
+            F1Beta(k=3, debias_config=DEBIAS_CONFIG),
+            HitRate(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raise_when_incorrect_is_debias(self, metric: SimpleClassificationMetric) -> None:
+        merged = merge_reco(RECO, INTERACTIONS)
+        confusion_df = calc_confusions(merged, k=metric.k)
+        with pytest.raises(ValueError):
+            metric.calc_from_confusion_df(confusion_df)

@@ -251,7 +251,7 @@ class MAP(_RankingMetric):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions)
+            interactions = self.debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -423,7 +423,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = self.debias_interactions(merged)
+            merged = self.debias_interactions(merged, self.debias_config)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
@@ -524,7 +524,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if self.debias_config is not None:
-            merged = self.debias_interactions(merged)
+            merged = self.debias_interactions(merged, self.debias_config)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
         min_rank_per_user = (
@@ -592,21 +592,15 @@ def calc_ranking_metrics(
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
-        fitted: MAPFitted
-        k_for_fitted = tuple(metric.k for metric in map_metrics.values() if metric.debias_config is None)
-        if len(k_for_fitted) > 0:
-            k_max = max(k_for_fitted)
-            fitted = MAP.fit(merged, k_max)
-
-        k_max_debias = calc_debiased_fit_task(map_metrics.values(), merged)
-        fitted_debias = {}
-        for debias_config, (k_max_d, merged_d) in k_max_debias.items():
-            fitted_debias[debias_config] = MAP.fit(merged_d, k_max_d)
+        debiased_fit_task = calc_debiased_fit_task(map_metrics.values(), merged)
+        fitted_debiased = {}
+        for debias_config, (k_max_d, merged_d) in debiased_fit_task.items():
+            fitted_debiased[debias_config] = MAP.fit(merged_d, k_max_d)
 
         for name, map_metric in map_metrics.items():
             is_debiased = map_metric.debias_config is not None
             results[name] = map_metric.calc_from_fitted(
-                fitted=fitted_debias[map_metric.debias_config] if is_debiased else fitted, is_debiased=is_debiased
+                fitted=fitted_debiased[map_metric.debias_config], is_debiased=is_debiased
             )
 
     return results

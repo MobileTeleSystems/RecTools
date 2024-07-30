@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import DebiasConfig
+from rectools.metrics import DebiasConfig, DebiasableMetrikAtK
 from rectools.metrics.auc import PAP, InsufficientHandling, PartialAUC
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
@@ -153,81 +153,6 @@ class TestPartialAUC:
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
-    @pytest.mark.parametrize(
-        "k, insufficient_handling",
-        (
-            (1, InsufficientHandling.IGNORE),
-            (3, InsufficientHandling.IGNORE),
-            (1, InsufficientHandling.EXCLUDE),
-            (3, InsufficientHandling.EXCLUDE),  # user 2 was excluded
-        ),
-    )
-    def test_calc_debias(self, k: int, insufficient_handling: str) -> None:
-        reco = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
-                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
-            }
-        )
-        interactions = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
-            }
-        )
-
-        metric = PartialAUC(k=k, insufficient_handling=insufficient_handling)
-        metric_debias = PartialAUC(k=k, insufficient_handling=insufficient_handling, debias_config=DEBIAS_CONFIG)
-
-        interactions_debiasing = metric_debias.debias_interactions(interactions)
-        expected_metric_per_user = metric.calc_per_user(reco, interactions_debiasing)
-
-        pd.testing.assert_series_equal(metric_debias.calc_per_user(reco, interactions), expected_metric_per_user)
-        assert np.allclose(metric_debias.calc(reco, interactions), expected_metric_per_user.mean())
-
-    def test_when_debias_used_with_fitted_correct(self) -> None:
-        reco = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
-                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
-            }
-        )
-        interactions = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
-            }
-        )
-        metric_debias = PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG)
-        fitted = PartialAUC.fit(
-            reco, interactions, metric_debias.k, metric_debias.insufficient_handling != InsufficientHandling.IGNORE
-        )
-        result = metric_debias.calc_from_fitted(fitted, is_debiased=True)
-        assert isinstance(result, float)
-
-    def test_check_debias(self) -> None:
-        reco = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
-                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
-            }
-        )
-        interactions = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
-            }
-        )
-        metric_debias = PartialAUC(k=3, insufficient_handling=InsufficientHandling.RAISE, debias_config=DEBIAS_CONFIG)
-        fitted = PartialAUC.fit(
-            reco, interactions, metric_debias.k, metric_debias.insufficient_handling != InsufficientHandling.IGNORE
-        )
-        with pytest.raises(ValueError):
-            metric_debias.calc_from_fitted(fitted)
-
 
 class TestPAP:
     def test_raises_when_incorrect_insufficient_handling(self) -> None:
@@ -355,77 +280,116 @@ class TestPAP:
         )
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
+
+class TestDebiasableAUCMetric:
+    def setup_method(self) -> None:
+        self.reco = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
+                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
+            }
+        )
+        self.interactions = pd.DataFrame(
+            {
+                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
+                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+            }
+        )
+
     @pytest.mark.parametrize(
-        "k, insufficient_handling",
+        "metric, metric_debias",
         (
-            (1, InsufficientHandling.IGNORE),
-            (3, InsufficientHandling.IGNORE),
-            (1, InsufficientHandling.EXCLUDE),
-            (3, InsufficientHandling.EXCLUDE),  # user 2 was excluded
+            (
+                PartialAUC(k=1, insufficient_handling=InsufficientHandling.IGNORE),
+                PartialAUC(k=1, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE),
+                PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
+                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
+                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PAP(k=1, insufficient_handling=InsufficientHandling.IGNORE),
+                PAP(k=1, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE),
+                PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PAP(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
+                PAP(k=1, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
+            ),
+            (
+                PAP(k=3, insufficient_handling=InsufficientHandling.EXCLUDE),
+                PAP(k=3, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
+            ),
         ),
     )
-    def test_calc_debias(self, k: int, insufficient_handling: str) -> None:
-        reco = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
-                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
-            }
-        )
-        interactions = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
-            }
+    def test_calc(self, metric: tp.Union[PartialAUC, PAP], metric_debias: tp.Union[PartialAUC, PAP]) -> None:
+        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
+            self.interactions, config=metric_debias.debias_config
         )
 
-        metric = PAP(k=k, insufficient_handling=insufficient_handling)
-        metric_debias = PAP(k=k, insufficient_handling=insufficient_handling, debias_config=DEBIAS_CONFIG)
+        expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
+        result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)
+        result_calc = metric_debias.calc(self.reco, self.interactions)
 
-        interactions_debiasing = metric_debias.debias_interactions(interactions)
-        expected_metric_per_user = metric.calc_per_user(reco, interactions_debiasing)
+        pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
+        assert result_calc == expected_metric_per_user_downsample.mean()
 
-        pd.testing.assert_series_equal(metric_debias.calc_per_user(reco, interactions), expected_metric_per_user)
-        assert np.allclose(metric_debias.calc(reco, interactions), expected_metric_per_user.mean())
+    @pytest.mark.parametrize(
+        "metric_debias",
+        (
+            PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
+            PartialAUC(k=3, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
+            PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
+            PAP(k=3, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_when_no_interactions(self, metric_debias: tp.Union[PartialAUC, PAP]) -> None:
+        expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
-    def test_when_debias_used_with_fitted_correct(self) -> None:
-        reco = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
-                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
-            }
+        pd.testing.assert_series_equal(
+            metric_debias.calc_per_user(self.reco, EMPTY_INTERACTIONS),
+            expected_metric_per_user,
         )
-        interactions = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
-            }
+        assert np.isnan(metric_debias.calc(self.reco, EMPTY_INTERACTIONS))
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            PartialAUC(k=3),
+            PAP(k=3),
+            PartialAUC(k=3, debias_config=DEBIAS_CONFIG),
+            PAP(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raise_when_correct_is_debias(self, metric: tp.Union[PartialAUC, PAP]) -> None:
+        fitted = metric.fit(
+            self.reco, self.interactions, metric.k, metric.insufficient_handling != InsufficientHandling.IGNORE
         )
-        metric_debias = PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG)
-        fitted = PAP.fit(
-            reco, interactions, metric_debias.k, metric_debias.insufficient_handling != InsufficientHandling.IGNORE
-        )
-        result = metric_debias.calc_from_fitted(fitted, is_debiased=True)
+        result = metric.calc_from_fitted(fitted, is_debiased=metric.debias_config is not None)
         assert isinstance(result, float)
 
-    def test_check_debias(self) -> None:
-        reco = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 2, 1, 2, 3, 1, 1, 2, 3, 5],
-                Columns.Rank: [9, 1, 1, 2, 3, 1, 3, 7, 9, 1],
-            }
-        )
-        interactions = pd.DataFrame(
-            {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
-            }
-        )
-        metric_debias = PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG)
-        fitted = PAP.fit(
-            reco, interactions, metric_debias.k, metric_debias.insufficient_handling != InsufficientHandling.IGNORE
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            PartialAUC(k=3, debias_config=DEBIAS_CONFIG),
+            PAP(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raise_when_incorrect_is_debias(self, metric: tp.Union[PartialAUC, PAP]) -> None:
+        fitted = metric.fit(
+            self.reco, self.interactions, metric.k, metric.insufficient_handling != InsufficientHandling.IGNORE
         )
         with pytest.raises(ValueError):
-            metric_debias.calc_from_fitted(fitted)
+            metric.calc_from_fitted(fitted)

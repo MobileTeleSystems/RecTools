@@ -21,7 +21,8 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import DebiasConfig
+from rectools.metrics import DebiasConfig, DebiasableMetrikAtK
+from rectools.metrics.base import merge_reco
 from rectools.metrics.ranking import MAP, MRR, NDCG, RankingMetric
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
@@ -197,7 +198,7 @@ class TestMRR:
         pd.testing.assert_series_equal(metric.calc_per_user(reco, interactions), expected_metric_per_user)
 
 
-class TestDebiasMetric:
+class TestDebiasableRankingMetric:
     def setup_method(self) -> None:
         self.reco = pd.DataFrame(
             {
@@ -212,6 +213,7 @@ class TestDebiasMetric:
                 Columns.Item: [1, 2, 1, 1, 2, 3, 4, 5, 6, 1, 1, 2, 3, 1, 1, 1],
             }
         )
+        self.merged = merge_reco(self.reco, self.interactions)
 
     @pytest.mark.parametrize(
         "metric,metric_debias",
@@ -222,7 +224,9 @@ class TestDebiasMetric:
         ),
     )
     def test_calc(self, metric: RankingMetric, metric_debias: RankingMetric) -> None:
-        downsample_interactions = metric_debias.debias_interactions(self.interactions)
+        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
+            self.interactions, config=metric_debias.debias_config
+        )
 
         expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
         result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)
@@ -234,9 +238,9 @@ class TestDebiasMetric:
     @pytest.mark.parametrize(
         "metric_debias",
         (
-            (MAP(k=3, debias_config=DEBIAS_CONFIG)),
-            (NDCG(k=3, debias_config=DEBIAS_CONFIG)),
-            (MRR(k=3, debias_config=DEBIAS_CONFIG)),
+            MAP(k=3, debias_config=DEBIAS_CONFIG),
+            NDCG(k=3, debias_config=DEBIAS_CONFIG),
+            MRR(k=3, debias_config=DEBIAS_CONFIG),
         ),
     )
     def test_when_no_interactions(self, metric_debias: RankingMetric) -> None:
@@ -247,3 +251,24 @@ class TestDebiasMetric:
             expected_metric_per_user,
         )
         assert np.isnan(metric_debias.calc(self.reco, EMPTY_INTERACTIONS))
+
+    @pytest.mark.parametrize(
+        "metric",
+        (
+            MAP(k=3),
+            MAP(k=3, debias_config=DEBIAS_CONFIG),
+        ),
+    )
+    def test_raise_when_correct_is_debias(self, metric: MAP) -> None:
+        fitted = metric.fit(self.merged, metric.k)
+        result = metric.calc_from_fitted(fitted, is_debiased=metric.debias_config is not None)
+        assert isinstance(result, float)
+
+    @pytest.mark.parametrize(
+        "metric",
+        (MAP(k=3, debias_config=DEBIAS_CONFIG),),
+    )
+    def test_raise_when_incorrect_is_debias(self, metric: MAP) -> None:
+        fitted = metric.fit(self.merged, metric.k)
+        with pytest.raises(ValueError):
+            metric.calc_from_fitted(fitted)
