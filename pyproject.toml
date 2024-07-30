@@ -69,6 +69,7 @@ implicit = "^0.7.1"
 attrs = ">=19.1.0,<24.0.0"
 typeguard = "^4.1.0"
 pydantic = "^2.8.2"
+pydantic-core = "^2.20.1"
 typing-extensions = "^4.12.2"
 
 # The latest released version of lightfm is 1.17 and it's not compatible with PEP-517 installers (like latest poetry versions).
@@ -85,7 +86,6 @@ pytorch-lightning = {version = ">=1.6.0, <3.0.0", optional = true}
 
 ipywidgets = {version = ">=7.7,<8.2", optional = true}
 plotly = {version="^5.22.0", optional = true}
-pydantic-core = "^2.20.1"
 
 
 [tool.poetry.extras]
