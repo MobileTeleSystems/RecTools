@@ -56,7 +56,7 @@ class ModelBase:
     # TODO: Make generic? 
     # This allows to specify correct type in get_config and from_config. Also allows to make child classes correctly typed.
     # But how to make it work with VectorModel and other intermediate classes?
-    config_type = ModelConfig  
+    config_class = ModelConfig  
 
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
@@ -92,8 +92,8 @@ class ModelBase:
     
     @classmethod
     def from_config(cls: tp.Type[Model_T], config: tp.Union[dict, ModelConfig]) -> Model_T:
-        if not isinstance(config, cls.config_type):
-            config = cls.config_type.model_validate(config)
+        if not isinstance(config, cls.config_class):
+            config = cls.config_class.model_validate(config)
         return cls._from_config(config)
     
     @classmethod

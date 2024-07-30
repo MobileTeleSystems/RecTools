@@ -34,34 +34,34 @@ from .base import ModelBase, ModelConfig, Scores
 from .utils import get_viewed_item_ids, recommend_from_scores
 import typing_extensions as tpe
 
-_base_item_item_recommender_types = (
+_base_item_item_recommender_classes = (
     ItemItemRecommender,
     CosineRecommender,
     TFIDFRecommender,
     BM25Recommender,
 )
 
-def _get_item_item_recommender_type(spec: tp.Any) -> tp.Any:
+def _get_item_item_recommender_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):
         return spec
 
-    base_type_names = {cls.__name__ for cls in _base_item_item_recommender_types}
-    if spec in base_type_names:
+    base_class_names = {cls.__name__ for cls in _base_item_item_recommender_classes}
+    if spec in base_class_names:
         return getattr(implicit.nearest_neighbours, spec)
     
     return import_object(spec)
 
-def _serialize_item_item_recommender_type(type_: tp.Type[ItemItemRecommender]) -> str:
-    if type_ in _base_item_item_recommender_types:
-        return type_.__name__
-    return get_object_full_path(type_)
+def _serialize_item_item_recommender_class(cls: tp.Type[ItemItemRecommender]) -> str:
+    if cls in _base_item_item_recommender_classes:
+        return cls.__name__
+    return get_object_full_path(cls)
 
 
-ItemItemRecommenderType = tpe.Annotated[
+ItemItemRecommenderClass = tpe.Annotated[
     tp.Type[ItemItemRecommender],
-    BeforeValidator(_get_item_item_recommender_type),
+    BeforeValidator(_get_item_item_recommender_class),
     PlainSerializer(
-        func=_serialize_item_item_recommender_type,
+        func=_serialize_item_item_recommender_class,
         return_type=str,
         when_used="json",
     )
@@ -69,7 +69,7 @@ ItemItemRecommenderType = tpe.Annotated[
 
 
 class ItemItemRecommenderConfig(BaseModel):
-    cls: ItemItemRecommenderType = ItemItemRecommender
+    cls: ItemItemRecommenderClass = ItemItemRecommender
     params: tp.Dict[str, tp.Any] = {}
 
 
@@ -93,7 +93,7 @@ class ImplicitItemKNNWrapperModel(ModelBase):
 
     recommends_for_warm = False
     recommends_for_cold = False
-    config_type = ImplicitItemKNNWrapperModelConfig
+    config_class = ImplicitItemKNNWrapperModelConfig
 
     def __init__(self, model: ItemItemRecommender, verbose: int = 0):
         super().__init__(verbose=verbose)

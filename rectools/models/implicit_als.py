@@ -37,25 +37,25 @@ AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternating
 
 T = tp.TypeVar("T")
 
-def _get_alternating_least_squares_type(spec: tp.Any) -> tp.Any:
+def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):  # including None
         return spec
     return import_object(spec)
 
 
-def _serialize_alternating_least_squares_type(type_: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
-    if type_ in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or type_ is None:
+def _serialize_alternating_least_squares_class(cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
+    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls is None:
         return None
     if info.mode == "json":
-        return get_object_full_path(type_)
-    return type_
+        return get_object_full_path(cls)
+    return cls
 
 
-AlternatingLeastSquaresType = tpe.Annotated[
+AlternatingLeastSquaresClass = tpe.Annotated[
     tp.Optional[tp.Type[AnyAlternatingLeastSquares]],
-    BeforeValidator(_get_alternating_least_squares_type),
+    BeforeValidator(_get_alternating_least_squares_class),
     WrapSerializer(
-        func=_serialize_alternating_least_squares_type,
+        func=_serialize_alternating_least_squares_class,
         when_used="always",
     )
 ]
@@ -63,7 +63,7 @@ AlternatingLeastSquaresType = tpe.Annotated[
 class AlternatingLeastSquaresConfig(BaseModel):
     # TODO: think about compatibility between cls and `use_gpu` parameter
     # Use everywhere either cls or type
-    cls: AlternatingLeastSquaresType = None
+    cls: AlternatingLeastSquaresClass = None
     params: tp.Dict[str, tp.Any] = {}
 
 
@@ -98,7 +98,7 @@ class ImplicitALSWrapperModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
-    config_type = ImplicitALSWrapperModelConfig
+    config_class = ImplicitALSWrapperModelConfig
 
     def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
         self._config = self._make_config(model, verbose, fit_features_together)
