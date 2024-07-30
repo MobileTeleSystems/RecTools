@@ -25,6 +25,7 @@ from rectools.exceptions import NotFittedError
 from rectools.models import DSSMModel
 from rectools.models.dssm import DSSM
 from rectools.models.vector import ImplicitRanker
+from tests.models.utils import assert_second_fit_refits_model
 
 from .data import INTERACTIONS
 
@@ -33,6 +34,9 @@ from .data import INTERACTIONS
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     def setup_method(self) -> None:
+        self._seed_everything()
+
+    def _seed_everything(self) -> None:
         seed_everything(42, workers=True)
 
     @pytest.fixture
@@ -330,3 +334,7 @@ class TestDSSMModel:
         model = DSSMModel()
         with pytest.raises(ValueError, match="requires user and item features"):
             model.fit(dataset)
+
+    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+        model = DSSMModel(deterministic=True)
+        assert_second_fit_refits_model(model, dataset, pre_fit_callback=self._seed_everything)
