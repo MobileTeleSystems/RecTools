@@ -42,7 +42,6 @@ Metrics
 `metrics.CoveredUsers`
 `metrics.DebiasableMetrikAtK`
 
-
 Tools
 -----
 `metrics.calc_metrics` - calculate a set of metrics efficiently

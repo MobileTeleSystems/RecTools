@@ -151,17 +151,17 @@ def calc_debiased_fit_task(
         Dictionary, where key is debias config
         and values are a list of the corresponding k_max and de-basing interactions.
     """
-    configs = {metric.debias_config for metric in metrics}
+    configs = set(metric.debias_config for metric in metrics)
     max_k_for_config = {config: 0 for config in configs}
 
     for metric in metrics:
         max_k_for_config[metric.debias_config] = max(max_k_for_config[metric.debias_config], metric.k)
 
-    res = {
+    result = {
         config: (
             max_k_for_config[config],
             DebiasableMetrikAtK.debias_interactions(interactions, config) if config is not None else interactions,
         )
         for config in configs
     }
-    return res
+    return result
