@@ -3145,4 +3145,4 @@ visuals = ["ipywidgets", "plotly"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1, <3.13"
-content-hash = "8498ac19d8e25387e24ddca1b8244c851f9a2923f866cac1e616bf67571b2ed0"
+content-hash = "e2503667bda749f023c9f886cde6caea967de5b20270ba8e780d742aae42e5e3"
