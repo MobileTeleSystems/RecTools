@@ -18,6 +18,7 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
+from pydantic_core import PydanticSerializationError
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
@@ -78,10 +79,14 @@ class ModelBase:
                 raise ValueError("`simple_types` is not supported for `format='object'`")
             return config
 
-        if simple_types:
-            config_dict = config.model_dump(mode="json")
-        else:
-            config_dict = config.model_dump(mode="python")
+        mode = "json" if simple_types else "python"
+        try:
+            config_dict = config.model_dump(mode=mode)
+        except PydanticSerializationError as e:
+            if e.__cause__ is not None:
+                raise e.__cause__
+            raise e
+            
 
         if format == "dict":
             return config_dict

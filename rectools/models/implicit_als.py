@@ -72,6 +72,20 @@ DType = tpe.Annotated[
     PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
 ]
 
+
+def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.RandomState]]) -> tp.Union[None, int]:
+    if rs is None or isinstance(rs, int):
+        return rs
+    
+    # TODO: We can add serialization using get/set_state, but it's not human readable
+    raise ValueError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
+
+
+RandomState = tpe.Annotated[
+    tp.Union[None, int, np.random.RandomState],
+    PlainSerializer(func=_serialize_random_state, when_used="json"),
+]
+
 class AlternatingLeastSquaresParams(tpe.TypedDict):
     factors: tpe.NotRequired[int]
     regularization: tpe.NotRequired[float]
@@ -83,7 +97,7 @@ class AlternatingLeastSquaresParams(tpe.TypedDict):
     iterations: tpe.NotRequired[int]
     calculate_training_loss: tpe.NotRequired[bool]
     num_threads: tpe.NotRequired[int]
-    random_state: tpe.NotRequired[tp.Union[None, int, np.random.RandomState]]
+    random_state: tpe.NotRequired[RandomState]
 
 
 class AlternatingLeastSquaresConfig(BaseConfig):
@@ -172,18 +186,6 @@ class ImplicitALSWrapperModel(VectorModel):
             verbose=verbose,
             fit_features_together=fit_features_together,
         )
-
-    def get_config(
-        self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = "."
-    ) -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
-        config = self._get_config()
-        rs = config.model.params["random_state"]
-        if simple_types and not (rs is None or isinstance(config.model.params["random_state"], int)):
-            # TODO:
-            # 1. Think about more elegant solution
-            # 2. We can add serialization for random_state in pydantic model with get/set_state, but it's not human readable
-            raise ValueError("Can't return simple types when `random_state` is not int")
-        return super().get_config(format=format, simple_types=simple_types, sep=sep)
 
     def _get_config(self) -> ImplicitALSWrapperModelConfig:
         return self._config
