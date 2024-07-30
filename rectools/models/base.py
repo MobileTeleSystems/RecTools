@@ -82,7 +82,10 @@ class ModelBase:
         if format == "dict":
             return config_dict
         
-        return make_dict_flat(config_dict, sep=sep)  # TODO: how should we handle lists?
+        if format == "flat":
+            make_dict_flat(config_dict, sep=sep)  # TODO: how should we handle lists?
+
+        raise ValueError(f"Unknown format: {format}")
     
     def _get_config(self) -> ModelConfig:
         raise NotImplementedError()
