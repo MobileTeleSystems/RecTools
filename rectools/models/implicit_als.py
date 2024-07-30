@@ -27,7 +27,7 @@ from pydantic import BaseModel, BeforeValidator, WrapSerializer, SerializationIn
 from implicit.als import AlternatingLeastSquares
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
-from rectools.utils.misc import get_object_full_path, import_object
+from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .rank import Distance
 from .vector import Factors, VectorModel
@@ -47,7 +47,7 @@ def _serialize_alternating_least_squares_class(cls: tp.Optional[tp.Type[AnyAlter
     if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls is None:
         return None
     if info.mode == "json":
-        return get_object_full_path(cls)
+        return get_class_or_function_full_path(cls)
     return cls
 
 

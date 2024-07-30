@@ -28,7 +28,7 @@ from rectools import InternalIds
 from rectools.dataset import Dataset
 from rectools.types import InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
-from rectools.utils.misc import get_object_full_path, import_object
+from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .base import ModelBase, ModelConfig, Scores
 from .utils import get_viewed_item_ids, recommend_from_scores
@@ -54,7 +54,7 @@ def _get_item_item_recommender_class(spec: tp.Any) -> tp.Any:
 def _serialize_item_item_recommender_class(cls: tp.Type[ItemItemRecommender]) -> str:
     if cls in _base_item_item_recommender_classes:
         return cls.__name__
-    return get_object_full_path(cls)
+    return get_class_or_function_full_path(cls)
 
 
 ItemItemRecommenderClass = tpe.Annotated[

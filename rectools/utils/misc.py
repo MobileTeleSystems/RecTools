@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import importlib
 import typing as tp
 from itertools import tee
 
@@ -167,18 +168,32 @@ def select_by_type(
     return selected
 
 
-def import_object(path):
-    # Import the module and get the attribute
-    # TODO: What if object name is complex like ``a.b.c``?
+def import_object(path: str) -> tp.Any:
+    """
+    Import object by its path.
+    Only module level objects are supported.
+
+    Examples
+    --------
+    >>> import_object("numpy.random.rand")
+    <function RandomState.rand>
+    """
     module_path, object_name = path.rsplit('.', maxsplit=1)
     module = importlib.import_module(module_path)
     return getattr(module, object_name)
 
 
-def get_object_full_path(instance) -> str:
-    # TODO: should work for types, insctances, and functions
-    cls = instance.__class__
-    return f"{cls.__module__}.{cls.__qualname__}"  # TODO: qualname or name?
+def get_class_or_function_full_path(obj: tp.Union[tp.Type, tp.Callable]) -> str:
+    """
+    Get full path of class or function.
+
+    Examples
+    --------
+    >>> from numpy.random import rand
+    >>> get_class_or_function_full_path(rand)
+    'numpy.random.rand'
+    """
+    return f"{obj.__module__}.{obj.__qualname__}"
 
 
 def make_dict_flat(d: tp.Dict[str, tp.Any], parent_key: str = "", sep: str = ".") -> tp.Dict[str, tp.Any]:
