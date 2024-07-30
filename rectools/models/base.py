@@ -39,6 +39,7 @@ RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRec
 
 Model_T = tp.TypeVar("Model_T", bound="ModelBase")
 
+
 class ModelConfig(BaseModel):
     verbose: int = 0
 
@@ -53,16 +54,18 @@ class ModelBase:
 
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
-    # TODO: Make generic? 
+    # TODO: Make generic?
     # This allows to specify correct type in get_config and from_config. Also allows to make child classes correctly typed.
     # But how to make it work with VectorModel and other intermediate classes?
-    config_class = ModelConfig  
+    config_class = ModelConfig
 
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
 
-    def get_config(self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = ".") -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
+    def get_config(
+        self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = "."
+    ) -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
         """
         simple_types makes sense only for format in ('dict', "flat")
         sep makes sense only for format = "flat"
@@ -73,7 +76,7 @@ class ModelBase:
             if simple_types:
                 raise ValueError("`simple_types` is not supported for `format='object'`")
             return config
-        
+
         if simple_types:
             config_dict = config.model_dump(mode="json")
         else:
@@ -81,25 +84,25 @@ class ModelBase:
 
         if format == "dict":
             return config_dict
-        
+
         if format == "flat":
             make_dict_flat(config_dict, sep=sep)  # TODO: how should we handle lists?
 
         raise ValueError(f"Unknown format: {format}")
-    
+
     def _get_config(self) -> ModelConfig:
         raise NotImplementedError()
-    
+
     @classmethod
     def from_config(cls: tp.Type[Model_T], config: tp.Union[dict, ModelConfig]) -> Model_T:
         if not isinstance(config, cls.config_class):
             config = cls.config_class.model_validate(config)
         return cls._from_config(config)
-    
+
     @classmethod
     def _from_config(cls: tp.Type[Model_T], config: ModelConfig) -> Model_T:
         raise NotImplementedError()
-    
+
     def fit(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
         """
         Fit model.

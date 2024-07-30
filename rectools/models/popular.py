@@ -20,6 +20,8 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
+from pydantic import BaseModel
 from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
@@ -27,8 +29,6 @@ from rectools.dataset import Dataset
 from rectools.models.base import ModelConfig
 from rectools.types import InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
-from pydantic import BaseModel
-import typing_extensions as tpe
 
 from .base import FixedColdRecoModelMixin, ModelBase, Scores, ScoresArray
 from .utils import get_viewed_item_ids

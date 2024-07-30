@@ -16,13 +16,14 @@ import typing as tp
 import warnings
 from copy import deepcopy
 
-import numpy as np
-from implicit.nearest_neighbours import ItemItemRecommender, CosineRecommender, TFIDFRecommender, BM25Recommender
 import implicit.nearest_neighbours
+import numpy as np
+import typing_extensions as tpe
+from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
 from implicit.utils import ParameterWarning
+from pydantic import BaseModel, BeforeValidator, PlainSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
-from pydantic import BaseModel, BeforeValidator, PlainSerializer
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
@@ -32,7 +33,6 @@ from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .base import ModelBase, ModelConfig, Scores
 from .utils import get_viewed_item_ids, recommend_from_scores
-import typing_extensions as tpe
 
 _base_item_item_recommender_classes = (
     ItemItemRecommender,
@@ -41,6 +41,7 @@ _base_item_item_recommender_classes = (
     BM25Recommender,
 )
 
+
 def _get_item_item_recommender_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):
         return spec
@@ -48,8 +49,9 @@ def _get_item_item_recommender_class(spec: tp.Any) -> tp.Any:
     base_class_names = {cls.__name__ for cls in _base_item_item_recommender_classes}
     if spec in base_class_names:
         return getattr(implicit.nearest_neighbours, spec)
-    
+
     return import_object(spec)
+
 
 def _serialize_item_item_recommender_class(cls: tp.Type[ItemItemRecommender]) -> str:
     if cls in _base_item_item_recommender_classes:
@@ -64,7 +66,7 @@ ItemItemRecommenderClass = tpe.Annotated[
         func=_serialize_item_item_recommender_class,
         return_type=str,
         when_used="json",
-    )
+    ),
 ]
 
 
@@ -75,7 +77,7 @@ class ItemItemRecommenderConfig(BaseModel):
 
 class ImplicitItemKNNWrapperModelConfig(ModelConfig):
     model: ItemItemRecommenderConfig
-    
+
 
 class ImplicitItemKNNWrapperModel(ModelBase):
     """
@@ -103,15 +105,16 @@ class ImplicitItemKNNWrapperModel(ModelBase):
     def _get_config(self) -> ImplicitItemKNNWrapperModelConfig:
         params = {"K": self.model.K, "num_threads": self.model.num_threads}
         if isinstance(self.model, BM25Recommender):
-            params.update({"K1": self.model.K1, "B": self.model.B})  # TODO: If it's a custom class, we don't know its params
+            # TODO: If it's a custom class, we don't know its params
+            params.update({"K1": self.model.K1, "B": self.model.B})
         return ImplicitItemKNNWrapperModelConfig(
             model=ItemItemRecommenderConfig(
-                cls=self.model.__class__, 
+                cls=self.model.__class__,
                 params=params,
             ),
             verbose=self.verbose,
         )
-    
+
     @classmethod
     def _from_config(cls, config: ImplicitItemKNNWrapperModelConfig) -> tpe.Self:  # TODO: check tpe.Self
         model = config.model.cls(**config.model.params)

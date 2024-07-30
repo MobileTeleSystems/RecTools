@@ -178,7 +178,7 @@ def import_object(path: str) -> tp.Any:
     >>> import_object("numpy.random.rand")
     <function RandomState.rand>
     """
-    module_path, object_name = path.rsplit('.', maxsplit=1)
+    module_path, object_name = path.rsplit(".", maxsplit=1)
     module = importlib.import_module(module_path)
     return getattr(module, object_name)
 

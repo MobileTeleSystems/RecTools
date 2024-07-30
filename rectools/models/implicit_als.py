@@ -13,18 +13,19 @@
 #  limitations under the License.
 
 import typing as tp
-import typing_extensions as tpe
 from copy import deepcopy
 
 import implicit.gpu
 import numpy as np
+import typing_extensions as tpe
+from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
+from pydantic import BaseModel, BeforeValidator, SerializationInfo, WrapSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
-from pydantic import BaseModel, BeforeValidator, WrapSerializer, SerializationInfo
-from implicit.als import AlternatingLeastSquares
+
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 from rectools.utils.misc import get_class_or_function_full_path, import_object
@@ -37,13 +38,16 @@ AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternating
 
 T = tp.TypeVar("T")
 
+
 def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):  # including None
         return spec
     return import_object(spec)
 
 
-def _serialize_alternating_least_squares_class(cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
+def _serialize_alternating_least_squares_class(
+    cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo
+) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
     if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls is None:
         return None
     if info.mode == "json":
@@ -57,8 +61,9 @@ AlternatingLeastSquaresClass = tpe.Annotated[
     WrapSerializer(
         func=_serialize_alternating_least_squares_class,
         when_used="always",
-    )
+    ),
 ]
+
 
 class AlternatingLeastSquaresConfig(BaseModel):
     # TODO: think about compatibility between cls and `use_gpu` parameter
@@ -104,7 +109,7 @@ class ImplicitALSWrapperModel(VectorModel):
         self._config = self._make_config(model, verbose, fit_features_together)
 
         super().__init__(verbose=verbose)
-        
+
         self.model: AnyAlternatingLeastSquares
         self._model = model  # for refit; TODO: try to do it better
 
@@ -114,7 +119,9 @@ class ImplicitALSWrapperModel(VectorModel):
             self.n_threads = model.num_threads
 
     @classmethod
-    def _make_config(cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool) -> ImplicitALSWrapperModelConfig:      
+    def _make_config(
+        cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
+    ) -> ImplicitALSWrapperModelConfig:
         params = {
             "factors": model.factors,
             "regularization": model.regularization,
@@ -145,8 +152,10 @@ class ImplicitALSWrapperModel(VectorModel):
             verbose=verbose,
             fit_features_together=fit_features_together,
         )
-    
-    def get_config(self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = ".") -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
+
+    def get_config(
+        self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = "."
+    ) -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
         config = self._get_config()
         if simple_types and not isinstance(config.model.params["random_state"], int):
             # TODO:
@@ -154,10 +163,10 @@ class ImplicitALSWrapperModel(VectorModel):
             # 2. We can add serialization for random_state in pydantic model with get/set_state, but it's not human readable
             raise ValueError("Can't return simple types when `random_state` is not int")
         return super().get_config(format=format, simple_types=simple_types, sep=sep)
-    
+
     def _get_config(self) -> ImplicitALSWrapperModelConfig:
         return self._config
-    
+
     @classmethod
     def _from_config(cls: tp.Type[T], config: ImplicitALSWrapperModelConfig) -> T:
         if config.model.cls is None:
