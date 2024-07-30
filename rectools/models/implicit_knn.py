@@ -21,7 +21,7 @@ import numpy as np
 import typing_extensions as tpe
 from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
 from implicit.utils import ParameterWarning
-from pydantic import BaseModel, BeforeValidator, PlainSerializer, ConfigDict
+from pydantic import BeforeValidator, PlainSerializer, ConfigDict
 from scipy import sparse
 from tqdm.auto import tqdm
 
@@ -29,6 +29,7 @@ from rectools import InternalIds
 from rectools.dataset import Dataset
 from rectools.types import InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
+from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .base import ModelBase, ModelConfig, Scores
@@ -70,7 +71,7 @@ ItemItemRecommenderClass = tpe.Annotated[
 ]
 
 
-class ItemItemRecommenderConfig(BaseModel):
+class ItemItemRecommenderConfig(BaseConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     cls: ItemItemRecommenderClass = ItemItemRecommender

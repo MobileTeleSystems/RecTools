@@ -18,13 +18,13 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import AnyIdsArray, InternalIdsArray
+from rectools.utils.config import BaseConfig
 from rectools.utils.misc import make_dict_flat
 
 T = tp.TypeVar("T", bound="ModelBase")
@@ -40,7 +40,7 @@ RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRec
 Model_T = tp.TypeVar("Model_T", bound="ModelBase")
 
 
-class ModelConfig(BaseModel):
+class ModelConfig(BaseConfig):
     verbose: int = 0
 
 
