@@ -55,7 +55,8 @@ class ModelBase:
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
     # TODO: Make generic?
-    # This allows to specify correct type in get_config and from_config. Also allows to make child classes correctly typed.
+    # This allows to specify correct type in get_config and from_config. 
+    # Also allows to make child classes correctly typed.
     # But how to make it work with VectorModel and other intermediate classes?
     config_class = ModelConfig
 

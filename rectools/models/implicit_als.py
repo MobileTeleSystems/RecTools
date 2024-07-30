@@ -22,12 +22,13 @@ from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
-from pydantic import BaseModel, BeforeValidator, SerializationInfo, WrapSerializer
+from pydantic import BaseModel, BeforeValidator, SerializationInfo, WrapSerializer, ConfigDict
 from scipy import sparse
 from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
+from rectools.models.base import ModelConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .rank import Distance
@@ -65,14 +66,15 @@ AlternatingLeastSquaresClass = tpe.Annotated[
 ]
 
 
-class AlternatingLeastSquaresConfig(BaseModel):
+class AlternatingLeastSquaresConfig(BaseModel):  # TODO: instead of BaseModel we need some BaseConfig here?
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     # TODO: think about compatibility between cls and `use_gpu` parameter
     # Use everywhere either cls or type
     cls: AlternatingLeastSquaresClass = None
     params: tp.Dict[str, tp.Any] = {}
 
 
-class ImplicitALSWrapperModelConfig(BaseModel):
+class ImplicitALSWrapperModelConfig(ModelConfig):
     model: AlternatingLeastSquaresConfig
     verbose: int = 0
     fit_features_together: bool = False

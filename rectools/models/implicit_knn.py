@@ -21,7 +21,7 @@ import numpy as np
 import typing_extensions as tpe
 from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
 from implicit.utils import ParameterWarning
-from pydantic import BaseModel, BeforeValidator, PlainSerializer
+from pydantic import BaseModel, BeforeValidator, PlainSerializer, ConfigDict
 from scipy import sparse
 from tqdm.auto import tqdm
 
@@ -71,6 +71,8 @@ ItemItemRecommenderClass = tpe.Annotated[
 
 
 class ItemItemRecommenderConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     cls: ItemItemRecommenderClass = ItemItemRecommender
     params: tp.Dict[str, tp.Any] = {}
 

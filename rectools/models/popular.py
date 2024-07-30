@@ -20,8 +20,6 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
-import typing_extensions as tpe
-from pydantic import BaseModel
 from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
