@@ -106,13 +106,14 @@ class ImplicitItemKNNWrapperModel(ModelBase):
         self._model = model
 
     def _get_config(self) -> ImplicitItemKNNWrapperModelConfig:
-        params = {"K": self.model.K, "num_threads": self.model.num_threads}
-        if isinstance(self.model, BM25Recommender):
-            # TODO: If it's a custom class, we don't know its params
-            params.update({"K1": self.model.K1, "B": self.model.B})
+        inner_model = self._model
+        params = {"K": inner_model.K, "num_threads": inner_model.num_threads}
+        if isinstance(inner_model, BM25Recommender):
+            # NOBUG: If it's a custom class, we don't know its params
+            params.update({"K1": inner_model.K1, "B": inner_model.B})
         return ImplicitItemKNNWrapperModelConfig(
             model=ItemItemRecommenderConfig(
-                cls=self.model.__class__,
+                cls=inner_model.__class__,
                 params=params,
             ),
             verbose=self.verbose,
