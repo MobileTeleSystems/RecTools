@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasableMetrikAtK, calc_debiased_fit_task
+from .debias import DebiasableMetrikAtK, calc_debiased_different_configs, calc_debiased_fit_task
 
 
 @attr.s
@@ -389,7 +389,7 @@ class NDCG(_RankingMetric):
         merged_reco = merge_reco(reco, interactions)
         return self.calc_per_user_from_merged(merged_reco)
 
-    def calc_from_merged(self, merged: pd.DataFrame) -> float:
+    def calc_from_merged(self, merged: pd.DataFrame, is_debiased: bool = False) -> float:
         """
         Calculate metric value from merged recommendations.
 
@@ -404,10 +404,10 @@ class NDCG(_RankingMetric):
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_merged(merged)
+        per_user = self.calc_per_user_from_merged(merged, is_debiased)
         return per_user.mean()
 
-    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+    def calc_per_user_from_merged(self, merged: pd.DataFrame, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from merged recommendations.
 
@@ -422,7 +422,7 @@ class NDCG(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if self.debias_config is not None:
+        if not is_debiased and self.debias_config is not None:
             merged = self.debias_interactions(merged, self.debias_config)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
@@ -508,7 +508,7 @@ class MRR(_RankingMetric):
         merged_reco = merge_reco(reco, interactions)
         return self.calc_per_user_from_merged(merged_reco)
 
-    def calc_per_user_from_merged(self, merged: pd.DataFrame) -> pd.Series:
+    def calc_per_user_from_merged(self, merged: pd.DataFrame, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from merged recommendations.
 
@@ -523,7 +523,7 @@ class MRR(_RankingMetric):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
-        if self.debias_config is not None:
+        if not is_debiased and self.debias_config is not None:
             merged = self.debias_interactions(merged, self.debias_config)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
@@ -534,7 +534,7 @@ class MRR(_RankingMetric):
         )
         return (1.0 / min_rank_per_user).fillna(0).rename(None)
 
-    def calc_from_merged(self, merged: pd.DataFrame) -> float:
+    def calc_from_merged(self, merged: pd.DataFrame, is_debiased: bool = False) -> float:
         """
         Calculate metric value from merged recommendations.
 
@@ -549,7 +549,7 @@ class MRR(_RankingMetric):
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_merged(merged)
+        per_user = self.calc_per_user_from_merged(merged, is_debiased)
         return per_user.mean()
 
 
@@ -587,8 +587,9 @@ def calc_ranking_metrics(
 
     for ranking_metric_cls in [NDCG, MRR]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
+        merged_debiased = calc_debiased_different_configs(ranking_metrics.values(), merged)
         for name, metric in ranking_metrics.items():
-            results[name] = metric.calc_from_merged(merged)
+            results[name] = metric.calc_from_merged(merged_debiased[metric.debias_config], is_debiased=False)
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:

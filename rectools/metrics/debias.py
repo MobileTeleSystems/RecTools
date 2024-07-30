@@ -139,7 +139,7 @@ def calc_debiased_fit_task(
 
     Parameters
     ----------
-    metrics : tp.Iteraple[MetricAtK]
+    metrics : tp.Iteraple[DebiasableMetrikAtK]
         Dict of metric objects to calculate, where key is metric name and value is metric object.
     interactions : pd.DataFrame
         Interactions or merging table with columns `Columns.User`, `Columns.Item`, `Columns.Rank` (for merging).
@@ -165,3 +165,30 @@ def calc_debiased_fit_task(
         for config in configs
     }
     return result
+
+
+def calc_debiased_different_configs(
+    metrics: tp.Iterable[DebiasableMetrikAtK], interactions: pd.DataFrame
+) -> tp.Dict[DebiasConfig, pd.DataFrame]:
+    """
+    Calculates debiased differential metrics for a set of metrics and interactions.
+
+    Parameters
+    ----------
+        metrics : tp.Iterable[DebiasableMetrikAtK]
+            List of metrics to calculate debiased differential metrics for.
+        interactions : pd.DataFrame
+            List of interactions to calculate debiased differential metrics for.
+
+    Returns
+    -------
+    dict(DebiasConfig->pd.DataFrame])
+        Dictionary, where key is debias config
+        and values are a list of the corresponding k_max and de-basing interactions.
+    """
+    configs = set(metric.debias_config for metric in metrics)
+    debiased_interactions = {
+        config: DebiasableMetrikAtK.debias_interactions(interactions, config) if config is not None else interactions
+        for config in configs
+    }
+    return debiased_interactions
