@@ -44,9 +44,9 @@ def _get_alternating_least_squares_type(spec: tp.Any) -> tp.Any:
 
 
 def _serialize_alternating_least_squares_type(type_: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
-    if type_ in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares):
+    if type_ in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or type_ is None:
         return None
-    if info.when_used == "json":
+    if info.mode == "json":
         return get_object_full_path(type_)
     return type_
 
@@ -61,6 +61,8 @@ AlternatingLeastSquaresType = tpe.Annotated[
 ]
 
 class AlternatingLeastSquaresConfig(BaseModel):
+    # TODO: think about compatibility between cls and `use_gpu` parameter
+    # Use everywhere either cls or type
     cls: AlternatingLeastSquaresType = None
     params: tp.Dict[str, tp.Any] = {}
 
