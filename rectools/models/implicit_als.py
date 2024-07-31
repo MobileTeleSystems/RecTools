@@ -38,8 +38,6 @@ from .vector import Factors, VectorModel
 AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
 
-T = tp.TypeVar("T")
-
 
 def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):  # including None
@@ -48,7 +46,7 @@ def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
 
 
 def _serialize_alternating_least_squares_class(
-    cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: callable, info: SerializationInfo
+    cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: tp.Callable, info: SerializationInfo
 ) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
     if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls is None:
         return None
@@ -186,7 +184,7 @@ class ImplicitALSWrapperModel(VectorModel):
         return ImplicitALSWrapperModelConfig(
             model=AlternatingLeastSquaresConfig(
                 cls=model_cls if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) else None,
-                params=params,
+                params=AlternatingLeastSquaresParams(params),
             ),
             verbose=verbose,
             fit_features_together=fit_features_together,
@@ -196,7 +194,7 @@ class ImplicitALSWrapperModel(VectorModel):
         return self._config
 
     @classmethod
-    def _from_config(cls: tp.Type[T], config: ImplicitALSWrapperModelConfig) -> T:
+    def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
         if config.model.cls is None:
             model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
         else:

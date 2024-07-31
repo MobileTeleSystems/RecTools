@@ -220,7 +220,7 @@ def make_dict_flat(d: tp.Dict[str, tp.Any], sep: str = ".", parent_key: str = ""
     >>> make_dict_flat({"a": {"b": 1, "c": 2}, "d": 3})
     {'a.b': 1, 'a.c': 2, 'd': 3}
     """
-    items = []
+    items: tp.List[tp.Tuple[str, tp.Any]] = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
