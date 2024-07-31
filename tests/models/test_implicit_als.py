@@ -447,6 +447,8 @@ class TestImplicitALSWrapperModelConfiguration:
         returned_config = model.get_config(simple_types=True)
         assert returned_config["model"]["cls"] == cls_path  # pylint: disable=unsubscriptable-object
 
+        assert model.get_config()["model"]["cls"] == CustomALS  # pylint: disable=unsubscriptable-object
+
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         def get_reco(model: ImplicitALSWrapperModel) -> pd.DataFrame:
