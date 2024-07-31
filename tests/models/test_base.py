@@ -14,12 +14,14 @@
 
 # pylint: disable=attribute-defined-outside-init
 
+from datetime import timedelta
 import typing as tp
 
 import numpy as np
 import pandas as pd
 import pytest
 from pytest_mock import MockerFixture
+import typing_extensions as tpe
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -28,10 +30,12 @@ from rectools.models.base import (
     FixedColdRecoModelMixin,
     InternalRecoTriplet,
     ModelBase,
+    ModelConfig,
     Scores,
     SemiInternalRecoTriplet,
 )
 from rectools.types import AnyIds, ExternalIds, InternalIds
+from rectools.utils.config import BaseConfig
 
 from .data import DATASET, INTERACTIONS
 
@@ -479,6 +483,94 @@ class TestHotWarmCold:
         with pytest.raises(TypeError):
             self._get_reco(["some_id"], model_key, dataset_key, kind)
 
+
+class TestConfiguration:
+
+    def setup_method(self) -> None:
+        class SomeModelSubConfig(BaseConfig):
+            td: timedelta
+
+        class SomeModelConfig(ModelConfig):
+            x: int
+            sc: tp.Optional[SomeModelSubConfig] = None
+
+        class SomeModel(ModelBase):
+            config_class = SomeModelConfig
+
+            def __init__(self, x: int, td: tp.Optional[timedelta] = None, verbose: int = 0):
+                super().__init__(verbose=verbose)
+                self.x = x
+                self.td = td
+
+            def _get_config(self) -> SomeModelConfig:
+                sc = None if self.td is None else SomeModelSubConfig(td=self.td)
+                return SomeModelConfig(x=self.x, sc=sc, verbose=self.verbose)
+            
+            @classmethod
+            def _from_config(cls, config: SomeModelConfig) -> tpe.Self:
+                td = None if config.sc is None else config.sc.td
+                return cls(x=config.x, td=td, verbose=config.verbose)
+            
+        self.config_class = SomeModelConfig
+        self.model_class = SomeModel
+    
+    def test_from_config_object(self) -> None:
+        config = self.config_class(x=10, verbose=1)
+        model = self.model_class.from_config(config)
+        assert model.x == 10
+        assert model.td == None
+        assert model.verbose == 1
+
+    @pytest.mark.parametrize("td", (timedelta(days=2, hours=3), "P2DT3H"))
+    def test_from_config_dict(self, td: tp.Union[timedelta, str]) -> None:
+        config = {"x": 10, "verbose": 1, "sc": {"td": td}}
+        model = self.model_class.from_config(config)
+        assert model.x == 10
+        assert model.td == timedelta(days=2, hours=3)
+        assert model.verbose == 1
+
+    def test_from_config_dict_with_missing_keys(self) -> None:
+        config = {"verbose": 1}
+        with pytest.raises(ValueError, match="1 validation error for SomeModelConfig\nx\n  Field required"):
+            self.model_class.from_config(config)
+            
+    def test_from_config_dict_with_extra_keys(self) -> None:
+        config = {"x": 10, "extra": "extra"}
+        with pytest.raises(ValueError, match="1 validation error for SomeModelConfig\nextra\n  Extra inputs are not permitted"):
+            self.model_class.from_config(config)
+
+    def test_get_config_object(self) -> None:
+        model = self.model_class(x=10, verbose=1)
+        config = model.get_config(format="object")
+        assert config == self.config_class(x=10, verbose=1)
+    
+    def test_raises_on_object_with_simple_types(self) -> None:
+        model = self.model_class(x=10, verbose=1)
+        with pytest.raises(ValueError, match="`simple_types` is not compatible with `format='object'"):
+            model.get_config(format="object", simple_types=True)
+
+    @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
+    def test_get_config_dict(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
+        model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
+        config = model.get_config(format="dict", simple_types=simple_types)
+        assert config == {"x": 10, "verbose": 1, "sc": {"td": expected_td}}
+
+    def test_raises_on_incorrect_format(self) -> None:
+        model = self.model_class(x=10, verbose=1)
+        with pytest.raises(ValueError, match="Unknown format:"):
+            model.get_config(format="incorrect_format")
+
+    @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
+    def test_get_params(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
+        model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
+        config = model.get_params(simple_types=simple_types)
+        assert config == {"x": 10, "verbose": 1, "sc.td": expected_td}
+    
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_params_with_empty_subconfig(self, simple_types: bool) -> None:
+        model = self.model_class(x=10, verbose=1, td=None)
+        config = model.get_params(simple_types=simple_types)
+        assert config == {"x": 10, "verbose": 1, "sc": None}
 
 class TestFixedColdRecoModelMixin:
     def test_cold_reco_works(self) -> None:
