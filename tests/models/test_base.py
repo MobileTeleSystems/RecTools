@@ -52,7 +52,7 @@ def test_raise_when_recommend_u2i_from_not_fitted() -> None:
 
 
 def test_raise_when_recommend_i2i_from_not_fitted() -> None:
-    model: ModelBase[ModelConfig]  = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     with pytest.raises(NotFittedError):
         model.recommend_to_items(
             target_items=np.array([]),
@@ -63,7 +63,7 @@ def test_raise_when_recommend_i2i_from_not_fitted() -> None:
 
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
-    model: ModelBase[ModelConfig]  = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     model.is_fitted = True
     with pytest.raises(ValueError):
         model.recommend(
@@ -76,7 +76,7 @@ def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
 
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
-    model: ModelBase[ModelConfig]  = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     model.is_fitted = True
     with pytest.raises(ValueError):
         model.recommend_to_items(
@@ -543,24 +543,24 @@ class TestConfiguration:
 
     def test_get_config_object(self) -> None:
         model = self.model_class(x=10, verbose=1)
-        config = model.get_config(format="object")
+        config = model.get_config(mode="object")
         assert config == self.config_class(x=10, verbose=1)
 
     def test_raises_on_object_with_simple_types(self) -> None:
         model = self.model_class(x=10, verbose=1)
-        with pytest.raises(ValueError, match="`simple_types` is not compatible with `format='object'"):
-            model.get_config(format="object", simple_types=True)
+        with pytest.raises(ValueError, match="`simple_types` is not compatible with `mode='object'"):
+            model.get_config(mode="object", simple_types=True)
 
     @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
     def test_get_config_dict(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
         model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
-        config = model.get_config(format="dict", simple_types=simple_types)
+        config = model.get_config(mode="dict", simple_types=simple_types)
         assert config == {"x": 10, "verbose": 1, "sc": {"td": expected_td}}
 
     def test_raises_on_incorrect_format(self) -> None:
         model = self.model_class(x=10, verbose=1)
-        with pytest.raises(ValueError, match="Unknown format:"):
-            model.get_config(format="incorrect_format")  # type: ignore[call-overload]
+        with pytest.raises(ValueError, match="Unknown mode:"):
+            model.get_config(mode="incorrect_mode")  # type: ignore[call-overload]
 
     @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
     def test_get_params(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:

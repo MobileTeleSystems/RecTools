@@ -378,7 +378,7 @@ class TestImplicitALSWrapperModelConfiguration:
         model = ImplicitALSWrapperModel.from_config(config)
         assert model.fit_features_together is True
         assert model.verbose == 1
-        inner_model = model._model
+        inner_model = model._model  # pylint: disable=protected-access
         assert inner_model.factors == 16
         assert inner_model.iterations == 100
         if not use_gpu:
@@ -407,11 +407,13 @@ class TestImplicitALSWrapperModelConfiguration:
             "use_gpu": use_gpu,
         }
         if not use_gpu:
-            expected_model_params.update({
-                "use_native": True,
-                "use_cg": True,
-                "num_threads": 2,
-            })
+            expected_model_params.update(
+                {
+                    "use_native": True,
+                    "use_cg": True,
+                    "num_threads": 2,
+                }
+            )
         expected = {
             "model": {
                 "cls": None,
@@ -440,10 +442,10 @@ class TestImplicitALSWrapperModelConfiguration:
         }
         model = ImplicitALSWrapperModel.from_config(config)
 
-        assert isinstance(model._model, CustomALS)
+        assert isinstance(model._model, CustomALS)  # pylint: disable=protected-access
 
         returned_config = model.get_config(simple_types=True)
-        assert returned_config["model"]["cls"] == cls_path
+        assert returned_config["model"]["cls"] == cls_path  # pylint: disable=unsubscriptable-object
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:

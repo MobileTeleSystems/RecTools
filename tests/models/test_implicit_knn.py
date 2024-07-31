@@ -258,7 +258,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         }
         model = ImplicitItemKNNWrapperModel.from_config(config)
         assert model.verbose == 1
-        inner_model = model._model
+        inner_model = model._model  # pylint: disable=protected-access
         assert inner_model.K == 5
         assert inner_model.num_threads == 0
         if model_class == "BM25Recommender":
@@ -292,10 +292,12 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             "num_threads": 0,
         }
         if model_class is BM25Recommender:
-            expected_model_params.update({
-                "K1": 1.2,
-                "B": 0.75,
-            })
+            expected_model_params.update(
+                {
+                    "K1": 1.2,
+                    "B": 0.75,
+                }
+            )
         expected = {
             "model": {
                 "cls": model_class if not simple_types else model_class_str,

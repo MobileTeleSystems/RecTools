@@ -102,7 +102,7 @@ class AlternatingLeastSquaresConfig(BaseConfig):
     """Config for implicit `AlternatingLeastSquares` model."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    # TODO: think about compatibility between cls and `use_gpu` parameter
+
     cls: AlternatingLeastSquaresClass = None
     params: AlternatingLeastSquaresParams = {}
 
