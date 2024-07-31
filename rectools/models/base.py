@@ -66,7 +66,7 @@ class ModelBase:
         self.verbose = verbose
 
     def get_config(
-        self, format: tp.Literal["object", "dict", "flat"] = "dict", simple_types: bool = False, sep: str = "."
+        self, format: tp.Literal["object", "dict"] = "dict", simple_types: bool = False
     ) -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
         """
         simple_types makes sense only for format in ('dict', "flat")
@@ -76,7 +76,7 @@ class ModelBase:
         config = self._get_config()
         if format == "object":
             if simple_types:
-                raise ValueError("`simple_types` is not supported for `format='object'`")
+                raise ValueError("`simple_types` is not compatible with `format='object'`")
             return config
 
         mode = "json" if simple_types else "python"
@@ -86,18 +86,19 @@ class ModelBase:
             if e.__cause__ is not None:
                 raise e.__cause__
             raise e
-            
 
         if format == "dict":
-            return config_dict
-
-        if format == "flat":
-            make_dict_flat(config_dict, sep=sep)  # TODO: how should we handle lists?
+            return config_dict            
 
         raise ValueError(f"Unknown format: {format}")
 
     def _get_config(self) -> ModelConfig:
         raise NotImplementedError()
+    
+    def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
+        config_dict = self.get_config(format="dict", simple_types=simple_types)
+        config_flat = make_dict_flat(config_dict, sep=sep)  # NOBUG: We're not handling lists for now
+        return config_flat
 
     @classmethod
     def from_config(cls: tp.Type[Model_T], config: tp.Union[dict, ModelConfig]) -> Model_T:
