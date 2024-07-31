@@ -482,10 +482,6 @@ def calc_classification_metrics(
     TypeError
         If unexpected metric is present in `metrics`.
     """
-    for metric in metrics.values():
-        if not isinstance(metric, (ClassificationMetric, SimpleClassificationMetric)):
-            raise TypeError(f"Unexpected classification metric {metric}")
-
     results = {}
     merged_debiased = calc_debiased_different_configs(metrics.values(), merged)
 

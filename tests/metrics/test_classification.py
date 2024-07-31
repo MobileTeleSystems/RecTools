@@ -20,7 +20,7 @@ import pytest
 
 from rectools import Columns
 from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall, debias_interactions
-from rectools.metrics.base import MetricAtK, merge_reco
+from rectools.metrics.base import merge_reco
 from rectools.metrics.classification import (
     ClassificationMetric,
     SimpleClassificationMetric,
@@ -118,14 +118,6 @@ class TestAccuracy:
 
 
 class TestCalcClassificationMetrics:
-    def test_raises_when_unexpected_metric_type(self) -> None:
-        metric = MetricAtK(k=1)
-        with pytest.raises(TypeError):
-            calc_classification_metrics(
-                {"m": metric},  # type: ignore
-                pd.DataFrame(columns=[Columns.User, Columns.Item, Columns.Rank]),
-            )
-
     def test_raises_when_no_catalog_set_when_needed(self) -> None:
         metric = ClassificationMetric(k=1)
         with pytest.raises(ValueError):
