@@ -175,8 +175,8 @@ def import_object(path: str) -> tp.Any:
 
     Examples
     --------
-    >>> import_object("sklearn.linear_model.LogisticRegression")
-    <class 'sklearn.linear_model._logistic.LogisticRegression'>
+    >>> import_object("scipy.sparse.csr_matrix")
+    <class 'scipy.sparse._csr.csr_matrix'>
     """
     module_path, object_name = path.rsplit(".", maxsplit=1)
     module = importlib.import_module(module_path)
@@ -189,9 +189,9 @@ def get_class_or_function_full_path(obj: tp.Union[tp.Type, tp.Callable]) -> str:
 
     Examples
     --------
-    >>> from sklearn.linear_model import LogisticRegression
-    >>> get_class_or_function_full_path(LogisticRegression)
-    'sklearn.linear_model._logistic.LogisticRegression'
+    >>> from scipy.sparse import csr_matrix
+    >>> get_class_or_function_full_path(csr_matrix)
+    'scipy.sparse._csr.csr_matrix'
     """
     return f"{obj.__module__}.{obj.__qualname__}"
 
