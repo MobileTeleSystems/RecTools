@@ -446,7 +446,7 @@ class TestImplicitALSWrapperModelConfiguration:
     @pytest.mark.parametrize("simple_types", (False, True)) 
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         def get_reco(model: ImplicitALSWrapperModel):
-            return model.fit(DATASET).recommend(users=np.array([10, 20]), dataset=DATASET, k=2, filter_viewed=False)
+            return model.fit(DATASET).recommend(users=[10, 20], dataset=DATASET, k=2, filter_viewed=False)
         
         initial_config = {
             "model": {

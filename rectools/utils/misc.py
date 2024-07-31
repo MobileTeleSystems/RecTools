@@ -196,19 +196,19 @@ def get_class_or_function_full_path(obj: tp.Union[tp.Type, tp.Callable]) -> str:
     return f"{obj.__module__}.{obj.__qualname__}"
 
 
-def make_dict_flat(d: tp.Dict[str, tp.Any], parent_key: str = "", sep: str = ".") -> tp.Dict[str, tp.Any]:
-    # TODO: Handle lists?
+def make_dict_flat(d: tp.Dict[str, tp.Any], sep: str = ".", parent_key: str = "") -> tp.Dict[str, tp.Any]:
     """
     Flatten nested dictionary.
+    Other types are left as is.
 
     Parameters
     ----------
     d : dict
         Nested dictionary.
-    parent_key : str, default ""
-        Parent key.
     sep : str, default "."
         Separator.
+    parent_key : str, default ""
+        Parent key.
 
     Returns
     -------
@@ -224,7 +224,7 @@ def make_dict_flat(d: tp.Dict[str, tp.Any], parent_key: str = "", sep: str = "."
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.extend(make_dict_flat(v, new_key, sep=sep).items())
+            items.extend(make_dict_flat(v, sep=sep, parent_key=new_key).items()) 
         else:
             items.append((new_key, v))
     return dict(items)
