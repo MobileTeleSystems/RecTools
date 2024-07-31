@@ -175,8 +175,8 @@ def import_object(path: str) -> tp.Any:
 
     Examples
     --------
-    >>> import_object("numpy.random.rand")
-    <function RandomState.rand>
+    >>> import_object("sklearn.linear_model.LogisticRegression")
+    <class 'sklearn.linear_model._logistic.LogisticRegression'>
     """
     module_path, object_name = path.rsplit(".", maxsplit=1)
     module = importlib.import_module(module_path)
@@ -189,9 +189,9 @@ def get_class_or_function_full_path(obj: tp.Union[tp.Type, tp.Callable]) -> str:
 
     Examples
     --------
-    >>> from numpy.random import rand
-    >>> get_class_or_function_full_path(rand)
-    'numpy.random.rand'
+    >>> from sklearn.linear_model import LogisticRegression
+    >>> get_class_or_function_full_path(LogisticRegression)
+    'sklearn.linear_model._logistic.LogisticRegression'
     """
     return f"{obj.__module__}.{obj.__qualname__}"
 
