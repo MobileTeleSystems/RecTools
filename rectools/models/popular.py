@@ -42,6 +42,8 @@ class Popularity(Enum):
 
 
 class PopularModelConfig(ModelConfig):
+    """Config for `PopularModel`."""
+
     popularity: Popularity = Popularity.N_USERS
     period: tp.Optional[timedelta] = None
     begin_from: tp.Optional[datetime] = None

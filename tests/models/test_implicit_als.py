@@ -20,15 +20,17 @@ import numpy as np
 import pandas as pd
 import pytest
 from implicit.als import AlternatingLeastSquares
-from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu import HAS_CUDA
-from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, IdMap, Interactions, SparseFeatures
 from rectools.exceptions import NotFittedError
 from rectools.models import ImplicitALSWrapperModel
-from rectools.models.implicit_als import AnyAlternatingLeastSquares, GPUAlternatingLeastSquares
+from rectools.models.implicit_als import (
+    AnyAlternatingLeastSquares,
+    CPUAlternatingLeastSquares,
+    GPUAlternatingLeastSquares,
+)
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET

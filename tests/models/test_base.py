@@ -518,7 +518,7 @@ class TestConfiguration:
         config = self.config_class(x=10, verbose=1)
         model = self.model_class.from_config(config)
         assert model.x == 10
-        assert model.td == None
+        assert model.td is None
         assert model.verbose == 1
 
     @pytest.mark.parametrize("td", (timedelta(days=2, hours=3), "P2DT3H"))

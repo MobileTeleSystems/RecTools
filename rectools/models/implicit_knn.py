@@ -72,6 +72,8 @@ ItemItemRecommenderClass = tpe.Annotated[
 
 
 class ItemItemRecommenderConfig(BaseConfig):
+    """Config for `implicit` `ItemItemRecommender` model and its successors."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     cls: ItemItemRecommenderClass = ItemItemRecommender
@@ -79,6 +81,8 @@ class ItemItemRecommenderConfig(BaseConfig):
 
 
 class ImplicitItemKNNWrapperModelConfig(ModelConfig):
+    """Config for `ImplicitItemKNNWrapperModel`."""
+
     model: ItemItemRecommenderConfig
 
 

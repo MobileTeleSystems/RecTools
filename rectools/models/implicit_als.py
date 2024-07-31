@@ -86,6 +86,8 @@ RandomState = tpe.Annotated[
 
 
 class AlternatingLeastSquaresParams(tpe.TypedDict):
+    """Params for implicit `AlternatingLeastSquares` model."""
+
     factors: tpe.NotRequired[int]
     regularization: tpe.NotRequired[float]
     alpha: tpe.NotRequired[float]
@@ -100,6 +102,8 @@ class AlternatingLeastSquaresParams(tpe.TypedDict):
 
 
 class AlternatingLeastSquaresConfig(BaseConfig):
+    """Config for implicit `AlternatingLeastSquares` model."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     # TODO: think about compatibility between cls and `use_gpu` parameter
     cls: AlternatingLeastSquaresClass = None
@@ -107,6 +111,8 @@ class AlternatingLeastSquaresConfig(BaseConfig):
 
 
 class ImplicitALSWrapperModelConfig(ModelConfig):
+    """Config for `ImplicitALSWrapperModel`."""
+
     model: AlternatingLeastSquaresConfig
     fit_features_together: bool = False
 

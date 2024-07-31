@@ -42,6 +42,8 @@ Model_T = tp.TypeVar("Model_T", bound="ModelBase")
 
 
 class ModelConfig(BaseConfig):
+    """Base model config."""
+
     verbose: int = 0
 
 
@@ -69,8 +71,25 @@ class ModelBase:
         self, format: tp.Literal["object", "dict"] = "dict", simple_types: bool = False
     ) -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
         """
-        simple_types makes sense only for format in ('dict', "flat")
-        sep makes sense only for format = "flat"
+        Return model config.
+
+        Parameters
+        ----------
+        format : {'object', 'dict'}, default 'dict'
+            Format of returning config.
+        simple_types : bool, default False
+            If True, return config with JSON serializable types.
+            Only works for format='dict'.
+
+        Returns
+        -------
+        Pydantic `BaseModel` or dict
+            Model config.
+
+        Raises
+        ------
+        ValueError
+            If format is not 'object' or 'dict', or if `simple_types` is ``True`` and format is not 'dict'.
         """
         # TODO: make override for different return values?
         config = self._get_config()
@@ -96,12 +115,40 @@ class ModelBase:
         raise NotImplementedError()
 
     def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
+        """
+        Return model parameters.
+        Same as `get_config` but returns flat dict.
+
+        Parameters
+        ----------
+        simple_types : bool, default False
+            If True, return config with JSON serializable types.
+        sep : str, default "."
+            Separator for nested keys.
+
+        Returns
+        -------
+        dict
+            Model parameters.
+        """
         config_dict = self.get_config(format="dict", simple_types=simple_types)
         config_flat = make_dict_flat(config_dict, sep=sep)  # NOBUG: We're not handling lists for now
         return config_flat
 
     @classmethod
     def from_config(cls: tp.Type[Model_T], config: tp.Union[dict, ModelConfig]) -> Model_T:
+        """
+        Create model from config.
+
+        Parameters
+        ----------
+        config : dict or ModelConfig
+            Model config.
+
+        Returns
+        -------
+        Model instance.
+        """
         if not isinstance(config, cls.config_class):
             config = cls.config_class.model_validate(config)
         return cls._from_config(config)
