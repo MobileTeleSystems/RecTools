@@ -67,9 +67,21 @@ class ModelBase:
         self.is_fitted = False
         self.verbose = verbose
 
+    @tp.overload
+    def get_config(  # noqa: D102
+        self, format: tp.Literal["object"], simple_types: bool = False
+    ) -> ModelConfig:  # pragma: no cover
+        ...
+
+    @tp.overload
+    def get_config(  # noqa: D102
+        self, format: tp.Literal["dict"] = "dict", simple_types: bool = False
+    ) -> tp.Dict[str, tp.Any]:  # pragma: no cover
+        ...
+
     def get_config(
         self, format: tp.Literal["object", "dict"] = "dict", simple_types: bool = False
-    ) -> tp.Union[tp.Dict[str, tp.Any], ModelConfig]:
+    ) -> tp.Union[ModelConfig, tp.Dict[str, tp.Any]]:
         """
         Return model config.
 
@@ -91,7 +103,6 @@ class ModelBase:
         ValueError
             If format is not 'object' or 'dict', or if `simple_types` is ``True`` and format is not 'dict'.
         """
-        # TODO: make override for different return values?
         config = self._get_config()
         if format == "object":
             if simple_types:
