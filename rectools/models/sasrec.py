@@ -17,7 +17,6 @@ from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ModelBase
 
 logger = logging.getLogger(__name__)
-SequenceDatasetT = tp.TypeVar("SequenceDatasetT", bound="SequenceDatasetBase")
 
 
 class SasRecRecommenderModel(ModelBase):
@@ -140,21 +139,11 @@ class SasRecRecommenderModel(ModelBase):
 
 # TODO: think about moving all data processing to SequenceDataset.from_dataset method.
 # This would also mean creating different dataset types for fit and recommend
+# If we have different dataset types for fit and recommend,
+# we can also split to x/y/w and pad with zeros in dataset, not dataloader
 
 
-class SequenceDatasetBase(Dataset):
-    """TODO"""
-
-    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
-        raise NotImplementedError()
-
-    @classmethod
-    def from_interactions(cls: tp.Type[SequenceDatasetT], user_item_interactions: pd.DataFrame) -> SequenceDatasetT:
-        """TODO"""
-        raise NotImplementedError()
-
-
-class SequenceDataset(SequenceDatasetBase):
+class SequenceDataset(Dataset):
     """TODO"""
 
     def __init__(self, sessions: List[List[int]], weights: List[List[float]]):
@@ -167,14 +156,13 @@ class SequenceDataset(SequenceDatasetBase):
     def __getitem__(self, index: int) -> Tuple[List[int], List[float]]:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
-        # session_len = len(session)
         return session, weights
 
     @classmethod
     def from_interactions(
-        cls: tp.Type[SequenceDatasetT],
+        cls,
         user_item_interactions: pd.DataFrame,
-    ) -> SequenceDatasetT:
+    ) -> "SequenceDataset":
         """TODO"""
         sessions = (
             user_item_interactions.sort_values(Columns.Datetime)
@@ -238,10 +226,13 @@ class PointWiseFeedForward(torch.nn.Module):
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        # inputs: [batch_size, session_maxlen, factors] -> outputs: [batch_size, session_maxlen, factors]
-        # [batch_size, factors, session_maxlen]
-        outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
-        outputs = outputs.transpose(-1, -2)  # as Conv1D requires (N, C, Length) [batch_size, session_maxlen, factors]
+        # [batch_size, session_maxlen, factors] -> [batch_size, factors, session_maxlen]
+        inputs = inputs.transpose(-1, -2)
+        outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs)))))
+        # [batch_size, factors, session_maxlen] -> [batch_size, session_maxlen, factors]
+        outputs = outputs.transpose(-1, -2)
+        # [batch_size, factors, session_maxlen] -> [batch_size, session_maxlen, factors]
+        inputs = inputs.transpose(-1, -2)
         outputs += inputs
         return outputs
 
@@ -304,7 +295,7 @@ class TransformerEncoder(nn.Module):
             new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
             self.attention_layernorms.append(new_attn_layernorm)
 
-            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate)
+            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True)
             self.attention_layers.append(new_attn_layer)
 
             new_fwd_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
@@ -321,11 +312,9 @@ class TransformerEncoder(nn.Module):
     ) -> torch.Tensor:
         """TODO"""
         for i, _ in enumerate(self.attention_layers):
-            seqs = torch.transpose(seqs, 0, 1)  # [session_maxlen, batch_size, factors]
             q = self.attention_layernorms[i](seqs)  # [batch_size, session_maxlen, factors]
             mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
             seqs = q + mha_outputs
-            seqs = torch.transpose(seqs, 0, 1)  # [session_maxlen, batch_size, factors]
 
             seqs = self.forward_layernorms[i](seqs)
             seqs = self.forward_layers[i](seqs)
@@ -389,7 +378,8 @@ class SASRec(torch.nn.Module):
             positions = np.tile(np.array(range(session_maxlen)), [sessions.shape[0], 1])  # [batch_size, session_maxlen]
             seqs += self.pos_emb(torch.LongTensor(positions).to(self.get_model_device()))
 
-        # TODO: can omit masking pad elements in embeddings
+        # TODO: do we need to fill padding embeds in sessions to all zeros
+        # or should we use the learnt padding embedding? Should we make it an option for user to decide?
         seqs *= timeline_mask  # [batch_size, session_maxlen, factors]
         seqs = self.emb_dropout(seqs)
 
@@ -415,13 +405,9 @@ class SASRec(torch.nn.Module):
         sessions: torch.Tensor,  # [batch_size, session_maxlen]
     ) -> torch.Tensor:
         """TODO"""
-        # TODO merge item model with encode_sessions
         item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, factors]
-
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, factors]
-
         logits = session_embs @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
-
         return logits
 
     def predict(
@@ -448,11 +434,11 @@ class SASRec(torch.nn.Module):
 
         final_feat = session_embs[:, -1, :]  # only use last QKV classifier, a waste [batch_size, factors]
 
-        item_embs = item_embs[item_indices]  # (U, I, C) [n_items, factors]
+        item_embs = item_embs[item_indices]  # [n_items, factors]
 
         logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)  # [batch_size, n_items]
 
-        return logits  # preds # (U, I)
+        return logits
 
 
 class Trainer:
@@ -553,14 +539,11 @@ class SASRecRecommender:
     def __init__(
         self,
         model: SASRec,
-        # task_converter: SequenceTaskConverter,
         item_id_map: IdMap,
-        device: Union[torch.device, str] = "cpu",
+        device: Union[torch.device, str] = "cuda:1",
     ):
         self.item_id_map = item_id_map
         self.model = model.eval()
-        # TODO merge with processor
-        # self.task_converter = task_converter
         self.device = device
 
         self.model.to(self.device)
