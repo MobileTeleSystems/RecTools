@@ -407,11 +407,11 @@ class TestImplicitALSWrapperModelConfiguration:
             "use_gpu": use_gpu,
         }
         if not use_gpu:
-            expected_model_params |= {
+            expected_model_params.update({
                 "use_native": True,
                 "use_cg": True,
                 "num_threads": 2,
-            }
+            })
         expected = {
             "model": {
                 "cls": None,
@@ -442,12 +442,12 @@ class TestImplicitALSWrapperModelConfiguration:
 
         assert isinstance(model._model, CustomALS)
 
-        config = model.get_config(simple_types=True)
-        assert config["model"]["cls"] == cls_path
+        returned_config = model.get_config(simple_types=True)
+        assert returned_config["model"]["cls"] == cls_path
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        def get_reco(model: ImplicitALSWrapperModel):
+        def get_reco(model: ImplicitALSWrapperModel) -> pd.DataFrame:
             return model.fit(DATASET).recommend(users=[10, 20], dataset=DATASET, k=2, filter_viewed=False)
 
         initial_config = {

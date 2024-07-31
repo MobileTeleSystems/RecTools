@@ -248,7 +248,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
     def test_from_config(self, model_class: tp.Union[tp.Type[ItemItemRecommender], str]) -> None:
         params = {"K": 5}
         if model_class == "BM25Recommender":
-            params |= {"K1": 0.33}
+            params.update({"K1": 0.33})
         config = {
             "model": {
                 "cls": model_class,
@@ -292,10 +292,10 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             "num_threads": 0,
         }
         if model_class is BM25Recommender:
-            expected_model_params |= {
+            expected_model_params.update({
                 "K1": 1.2,
                 "B": 0.75,
-            }
+            })
         expected = {
             "model": {
                 "cls": model_class if not simple_types else model_class_str,
@@ -307,7 +307,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        def get_reco(model: ImplicitItemKNNWrapperModel):
+        def get_reco(model: ImplicitItemKNNWrapperModel) -> pd.DataFrame:
             return model.fit(DATASET).recommend(users=np.array([10, 20]), dataset=DATASET, k=2, filter_viewed=False)
 
         initial_config = {

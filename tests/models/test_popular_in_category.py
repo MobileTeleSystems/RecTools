@@ -106,7 +106,7 @@ class TestPopularInCategoryModel:
 
     def test_raises_when_incorrect_popularity(self) -> None:
         with pytest.raises(ValueError):
-            PopularInCategoryModel(popularity="strange", category_feature="f2")
+            PopularInCategoryModel(popularity="strange", category_feature="f2")  # type: ignore[arg-type]
 
     def test_raises_when_incorrect_n_categories(self) -> None:
         with pytest.raises(ValueError):
@@ -114,11 +114,11 @@ class TestPopularInCategoryModel:
 
     def test_raises_when_incorrect_mixing_strategy(self) -> None:
         with pytest.raises(ValueError):
-            PopularInCategoryModel(mixing_strategy="strange", category_feature="f2")
+            PopularInCategoryModel(mixing_strategy="strange", category_feature="f2")  # type: ignore[arg-type]
 
     def test_raises_when_incorrect_ratio_strategy(self) -> None:
         with pytest.raises(ValueError):
-            PopularInCategoryModel(ratio_strategy="strange", category_feature="f2")
+            PopularInCategoryModel(ratio_strategy="strange", category_feature="f2")  # type: ignore[arg-type]
 
     def test_raises_when_dense_features(self, interactions_df: pd.DataFrame) -> None:
         item_idx = interactions_df[Columns.Item].unique()
@@ -436,7 +436,7 @@ class TestPopularInCategoryModel:
         ratio_strategy: str,
         n_categories: tp.Optional[int],
     ) -> None:
-        model = PopularInCategoryModel(
+        model = PopularInCategoryModel(  # type: ignore[arg-type]
             category_feature=category_feature,
             popularity=popularity,
             mixing_strategy=mixing_strategy,
