@@ -69,65 +69,65 @@ class DebiasableMetrikAtK(MetricAtK):
                 "or otherwise use `calc` and `calc_per_user` methods for auto de-biasing."
             )
 
-    @classmethod
-    def debias_interactions(cls, interactions: pd.DataFrame, config: DebiasConfig) -> pd.DataFrame:
-        """
-        Downsample the size of interactions, excluding some interactions with popular items.
 
-        Algorithm:
+def debias_interactions(interactions: pd.DataFrame, config: DebiasConfig) -> pd.DataFrame:
+    """
+    Downsample the size of interactions, excluding some interactions with popular items.
 
-            1. Calculate item "popularity"
-            (here: number of unique users that had interaction with the item) distribution from interactions;
-            2. Find first (Q1) and third (Q3) quartiles in items "popularity" distribution;
-            3. Calculate IQR = Q3 - Q1;
-            4. Calculate maximum value inside by formula: Q3 + iqr_coef * IQR;
-            5. Down-sample for all exceeding items in interactions,
-            randomly keeping the maximum group of users to a size not exceeding
-            maximum value inside
+    Algorithm:
 
-        Parameters
-        ----------
-        interactions : pd.DataFrame
-            Table with previous user-item interactions,
-            with columns `Columns.User`, `Columns.Item`.
-        config : DebiasConfig
-            Config with debias method parameters (iqr_coef, random_state).
+        1. Calculate item "popularity"
+        (here: number of unique users that had interaction with the item) distribution from interactions;
+        2. Find first (Q1) and third (Q3) quartiles in items "popularity" distribution;
+        3. Calculate IQR = Q3 - Q1;
+        4. Calculate maximum value inside by formula: Q3 + iqr_coef * IQR;
+        5. Down-sample for all exceeding items in interactions,
+        randomly keeping the maximum group of users to a size not exceeding
+        maximum value inside
 
-        Returns
-        -------
-        pd.DataFrame
-            Downsampling interactions.
-        """
-        if len(interactions) == 0:
-            return interactions
+    Parameters
+    ----------
+    interactions : pd.DataFrame
+        Table with previous user-item interactions,
+        with columns `Columns.User`, `Columns.Item`.
+    config : DebiasConfig
+        Config with debias method parameters (iqr_coef, random_state).
 
-        interactions_for_debiasing = interactions.copy()
+    Returns
+    -------
+    pd.DataFrame
+        Downsampling interactions.
+    """
+    if len(interactions) == 0:
+        return interactions
 
-        num_users_interacted_with_item = interactions_for_debiasing.groupby(Columns.Item, sort=False)[
-            Columns.User
-        ].nunique()
+    interactions_for_debiasing = interactions.copy()
 
-        quantiles = num_users_interacted_with_item.quantile(q=[0.25, 0.75])
-        q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
-        iqr = q3 - q1
-        max_border = int(q3 + config.iqr_coef * iqr)
+    num_users_interacted_with_item = interactions_for_debiasing.groupby(Columns.Item, sort=False)[
+        Columns.User
+    ].nunique()
 
-        item_outside_max_border = num_users_interacted_with_item[num_users_interacted_with_item > max_border].index
+    quantiles = num_users_interacted_with_item.quantile(q=[0.25, 0.75])
+    q1, q3 = quantiles.loc[0.25], quantiles.loc[0.75]
+    iqr = q3 - q1
+    max_border = int(q3 + config.iqr_coef * iqr)
 
-        mask_outside_max_border = interactions_for_debiasing[Columns.Item].isin(item_outside_max_border)
-        interactions_result = interactions_for_debiasing[~mask_outside_max_border]
-        interactions_downsampling = interactions_for_debiasing[mask_outside_max_border]
+    item_outside_max_border = num_users_interacted_with_item[num_users_interacted_with_item > max_border].index
 
-        interactions_downsampling = (
-            interactions_downsampling.sample(frac=1.0, random_state=config.random_state)
-            .groupby(Columns.Item)
-            .head(max_border)
-        )
+    mask_outside_max_border = interactions_for_debiasing[Columns.Item].isin(item_outside_max_border)
+    interactions_result = interactions_for_debiasing[~mask_outside_max_border]
+    interactions_downsampling = interactions_for_debiasing[mask_outside_max_border]
 
-        result_dfs = [interactions_result, interactions_downsampling]
-        interactions_result = pd.concat(result_dfs, ignore_index=True)
+    interactions_downsampling = (
+        interactions_downsampling.sample(frac=1.0, random_state=config.random_state)
+        .groupby(Columns.Item)
+        .head(max_border)
+    )
 
-        return interactions_result
+    result_dfs = [interactions_result, interactions_downsampling]
+    interactions_result = pd.concat(result_dfs, ignore_index=True)
+
+    return interactions_result
 
 
 def calc_debiased_fit_task(
@@ -160,7 +160,7 @@ def calc_debiased_fit_task(
     result = {
         config: (
             max_k_for_config[config],
-            DebiasableMetrikAtK.debias_interactions(interactions, config) if config is not None else interactions,
+            debias_interactions(interactions, config) if config is not None else interactions,
         )
         for config in configs
     }
@@ -171,7 +171,7 @@ def calc_debiased_different_configs(
     metrics: tp.Iterable[DebiasableMetrikAtK], interactions: pd.DataFrame
 ) -> tp.Dict[DebiasConfig, pd.DataFrame]:
     """
-    Calculates debiased differential metrics for a set of metrics and interactions.
+    Calculate debiased differential metrics for a set of metrics and interactions.
 
     Parameters
     ----------
@@ -188,7 +188,6 @@ def calc_debiased_different_configs(
     """
     configs = set(metric.debias_config for metric in metrics)
     debiased_interactions = {
-        config: DebiasableMetrikAtK.debias_interactions(interactions, config) if config is not None else interactions
-        for config in configs
+        config: debias_interactions(interactions, config) if config is not None else interactions for config in configs
     }
     return debiased_interactions

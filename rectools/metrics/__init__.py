@@ -40,7 +40,6 @@ Metrics
 `metrics.SufficientReco`
 `metrics.UnrepeatedReco`
 `metrics.CoveredUsers`
-`metrics.DebiasableMetrikAtK`
 
 Tools
 -----
@@ -49,11 +48,12 @@ Tools
 `metrics.PairwiseHammingDistanceCalculator`
 `metrics.SparsePairwiseHammingDistanceCalculator`
 `metrics.DebiasConfig`
+`metrics.debias_interactions`
 """
 
 from .auc import PAP, PartialAUC
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
-from .debias import DebiasConfig, DebiasableMetrikAtK
+from .debias import DebiasConfig, debias_interactions
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -93,5 +93,5 @@ __all__ = (
     "UnrepeatedReco",
     "CoveredUsers",
     "DebiasConfig",
-    "DebiasableMetrikAtK",
+    "debias_interactions",
 )

@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import DebiasConfig, DebiasableMetrikAtK
+from rectools.metrics import DebiasConfig, debias_interactions
 from rectools.metrics.auc import PAP, InsufficientHandling, PartialAUC
 
 EMPTY_INTERACTIONS = pd.DataFrame(columns=[Columns.User, Columns.Item], dtype=int)
@@ -335,9 +335,7 @@ class TestDebiasableAUCMetric:
         ),
     )
     def test_calc(self, metric: tp.Union[PartialAUC, PAP], metric_debias: tp.Union[PartialAUC, PAP]) -> None:
-        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
-            self.interactions, config=metric_debias.debias_config
-        )
+        downsample_interactions = debias_interactions(self.interactions, config=metric_debias.debias_config)
 
         expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
         result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)

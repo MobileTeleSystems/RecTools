@@ -22,7 +22,7 @@ from attrs import define, field
 
 from rectools import Columns
 from rectools.metrics.base import outer_merge_reco
-from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task, debias_interactions
 
 
 class InsufficientHandling(str, Enum):
@@ -222,7 +222,7 @@ class _AUCMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions, self.debias_config)
+            interactions = debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)

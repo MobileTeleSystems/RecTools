@@ -21,7 +21,7 @@ import pytest
 from rectools import Columns
 from rectools.metrics import MAP, PAP, PartialAUC
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DebiasConfig, DebiasableMetrikAtK, calc_debiased_fit_task
+from rectools.metrics.debias import DebiasConfig, DebiasableMetrikAtK, calc_debiased_fit_task, debias_interactions
 
 DEBIAS_CONFIG_DEFAULT = DebiasConfig(iqr_coef=1.5, random_state=32)
 
@@ -68,8 +68,8 @@ class TestDebias:
             on=Columns.UserItem,
         )
 
-        interactions_downsampling = DebiasableMetrikAtK.debias_interactions(interactions, config=DEBIAS_CONFIG_DEFAULT)
-        merged_downsampling = DebiasableMetrikAtK.debias_interactions(merged, config=DEBIAS_CONFIG_DEFAULT)
+        interactions_downsampling = debias_interactions(interactions, config=DEBIAS_CONFIG_DEFAULT)
+        merged_downsampling = debias_interactions(merged, config=DEBIAS_CONFIG_DEFAULT)
 
         pd.testing.assert_frame_equal(
             interactions_downsampling.sort_values(Columns.UserItem, ignore_index=True),
@@ -80,9 +80,7 @@ class TestDebias:
         )
 
     def test_debias_interactions_when_no_interactions(self, empty_interactions: pd.DataFrame) -> None:
-        interactions_downsampling = DebiasableMetrikAtK.debias_interactions(
-            empty_interactions, config=DEBIAS_CONFIG_DEFAULT
-        )
+        interactions_downsampling = debias_interactions(empty_interactions, config=DEBIAS_CONFIG_DEFAULT)
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
     @pytest.mark.parametrize(

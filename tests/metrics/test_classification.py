@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import MCC, Accuracy, DebiasConfig, DebiasableMetrikAtK, F1Beta, HitRate, Precision, Recall
+from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall, debias_interactions
 from rectools.metrics.base import MetricAtK, merge_reco
 from rectools.metrics.classification import (
     ClassificationMetric,
@@ -218,9 +218,7 @@ class TestDebiasableClassificationMetric:
         ),
     )
     def test_calc(self, metric: ClassificationMetric, metric_debias: ClassificationMetric) -> None:
-        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
-            INTERACTIONS, config=metric_debias.debias_config
-        )
+        downsample_interactions = debias_interactions(INTERACTIONS, config=metric_debias.debias_config)
         expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
 
         result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS, CATALOG)
@@ -305,9 +303,7 @@ class TestDebiasableSimpleClassificationMetric:
         metric: SimpleClassificationMetric,
         metric_debias: SimpleClassificationMetric,
     ) -> None:
-        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
-            INTERACTIONS, config=metric_debias.debias_config
-        )
+        downsample_interactions = debias_interactions(INTERACTIONS, config=metric_debias.debias_config)
         expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions)
 
         result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS)

@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import DebiasConfig, DebiasableMetrikAtK
+from rectools.metrics import DebiasConfig, debias_interactions
 from rectools.metrics.base import merge_reco
 from rectools.metrics.ranking import MAP, MRR, NDCG, RankingMetric
 
@@ -224,9 +224,7 @@ class TestDebiasableRankingMetric:
         ),
     )
     def test_calc(self, metric: RankingMetric, metric_debias: RankingMetric) -> None:
-        downsample_interactions = DebiasableMetrikAtK.debias_interactions(
-            self.interactions, config=metric_debias.debias_config
-        )
+        downsample_interactions = debias_interactions(self.interactions, config=metric_debias.debias_config)
 
         expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
         result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)

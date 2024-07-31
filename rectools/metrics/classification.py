@@ -23,7 +23,7 @@ import pandas as pd
 from rectools import Columns
 
 from .base import Catalog, merge_reco
-from .debias import DebiasableMetrikAtK, calc_debiased_different_configs
+from .debias import DebiasableMetrikAtK, calc_debiased_different_configs, debias_interactions
 
 TP = "__TP"
 FP = "__FP"
@@ -89,7 +89,7 @@ class ClassificationMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions, self.debias_config)
+            interactions = debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -207,7 +207,7 @@ class SimpleClassificationMetric(DebiasableMetrikAtK):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions, self.debias_config)
+            interactions = debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)

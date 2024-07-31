@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasableMetrikAtK, calc_debiased_different_configs, calc_debiased_fit_task
+from .debias import DebiasableMetrikAtK, calc_debiased_different_configs, calc_debiased_fit_task, debias_interactions
 
 
 @attr.s
@@ -251,7 +251,7 @@ class MAP(_RankingMetric):
         """
         is_debiased = False
         if self.debias_config is not None:
-            interactions = self.debias_interactions(interactions, self.debias_config)
+            interactions = debias_interactions(interactions, self.debias_config)
             is_debiased = True
 
         self._check(reco, interactions=interactions)
@@ -398,6 +398,8 @@ class NDCG(_RankingMetric):
         merged : pd.DataFrame
             Result of merging recommendations and interactions tables.
             Can be obtained using `merge_reco` function.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
@@ -416,6 +418,8 @@ class NDCG(_RankingMetric):
         merged : pd.DataFrame
             Result of merging recommendations and interactions tables.
             Can be obtained using `merge_reco` function.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
@@ -423,7 +427,7 @@ class NDCG(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if not is_debiased and self.debias_config is not None:
-            merged = self.debias_interactions(merged, self.debias_config)
+            merged = debias_interactions(merged, self.debias_config)
 
         dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
         idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
@@ -517,6 +521,8 @@ class MRR(_RankingMetric):
         merged : pd.DataFrame
             Result of merging recommendations and interactions tables.
             Can be obtained using `merge_reco` function.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
@@ -524,7 +530,7 @@ class MRR(_RankingMetric):
             Values of metric (index - user id, values - metric value for every user).
         """
         if not is_debiased and self.debias_config is not None:
-            merged = self.debias_interactions(merged, self.debias_config)
+            merged = debias_interactions(merged, self.debias_config)
 
         cutted_rank = np.where(merged[Columns.Rank] <= self.k, merged[Columns.Rank], np.nan)
         min_rank_per_user = (
@@ -543,6 +549,8 @@ class MRR(_RankingMetric):
         merged : pd.DataFrame
             Result of merging recommendations and interactions tables.
             Can be obtained using `merge_reco` function.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
@@ -589,7 +597,7 @@ def calc_ranking_metrics(
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
         merged_debiased = calc_debiased_different_configs(ranking_metrics.values(), merged)
         for name, metric in ranking_metrics.items():
-            results[name] = metric.calc_from_merged(merged_debiased[metric.debias_config], is_debiased=False)
+            results[name] = metric.calc_from_merged(merged_debiased[metric.debias_config], is_debiased=True)
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
