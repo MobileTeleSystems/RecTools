@@ -35,7 +35,6 @@ from rectools.utils.misc import get_class_or_function_full_path, import_object
 from .rank import Distance
 from .vector import Factors, VectorModel
 
-AVAILABLE_RECOMMEND_METHODS = ("loop",)
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
 
 
