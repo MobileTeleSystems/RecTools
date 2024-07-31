@@ -560,7 +560,7 @@ class TestConfiguration:
     def test_raises_on_incorrect_format(self) -> None:
         model = self.model_class(x=10, verbose=1)
         with pytest.raises(ValueError, match="Unknown format:"):
-            model.get_config(format="incorrect_format")
+            model.get_config(format="incorrect_format")  # type: ignore[call-overload]
 
     @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
     def test_get_params(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:

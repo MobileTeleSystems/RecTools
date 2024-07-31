@@ -183,7 +183,7 @@ class ImplicitALSWrapperModel(VectorModel):
         return ImplicitALSWrapperModelConfig(
             model=AlternatingLeastSquaresConfig(
                 cls=model_cls if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) else None,
-                params=AlternatingLeastSquaresParams(params),
+                params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
             ),
             verbose=verbose,
             fit_features_together=fit_features_together,

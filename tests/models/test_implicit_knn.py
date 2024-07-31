@@ -246,7 +246,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         ),
     )
     def test_from_config(self, model_class: tp.Union[tp.Type[ItemItemRecommender], str]) -> None:
-        params = {"K": 5}
+        params: tp.Dict[str, tp.Any] = {"K": 5}
         if model_class == "BM25Recommender":
             params.update({"K1": 0.33})
         config = {
@@ -287,7 +287,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
-        expected_model_params = {
+        expected_model_params: tp.Dict[str, tp.Any] = {
             "K": 5,
             "num_threads": 0,
         }

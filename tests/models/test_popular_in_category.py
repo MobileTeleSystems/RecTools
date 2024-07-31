@@ -209,7 +209,7 @@ class TestPopularInCategoryModel:
         model = PopularInCategoryModel(
             category_feature="f2",
             popularity="mean_weight",
-            mixing_strategy=mixing_strategy,
+            mixing_strategy=mixing_strategy,  # type: ignore[arg-type]
             ratio_strategy="proportional",
         )
         model.fit(dataset)
@@ -436,11 +436,11 @@ class TestPopularInCategoryModel:
         ratio_strategy: str,
         n_categories: tp.Optional[int],
     ) -> None:
-        model = PopularInCategoryModel(  # type: ignore[arg-type]
+        model = PopularInCategoryModel(
             category_feature=category_feature,
-            popularity=popularity,
-            mixing_strategy=mixing_strategy,
-            ratio_strategy=ratio_strategy,
+            popularity=popularity,  # type: ignore[arg-type]
+            mixing_strategy=mixing_strategy,  # type: ignore[arg-type]
+            ratio_strategy=ratio_strategy,  # type: ignore[arg-type]
             n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)
