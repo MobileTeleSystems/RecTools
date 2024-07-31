@@ -86,7 +86,7 @@ class ImplicitItemKNNWrapperModelConfig(ModelConfig):
     model: ItemItemRecommenderConfig
 
 
-class ImplicitItemKNNWrapperModel(ModelBase):
+class ImplicitItemKNNWrapperModel(ModelBase[ImplicitItemKNNWrapperModelConfig]):
     """
     Wrapper for `implicit.nearest_neighbours.ItemItemRecommender` and its successors.
 
@@ -124,7 +124,7 @@ class ImplicitItemKNNWrapperModel(ModelBase):
         )
 
     @classmethod
-    def _from_config(cls, config: ImplicitItemKNNWrapperModelConfig) -> tpe.Self:  # TODO: check tpe.Self
+    def _from_config(cls, config: ImplicitItemKNNWrapperModelConfig) -> tpe.Self:
         model = config.model.cls(**config.model.params)
         return cls(model=model, verbose=config.verbose)
 

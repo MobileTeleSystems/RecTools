@@ -41,7 +41,7 @@ from .data import DATASET, INTERACTIONS
 
 
 def test_raise_when_recommend_u2i_from_not_fitted() -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     with pytest.raises(NotFittedError):
         model.recommend(
             users=np.array([]),
@@ -52,7 +52,7 @@ def test_raise_when_recommend_u2i_from_not_fitted() -> None:
 
 
 def test_raise_when_recommend_i2i_from_not_fitted() -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig]  = ModelBase()
     with pytest.raises(NotFittedError):
         model.recommend_to_items(
             target_items=np.array([]),
@@ -63,7 +63,7 @@ def test_raise_when_recommend_i2i_from_not_fitted() -> None:
 
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig]  = ModelBase()
     model.is_fitted = True
     with pytest.raises(ValueError):
         model.recommend(
@@ -76,7 +76,7 @@ def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
 
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig]  = ModelBase()
     model.is_fitted = True
     with pytest.raises(ValueError):
         model.recommend_to_items(
@@ -494,7 +494,7 @@ class TestConfiguration:
             x: int
             sc: tp.Optional[SomeModelSubConfig] = None
 
-        class SomeModel(ModelBase):
+        class SomeModel(ModelBase[SomeModelConfig]):
             config_class = SomeModelConfig
 
             def __init__(self, x: int, td: tp.Optional[timedelta] = None, verbose: int = 0):

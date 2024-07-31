@@ -72,7 +72,7 @@ def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.Random
     if rs is None or isinstance(rs, int):
         return rs
 
-    # TODO: We can add serialization using get/set_state, but it's not human readable
+    # NOBUG: We can add serialization using get/set_state, but it's not human readable
     raise ValueError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
 
 
@@ -114,7 +114,7 @@ class ImplicitALSWrapperModelConfig(ModelConfig):
     fit_features_together: bool = False
 
 
-class ImplicitALSWrapperModel(VectorModel):
+class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     """
     Wrapper for `implicit.als.AlternatingLeastSquares`
     with possibility to use explicit features and GPU support.

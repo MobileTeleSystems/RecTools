@@ -19,6 +19,7 @@ import typing as tp
 import numpy as np
 import pandas as pd
 from pydantic_core import PydanticSerializationError
+import typing_extensions as tpe
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
@@ -38,8 +39,6 @@ RecoTriplet = tp.Tuple[AnyIds, AnyIds, Scores]
 
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, RecoTriplet)
 
-Model_T = tp.TypeVar("Model_T", bound="ModelBase")
-
 
 class ModelConfig(BaseConfig):
     """Base model config."""
@@ -47,7 +46,9 @@ class ModelConfig(BaseConfig):
     verbose: int = 0
 
 
-class ModelBase:
+ModelConfig_T = tp.TypeVar("ModelConfig_T", bound=ModelConfig)
+
+class ModelBase(tp.Generic[ModelConfig_T]):
     """
     Base model class.
 
@@ -57,11 +58,8 @@ class ModelBase:
 
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
-    # TODO: Make generic?
-    # This allows to specify correct type in get_config and from_config.
-    # Also allows to make child classes correctly typed.
-    # But how to make it work with VectorModel and other intermediate classes?
-    config_class = ModelConfig
+
+    config_class: tp.Type[ModelConfig_T]
 
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
@@ -70,7 +68,7 @@ class ModelBase:
     @tp.overload
     def get_config(  # noqa: D102
         self, format: tp.Literal["object"], simple_types: bool = False
-    ) -> ModelConfig:  # pragma: no cover
+    ) -> ModelConfig_T:  # pragma: no cover
         ...
 
     @tp.overload
@@ -81,7 +79,7 @@ class ModelBase:
 
     def get_config(
         self, format: tp.Literal["object", "dict"] = "dict", simple_types: bool = False
-    ) -> tp.Union[ModelConfig, tp.Dict[str, tp.Any]]:
+    ) -> tp.Union[ModelConfig_T, tp.Dict[str, tp.Any]]:
         """
         Return model config.
 
@@ -122,7 +120,7 @@ class ModelBase:
 
         raise ValueError(f"Unknown format: {format}")
 
-    def _get_config(self) -> ModelConfig:
+    def _get_config(self) -> ModelConfig_T:
         raise NotImplementedError()
 
     def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
@@ -147,7 +145,7 @@ class ModelBase:
         return config_flat
 
     @classmethod
-    def from_config(cls: tp.Type[Model_T], config: tp.Union[dict, ModelConfig]) -> Model_T:
+    def from_config(cls, config: tp.Union[dict, ModelConfig_T]) -> tpe.Self:
         """
         Create model from config.
 
@@ -161,11 +159,11 @@ class ModelBase:
         Model instance.
         """
         if not isinstance(config, cls.config_class):
-            config = cls.config_class.model_validate(config)
-        return cls._from_config(config)
+            config_obj = cls.config_class.model_validate(config)
+        return cls._from_config(config_obj)
 
     @classmethod
-    def _from_config(cls: tp.Type[Model_T], config: ModelConfig) -> Model_T:
+    def _from_config(cls, config: ModelConfig_T) -> tpe.Self:
         raise NotImplementedError()
 
     def fit(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
