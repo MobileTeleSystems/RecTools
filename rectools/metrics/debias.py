@@ -131,10 +131,12 @@ def debias_interactions(interactions: pd.DataFrame, config: DebiasConfig) -> pd.
 
 
 def calc_debiased_fit_task(
-    metrics: tp.Iterable[DebiasableMetrikAtK], interactions: pd.DataFrame
+    metrics: tp.Iterable[DebiasableMetrikAtK],
+    interactions: pd.DataFrame,
+    debiasing_interactions_prev: tp.Optional[tp.Dict[DebiasConfig, pd.DataFrame]] = None,
 ) -> tp.Dict[DebiasConfig, tp.Tuple[int, pd.DataFrame]]:
     """
-    Calculate for each debias config `k_max` and de-basing `interactions`
+    Calculate for each of the unique debias configs `k_max` and de-biasing `interactions`
     to then apply them in the `fit` methods of the corresponding metrics.
 
     Parameters
@@ -144,34 +146,34 @@ def calc_debiased_fit_task(
     interactions : pd.DataFrame
         Interactions or merging table with columns `Columns.User`, `Columns.Item`, `Columns.Rank` (for merging).
         Obligatory only for some types of metrics.
+    debiasing_interactions_prev : dict(DebiasConfig->pd.DataFrame]), optinonal
+        De-biasing interactions for certain debias configs calculated earlier.
 
     Returns
     -------
     dict(DebiasConfig->list[(int | pd.DataFrame)])
         Dictionary, where key is debias config
-        and values are a list of the corresponding k_max and de-basing interactions.
+        and values are a tuple of the corresponding `k_max` and de-basing `interactions`.
     """
-    configs = set(metric.debias_config for metric in metrics)
-    max_k_for_config = {config: 0 for config in configs}
+    debiasing_interactions = calc_debiased_different_configs(metrics, interactions, debiasing_interactions_prev)
 
+    max_k_for_config = {config: 0 for config in debiasing_interactions}
     for metric in metrics:
         max_k_for_config[metric.debias_config] = max(max_k_for_config[metric.debias_config], metric.k)
 
     result = {
-        config: (
-            max_k_for_config[config],
-            debias_interactions(interactions, config) if config is not None else interactions,
-        )
-        for config in configs
+        config: (max_k_for_config[config], d_interaciotns) for config, d_interaciotns in debiasing_interactions.items()
     }
     return result
 
 
 def calc_debiased_different_configs(
-    metrics: tp.Iterable[DebiasableMetrikAtK], interactions: pd.DataFrame
+    metrics: tp.Iterable[DebiasableMetrikAtK],
+    interactions: pd.DataFrame,
+    debiasing_interactions_prev: tp.Optional[tp.Dict[DebiasConfig, pd.DataFrame]] = None,
 ) -> tp.Dict[DebiasConfig, pd.DataFrame]:
     """
-    Calculate debiased differential metrics for a set of metrics and interactions.
+    Calculate for each of the unique debias configs de-biasing `interactions`.
 
     Parameters
     ----------
@@ -179,15 +181,25 @@ def calc_debiased_different_configs(
             List of metrics to calculate debiased differential metrics for.
         interactions : pd.DataFrame
             List of interactions to calculate debiased differential metrics for.
+        debiasing_interactions_prev : dict(DebiasConfig->pd.DataFrame]), optinonal
+            De-biasing interactions for certain debias configs calculated earlier.
 
     Returns
     -------
     dict(DebiasConfig->pd.DataFrame])
-        Dictionary, where key is debias config
-        and values are a list of the corresponding k_max and de-basing interactions.
+        Dictionary, where key is debias config and values are de-basing `interactions`.
     """
-    configs = set(metric.debias_config for metric in metrics)
-    debiased_interactions = {
-        config: debias_interactions(interactions, config) if config is not None else interactions for config in configs
+    if debiasing_interactions_prev is not None:
+        configs_new = set(
+            metric.debias_config for metric in metrics if metric.debias_config not in debiasing_interactions_prev
+        )
+    else:
+        configs_new = set(metric.debias_config for metric in metrics)
+
+    debiasing_interactions = {
+        config: debias_interactions(interactions, config) if config is not None else interactions
+        for config in configs_new
     }
-    return debiased_interactions
+    if debiasing_interactions_prev is not None:
+        debiasing_interactions = {**debiasing_interactions_prev, **debiasing_interactions}
+    return debiasing_interactions

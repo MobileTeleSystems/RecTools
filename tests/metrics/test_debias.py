@@ -90,41 +90,66 @@ class TestDebias:
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
     @pytest.mark.parametrize(
-        "metrics",
+        "metrics, num_metrics_prev",
         (
-            {
-                "dMAP@1": MAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "dMAP@3": MAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "dMAP@2": MAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
-                "dMAP@4": MAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
-                "dMAP@5": MAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
-                "MAP@1": MAP(k=1),
-                "MAP@5": MAP(k=5),
-            },
-            {
-                "dPartialAUC@1": PartialAUC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "dPartialAUC@3": PartialAUC(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "dPartialAUC@2": PartialAUC(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
-                "dPartialAUC@4": PartialAUC(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
-                "dPartialAUC@5": PartialAUC(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
-                "PartialAUC@1": PartialAUC(k=1),
-                "PartialAUC@5": PartialAUC(k=5),
-            },
-            {
-                "dPAP@1": PAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "dPAP@3": PAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "dPAP@2": PAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
-                "dPAP@4": PAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
-                "dPAP@5": PAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
-                "PAP@1": PAP(k=1),
-                "PAP@5": PAP(k=5),
-            },
+            (
+                {
+                    "dMAP@1": MAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dMAP@3": MAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dMAP@2": MAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                    "dMAP@4": MAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                    "dMAP@5": MAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "MAP@1": MAP(k=1),
+                    "MAP@5": MAP(k=5),
+                },
+                None,
+            ),
+            (
+                {
+                    "dPartialAUC@1": PartialAUC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dPartialAUC@3": PartialAUC(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dPartialAUC@2": PartialAUC(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                    "dPartialAUC@4": PartialAUC(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                    "dPartialAUC@5": PartialAUC(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "PartialAUC@1": PartialAUC(k=1),
+                    "PartialAUC@5": PartialAUC(k=5),
+                },
+                None,
+            ),
+            (
+                {
+                    "dPAP@1": PAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dPAP@3": PAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dPAP@2": PAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                    "dPAP@4": PAP(k=4, debias_config=DebiasConfig(iqr_coef=1.6, random_state=10)),
+                    "dPAP@5": PAP(k=5, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "PAP@1": PAP(k=1),
+                    "PAP@5": PAP(k=5),
+                },
+                {
+                    "dPAP@3": PAP(k=3, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dPAP@2": PAP(k=2, debias_config=DebiasConfig(iqr_coef=1.6, random_state=32)),
+                },
+            ),
         ),
     )
     def test_calc_debiased_fit_task(
-        self, metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
+        self,
+        metrics: tp.Dict[str, DebiasableMetrikAtK],
+        num_metrics_prev: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
+        interactions: pd.DataFrame,
     ) -> None:
-        debiased_fit_task = calc_debiased_fit_task(metrics=metrics.values(), interactions=interactions)
+        debiasing_interactions_prev = None
+        if num_metrics_prev is not None:
+            debiasing_interactions_prev = calc_debiased_different_configs(
+                metrics=num_metrics_prev.values(), interactions=interactions
+            )
+        else:
+            debiasing_interactions_prev = None
+
+        debiased_fit_task = calc_debiased_fit_task(
+            metrics=metrics.values(), interactions=interactions, debiasing_interactions_prev=debiasing_interactions_prev
+        )
 
         unique_debias_config_expected = set()
         k_max_expected: tp.Dict[DebiasConfig, int] = defaultdict(int)
@@ -137,33 +162,72 @@ class TestDebias:
             assert debiased_fit_task[value][0] == k_max_expected[value]
 
     @pytest.mark.parametrize(
-        "metrics",
+        "metrics, num_metrics_prev",
         (
-            {
-                "dMCC@1": MCC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "MCC@3": MCC(k=3),
-                "dAccuracy@5": Accuracy(k=5, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "Accuracy@2": Accuracy(k=2),
-                "dPrecision@4": Precision(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
-                "Precision@1": Precision(k=1),
-                "dRecall@4": Recall(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
-                "Recall@1": Precision(k=1),
-                "dF1Beta@10": F1Beta(k=10, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "F1Beta@9": F1Beta(k=9),
-                "dHitRate@4": HitRate(k=4, debias_config=DebiasConfig(iqr_coef=1.1, random_state=10)),
-                "HitRate@6": HitRate(k=6),
-            },
-            {
-                "dNDCG@1": NDCG(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
-                "NDCG@3": NDCG(k=3),
-                "dMRR@5": MRR(k=5, debias_config=DebiasConfig(iqr_coef=2, random_state=10)),
-                "MRR@2": MRR(k=2),
-            },
+            (
+                {
+                    "dMCC@1": MCC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "MCC@3": MCC(k=3),
+                    "dAccuracy@5": Accuracy(k=5, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "Accuracy@2": Accuracy(k=2),
+                    "dPrecision@4": Precision(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "Precision@1": Precision(k=1),
+                    "dRecall@4": Recall(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "Recall@1": Precision(k=1),
+                    "dF1Beta@10": F1Beta(k=10, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "F1Beta@9": F1Beta(k=9),
+                    "dHitRate@4": HitRate(k=4, debias_config=DebiasConfig(iqr_coef=1.1, random_state=10)),
+                    "HitRate@6": HitRate(k=6),
+                },
+                None,
+            ),
+            (
+                {
+                    "dNDCG@1": NDCG(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "NDCG@3": NDCG(k=3),
+                    "dMRR@5": MRR(k=5, debias_config=DebiasConfig(iqr_coef=2, random_state=10)),
+                    "MRR@2": MRR(k=2),
+                },
+                None,
+            ),
+            (
+                {
+                    "dMCC@1": MCC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "MCC@3": MCC(k=3),
+                    "dAccuracy@5": Accuracy(k=5, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "Accuracy@2": Accuracy(k=2),
+                    "dPrecision@4": Precision(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "Precision@1": Precision(k=1),
+                    "dRecall@4": Recall(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                    "Recall@1": Precision(k=1),
+                    "dF1Beta@10": F1Beta(k=10, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "F1Beta@9": F1Beta(k=9),
+                    "dHitRate@4": HitRate(k=4, debias_config=DebiasConfig(iqr_coef=1.1, random_state=10)),
+                    "HitRate@6": HitRate(k=6),
+                },
+                {
+                    "MCC@3": MCC(k=3),
+                    "dAccuracy@5": Accuracy(k=5, debias_config=DEBIAS_CONFIG_DEFAULT),
+                    "dRecall@4": Recall(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                },
+            ),
         ),
     )
     def test_calc_debiased_different_configs(
-        self, metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
+        self,
+        metrics: tp.Dict[str, DebiasableMetrikAtK],
+        num_metrics_prev: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
+        interactions: pd.DataFrame,
     ) -> None:
-        debised_interactions = calc_debiased_different_configs(metrics=metrics.values(), interactions=interactions)
+        debiasing_interactions_prev = None
+        if num_metrics_prev is not None:
+            debiasing_interactions_prev = calc_debiased_different_configs(
+                metrics=num_metrics_prev.values(), interactions=interactions
+            )
+        else:
+            debiasing_interactions_prev = None
+        debised_interactions = calc_debiased_different_configs(
+            metrics=metrics.values(), interactions=interactions, debiasing_interactions_prev=debiasing_interactions_prev
+        )
         unique_debias_config_expected = set(metric.debias_config for metric in metrics.values())
         assert set(debised_interactions.keys()) == unique_debias_config_expected

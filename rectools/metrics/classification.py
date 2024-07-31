@@ -483,7 +483,7 @@ def calc_classification_metrics(
         If unexpected metric is present in `metrics`.
     """
     results = {}
-    merged_debiased = calc_debiased_different_configs(metrics.values(), merged)
+    debiasing_merged = calc_debiased_different_configs(metrics.values(), merged)
 
     confusions = {}
     for metric_name, metric in metrics.items():
@@ -491,7 +491,7 @@ def calc_classification_metrics(
         confusion_task = (k, debias_config)
         is_debiased = debias_config is not None
         if confusion_task not in confusions:
-            confusions[confusion_task] = calc_confusions(merged=merged_debiased[debias_config], k=k)
+            confusions[confusion_task] = calc_confusions(merged=debiasing_merged[debias_config], k=k)
 
         confusion_df = confusions[confusion_task]
         if isinstance(metric, SimpleClassificationMetric):

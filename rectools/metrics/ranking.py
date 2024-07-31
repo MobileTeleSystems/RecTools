@@ -593,15 +593,16 @@ def calc_ranking_metrics(
     """
     results = {}
 
+    debiasing_merged = None
     for ranking_metric_cls in [NDCG, MRR]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
-        merged_debiased = calc_debiased_different_configs(ranking_metrics.values(), merged)
+        debiasing_merged = calc_debiased_different_configs(ranking_metrics.values(), merged)
         for name, metric in ranking_metrics.items():
-            results[name] = metric.calc_from_merged(merged_debiased[metric.debias_config], is_debiased=True)
+            results[name] = metric.calc_from_merged(debiasing_merged[metric.debias_config], is_debiased=True)
 
     map_metrics: tp.Dict[str, MAP] = select_by_type(metrics, MAP)
     if map_metrics:
-        debiased_fit_task = calc_debiased_fit_task(map_metrics.values(), merged)
+        debiased_fit_task = calc_debiased_fit_task(map_metrics.values(), merged, debiasing_merged)
         fitted_debiased = {}
         for debias_config, (k_max_d, merged_d) in debiased_fit_task.items():
             fitted_debiased[debias_config] = MAP.fit(merged_d, k_max_d)
