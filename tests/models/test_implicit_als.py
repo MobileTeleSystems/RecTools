@@ -427,7 +427,7 @@ class TestImplicitALSWrapperModelConfiguration:
     def test_to_config_fails_when_random_state_is_object(self) -> None:
         model = ImplicitALSWrapperModel(model=AlternatingLeastSquares(random_state=np.random.RandomState()))
         with pytest.raises(
-            ValueError,
+            TypeError,
             match="`random_state` must be ``None`` or have ``int`` type to convert it to simple type",
         ):
             model.get_config(simple_types=True)

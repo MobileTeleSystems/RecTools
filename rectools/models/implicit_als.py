@@ -73,7 +73,7 @@ def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.Random
         return rs
 
     # NOBUG: We can add serialization using get/set_state, but it's not human readable
-    raise ValueError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
+    raise TypeError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
 
 
 RandomState = tpe.Annotated[
