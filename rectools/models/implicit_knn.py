@@ -21,7 +21,7 @@ import numpy as np
 import typing_extensions as tpe
 from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
 from implicit.utils import ParameterWarning
-from pydantic import BeforeValidator, PlainSerializer, ConfigDict
+from pydantic import BeforeValidator, ConfigDict, PlainSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
 

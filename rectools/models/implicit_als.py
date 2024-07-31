@@ -22,7 +22,7 @@ from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
-from pydantic import BeforeValidator, SerializationInfo, WrapSerializer, PlainSerializer, ConfigDict
+from pydantic import BeforeValidator, ConfigDict, PlainSerializer, SerializationInfo, WrapSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
 
@@ -67,16 +67,14 @@ AlternatingLeastSquaresClass = tpe.Annotated[
 ]
 
 DType = tpe.Annotated[
-    np.dtype,
-    BeforeValidator(func=np.dtype),
-    PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
+    np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
 ]
 
 
 def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.RandomState]]) -> tp.Union[None, int]:
     if rs is None or isinstance(rs, int):
         return rs
-    
+
     # TODO: We can add serialization using get/set_state, but it's not human readable
     raise ValueError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
 
@@ -85,6 +83,7 @@ RandomState = tpe.Annotated[
     tp.Union[None, int, np.random.RandomState],
     PlainSerializer(func=_serialize_random_state, when_used="json"),
 ]
+
 
 class AlternatingLeastSquaresParams(tpe.TypedDict):
     factors: tpe.NotRequired[int]

@@ -17,7 +17,7 @@ import typing as tp
 import numpy as np
 import pandas as pd
 import pytest
-from implicit.nearest_neighbours import TFIDFRecommender, ItemItemRecommender, CosineRecommender, BM25Recommender
+from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -243,8 +243,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             "CosineRecommender",  # keyword
             "BM25Recommender",  # keyword
             "tests.models.test_implicit_knn.CustomKNN",  # custom class
-
-        )
+        ),
     )
     def test_from_config(self, model_class: tp.Union[tp.Type[ItemItemRecommender], str]) -> None:
         params = {"K": 5}
@@ -278,18 +277,19 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             (CosineRecommender, "CosineRecommender"),
             (BM25Recommender, "BM25Recommender"),
             (CustomKNN, "tests.models.test_implicit_knn.CustomKNN"),
-
-        )
+        ),
     )
-    def test_to_config(self, simple_types: bool, model_class: tp.Type[ItemItemRecommender], model_class_str: str) -> None:
+    def test_to_config(
+        self, simple_types: bool, model_class: tp.Type[ItemItemRecommender], model_class_str: str
+    ) -> None:
         model = ImplicitItemKNNWrapperModel(
             model=model_class(K=5),
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
         expected_model_params = {
-            'K': 5, 
-            'num_threads': 0, 
+            "K": 5,
+            "num_threads": 0,
         }
         if model_class is BM25Recommender:
             expected_model_params |= {
@@ -305,11 +305,11 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         }
         assert config == expected
 
-    @pytest.mark.parametrize("simple_types", (False, True)) 
+    @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         def get_reco(model: ImplicitItemKNNWrapperModel):
             return model.fit(DATASET).recommend(users=np.array([10, 20]), dataset=DATASET, k=2, filter_viewed=False)
-        
+
         initial_config = {
             "model": {
                 "cls": TFIDFRecommender,

@@ -56,7 +56,7 @@ class ModelBase:
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
     # TODO: Make generic?
-    # This allows to specify correct type in get_config and from_config. 
+    # This allows to specify correct type in get_config and from_config.
     # Also allows to make child classes correctly typed.
     # But how to make it work with VectorModel and other intermediate classes?
     config_class = ModelConfig
@@ -88,13 +88,13 @@ class ModelBase:
             raise e
 
         if format == "dict":
-            return config_dict            
+            return config_dict
 
         raise ValueError(f"Unknown format: {format}")
 
     def _get_config(self) -> ModelConfig:
         raise NotImplementedError()
-    
+
     def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
         config_dict = self.get_config(format="dict", simple_types=simple_types)
         config_flat = make_dict_flat(config_dict, sep=sep)  # NOBUG: We're not handling lists for now

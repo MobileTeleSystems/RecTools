@@ -20,10 +20,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from implicit.als import AlternatingLeastSquares
-import implicit.gpu
-from implicit.gpu import HAS_CUDA
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
+from implicit.gpu import HAS_CUDA
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
+
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, IdMap, Interactions, SparseFeatures
 from rectools.exceptions import NotFittedError
@@ -395,20 +395,20 @@ class TestImplicitALSWrapperModelConfiguration:
         )
         config = model.get_config(simple_types=simple_types)
         expected_model_params = {
-            'factors': 16, 
-            'regularization': 0.01, 
-            'alpha': 1.0, 
-            'dtype': np.float32 if not simple_types else "float32", 
-            'iterations': 15, 
-            'calculate_training_loss': False, 
-            'random_state': random_state, 
-            'use_gpu': use_gpu, 
+            "factors": 16,
+            "regularization": 0.01,
+            "alpha": 1.0,
+            "dtype": np.float32 if not simple_types else "float32",
+            "iterations": 15,
+            "calculate_training_loss": False,
+            "random_state": random_state,
+            "use_gpu": use_gpu,
         }
         if not use_gpu:
             expected_model_params |= {
-                'use_native': True, 
-                'use_cg': True, 
-                'num_threads': 2,
+                "use_native": True,
+                "use_cg": True,
+                "num_threads": 2,
             }
         expected = {
             "model": {
@@ -423,39 +423,34 @@ class TestImplicitALSWrapperModelConfiguration:
     def test_to_config_fails_when_random_state_is_object(self) -> None:
         model = ImplicitALSWrapperModel(model=AlternatingLeastSquares(random_state=np.random.RandomState()))
         with pytest.raises(
-            ValueError, 
+            ValueError,
             match="`random_state` must be ``None`` or have ``int`` type to convert it to simple type",
         ):
             model.get_config(simple_types=True)
 
     def test_custom_model_class(self) -> None:
         cls_path = "tests.models.test_implicit_als.CustomALS"
-        
+
         config = {
             "model": {
                 "cls": cls_path,
             }
         }
         model = ImplicitALSWrapperModel.from_config(config)
-        
+
         assert isinstance(model._model, CustomALS)
 
         config = model.get_config(simple_types=True)
         assert config["model"]["cls"] == cls_path
 
-    @pytest.mark.parametrize("simple_types", (False, True)) 
+    @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         def get_reco(model: ImplicitALSWrapperModel):
             return model.fit(DATASET).recommend(users=[10, 20], dataset=DATASET, k=2, filter_viewed=False)
-        
+
         initial_config = {
             "model": {
-                "params": {
-                    "factors": 16,
-                    "num_threads": 2,
-                    "iterations": 3,
-                    "random_state": 42
-                },
+                "params": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
             },
             "verbose": 1,
         }

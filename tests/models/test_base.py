@@ -14,14 +14,14 @@
 
 # pylint: disable=attribute-defined-outside-init
 
-from datetime import timedelta
 import typing as tp
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
 import pytest
-from pytest_mock import MockerFixture
 import typing_extensions as tpe
+from pytest_mock import MockerFixture
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -505,15 +505,15 @@ class TestConfiguration:
             def _get_config(self) -> SomeModelConfig:
                 sc = None if self.td is None else SomeModelSubConfig(td=self.td)
                 return SomeModelConfig(x=self.x, sc=sc, verbose=self.verbose)
-            
+
             @classmethod
             def _from_config(cls, config: SomeModelConfig) -> tpe.Self:
                 td = None if config.sc is None else config.sc.td
                 return cls(x=config.x, td=td, verbose=config.verbose)
-            
+
         self.config_class = SomeModelConfig
         self.model_class = SomeModel
-    
+
     def test_from_config_object(self) -> None:
         config = self.config_class(x=10, verbose=1)
         model = self.model_class.from_config(config)
@@ -533,17 +533,19 @@ class TestConfiguration:
         config = {"verbose": 1}
         with pytest.raises(ValueError, match="1 validation error for SomeModelConfig\nx\n  Field required"):
             self.model_class.from_config(config)
-            
+
     def test_from_config_dict_with_extra_keys(self) -> None:
         config = {"x": 10, "extra": "extra"}
-        with pytest.raises(ValueError, match="1 validation error for SomeModelConfig\nextra\n  Extra inputs are not permitted"):
+        with pytest.raises(
+            ValueError, match="1 validation error for SomeModelConfig\nextra\n  Extra inputs are not permitted"
+        ):
             self.model_class.from_config(config)
 
     def test_get_config_object(self) -> None:
         model = self.model_class(x=10, verbose=1)
         config = model.get_config(format="object")
         assert config == self.config_class(x=10, verbose=1)
-    
+
     def test_raises_on_object_with_simple_types(self) -> None:
         model = self.model_class(x=10, verbose=1)
         with pytest.raises(ValueError, match="`simple_types` is not compatible with `format='object'"):
@@ -565,12 +567,13 @@ class TestConfiguration:
         model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
         config = model.get_params(simple_types=simple_types)
         assert config == {"x": 10, "verbose": 1, "sc.td": expected_td}
-    
+
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_params_with_empty_subconfig(self, simple_types: bool) -> None:
         model = self.model_class(x=10, verbose=1, td=None)
         config = model.get_params(simple_types=simple_types)
         assert config == {"x": 10, "verbose": 1, "sc": None}
+
 
 class TestFixedColdRecoModelMixin:
     def test_cold_reco_works(self) -> None:

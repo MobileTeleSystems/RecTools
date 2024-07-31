@@ -224,7 +224,7 @@ def make_dict_flat(d: tp.Dict[str, tp.Any], sep: str = ".", parent_key: str = ""
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.extend(make_dict_flat(v, sep=sep, parent_key=new_key).items()) 
+            items.extend(make_dict_flat(v, sep=sep, parent_key=new_key).items())
         else:
             items.append((new_key, v))
     return dict(items)
