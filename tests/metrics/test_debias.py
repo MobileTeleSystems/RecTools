@@ -19,9 +19,15 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import MAP, PAP, PartialAUC
+from rectools.metrics import MAP, MCC, MRR, NDCG, PAP, Accuracy, F1Beta, HitRate, PartialAUC, Precision, Recall
 from rectools.metrics.base import merge_reco
-from rectools.metrics.debias import DebiasConfig, DebiasableMetrikAtK, calc_debiased_fit_task, debias_interactions
+from rectools.metrics.debias import (
+    DebiasConfig,
+    DebiasableMetrikAtK,
+    calc_debiased_different_configs,
+    calc_debiased_fit_task,
+    debias_interactions,
+)
 
 DEBIAS_CONFIG_DEFAULT = DebiasConfig(iqr_coef=1.5, random_state=32)
 
@@ -84,7 +90,7 @@ class TestDebias:
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
     @pytest.mark.parametrize(
-        "metrics_fitted",
+        "metrics",
         (
             {
                 "dMAP@1": MAP(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
@@ -116,19 +122,48 @@ class TestDebias:
         ),
     )
     def test_calc_debiased_fit_task(
-        self, metrics_fitted: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
+        self, metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
     ) -> None:
-        debiased_fit_task = calc_debiased_fit_task(metrics=metrics_fitted.values(), interactions=interactions)
+        debiased_fit_task = calc_debiased_fit_task(metrics=metrics.values(), interactions=interactions)
 
         unique_debias_config_expected = set()
         k_max_expected: tp.Dict[DebiasConfig, int] = defaultdict(int)
-        for metric in metrics_fitted.values():
+        for metric in metrics.values():
             unique_debias_config_expected.add(metric.debias_config)
             k_max_expected[metric.debias_config] = max(k_max_expected[metric.debias_config], metric.k)
 
-        num_unique_configs_expected = len(unique_debias_config_expected)
-
-        assert len(debiased_fit_task) == num_unique_configs_expected
         assert set(debiased_fit_task.keys()) == unique_debias_config_expected
         for value in k_max_expected:
             assert debiased_fit_task[value][0] == k_max_expected[value]
+
+    @pytest.mark.parametrize(
+        "metrics",
+        (
+            {
+                "dMCC@1": MCC(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "MCC@3": MCC(k=3),
+                "dAccuracy@5": Accuracy(k=5, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "Accuracy@2": Accuracy(k=2),
+                "dPrecision@4": Precision(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "Precision@1": Precision(k=1),
+                "dRecall@4": Recall(k=4, debias_config=DebiasConfig(iqr_coef=1, random_state=10)),
+                "Recall@1": Precision(k=1),
+                "dF1Beta@10": F1Beta(k=10, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "F1Beta@9": F1Beta(k=9),
+                "dHitRate@4": HitRate(k=4, debias_config=DebiasConfig(iqr_coef=1.1, random_state=10)),
+                "HitRate@6": HitRate(k=6),
+            },
+            {
+                "dNDCG@1": NDCG(k=1, debias_config=DEBIAS_CONFIG_DEFAULT),
+                "NDCG@3": NDCG(k=3),
+                "dMRR@5": MRR(k=5, debias_config=DebiasConfig(iqr_coef=2, random_state=10)),
+                "MRR@2": MRR(k=2),
+            },
+        ),
+    )
+    def test_calc_debiased_different_configs(
+        self, metrics: tp.Dict[str, DebiasableMetrikAtK], interactions: pd.DataFrame
+    ) -> None:
+        debised_interactions = calc_debiased_different_configs(metrics=metrics.values(), interactions=interactions)
+        unique_debias_config_expected = set(metric.debias_config for metric in metrics.values())
+        assert set(debised_interactions.keys()) == unique_debias_config_expected
