@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Configs for implicit models ([#167](https://github.com/MobileTeleSystems/RecTools/pull/167))
+
 
 ## [0.7.0] - 29.07.2024
 
