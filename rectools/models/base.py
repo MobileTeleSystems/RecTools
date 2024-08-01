@@ -68,7 +68,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
     @tp.overload
     def get_config(  # noqa: D102
-        self, mode: tp.Literal["object"], simple_types: bool = False
+        self, mode: tp.Literal["pydantic"], simple_types: bool = False
     ) -> ModelConfig_T:  # pragma: no cover
         ...
 
@@ -79,14 +79,14 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         ...
 
     def get_config(
-        self, mode: tp.Literal["object", "dict"] = "dict", simple_types: bool = False
+        self, mode: tp.Literal["pydantic", "dict"] = "dict", simple_types: bool = False
     ) -> tp.Union[ModelConfig_T, tp.Dict[str, tp.Any]]:
         """
         Return model config.
 
         Parameters
         ----------
-        mode : {'object', 'dict'}, default 'dict'
+        mode : {'pydantic', 'dict'}, default 'dict'
             Format of returning config.
         simple_types : bool, default False
             If True, return config with JSON serializable types.
@@ -94,7 +94,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
         Returns
         -------
-        Pydantic `BaseModel` or dict
+        Pydantic model or dict
             Model config.
 
         Raises
@@ -103,9 +103,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             If `mode` is not 'object' or 'dict', or if `simple_types` is ``True`` and format is not 'dict'.
         """
         config = self._get_config()
-        if mode == "object":
+        if mode == "pydantic":
             if simple_types:
-                raise ValueError("`simple_types` is not compatible with `mode='object'`")
+                raise ValueError("`simple_types` is not compatible with `mode='pydantic'`")
             return config
 
         pydantic_mode = "json" if simple_types else "python"

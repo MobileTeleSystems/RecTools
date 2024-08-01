@@ -514,7 +514,7 @@ class TestConfiguration:
         self.config_class = SomeModelConfig
         self.model_class = SomeModel
 
-    def test_from_config_object(self) -> None:
+    def test_from_pydantic_config(self) -> None:
         config = self.config_class(x=10, verbose=1)
         model = self.model_class.from_config(config)
         assert model.x == 10
@@ -541,15 +541,15 @@ class TestConfiguration:
         ):
             self.model_class.from_config(config)
 
-    def test_get_config_object(self) -> None:
+    def test_get_config_pydantic(self) -> None:
         model = self.model_class(x=10, verbose=1)
-        config = model.get_config(mode="object")
+        config = model.get_config(mode="pydantic")
         assert config == self.config_class(x=10, verbose=1)
 
-    def test_raises_on_object_with_simple_types(self) -> None:
+    def test_raises_on_pydantic_with_simple_types(self) -> None:
         model = self.model_class(x=10, verbose=1)
-        with pytest.raises(ValueError, match="`simple_types` is not compatible with `mode='object'"):
-            model.get_config(mode="object", simple_types=True)
+        with pytest.raises(ValueError, match="`simple_types` is not compatible with `mode='pydantic'"):
+            model.get_config(mode="pydantic", simple_types=True)
 
     @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
     def test_get_config_dict(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
