@@ -66,7 +66,7 @@ class Splitter:
             Train dataset that consists only of selected train ids
         """
         interactions_df = dataset.get_raw_interactions() if keep_external_ids else dataset.interactions.df
-        train = interactions_df[train_ids]
+        train = interactions_df.iloc[train_ids]
         user_id_map = IdMap.from_values(train[Columns.User].values)  # 2x internal
         item_id_map = IdMap.from_values(train[Columns.Item].values)  # 2x internal
         interactions_train = Interactions.from_raw(train, user_id_map, item_id_map)  # 2x internal

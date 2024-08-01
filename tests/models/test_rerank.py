@@ -1,13 +1,20 @@
 import typing as tp
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
+from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
 from rectools.models.base import NotFittedError
-from rectools.models.rerank import CandidateGenerator, PerUserNegativeSampler
+from rectools.models.rerank import (
+    CandidateGenerator,
+    CandidatesFeatureCollectorBase,
+    PerUserNegativeSampler,
+    TwoStageModel,
+)
 
 
 class TestPerUserNegativeSampler:
@@ -159,3 +166,72 @@ class TestCandidateGenerator:
             assert Columns.Rank in columns
         else:
             assert Columns.Rank not in columns
+
+
+class TestCandidatesFeatureCollectorBase:
+    def test_happy_path(self) -> None:
+        feature_collector = CandidatesFeatureCollectorBase()
+        candidates = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 2, 2, 3, 3],
+                Columns.Item: [10, 20, 30, 40, 50, 60],
+                "some_model_rank": [1, 2, 1, 2, 1, 2],
+            }
+        )
+        dataset = MagicMock()
+        fold_info = MagicMock()
+        external_ids = True
+        actual = feature_collector.collect_features(candidates, dataset, fold_info, external_ids)
+        pd.testing.assert_frame_equal(candidates, actual)
+
+
+class TestTwoStageModel:
+    @pytest.fixture
+    def dataset(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [70, 11, 1, "2021-11-30"],
+                [70, 12, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-30"],
+                [10, 12, 1, "2021-11-29"],
+                [10, 13, 9, "2021-11-28"],
+                [20, 11, 1, "2021-11-27"],
+                [20, 14, 2, "2021-11-26"],
+                [30, 11, 1, "2021-11-24"],
+                [30, 12, 1, "2021-11-23"],
+                [30, 14, 1, "2021-11-23"],
+                [30, 15, 5, "2021-11-21"],
+                [40, 11, 1, "2021-11-20"],
+                [40, 12, 1, "2021-11-19"],
+            ],
+            columns=Columns.Interactions,
+        )
+        user_id_map = IdMap.from_values([10, 20, 30, 40, 50, 60, 70, 80])
+        item_id_map = IdMap.from_values([11, 12, 13, 14, 15, 16])
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        return Dataset(user_id_map, item_id_map, interactions)
+
+    @pytest.fixture
+    def users(self) -> tp.List[int]:
+        return [10, 20, 30]
+
+    @pytest.fixture
+    def model(self) -> PopularModel:
+        return PopularModel()
+
+    def test_get_train_with_targets_for_reranker_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
+        reranker = MagicMock()
+        candidate_generators = [CandidateGenerator(PopularModel(), 2, False, False)]
+        splitter = TimeRangeSplitter("1D", n_splits=1)
+        sampler = PerUserNegativeSampler(1, 32)
+        two_stage_model = TwoStageModel(candidate_generators, splitter, reranker=reranker, sampler=sampler)
+        actual = two_stage_model.get_train_with_targets_for_reranker(dataset)
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10],
+                Columns.Item: [14, 11],
+                Columns.Target: [0, 1],
+            }
+        )
+        expected[Columns.Target] = expected[Columns.Target].astype("int32")
+        pd.testing.assert_frame_equal(actual, expected)

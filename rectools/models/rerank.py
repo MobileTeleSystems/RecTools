@@ -54,7 +54,7 @@ class RerankerBase:
         return reco
 
 
-class CandidatesFeatureCollector:
+class CandidatesFeatureCollectorBase:
     """
     Base class for collecting features for candidates user-item pairs. Useful for creating train with features for
     TwoStageModel.
@@ -62,27 +62,29 @@ class CandidatesFeatureCollector:
     Inherit from this class and rewrite private methods to grab features from dataset and external sources
     """
 
+    # TODO: this class can be used in pipelines directly. it will keep scores and ranks and add nothing
     # TODO: create an inherited class that will get all features from dataset?
 
     def _get_user_features(
         self, users: AnyIds, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
     ) -> pd.DataFrame:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=[Columns.User])
 
     def _get_item_features(
         self, items: AnyIds, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
     ) -> pd.DataFrame:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=[Columns.Item])
 
     def _get_user_item_features(
         self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
     ) -> pd.DataFrame:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=Columns.UserItem)
 
     def collect_features(
         self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
     ) -> pd.DataFrame:
-        """_summary_
+        """
+        Collect features for users-item pairs from any desired sources.
 
         Parameters
         ----------
@@ -91,7 +93,7 @@ class CandidatesFeatureCollector:
         dataset : Dataset
             Dataset will have either external -> 2x internal id maps to internal -> 2x internal
         fold_info : tp.Optional[tp.Dict[str, tp.Any]]
-            _description_
+            Fold inofo from splitter can be used for adding time-based features
         external_ids : bool
             Whether `useritem` and `dataset` ids are external or 1x internal.
             It comes from `TwoStageModel.process_in_external_ids`
@@ -107,13 +109,9 @@ class CandidatesFeatureCollector:
         useritem_features = self._get_user_item_features(useritem, dataset, fold_info, external_ids)
 
         res = useritem
-
-        if user_features is not None:
-            res = res.merge(user_features, on=Columns.User, how="left")
-        if item_features is not None:
-            res = res.merge(user_features, on=Columns.Item, how="left")
-        if useritem_features is not None:
-            res = res.merge(useritem_features, on=Columns.UserItem, how="left")
+        res = res.merge(user_features, on=Columns.User, how="left")
+        res = res.merge(item_features, on=Columns.Item, how="left")
+        res = res.merge(useritem_features, on=Columns.UserItem, how="left")
         return res
 
 
@@ -274,7 +272,7 @@ class TwoStageModel(ModelBase):
         splitter: Splitter,
         reranker: RerankerBase,
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
-        feature_collector: CandidatesFeatureCollector = CandidatesFeatureCollector(),
+        feature_collector: CandidatesFeatureCollectorBase = CandidatesFeatureCollectorBase(),
         process_in_external_ids: bool = True,  # TODO: think about it
         verbose: int = 0,
     ) -> None:
