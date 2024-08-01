@@ -106,7 +106,7 @@ class CandidatesFeatureCollector:
         item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info, external_ids)
         useritem_features = self._get_user_item_features(useritem, dataset, fold_info, external_ids)
 
-        res = useritem  # TODO: copy?
+        res = useritem
 
         if user_features is not None:
             res = res.merge(user_features, on=Columns.User, how="left")
