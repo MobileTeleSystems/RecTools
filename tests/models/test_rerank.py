@@ -1,10 +1,13 @@
 import pandas as pd
 import pytest
+import typing as tp
 
 from rectools import Columns
 from rectools.models.base import NotFittedError
+from rectools.models import PopularModel
 from rectools.models.rerank import PerUserNegativeSampler, CandidateGenerator, TwoStageModel
 from unittest.mock import MagicMock
+from rectools.dataset import Dataset, IdMap, Interactions
 
 
 class TestPerUserNegativeSampler:
@@ -64,8 +67,40 @@ class TestPerUserNegativeSampler:
             sample_data[sample_data[Columns.Target] == 1].sort_values(Columns.UserItem).reset_index(drop=True)
         )
 
-
 class TestCandidateGenerator:
+    @pytest.fixture
+    def dataset(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [70, 11, 1, "2021-11-30"],
+                [70, 12, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-30"],
+                [10, 12, 1, "2021-11-29"],
+                [10, 13, 9, "2021-11-28"],
+                [20, 11, 1, "2021-11-27"],
+                [20, 14, 2, "2021-11-26"],
+                [30, 11, 1, "2021-11-24"],
+                [30, 12, 1, "2021-11-23"],
+                [30, 14, 1, "2021-11-23"],
+                [30, 15, 5, "2021-11-21"],
+                [40, 11, 1, "2021-11-20"],
+                [40, 12, 1, "2021-11-19"],
+            ],
+            columns=Columns.Interactions,
+        )
+        user_id_map = IdMap.from_values([10, 20, 30, 40, 50, 60, 70, 80])
+        item_id_map = IdMap.from_values([11, 12, 13, 14, 15, 16])
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        return Dataset(user_id_map, item_id_map, interactions)
+    
+    @pytest.fixture
+    def users(self) -> tp.List[int]:
+        return [10, 20, 30]
+        
+    @pytest.fixture
+    def model(self) -> PopularModel:
+        return PopularModel()
+    
     def test_not_fitted_errors_and_happy_path(self):
         model = MagicMock()
         dataset = MagicMock()
@@ -88,5 +123,28 @@ class TestCandidateGenerator:
         _ = generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
         with pytest.raises(NotFittedError):
             generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
+
+    @pytest.mark.parametrize("keep_scores", (True, False))
+    @pytest.mark.parametrize("keep_ranks", (True, False))            
+    def test_columns(self, dataset: Dataset, model: PopularModel, users: tp.List[int], keep_scores: bool, keep_ranks: bool):
+        generator = CandidateGenerator(model, 2, keep_ranks=keep_ranks, keep_scores=keep_scores)
+        generator.fit(dataset, for_train=True)
+        candidates = generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
+        
+        columns = candidates.columns.to_list()
+        assert Columns.User in columns
+        assert Columns.Item in columns
+        
+        if keep_scores:
+            assert Columns.Score in columns
+        else:
+            assert Columns.Score not in columns
+            
+        if keep_ranks:
+            assert Columns.Rank in columns
+        else:
+            assert Columns.Rank not in columns
+            
+        
             
         

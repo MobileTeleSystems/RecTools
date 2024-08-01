@@ -245,9 +245,9 @@ class CandidateGenerator:
     ) -> pd.DataFrame:
 
         if for_train and not self.is_fitted_for_train:
-            raise NotFittedError(self.__class__.__name__)
+            raise NotFittedError(self.model.__class__.__name__)
         if not for_train and not self.is_fitted_for_recommend:
-            raise NotFittedError(self.__class__.__name__)
+            raise NotFittedError(self.model.__class__.__name__)
 
         candidates = self.model.recommend(
             users=users,
@@ -258,6 +258,8 @@ class CandidateGenerator:
             add_rank_col=self.keep_ranks,
             assume_external_ids=assume_external_ids,
         )
+        if not self.keep_scores:
+            candidates.drop(columns=Columns.Score, inplace=True)
         return candidates
 
 
@@ -503,8 +505,7 @@ class TwoStageModel(ModelBase):
 
             # Process ranks and scores as features
             rank_col_name, score_col_name = f"{identifier}_rank", f"{identifier}_score"
-            if not candgen.keep_scores:
-                candidates.drop(columns=Columns.Score, inplace=True)
+
             candidates.rename(
                 columns={Columns.Rank: rank_col_name, Columns.Score: score_col_name},
                 inplace=True,
