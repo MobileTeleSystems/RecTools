@@ -18,12 +18,16 @@ import typing as tp
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
+from pydantic_core import PydanticSerializationError
 
 from rectools import AnyIds, Columns, InternalIds
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import AnyIdsArray, InternalIdsArray
+from rectools.utils.config import BaseConfig
+from rectools.utils.misc import make_dict_flat
 
 T = tp.TypeVar("T", bound="ModelBase")
 ScoresArray = np.ndarray
@@ -36,7 +40,16 @@ RecoTriplet = tp.Tuple[AnyIds, AnyIds, Scores]
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, RecoTriplet)
 
 
-class ModelBase:
+class ModelConfig(BaseConfig):
+    """Base model config."""
+
+    verbose: int = 0
+
+
+ModelConfig_T = tp.TypeVar("ModelConfig_T", bound=ModelConfig)
+
+
+class ModelBase(tp.Generic[ModelConfig_T]):
     """
     Base model class.
 
@@ -47,9 +60,114 @@ class ModelBase:
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
 
+    config_class: tp.Type[ModelConfig_T]
+
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
+
+    @tp.overload
+    def get_config(  # noqa: D102
+        self, mode: tp.Literal["pydantic"], simple_types: bool = False
+    ) -> ModelConfig_T:  # pragma: no cover
+        ...
+
+    @tp.overload
+    def get_config(  # noqa: D102
+        self, mode: tp.Literal["dict"] = "dict", simple_types: bool = False
+    ) -> tp.Dict[str, tp.Any]:  # pragma: no cover
+        ...
+
+    def get_config(
+        self, mode: tp.Literal["pydantic", "dict"] = "dict", simple_types: bool = False
+    ) -> tp.Union[ModelConfig_T, tp.Dict[str, tp.Any]]:
+        """
+        Return model config.
+
+        Parameters
+        ----------
+        mode : {'pydantic', 'dict'}, default 'dict'
+            Format of returning config.
+        simple_types : bool, default False
+            If True, return config with JSON serializable types.
+            Only works for `mode='dict'`.
+
+        Returns
+        -------
+        Pydantic model or dict
+            Model config.
+
+        Raises
+        ------
+        ValueError
+            If `mode` is not 'object' or 'dict', or if `simple_types` is ``True`` and format is not 'dict'.
+        """
+        config = self._get_config()
+        if mode == "pydantic":
+            if simple_types:
+                raise ValueError("`simple_types` is not compatible with `mode='pydantic'`")
+            return config
+
+        pydantic_mode = "json" if simple_types else "python"
+        try:
+            config_dict = config.model_dump(mode=pydantic_mode)
+        except PydanticSerializationError as e:
+            if e.__cause__ is not None:
+                raise e.__cause__
+            raise e
+
+        if mode == "dict":
+            return config_dict
+
+        raise ValueError(f"Unknown mode: {mode}")
+
+    def _get_config(self) -> ModelConfig_T:
+        raise NotImplementedError()
+
+    def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
+        """
+        Return model parameters.
+        Same as `get_config` but returns flat dict.
+
+        Parameters
+        ----------
+        simple_types : bool, default False
+            If True, return config with JSON serializable types.
+        sep : str, default "."
+            Separator for nested keys.
+
+        Returns
+        -------
+        dict
+            Model parameters.
+        """
+        config_dict = self.get_config(mode="dict", simple_types=simple_types)
+        config_flat = make_dict_flat(config_dict, sep=sep)  # NOBUG: We're not handling lists for now
+        return config_flat
+
+    @classmethod
+    def from_config(cls, config: tp.Union[dict, ModelConfig_T]) -> tpe.Self:
+        """
+        Create model from config.
+
+        Parameters
+        ----------
+        config : dict or ModelConfig
+            Model config.
+
+        Returns
+        -------
+        Model instance.
+        """
+        if not isinstance(config, cls.config_class):
+            config_obj = cls.config_class.model_validate(config)
+        else:
+            config_obj = config
+        return cls._from_config(config_obj)
+
+    @classmethod
+    def _from_config(cls, config: ModelConfig_T) -> tpe.Self:
+        raise NotImplementedError()
 
     def fit(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
         """

@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import importlib
 import typing as tp
 from itertools import tee
 
@@ -165,3 +166,65 @@ def select_by_type(
     """
     selected = {k: obj for k, obj in objects.items() if is_instance(obj, types)}
     return selected
+
+
+def import_object(path: str) -> tp.Any:
+    """
+    Import object by its path.
+    Only module level objects are supported.
+
+    Examples
+    --------
+    >>> import_object("scipy.sparse.csr_matrix")
+    <class 'scipy.sparse._csr.csr_matrix'>
+    """
+    module_path, object_name = path.rsplit(".", maxsplit=1)
+    module = importlib.import_module(module_path)
+    return getattr(module, object_name)
+
+
+def get_class_or_function_full_path(obj: tp.Union[tp.Type, tp.Callable]) -> str:
+    """
+    Get full path of class or function.
+
+    Examples
+    --------
+    >>> from scipy.sparse import csr_matrix
+    >>> get_class_or_function_full_path(csr_matrix)
+    'scipy.sparse._csr.csr_matrix'
+    """
+    return f"{obj.__module__}.{obj.__qualname__}"
+
+
+def make_dict_flat(d: tp.Dict[str, tp.Any], sep: str = ".", parent_key: str = "") -> tp.Dict[str, tp.Any]:
+    """
+    Flatten nested dictionary.
+    Other types are left as is.
+
+    Parameters
+    ----------
+    d : dict
+        Nested dictionary.
+    sep : str, default "."
+        Separator.
+    parent_key : str, default ""
+        Parent key.
+
+    Returns
+    -------
+    dict
+        Flattened dictionary.
+
+    Examples
+    --------
+    >>> make_dict_flat({"a": {"b": 1, "c": 2}, "d": 3})
+    {'a.b': 1, 'a.c': 2, 'd': 3}
+    """
+    items: tp.List[tp.Tuple[str, tp.Any]] = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(make_dict_flat(v, sep=sep, parent_key=new_key).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)

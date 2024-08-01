@@ -21,9 +21,9 @@ import numpy as np
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
-from rectools.models.base import ModelBase, Scores
 from rectools.types import InternalIdsArray
 
+from .base import ModelBase, ModelConfig_T, Scores
 from .rank import Distance, ImplicitRanker
 
 
@@ -35,7 +35,7 @@ class Factors:
     biases: tp.Optional[np.ndarray] = None
 
 
-class VectorModel(ModelBase):
+class VectorModel(ModelBase[ModelConfig_T]):
     """Base class for models that represents users and items as vectors"""
 
     u2i_dist: Distance = NotImplemented
