@@ -45,7 +45,6 @@ class RerankerBase:
         else:
             pass  # TODO
         reco.sort_values(by=[Columns.User, Columns.Score], ascending=False, inplace=True)
-        reco = reco.groupby(Columns.User).head(k)
         return reco
 
 
@@ -58,16 +57,35 @@ class CandidatesFeatureCollector:
     """
     # TODO: create an inherited class that will get all features from dataset?
     
-    def _get_user_features(self, users: AnyIds, dataset, fold_info, **kwargs) -> tp.Optional[pd.DataFrame]:
+    def _get_user_features(self, users: AnyIds, dataset, fold_info, external_ids, **kwargs) -> tp.Optional[pd.DataFrame]:
         return None
-    def _get_item_features(self, items: AnyIds, dataset, fold_info, **kwargs) -> tp.Optional[pd.DataFrame]:
+    def _get_item_features(self, items: AnyIds, dataset, fold_info, external_ids, **kwargs) -> tp.Optional[pd.DataFrame]:
         return None
     def _get_user_item_features(self, useritem: pd.DataFrame, dataset, fold_info, **kwargs) -> tp.Optional[pd.DataFrame]:
         return None
-    def collect_features(self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], **kwargs) -> pd.DataFrame:
-        user_features = self._get_user_features(useritem[Columns.User].unique(), dataset, fold_info, **kwargs)
-        item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info, **kwargs)
-        useritem_features = self._get_user_item_features(useritem, dataset, fold_info, **kwargs)
+    def collect_features(self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool, **kwargs) -> pd.DataFrame:
+        """_summary_
+
+        Parameters
+        ----------
+        useritem : pd.DataFrame
+            Candidates with score/rank features from first stage. Ids are either external or 1x internal
+        dataset : Dataset
+            Dataset will have either external -> 2x internal id maps ro internal -> 2x internal
+        fold_info : tp.Optional[tp.Dict[str, tp.Any]]
+            _description_
+        external_ids : bool
+            Whether `useritem` and `dataset` ids are external or 1x internal
+
+        Returns
+        -------
+        pd.DataFrame
+            _description_
+        """
+        
+        user_features = self._get_user_features(useritem[Columns.User].unique(), dataset, fold_info, external_ids, **kwargs)
+        item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info, external_ids, **kwargs)
+        useritem_features = self._get_user_item_features(useritem, dataset, fold_info, external_ids, **kwargs)
 
         res = useritem  # TODO: copy?
         
@@ -78,7 +96,6 @@ class CandidatesFeatureCollector:
         if useritem_features is not None:
             res = res.merge(useritem_features, on=Columns.UserItem, how="left")
         return res
-
 
 
 class NegativeSamplerBase:
@@ -212,6 +229,7 @@ class CandidateGenerator:
         filter_viewed: bool,
         for_train: bool,
         items_to_recommend: tp.Optional[tp.List[int]] = None,
+        assume_external_ids: bool = True
     ) -> pd.DataFrame:
         
         if for_train and not self.is_fitted_for_train:
@@ -226,6 +244,7 @@ class CandidateGenerator:
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
             add_rank_col=self.keep_ranks,
+            assume_external_ids=assume_external_ids
         )
         return candidates
     
@@ -242,6 +261,7 @@ class TwoStageModel(ModelBase):
         reranker: RerankerBase,
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
         feature_collector: CandidatesFeatureCollector = CandidatesFeatureCollector(),
+        process_in_external_ids: bool = True,  # TODO: think about it
         verbose: int = 0,
     ) -> None:
         """
@@ -259,6 +279,8 @@ class TwoStageModel(ModelBase):
             Sampler for negative sampling. Default is PerUserNegativeSampler().
         feature_collector : CandidatesFeatureCollector, optional
             Collector for user-item features. Default is CandidatesFeatureCollector().
+        process_in_external_ids: bool
+            Whether to process candidates in external or internal ids. It is important for feature_collector
         verbose : int, optional
             Verbosity level. Default is 0.
         """
@@ -272,6 +294,7 @@ class TwoStageModel(ModelBase):
         self.reranker = reranker
         self.cand_gen_dict = self._create_cand_gen_dict(candidate_generators)
         self.feature_collector = feature_collector
+        self.process_in_external_ids = process_in_external_ids
         
     def _create_cand_gen_dict(self, candidate_generators: tp.List[CandidateGenerator]) -> tp.Dict[str, CandidateGenerator]:
         """
@@ -320,10 +343,12 @@ class TwoStageModel(ModelBase):
 
         train_ids, test_ids, fold_info = next(iter(split_iterator))  # splitter has only one fold
 
-        # We prepare dataset and train targets with external ids
+        # We should prepare dataset and train targets with external ids
         # This wat user can easily join features for candidates
-        history_dataset = splitter.get_train_dataset(dataset, train_ids, keep_external_ids=True)  # external
-        train_targets = dataset.get_raw_interactions().iloc[test_ids]  # external
+        # But for now let's test that we keep this for user to devide
+        history_dataset = splitter.get_train_dataset(dataset, train_ids, keep_external_ids=self.process_in_external_ids)  # external / internal
+        interactions = dataset.get_raw_interactions() if self.process_in_external_ids else dataset.interactions.df
+        train_targets = interactions.iloc[test_ids]  # external / internal
 
         return history_dataset, train_targets, fold_info
 
@@ -337,9 +362,9 @@ class TwoStageModel(ModelBase):
         Trains reranker on prepared train
         Fits all first-stage models on full dataset
         """
-        train_with_target = self.get_train_with_targets_for_reranker(dataset)  # external ids
-        self.reranker.fit(train_with_target)  # external ids
-        self._fit_first_cadidate_generators(dataset, for_train=False)  # external ids
+        train_with_target = self.get_train_with_targets_for_reranker(dataset)  # external / internal ids
+        self.reranker.fit(train_with_target)
+        self._fit_first_cadidate_generators(dataset, for_train=False)
         
     def get_train_with_targets_for_reranker(self, dataset: Dataset) -> None:
         """
@@ -359,16 +384,16 @@ class TwoStageModel(ModelBase):
 
         self._fit_first_cadidate_generators(history_dataset, for_train=True)
         
-        candidates = self._get_candidates_from_first_stage(
-            users=train_targets[Columns.User].unique(),  # external
-            dataset=history_dataset,  # external
+        candidates = self._get_candidates_from_first_stage(  # external / internal
+            users=train_targets[Columns.User].unique(),  # external / internal
+            dataset=history_dataset,  # external / internal
             filter_viewed=self.splitter.filter_already_seen,  # TODO: think about it
             for_train=True,
         )
-        candidates = self._set_targets_to_candidates(candidates, train_targets)
+        candidates = self._set_targets_to_candidates(candidates, train_targets)   # external / internal
         candidates = self.sampler.sample_negatives(candidates)
         
-        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
+        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info, self.process_in_external_ids)   # external / internal
         
         return train_with_target
         
@@ -453,7 +478,8 @@ class TwoStageModel(ModelBase):
                 dataset=dataset,
                 filter_viewed=filter_viewed,
                 for_train=for_train,
-                items_to_recommend=items_to_recommend
+                items_to_recommend=items_to_recommend,
+                assume_external_ids=self.process_in_external_ids
             )
 
             # Process ranks and scores as features
@@ -519,14 +545,19 @@ class TwoStageModel(ModelBase):
         self._check_is_fitted()
         self._check_k(k)
         
-        if not assume_external_ids:  # TODO: THINK ABOUT IT
-            raise ValueError("TwoStageModel cannot recommend in internal ids because it relies on feature collection in External Ids only")
+        if self.process_in_external_ids and not assume_external_ids:
+            users = dataset.user_id_map.convert_to_external(users, strict=False)
+            items_to_recommend = dataset.item_id_map.convert_to_external(items_to_recommend, strict=False)
+        
+        if not self.process_in_external_ids and assume_external_ids:
+            users = dataset.user_id_map.convert_to_internal(users, strict=False)
+            items_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
         
         try:
             candidates = self._get_candidates_from_first_stage(
-                users=users,  # external
-                dataset=dataset,  # external
-                filter_viewed=filter_viewed,  # TODO: think about it
+                users=users,
+                dataset=dataset,
+                filter_viewed=filter_viewed,
                 items_to_recommend=items_to_recommend,
                 for_train=False,
             )
@@ -540,9 +571,10 @@ class TwoStageModel(ModelBase):
                 for_train=False,
             )
         
-        train = self.feature_collector.collect_features(candidates, dataset, fold_info=None)
+        train = self.feature_collector.collect_features(candidates, dataset, fold_info=None, external_ids=self.process_in_external_ids)
         
         reco = self.reranker.rerank(train)
+        reco = reco.groupby(Columns.User).head(k)
         
         if add_rank_col:
             reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
