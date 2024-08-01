@@ -199,8 +199,10 @@ class CandidateGenerator:
     def fit(self, dataset: Dataset, for_train: bool):
         self.model.fit(dataset)
         if for_train:
-            self.is_fitted_for_train = True
+            self.is_fitted_for_train = True  # TODO: keep multiple fitted instances?
+            self.is_fitted_for_recommend = False
         else:
+            self.is_fitted_for_train = False
             self.is_fitted_for_recommend = True
 
     def generate_candidates(
@@ -237,7 +239,7 @@ class TwoStageModel(ModelBase):
         self,
         candidate_generators: tp.List[CandidateGenerator],
         splitter: Splitter,
-        reranker: Reranker,
+        reranker: RerankerBase,
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
         feature_collector: CandidatesFeatureCollector = CandidatesFeatureCollector(),
         verbose: int = 0,
@@ -264,7 +266,7 @@ class TwoStageModel(ModelBase):
         super().__init__(verbose=verbose)
         
         if hasattr(splitter, "n_splits"):
-            assert splitter.n_splits == 1
+            assert splitter.n_splits == 1  # TODO: handle softly
         self.splitter = splitter
         self.sampler = sampler
         self.reranker = reranker
