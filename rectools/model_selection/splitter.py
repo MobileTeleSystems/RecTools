@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from rectools import Columns
-from rectools.dataset import Interactions, Dataset, IdMap, Features
+from rectools.dataset import Dataset, Features, IdMap, Interactions
 from rectools.model_selection.utils import get_not_seen_mask
 
 
@@ -38,17 +38,42 @@ class Splitter:
         self.filter_cold_users = filter_cold_users
         self.filter_cold_items = filter_cold_items
         self.filter_already_seen = filter_already_seen
-        
-    @classmethod 
-    def get_train_dataset(cls, dataset: Dataset, train_ids: np.ndarray, keep_external_ids: bool=True, 
-                         prefer_warm_inference_over_cold: bool = True) -> Dataset:
+
+    @classmethod
+    def get_train_dataset(
+        cls,
+        dataset: Dataset,
+        train_ids: np.ndarray,
+        keep_external_ids: bool = True,
+        prefer_warm_inference_over_cold: bool = True,
+    ) -> Dataset:
+        """Generate dataset with provided train ids
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Original dataset
+        train_ids : np.ndarray
+            Original dataset interactions df rows that are to be selected for train
+        keep_external_ids : bool, optional
+            Whether to keep external ids -> x2 internal ids mapping, by default True
+        prefer_warm_inference_over_cold : bool, optional
+            Whether to keep all features for users that are not hot any more, by default True
+
+        Returns
+        -------
+        Dataset
+            Train dataset that consists only of selected train ids
+        """
         interactions_df = dataset.get_raw_interactions() if keep_external_ids else dataset.interactions.df
         train = interactions_df[train_ids]
         user_id_map = IdMap.from_values(train[Columns.User].values)  # 2x internal
         item_id_map = IdMap.from_values(train[Columns.Item].values)  # 2x internal
         interactions_train = Interactions.from_raw(train, user_id_map, item_id_map)  # 2x internal
-        
-        def _handle_features(features: tp.Optional[Features], target_id_map: IdMap, dataset_id_map: IdMap) -> tp.Tuple[tp.Optional[Features], IdMap]:
+
+        def _handle_features(
+            features: tp.Optional[Features], target_id_map: IdMap, dataset_id_map: IdMap
+        ) -> tp.Tuple[tp.Optional[Features], IdMap]:
             if features is None:
                 return None, target_id_map
 
@@ -63,7 +88,7 @@ class Splitter:
                 features = features.take(dataset_id_map.convert_to_internal(needed_ids))  # 2x internal
             else:
                 features = features.take(needed_ids)  # 2x internal
-            
+
             return features, target_id_map
 
         user_features_new, user_id_map = _handle_features(dataset.user_features, user_id_map, dataset.user_id_map)
