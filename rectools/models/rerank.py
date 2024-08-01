@@ -214,6 +214,7 @@ class CandidateGenerator:
         scores_fillna_value: tp.Optional[float] = None,
         ranks_fillna_value: tp.Optional[float] = None,
     ):
+        # TODO: add check that fillna values are specified when necessary
         self.model = model
         self.num_candidates = num_candidates
         self.keep_ranks = keep_ranks
