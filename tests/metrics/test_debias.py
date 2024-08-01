@@ -144,8 +144,6 @@ class TestDebias:
             debiasing_interactions_prev = calc_debiased_different_configs(
                 metrics=num_metrics_prev.values(), interactions=interactions
             )
-        else:
-            debiasing_interactions_prev = None
 
         debiased_fit_task = calc_debiased_fit_task(
             metrics=metrics.values(), interactions=interactions, debiasing_interactions_prev=debiasing_interactions_prev
@@ -224,8 +222,7 @@ class TestDebias:
             debiasing_interactions_prev = calc_debiased_different_configs(
                 metrics=num_metrics_prev.values(), interactions=interactions
             )
-        else:
-            debiasing_interactions_prev = None
+
         debised_interactions = calc_debiased_different_configs(
             metrics=metrics.values(), interactions=interactions, debiasing_interactions_prev=debiasing_interactions_prev
         )
