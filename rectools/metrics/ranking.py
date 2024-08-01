@@ -25,7 +25,7 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasableMetrikAtK, calc_debiased_different_configs, calc_debiased_fit_task, debias_interactions
+from .debias import DebiasableMetrikAtK, calc_debiased_fit_task, debias_for_metric_configs, debias_interactions
 
 
 @attr.s
@@ -596,7 +596,7 @@ def calc_ranking_metrics(
     debiasing_merged = None
     for ranking_metric_cls in [NDCG, MRR]:
         ranking_metrics: tp.Dict[str, tp.Union[NDCG, MRR]] = select_by_type(metrics, ranking_metric_cls)
-        debiasing_merged = calc_debiased_different_configs(ranking_metrics.values(), merged)
+        debiasing_merged = debias_for_metric_configs(ranking_metrics.values(), merged)
         for name, metric in ranking_metrics.items():
             results[name] = metric.calc_from_merged(debiasing_merged[metric.debias_config], is_debiased=True)
 

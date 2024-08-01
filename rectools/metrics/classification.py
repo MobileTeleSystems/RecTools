@@ -23,7 +23,7 @@ import pandas as pd
 from rectools import Columns
 
 from .base import Catalog, merge_reco
-from .debias import DebiasableMetrikAtK, calc_debiased_different_configs, debias_interactions
+from .debias import DebiasableMetrikAtK, debias_for_metric_configs, debias_interactions
 
 TP = "__TP"
 FP = "__FP"
@@ -483,7 +483,7 @@ def calc_classification_metrics(
         If unexpected metric is present in `metrics`.
     """
     results = {}
-    debiasing_merged = calc_debiased_different_configs(metrics.values(), merged)
+    debiasing_merged = debias_for_metric_configs(metrics.values(), merged)
 
     confusions = {}
     for metric_name, metric in metrics.items():

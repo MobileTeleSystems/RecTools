@@ -24,8 +24,8 @@ from rectools.metrics.base import merge_reco
 from rectools.metrics.debias import (
     DebiasConfig,
     DebiasableMetrikAtK,
-    calc_debiased_different_configs,
     calc_debiased_fit_task,
+    debias_for_metric_configs,
     debias_interactions,
 )
 
@@ -139,14 +139,14 @@ class TestDebias:
         num_metrics_prev: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
         interactions: pd.DataFrame,
     ) -> None:
-        debiasing_interactions_prev = None
+        prev_debiased_interactions = None
         if num_metrics_prev is not None:
-            debiasing_interactions_prev = calc_debiased_different_configs(
+            prev_debiased_interactions = debias_for_metric_configs(
                 metrics=num_metrics_prev.values(), interactions=interactions
             )
 
         debiased_fit_task = calc_debiased_fit_task(
-            metrics=metrics.values(), interactions=interactions, debiasing_interactions_prev=debiasing_interactions_prev
+            metrics=metrics.values(), interactions=interactions, prev_debiased_interactions=prev_debiased_interactions
         )
 
         unique_debias_config_expected = set()
@@ -211,20 +211,20 @@ class TestDebias:
             ),
         ),
     )
-    def test_calc_debiased_different_configs(
+    def test_debias_for_metric_configs(
         self,
         metrics: tp.Dict[str, DebiasableMetrikAtK],
         num_metrics_prev: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
         interactions: pd.DataFrame,
     ) -> None:
-        debiasing_interactions_prev = None
+        prev_debiased_interactions = None
         if num_metrics_prev is not None:
-            debiasing_interactions_prev = calc_debiased_different_configs(
+            prev_debiased_interactions = debias_for_metric_configs(
                 metrics=num_metrics_prev.values(), interactions=interactions
             )
 
-        debised_interactions = calc_debiased_different_configs(
-            metrics=metrics.values(), interactions=interactions, debiasing_interactions_prev=debiasing_interactions_prev
+        debised_interactions = debias_for_metric_configs(
+            metrics=metrics.values(), interactions=interactions, prev_debiased_interactions=prev_debiased_interactions
         )
         unique_debias_config_expected = set(metric.debias_config for metric in metrics.values())
         assert set(debised_interactions.keys()) == unique_debias_config_expected
