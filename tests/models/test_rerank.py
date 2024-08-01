@@ -2,7 +2,9 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.models.rerank import PerUserNegativeSampler
+from rectools.models.base import NotFittedError
+from rectools.models.rerank import PerUserNegativeSampler, CandidateGenerator, TwoStageModel
+from unittest.mock import MagicMock
 
 
 class TestPerUserNegativeSampler:
@@ -61,3 +63,30 @@ class TestPerUserNegativeSampler:
             sampled_df[sampled_df[Columns.Target] == 1].sort_values(Columns.UserItem).reset_index(drop=True),
             sample_data[sample_data[Columns.Target] == 1].sort_values(Columns.UserItem).reset_index(drop=True)
         )
+
+
+class TestCandidateGenerator:
+    def test_not_fitted_errors_and_happy_path(self):
+        model = MagicMock()
+        dataset = MagicMock()
+        users = [1, 2, 3]
+        generator = CandidateGenerator(model, 10, True, False)
+
+        with pytest.raises(NotFittedError):
+            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
+        with pytest.raises(NotFittedError):
+            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
+            
+        generator.fit(dataset, for_train=True)
+        
+        _ = generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
+        with pytest.raises(NotFittedError):
+            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
+            
+        generator.fit(dataset, for_train=False)
+        
+        _ = generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
+        with pytest.raises(NotFittedError):
+            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
+            
+        
