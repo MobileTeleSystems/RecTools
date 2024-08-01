@@ -142,7 +142,7 @@ class TestPopularModel:
 
     def test_raises_when_incorrect_popularity(self) -> None:
         with pytest.raises(ValueError):
-            PopularModel(popularity="strange")
+            PopularModel(popularity="strange")  # type: ignore[arg-type]
 
     def test_raises_when_both_period_and_begin_from_are_set(self) -> None:
         with pytest.raises(ValueError):

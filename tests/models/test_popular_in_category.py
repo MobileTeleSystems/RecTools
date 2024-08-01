@@ -106,7 +106,7 @@ class TestPopularInCategoryModel:
 
     def test_raises_when_incorrect_popularity(self) -> None:
         with pytest.raises(ValueError):
-            PopularInCategoryModel(popularity="strange", category_feature="f2")
+            PopularInCategoryModel(popularity="strange", category_feature="f2")  # type: ignore[arg-type]
 
     def test_raises_when_incorrect_n_categories(self) -> None:
         with pytest.raises(ValueError):
@@ -114,11 +114,11 @@ class TestPopularInCategoryModel:
 
     def test_raises_when_incorrect_mixing_strategy(self) -> None:
         with pytest.raises(ValueError):
-            PopularInCategoryModel(mixing_strategy="strange", category_feature="f2")
+            PopularInCategoryModel(mixing_strategy="strange", category_feature="f2")  # type: ignore[arg-type]
 
     def test_raises_when_incorrect_ratio_strategy(self) -> None:
         with pytest.raises(ValueError):
-            PopularInCategoryModel(ratio_strategy="strange", category_feature="f2")
+            PopularInCategoryModel(ratio_strategy="strange", category_feature="f2")  # type: ignore[arg-type]
 
     def test_raises_when_dense_features(self, interactions_df: pd.DataFrame) -> None:
         item_idx = interactions_df[Columns.Item].unique()
@@ -209,7 +209,7 @@ class TestPopularInCategoryModel:
         model = PopularInCategoryModel(
             category_feature="f2",
             popularity="mean_weight",
-            mixing_strategy=mixing_strategy,
+            mixing_strategy=mixing_strategy,  # type: ignore[arg-type]
             ratio_strategy="proportional",
         )
         model.fit(dataset)
@@ -438,9 +438,9 @@ class TestPopularInCategoryModel:
     ) -> None:
         model = PopularInCategoryModel(
             category_feature=category_feature,
-            popularity=popularity,
-            mixing_strategy=mixing_strategy,
-            ratio_strategy=ratio_strategy,
+            popularity=popularity,  # type: ignore[arg-type]
+            mixing_strategy=mixing_strategy,  # type: ignore[arg-type]
+            ratio_strategy=ratio_strategy,  # type: ignore[arg-type]
             n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)
