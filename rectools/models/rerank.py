@@ -214,7 +214,6 @@ class CandidateGenerator:
         scores_fillna_value: tp.Optional[float] = None,
         ranks_fillna_value: tp.Optional[float] = None,
     ):
-        # TODO: add check that fillna values are specified when necessary
         self.model = model
         self.num_candidates = num_candidates
         self.keep_ranks = keep_ranks
@@ -538,9 +537,9 @@ class TwoStageModel(ModelBase):
 
         for identifier, candgen in self.cand_gen_dict.items():
             rank_col_name, score_col_name = f"{identifier}_rank", f"{identifier}_score"
-            if candgen.keep_ranks:
+            if candgen.keep_ranks and candgen.ranks_fillna_value is not None:
                 all_candidates[rank_col_name] = all_candidates[rank_col_name].fillna(candgen.ranks_fillna_value)
-            if candgen.keep_scores:
+            if candgen.keep_scores and candgen.scores_fillna_value is not None:
                 all_candidates[score_col_name] = all_candidates[score_col_name].fillna(candgen.scores_fillna_value)
 
         return all_candidates
@@ -594,4 +593,5 @@ class TwoStageModel(ModelBase):
         if add_rank_col:
             reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
 
+        # TODO: convert back to required ids
         return reco
