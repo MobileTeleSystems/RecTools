@@ -273,7 +273,7 @@ class TwoStageModel(ModelBase):
         reranker: RerankerBase,
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
         feature_collector: CandidatesFeatureCollectorBase = CandidatesFeatureCollectorBase(),
-        process_in_external_ids: bool = True,  # TODO: think about it
+        process_in_external_ids: bool = True,  # TODO: think about it. probably drop. only process in external
         verbose: int = 0,
     ) -> None:
         """
@@ -379,7 +379,7 @@ class TwoStageModel(ModelBase):
         Fits all first-stage models on full dataset
         """
         train_with_target = self.get_train_with_targets_for_reranker(dataset)  # external / internal ids
-        self.reranker.fit(train_with_target)
+        self.reranker.fit(train_with_target)  # TODO: add a flag to keep user/item id features somewhere
         self._fit_first_cadidate_generators(dataset, for_train=False)
 
     def get_train_with_targets_for_reranker(self, dataset: Dataset) -> pd.DataFrame:
