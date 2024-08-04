@@ -33,7 +33,7 @@ class DebiasConfig:
     Parameters
     ----------
     iqr_coef : float, default 1.5
-        Coefficient for defining as the maximum value inside the border.
+        Coefficient for interquartile range for defining as the maximum value inside the border.
     random_state : int, optional, default None
         Pseudorandom number generator state to control the down-sampling.
     """
@@ -45,7 +45,10 @@ class DebiasConfig:
 @attr.s
 class DebiasableMetrikAtK(MetricAtK):
     """
-    Classification metric base class.
+    Debias metric base class.
+
+    Warning: This class should not be used directly.
+    Use derived classes instead.
 
     Warning: This class should not be used directly.
     Use derived classes instead.

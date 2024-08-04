@@ -40,7 +40,7 @@ class _RankingMetric(DebiasableMetrikAtK):
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
-    debias_config : DebiasConfig, default None
+    debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
     """
 
@@ -134,7 +134,7 @@ class MAP(_RankingMetric):
     divide_by_k : bool, default False
         If ``True``, ``k`` will be used as divider in ``AP@k``.
         If ``False``, number of relevant items for each user will be used.
-    debias_config : DebiasConfig, default None
+    debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
 
     Examples
@@ -338,7 +338,7 @@ class NDCG(_RankingMetric):
         Number of items at the top of recommendations list that will be used to calculate metric.
     log_base : int, default ``2``
         Base of logarithm used to weight relevant items.
-    debias_config : DebiasConfig, default None
+    debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
 
     Examples
@@ -463,7 +463,7 @@ class MRR(_RankingMetric):
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
-    debias_config : DebiasConfig, default None
+    debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
 
     Examples
