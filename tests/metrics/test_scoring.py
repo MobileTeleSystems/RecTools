@@ -174,37 +174,37 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
     def test_success_debias(self) -> None:
         debias_config = DebiasConfig(iqr_coef=1.5, random_state=32)
         debias_metrics = {
-            "debias_precision@3": Precision(k=3, debias_config=debias_config),
-            "debias_rprecision@3": Precision(k=3, r_precision=True, debias_config=debias_config),
-            "debias_recall@3": Recall(k=3, debias_config=debias_config),
-            "debias_f1beta@3": F1Beta(k=3, debias_config=debias_config),
-            "debias_accuracy@3": Accuracy(k=3, debias_config=debias_config),
-            "debias_mcc@3": MCC(k=3, debias_config=debias_config),
-            "debias_hitrate@3": HitRate(k=3, debias_config=debias_config),
-            "debias_map@1": MAP(k=1, debias_config=debias_config),
-            "debias_map@3": MAP(k=3, debias_config=debias_config),
-            "debias_ndcg@3": NDCG(k=3, debias_config=debias_config),
-            "debias_mrr@3": MRR(k=3, debias_config=debias_config),
-            "debias_pap@3": PAP(k=3, debias_config=debias_config),
-            "debias_partauc@3": PartialAUC(k=3, debias_config=debias_config),
+            "debiased_precision@3": Precision(k=3, debias_config=debias_config),
+            "debiased_rprecision@3": Precision(k=3, r_precision=True, debias_config=debias_config),
+            "debiased_recall@3": Recall(k=3, debias_config=debias_config),
+            "debiased_f1beta@3": F1Beta(k=3, debias_config=debias_config),
+            "debiased_accuracy@3": Accuracy(k=3, debias_config=debias_config),
+            "debiased_mcc@3": MCC(k=3, debias_config=debias_config),
+            "debiased_hitrate@3": HitRate(k=3, debias_config=debias_config),
+            "debiased_map@1": MAP(k=1, debias_config=debias_config),
+            "debiased_map@3": MAP(k=3, debias_config=debias_config),
+            "debiased_ndcg@3": NDCG(k=3, debias_config=debias_config),
+            "debiased_mrr@3": MRR(k=3, debias_config=debias_config),
+            "debiased_pap@3": PAP(k=3, debias_config=debias_config),
+            "debiased_partauc@3": PartialAUC(k=3, debias_config=debias_config),
         }
         metrics = {
-            "debias_precision@3": Precision(k=3),
-            "debias_rprecision@3": Precision(k=3, r_precision=True),
-            "debias_recall@3": Recall(k=3),
-            "debias_f1beta@3": F1Beta(k=3),
-            "debias_accuracy@3": Accuracy(k=3),
-            "debias_mcc@3": MCC(k=3),
-            "debias_hitrate@3": HitRate(k=3),
-            "debias_map@1": MAP(k=1),
-            "debias_map@3": MAP(k=3),
-            "debias_ndcg@3": NDCG(k=3),
-            "debias_mrr@3": MRR(k=3),
-            "debias_pap@3": PAP(k=3),
-            "debias_partauc@3": PartialAUC(k=3),
+            "debiased_precision@3": Precision(k=3),
+            "debiased_rprecision@3": Precision(k=3, r_precision=True),
+            "debiased_recall@3": Recall(k=3),
+            "debiased_f1beta@3": F1Beta(k=3),
+            "debiased_accuracy@3": Accuracy(k=3),
+            "debiased_mcc@3": MCC(k=3),
+            "debiased_hitrate@3": HitRate(k=3),
+            "debiased_map@1": MAP(k=1),
+            "debiased_map@3": MAP(k=3),
+            "debiased_ndcg@3": NDCG(k=3),
+            "debiased_mrr@3": MRR(k=3),
+            "debiased_pap@3": PAP(k=3),
+            "debiased_partauc@3": PartialAUC(k=3),
         }
 
-        interactions_downsampling = debias_interactions(self.interactions, config=debias_config)
+        debiased_interactions = debias_interactions(self.interactions, config=debias_config)
 
         actual = calc_metrics(
             metrics=debias_metrics,  # type: ignore
@@ -215,7 +215,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         expected = calc_metrics(
             metrics=metrics,  # type: ignore
             reco=self.reco,
-            interactions=interactions_downsampling,
+            interactions=debiased_interactions,
             catalog=self.catalog,
         )
         assert actual == expected

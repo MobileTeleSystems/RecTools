@@ -14,10 +14,11 @@
 
 # pylint: disable=attribute-defined-outside-init
 
+from copy import copy
+
 import numpy as np
 import pandas as pd
 import pytest
-from copy import copy
 
 from rectools import Columns
 from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall, debias_interactions
@@ -273,7 +274,10 @@ class TestDebiasableSimpleClassificationMetric:
             HitRate(k=2),
         ),
     )
-    def test_calc(self, metric: SimpleClassificationMetric,) -> None:
+    def test_calc(
+        self,
+        metric: SimpleClassificationMetric,
+    ) -> None:
         debiased_metric = copy(metric)
         debiased_metric.debias_config = DEBIAS_CONFIG
 

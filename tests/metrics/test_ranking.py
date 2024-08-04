@@ -219,7 +219,9 @@ class TestDebiasableRankingMetric:
     @pytest.mark.parametrize(
         "metric",
         (
-            MAP(k=3), NDCG(k=3), MRR(k=3),
+            MAP(k=3),
+            NDCG(k=3),
+            MRR(k=3),
         ),
     )
     def test_calc(self, metric: RankingMetric, debiased_metric: RankingMetric) -> None:

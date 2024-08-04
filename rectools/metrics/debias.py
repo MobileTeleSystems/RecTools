@@ -33,7 +33,8 @@ class DebiasConfig:
     Parameters
     ----------
     iqr_coef : float, default 1.5
-        Coefficient for interquartile range for defining as the maximum value inside the border.
+        The interquartile range coefficient (IQR), which is needed to calculate the maximum boundary 
+        (Q3 + iqr_coef * IQR) at which popular items will be removed from test interactions.
     random_state : int, optional, default None
         Pseudorandom number generator state to control the down-sampling.
     """
@@ -83,7 +84,7 @@ def debias_interactions(interactions: pd.DataFrame, config: DebiasConfig) -> pd.
         1. Calculate item "popularity"
         (here: number of unique users that had interaction with the item) distribution from interactions;
         2. Find first (Q1) and third (Q3) quartiles in items "popularity" distribution;
-        3. Calculate IQR = Q3 - Q1;
+        3. Calculate interquartile range (IQR) = Q3 - Q1;
         4. Calculate maximum value inside by formula: Q3 + iqr_coef * IQR;
         5. Down-sample for all exceeding items in interactions,
         randomly keeping the maximum group of users to a size not exceeding

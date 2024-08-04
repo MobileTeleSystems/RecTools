@@ -317,7 +317,7 @@ class TestDebiasableAUCMetric:
 
         debiased_interactions = debias_interactions(self.interactions, config=DEBIAS_CONFIG)
         expected_metric_per_user = metric.calc_per_user(self.reco, debiased_interactions)
-        
+
         actual_metric_per_user = debiased_metric.calc_per_user(self.reco, self.interactions)
         actual_metric = debiased_metric.calc(self.reco, self.interactions)
 
