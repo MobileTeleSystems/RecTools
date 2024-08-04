@@ -216,39 +216,39 @@ class TestDebiasableRankingMetric:
         self.merged = merge_reco(self.reco, self.interactions)
 
     @pytest.mark.parametrize(
-        "metric,metric_debias",
+        "metric, debiased_metric",
         (
             (MAP(k=3), MAP(k=3, debias_config=DEBIAS_CONFIG)),
             (NDCG(k=3), NDCG(k=3, debias_config=DEBIAS_CONFIG)),
             (MRR(k=3), MRR(k=3, debias_config=DEBIAS_CONFIG)),
         ),
     )
-    def test_calc(self, metric: RankingMetric, metric_debias: RankingMetric) -> None:
-        downsample_interactions = debias_interactions(self.interactions, config=metric_debias.debias_config)
+    def test_calc(self, metric: RankingMetric, debiased_metric: RankingMetric) -> None:
+        debiased_interactions = debias_interactions(self.interactions, config=debiased_metric.debias_config)
 
-        expected_metric_per_user_downsample = metric.calc_per_user(self.reco, downsample_interactions)
-        result_metric_per_user = metric_debias.calc_per_user(self.reco, self.interactions)
-        result_calc = metric_debias.calc(self.reco, self.interactions)
+        expected_metric_per_user = metric.calc_per_user(self.reco, debiased_interactions)
+        actual_metric_per_user = debiased_metric.calc_per_user(self.reco, self.interactions)
+        actual_metric = debiased_metric.calc(self.reco, self.interactions)
 
-        pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
-        assert result_calc == expected_metric_per_user_downsample.mean()
+        pd.testing.assert_series_equal(actual_metric_per_user, expected_metric_per_user)
+        assert actual_metric == expected_metric_per_user.mean()
 
     @pytest.mark.parametrize(
-        "metric_debias",
+        "debiased_metric",
         (
             MAP(k=3, debias_config=DEBIAS_CONFIG),
             NDCG(k=3, debias_config=DEBIAS_CONFIG),
             MRR(k=3, debias_config=DEBIAS_CONFIG),
         ),
     )
-    def test_when_no_interactions(self, metric_debias: RankingMetric) -> None:
+    def test_when_no_interactions(self, debiased_metric: RankingMetric) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
         pd.testing.assert_series_equal(
-            metric_debias.calc_per_user(self.reco, EMPTY_INTERACTIONS),
+            debiased_metric.calc_per_user(self.reco, EMPTY_INTERACTIONS),
             expected_metric_per_user,
         )
-        assert np.isnan(metric_debias.calc(self.reco, EMPTY_INTERACTIONS))
+        assert np.isnan(debiased_metric.calc(self.reco, EMPTY_INTERACTIONS))
 
     @pytest.mark.parametrize(
         "metric",

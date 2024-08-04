@@ -197,7 +197,7 @@ class TestHitRate:
 
 class TestDebiasableClassificationMetric:
     @pytest.mark.parametrize(
-        "metric, metric_debias",
+        "metric, debiased_metric",
         (
             (
                 Accuracy(k=2),
@@ -209,28 +209,28 @@ class TestDebiasableClassificationMetric:
             ),
         ),
     )
-    def test_calc(self, metric: ClassificationMetric, metric_debias: ClassificationMetric) -> None:
-        downsample_interactions = debias_interactions(INTERACTIONS, config=metric_debias.debias_config)
-        expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
+    def test_calc(self, metric: ClassificationMetric, debiased_metric: ClassificationMetric) -> None:
+        downsample_interactions = debias_interactions(INTERACTIONS, config=debiased_metric.debias_config)
+        expected_metric_per_user = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
 
-        result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS, CATALOG)
-        result_calc = metric_debias.calc(RECO, INTERACTIONS, CATALOG)
+        actual_metric_per_user = debiased_metric.calc_per_user(RECO, INTERACTIONS, CATALOG)
+        actual_metric = debiased_metric.calc(RECO, INTERACTIONS, CATALOG)
 
-        pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
-        assert result_calc == expected_metric_per_user_downsample.mean()
+        pd.testing.assert_series_equal(actual_metric_per_user, expected_metric_per_user)
+        assert actual_metric == expected_metric_per_user.mean()
 
     @pytest.mark.parametrize(
-        "metric_debias",
+        "debiased_metric",
         (
             Accuracy(k=2, debias_config=DEBIAS_CONFIG),
             MCC(k=2, debias_config=DEBIAS_CONFIG),
         ),
     )
-    def test_when_no_interactions(self, metric_debias: ClassificationMetric) -> None:
+    def test_when_no_interactions(self, debiased_metric: ClassificationMetric) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
-        calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG)
-        calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS, CATALOG)
+        calc_per_user_result = debiased_metric.calc_per_user(RECO, EMPTY_INTERACTIONS, CATALOG)
+        calc_result = debiased_metric.calc(RECO, EMPTY_INTERACTIONS, CATALOG)
 
         pd.testing.assert_series_equal(calc_per_user_result, expected_metric_per_user)
         assert np.isnan(calc_result)
@@ -266,7 +266,7 @@ class TestDebiasableClassificationMetric:
 
 class TestDebiasableSimpleClassificationMetric:
     @pytest.mark.parametrize(
-        "metric, metric_debias",
+        "metric, debiased_metric",
         (
             (
                 Precision(k=2),
@@ -293,19 +293,19 @@ class TestDebiasableSimpleClassificationMetric:
     def test_calc(
         self,
         metric: SimpleClassificationMetric,
-        metric_debias: SimpleClassificationMetric,
+        debiased_metric: SimpleClassificationMetric,
     ) -> None:
-        downsample_interactions = debias_interactions(INTERACTIONS, config=metric_debias.debias_config)
-        expected_metric_per_user_downsample = metric.calc_per_user(RECO, downsample_interactions)
+        debiased_interactions = debias_interactions(INTERACTIONS, config=debiased_metric.debias_config)
+        expected_metric_per_user = metric.calc_per_user(RECO, debiased_interactions)
 
-        result_metric_per_user = metric_debias.calc_per_user(RECO, INTERACTIONS)
-        result_calc = metric_debias.calc(RECO, INTERACTIONS)
+        actual_metric_per_user = debiased_metric.calc_per_user(RECO, INTERACTIONS)
+        actual_metric = debiased_metric.calc(RECO, INTERACTIONS)
 
-        pd.testing.assert_series_equal(result_metric_per_user, expected_metric_per_user_downsample)
-        assert result_calc == expected_metric_per_user_downsample.mean()
+        pd.testing.assert_series_equal(actual_metric_per_user, expected_metric_per_user)
+        assert actual_metric == expected_metric_per_user.mean()
 
     @pytest.mark.parametrize(
-        "metric_debias",
+        "debiased_metric",
         (
             Precision(k=2, debias_config=DEBIAS_CONFIG),
             Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG),
@@ -314,11 +314,11 @@ class TestDebiasableSimpleClassificationMetric:
             HitRate(k=2, debias_config=DEBIAS_CONFIG),
         ),
     )
-    def test_when_no_interactions(self, metric_debias: SimpleClassificationMetric) -> None:
+    def test_when_no_interactions(self, debiased_metric: SimpleClassificationMetric) -> None:
         expected_metric_per_user = pd.Series(index=pd.Series(name=Columns.User, dtype=int), dtype=np.float64)
 
-        calc_per_user_result = metric_debias.calc_per_user(RECO, EMPTY_INTERACTIONS)
-        calc_result = metric_debias.calc(RECO, EMPTY_INTERACTIONS)
+        calc_per_user_result = debiased_metric.calc_per_user(RECO, EMPTY_INTERACTIONS)
+        calc_result = debiased_metric.calc(RECO, EMPTY_INTERACTIONS)
 
         pd.testing.assert_series_equal(calc_per_user_result, expected_metric_per_user)
         assert np.isnan(calc_result)

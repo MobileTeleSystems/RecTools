@@ -90,7 +90,7 @@ class TestDebias:
         pd.testing.assert_frame_equal(interactions_downsampling, empty_interactions, check_like=True)
 
     @pytest.mark.parametrize(
-        "metrics, num_metrics_prev",
+        "metrics, prev_metrics",
         (
             (
                 {
@@ -136,13 +136,13 @@ class TestDebias:
     def test_calc_debiased_fit_task(
         self,
         metrics: tp.Dict[str, DebiasableMetrikAtK],
-        num_metrics_prev: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
+        prev_metrics: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
         interactions: pd.DataFrame,
     ) -> None:
         prev_debiased_interactions = None
-        if num_metrics_prev is not None:
+        if prev_metrics is not None:
             prev_debiased_interactions = debias_for_metric_configs(
-                metrics=num_metrics_prev.values(), interactions=interactions
+                metrics=prev_metrics.values(), interactions=interactions
             )
 
         debiased_fit_task = calc_debiased_fit_task(
@@ -160,7 +160,7 @@ class TestDebias:
             assert debiased_fit_task[value][0] == k_max_expected[value]
 
     @pytest.mark.parametrize(
-        "metrics, num_metrics_prev",
+        "metrics, prev_metrics",
         (
             (
                 {
@@ -214,13 +214,13 @@ class TestDebias:
     def test_debias_for_metric_configs(
         self,
         metrics: tp.Dict[str, DebiasableMetrikAtK],
-        num_metrics_prev: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
+        prev_metrics: tp.Optional[tp.Dict[str, DebiasableMetrikAtK]],
         interactions: pd.DataFrame,
     ) -> None:
         prev_debiased_interactions = None
-        if num_metrics_prev is not None:
+        if prev_metrics is not None:
             prev_debiased_interactions = debias_for_metric_configs(
-                metrics=num_metrics_prev.values(), interactions=interactions
+                metrics=prev_metrics.values(), interactions=interactions
             )
 
         debised_interactions = debias_for_metric_configs(
