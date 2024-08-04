@@ -15,6 +15,7 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
+from copy import copy
 
 import numpy as np
 import pandas as pd
@@ -216,17 +217,18 @@ class TestDebiasableRankingMetric:
         self.merged = merge_reco(self.reco, self.interactions)
 
     @pytest.mark.parametrize(
-        "metric, debiased_metric",
+        "metric",
         (
-            (MAP(k=3), MAP(k=3, debias_config=DEBIAS_CONFIG)),
-            (NDCG(k=3), NDCG(k=3, debias_config=DEBIAS_CONFIG)),
-            (MRR(k=3), MRR(k=3, debias_config=DEBIAS_CONFIG)),
+            MAP(k=3), NDCG(k=3), MRR(k=3),
         ),
     )
     def test_calc(self, metric: RankingMetric, debiased_metric: RankingMetric) -> None:
-        debiased_interactions = debias_interactions(self.interactions, config=debiased_metric.debias_config)
+        debiased_metric = copy(metric)
+        debiased_metric.debias_config = DEBIAS_CONFIG
 
+        debiased_interactions = debias_interactions(self.interactions, config=DEBIAS_CONFIG)
         expected_metric_per_user = metric.calc_per_user(self.reco, debiased_interactions)
+
         actual_metric_per_user = debiased_metric.calc_per_user(self.reco, self.interactions)
         actual_metric = debiased_metric.calc(self.reco, self.interactions)
 

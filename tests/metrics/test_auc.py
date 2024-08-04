@@ -15,6 +15,7 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
+from copy import copy
 
 import numpy as np
 import pandas as pd
@@ -298,46 +299,25 @@ class TestDebiasableAUCMetric:
         )
 
     @pytest.mark.parametrize(
-        "metric, debiased_metric",
+        "metric",
         (
-            (
-                PartialAUC(k=1, insufficient_handling=InsufficientHandling.IGNORE),
-                PartialAUC(k=1, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE),
-                PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
-                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
-                PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PAP(k=1, insufficient_handling=InsufficientHandling.IGNORE),
-                PAP(k=1, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE),
-                PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PAP(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
-                PAP(k=1, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                PAP(k=3, insufficient_handling=InsufficientHandling.EXCLUDE),
-                PAP(k=3, insufficient_handling=InsufficientHandling.EXCLUDE, debias_config=DEBIAS_CONFIG),
-            ),
+            PartialAUC(k=1, insufficient_handling=InsufficientHandling.IGNORE),
+            PartialAUC(k=3, insufficient_handling=InsufficientHandling.IGNORE),
+            PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
+            PartialAUC(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
+            PAP(k=1, insufficient_handling=InsufficientHandling.IGNORE),
+            PAP(k=3, insufficient_handling=InsufficientHandling.IGNORE),
+            PAP(k=1, insufficient_handling=InsufficientHandling.EXCLUDE),
+            PAP(k=3, insufficient_handling=InsufficientHandling.EXCLUDE),
         ),
     )
-    def test_calc(self, metric: tp.Union[PartialAUC, PAP], debiased_metric: tp.Union[PartialAUC, PAP]) -> None:
-        debiased_interactions = debias_interactions(self.interactions, config=debiased_metric.debias_config)
+    def test_calc(self, metric: tp.Union[PartialAUC, PAP]) -> None:
+        debiased_metric = copy(metric)
+        debiased_metric.debias_config = DEBIAS_CONFIG
 
+        debiased_interactions = debias_interactions(self.interactions, config=DEBIAS_CONFIG)
         expected_metric_per_user = metric.calc_per_user(self.reco, debiased_interactions)
+        
         actual_metric_per_user = debiased_metric.calc_per_user(self.reco, self.interactions)
         actual_metric = debiased_metric.calc(self.reco, self.interactions)
 

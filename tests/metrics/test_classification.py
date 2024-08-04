@@ -17,6 +17,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from copy import copy
 
 from rectools import Columns
 from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall, debias_interactions
@@ -199,18 +200,15 @@ class TestDebiasableClassificationMetric:
     @pytest.mark.parametrize(
         "metric, debiased_metric",
         (
-            (
-                Accuracy(k=2),
-                Accuracy(k=2, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                MCC(k=2),
-                MCC(k=2, debias_config=DEBIAS_CONFIG),
-            ),
+            Accuracy(k=2),
+            MCC(k=2),
         ),
     )
-    def test_calc(self, metric: ClassificationMetric, debiased_metric: ClassificationMetric) -> None:
-        downsample_interactions = debias_interactions(INTERACTIONS, config=debiased_metric.debias_config)
+    def test_calc(self, metric: ClassificationMetric) -> None:
+        debiased_metric = copy(metric)
+        debiased_metric.debias_config = DEBIAS_CONFIG
+
+        downsample_interactions = debias_interactions(INTERACTIONS, config=DEBIAS_CONFIG)
         expected_metric_per_user = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
 
         actual_metric_per_user = debiased_metric.calc_per_user(RECO, INTERACTIONS, CATALOG)
@@ -266,36 +264,20 @@ class TestDebiasableClassificationMetric:
 
 class TestDebiasableSimpleClassificationMetric:
     @pytest.mark.parametrize(
-        "metric, debiased_metric",
+        "metric",
         (
-            (
-                Precision(k=2),
-                Precision(k=2, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                Precision(k=2, r_precision=True),
-                Precision(k=2, r_precision=True, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                Recall(k=2),
-                Recall(k=2, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                F1Beta(k=2),
-                F1Beta(k=2, debias_config=DEBIAS_CONFIG),
-            ),
-            (
-                HitRate(k=2),
-                HitRate(k=2, debias_config=DEBIAS_CONFIG),
-            ),
+            Precision(k=2),
+            Precision(k=2, r_precision=True),
+            Recall(k=2),
+            F1Beta(k=2),
+            HitRate(k=2),
         ),
     )
-    def test_calc(
-        self,
-        metric: SimpleClassificationMetric,
-        debiased_metric: SimpleClassificationMetric,
-    ) -> None:
-        debiased_interactions = debias_interactions(INTERACTIONS, config=debiased_metric.debias_config)
+    def test_calc(self, metric: SimpleClassificationMetric,) -> None:
+        debiased_metric = copy(metric)
+        debiased_metric.debias_config = DEBIAS_CONFIG
+
+        debiased_interactions = debias_interactions(INTERACTIONS, config=DEBIAS_CONFIG)
         expected_metric_per_user = metric.calc_per_user(RECO, debiased_interactions)
 
         actual_metric_per_user = debiased_metric.calc_per_user(RECO, INTERACTIONS)
