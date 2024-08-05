@@ -21,7 +21,8 @@ import pandas as pd
 from attrs import define, field
 
 from rectools import Columns
-from rectools.metrics.base import MetricAtK, outer_merge_reco
+from rectools.metrics.base import outer_merge_reco
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task, debias_interactions
 
 
 class InsufficientHandling(str, Enum):
@@ -58,7 +59,7 @@ class AUCFitted:
 
 
 @define
-class _AUCMetric(MetricAtK):
+class _AUCMetric(DebiasableMetrikAtK):
     """
     ROC AUC based metric base class.
 
@@ -88,6 +89,8 @@ class _AUCMetric(MetricAtK):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
+    debias_config : DebiasConfig, optional, default None
+        Config with debias method parameters (iqr_coef, random_state).
     """
 
     insufficient_handling: str = field(default="ignore")
@@ -217,12 +220,17 @@ class _AUCMetric(MetricAtK):
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        is_debiased = False
+        if self.debias_config is not None:
+            interactions = debias_interactions(interactions, self.debias_config)
+            is_debiased = True
+
         self._check(reco, interactions=interactions)
         insufficient_handling_needed = self.insufficient_handling != InsufficientHandling.IGNORE
         fitted = self.fit(reco, interactions, self.k, insufficient_handling_needed)
-        return self.calc_per_user_from_fitted(fitted)
+        return self.calc_per_user_from_fitted(fitted, is_debiased)
 
-    def calc_from_fitted(self, fitted: AUCFitted) -> float:
+    def calc_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> float:
         """
         Calculate metric value from fitted data.
 
@@ -230,16 +238,18 @@ class _AUCMetric(MetricAtK):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
         float
             Value of metric (average between users).
         """
-        per_user = self.calc_per_user_from_fitted(fitted)
+        per_user = self.calc_per_user_from_fitted(fitted, is_debiased)
         return per_user.mean()
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from from fitted data.
 
@@ -247,6 +257,8 @@ class _AUCMetric(MetricAtK):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
@@ -307,6 +319,8 @@ class PartialAUC(_AUCMetric):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
+    debias_config : DebiasConfig, optional, default None
+        Config with debias method parameters (iqr_coef, random_state).
 
     Examples
     --------
@@ -339,7 +353,7 @@ class PartialAUC(_AUCMetric):
             not too high.
             """
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from from fitted data.
 
@@ -347,17 +361,18 @@ class PartialAUC(_AUCMetric):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        self._check_debias(is_debiased, obj_name="AUCFitted")
         outer_merged = fitted.outer_merged_enriched
-
         # Keep k first false positives for roc auc computation, keep all predicted test positives
         cropped = outer_merged[(outer_merged["__fp_cumsum"] < self.k) & (~outer_merged[Columns.Rank].isna())]
-
         cropped_suf, n_pos_suf = self._handle_insufficient_cases(
             outer_merged=cropped, n_pos=fitted.n_pos, n_fp_insufficient=fitted.n_fp_insufficient
         )
@@ -415,6 +430,8 @@ class PAP(_AUCMetric):
         until the model has non-zero scores for the item in item-item similarity matrix. So with
         small `K` for neighbours in ItemKNN and big `K` for `recommend` and AUC based metric you
         will still get an error when `insufficient_handling` is set to `raise`.
+    debias_config : DebiasConfig, optional, default None
+        Config with debias method parameters (iqr_coef, random_state).
 
     Examples
     --------
@@ -447,7 +464,7 @@ class PAP(_AUCMetric):
             for all users.
             """
 
-    def calc_per_user_from_fitted(self, fitted: AUCFitted) -> pd.Series:
+    def calc_per_user_from_fitted(self, fitted: AUCFitted, is_debiased: bool = False) -> pd.Series:
         """
         Calculate metric values for all users from outer merged recommendations.
 
@@ -455,14 +472,16 @@ class PAP(_AUCMetric):
         ----------
         fitted : AUCFitted
             Meta data that got from `.fit` method.
+        is_debiased : bool, default False
+            An indicator of whether the debias transformation has been applied before or not.
 
         Returns
         -------
         pd.Series
             Values of metric (index - user id, values - metric value for every user).
         """
+        self._check_debias(is_debiased, obj_name="AUCFitted")
         outer_merged = fitted.outer_merged_enriched
-
         # Keep k first false positives and k first predicted test positives for roc auc computation
         cropped = outer_merged[
             (outer_merged["__test_pos_cumsum"] <= self.k)
@@ -513,12 +532,22 @@ def calc_auc_metrics(
     """
     results = {}
 
-    k_max = max(metric.k for metric in metrics.values())
     insufficient_handling_needed = any(
         metric.insufficient_handling != InsufficientHandling.IGNORE for metric in metrics.values()
     )
-    fitted = _AUCMetric.fit(reco, interactions, k_max, insufficient_handling_needed)
+
+    debiased_fit_task = calc_debiased_fit_task(metrics.values(), interactions)
+    fitted_debiased = {}
+    for debias_config_name, (k_max_d, interactions_d) in debiased_fit_task.items():
+        fitted_debiased[debias_config_name] = _AUCMetric.fit(
+            reco, interactions_d, k_max_d, insufficient_handling_needed
+        )
+
     for name, metric in metrics.items():
-        results[name] = metric.calc_from_fitted(fitted)
+        is_debiased = metric.debias_config is not None
+        results[name] = metric.calc_from_fitted(
+            fitted=fitted_debiased[metric.debias_config],
+            is_debiased=is_debiased,
+        )
 
     return results
