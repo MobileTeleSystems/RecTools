@@ -1,20 +1,23 @@
 import logging
 import typing as tp
-from itertools import compress
-from typing import List, Sequence, Tuple, Union
+import warnings
+from typing import List, Tuple, ClassVar
 
 import numpy as np
 import pandas as pd
 import torch
 import tqdm
 from lightning_fabric import seed_everything
+from scipy import sparse
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from rectools import AnyIds, Columns
 from rectools.dataset import Dataset as RecDataset
 from rectools.dataset.identifiers import IdMap
-from rectools.models.base import ModelBase
+from rectools.models.base import InternalRecoTriplet, ModelBase
+from rectools.models.rank import Distance, ImplicitRanker
+from rectools.types import AnyIdsArray, InternalIdsArray
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +51,17 @@ class SasRecRecommenderModel(ModelBase):
         self.dropout_rate = dropout_rate
         self.item_net_dropout_rate = item_net_dropout_rate
         self.use_pos_emb = use_pos_emb
+        self.device = torch.device(device)
         self.model: SASRec
         self.item_id_map: IdMap
         self.trainer = Trainer(
             lr=lr,
             batch_size=self.batch_size,
             epochs=epochs,
-            device=device,
+            device=self.device,
             loss=loss,
         )
+        self._hot_users: pd.Series
         if random_state is not None:
             torch.use_deterministic_algorithms(True)
             seed_everything(random_state, workers=True)
@@ -66,17 +71,18 @@ class SasRecRecommenderModel(ModelBase):
         dataset: RecDataset,
     ) -> None:
         """TODO"""
-        user_item_interactions = dataset.get_raw_interactions()
+        train = dataset.get_raw_interactions()
 
-        users = user_item_interactions[Columns.User].value_counts()
+        users = train[Columns.User].value_counts()
         users = users[users >= 2]
-        user_item_interactions = user_item_interactions[(user_item_interactions[Columns.User].isin(users.index))]
+        user_item_interactions = train[(train[Columns.User].isin(users.index))]
 
         user_item_interactions = (
             user_item_interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_maxlen + 1)
         )
 
         items = np.unique(user_item_interactions[Columns.Item])
+        self.hot_users = train[train[Columns.Item].isin(items)][Columns.User].drop_duplicates()
         self.item_id_map = IdMap.from_values("PAD")
         self.item_id_map = self.item_id_map.add_ids(items)
         user_item_interactions[Columns.Item] = self.item_id_map.convert_to_internal(
@@ -107,34 +113,113 @@ class SasRecRecommenderModel(ModelBase):
         self.trainer.fit(self.model, fit_dataloader)
         self.model = self.trainer.model
 
-    def recommend(
+    # @classmethod
+    def _split_targets_by_hot_warm_cold(
         self,
-        users: AnyIds,
+        targets: AnyIds,  # users for U2I or target items for I2I
+        id_map: IdMap,
+        n_hot: int,
+        assume_external_ids: bool,
+        entity: tp.Literal["user", "item"],
+    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
+        if assume_external_ids:
+            hot_ids = np.unique(list(set(targets).intersection(self.hot_users)))
+            warm_ids = np.array([])
+            cold_ids = np.array([])
+            hot_ids = id_map.convert_to_internal(hot_ids)
+
+        else:
+            targets = self._ensure_internal_ids_valid(targets)
+            train_users = id_map.convert_to_internal(self.hot_users)
+            hot_ids = np.unique(list(set(targets).intersection(train_users)))
+            warm_ids = np.array([])
+            cold_ids = np.array([])
+
+        n_cold = len(np.unique(targets)) - hot_ids.size
+        warnings.warn(f" {n_cold} users were filtered out as cold users")
+
+        return hot_ids, warm_ids, cold_ids
+
+    def _recommend_u2i(
+        self,
+        user_ids: InternalIdsArray,
         dataset: RecDataset,
         k: int,
-        filter_viewed: bool = False,
-        items_to_recommend: tp.Optional[AnyIds] = None,
-        add_rank_col: bool = True,
-        assume_external_ids: bool = True,
-    ) -> pd.DataFrame:
-        """TODO"""
-        train = dataset.get_raw_interactions()
-
-        item_features = train[Columns.Item].drop_duplicates()
-
-        rec_df = train[train[Columns.User].isin(users)]
-        recommender = SASRecRecommender(self.model, self.item_id_map)
-
-        if items_to_recommend is None:
-            items_to_recommend = item_features
-
-        recs = recommender.recommend(
-            user_item_interactions=rec_df,
-            item_features=item_features,
-            top_k=k,
-            candidate_items=items_to_recommend,
+        filter_viewed: bool,
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+    ) -> InternalRecoTriplet:
+        sorted_item_ids_to_recommend = dataset.item_id_map.convert_to_external(sorted_item_ids_to_recommend)
+        sorted_item_ids_to_recommend = pd.Series(
+            sorted(self.item_id_map.convert_to_internal(sorted_item_ids_to_recommend))
         )
-        return recs
+        train = dataset.get_raw_interactions()
+        mask = pd.Series(dataset.user_id_map.convert_to_internal(train[Columns.User])).isin(user_ids)
+        rec_df = train[mask]
+        rec_df[Columns.Item] = self.item_id_map.convert_to_internal(rec_df[Columns.Item])
+
+        items = pd.Series(self.item_id_map.get_sorted_internal()[1:])
+        if sorted_item_ids_to_recommend is None:
+            candidate_items = items
+        else:
+            candidate_items = sorted_item_ids_to_recommend[sorted_item_ids_to_recommend.isin(items)]
+        candidate_items_inds = torch.LongTensor(candidate_items)
+
+        self.model = self.model.eval()
+        self.model.to(self.device)
+
+        recommend_dataset = SequenceDataset.from_interactions(user_item_interactions=rec_df)
+        recommend_dataloader = DataLoader(
+            recommend_dataset,
+            batch_size=self.batch_size,
+            collate_fn=lambda batch: collate_fn_recommend(batch, self.model.session_maxlen),
+        )
+
+        session_embs = []
+        device = self.model.get_model_device()
+        self.model.item_model.to_device(device)
+        with torch.no_grad():
+            for x_batch in tqdm.tqdm(recommend_dataloader):
+                x_batch = x_batch.to(device)  # [batch_size, session_maxlen]
+                session_batch = self.model.predict(x_batch)  # [batch_size, n_items]
+                session_batch = session_batch.detach().cpu().numpy()
+                session_embs.append(session_batch)
+        session_embs = np.concatenate(session_embs, axis=0)  # [n_users, n_items]
+
+        item_embs = self.model.item_model.get_all_embeddings()
+        item_embs = item_embs[candidate_items_inds]
+        item_embs = np.array(item_embs.detach().cpu().numpy())
+
+        user_map = IdMap.from_values(user_ids)
+        rec_df[Columns.User] = dataset.user_id_map.convert_to_internal(rec_df[Columns.User])
+        rec_df[Columns.User] = user_map.convert_to_internal(rec_df[Columns.User])
+        if filter_viewed:
+            values = np.ones(len(rec_df))
+            ui_csr_for_filter = sparse.csr_matrix(
+                (
+                    values.astype(np.float32),
+                    (
+                        rec_df[Columns.User].values,
+                        rec_df[Columns.Item].values - 1,
+                    ),
+                ),
+            )
+        else:
+            ui_csr_for_filter = None
+
+        ranker = ImplicitRanker(Distance.DOT, session_embs, item_embs)
+        all_target_ids, all_reco_ids, all_scores = ranker.rank(
+            subject_ids=np.arange(len(user_ids)),
+            k=k,
+            filter_pairs_csr=ui_csr_for_filter,
+            sorted_object_whitelist=None,
+            num_threads=0,
+        )
+        all_target_ids = user_map.convert_to_external(all_target_ids)
+        all_reco_ids = [x + 1 for x in all_reco_ids]
+        all_reco_ids = dataset.item_id_map.convert_to_internal(
+            self.item_id_map.convert_to_external(np.array(all_reco_ids))
+        )
+        return all_target_ids, all_reco_ids, all_scores
 
 
 # TODO: think about moving all data processing to SequenceDataset.from_dataset method.
@@ -413,7 +498,6 @@ class SASRec(torch.nn.Module):
     def predict(
         self,
         sessions: torch.Tensor,
-        item_indices: torch.Tensor,
     ) -> torch.Tensor:
         # TODO fix docstring
         """
@@ -431,14 +515,8 @@ class SASRec(torch.nn.Module):
         """
         item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, factors]
-
         final_feat = session_embs[:, -1, :]  # only use last QKV classifier, a waste [batch_size, factors]
-
-        item_embs = item_embs[item_indices]  # [n_items, factors]
-
-        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)  # [batch_size, n_items]
-
-        return logits
+        return final_feat
 
 
 class Trainer:
@@ -449,7 +527,7 @@ class Trainer:
         lr: float,
         batch_size: int,
         epochs: int,
-        device: str,
+        device: torch.device,
         loss: str = "softmax",
     ):
         self.model: SASRec
@@ -457,7 +535,7 @@ class Trainer:
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
-        self.device = torch.device(device)
+        self.device = device
         self.loss_func = self._init_loss_func(loss)
 
     def fit(
@@ -531,156 +609,3 @@ class Trainer:
                 torch.nn.init.xavier_normal_(param.data)
             except ValueError as err:
                 logger.info("unable to init param %s with xavier: %s", name, err)
-
-
-class SASRecRecommender:
-    """TODO"""
-
-    def __init__(
-        self,
-        model: SASRec,
-        item_id_map: IdMap,
-        device: Union[torch.device, str] = "cuda:1",
-    ):
-        self.item_id_map = item_id_map
-        self.model = model.eval()
-        self.device = device
-
-        self.model.to(self.device)
-
-    # TODO what if candidate_items has elements not in item_features
-    def recommend(
-        self,
-        user_item_interactions: pd.DataFrame,
-        item_features: pd.Series,
-        top_k: int,
-        candidate_items: pd.Series,
-        batch_size: int = 128,
-    ) -> pd.DataFrame:
-        """Accept 3 dataframes from DB and return dataset with recommends"""
-        # TODO check that users with unsupported items in history have appropriate embeddings
-
-        # filter out unsupported items
-        supported_items = self.get_supported_items(item_features)
-        candidate_items = self._filter_candidate_items(candidate_items, supported_items)
-
-        # TODO candidate_items fix private method usage
-        candidate_items_inds = torch.LongTensor(self.item_id_map.convert_to_internal(candidate_items)).to(self.device)
-
-        # TODO here we can filter users completely.
-        # We need to find out where to check if we can make recs.
-        # If it is here, than just return error object with info about such users.
-        user_item_interactions, item_features = self._filter_datasets(
-            supported_items=supported_items,
-            user_item_interactions=user_item_interactions,
-            item_features=item_features,
-        )
-
-        user_item_interactions[Columns.Item] = self.item_id_map.convert_to_internal(
-            user_item_interactions[Columns.Item]
-        )
-
-        model_x = SequenceDataset.from_interactions(user_item_interactions=user_item_interactions)
-        recommend_dataloader = DataLoader(
-            model_x,
-            batch_size=batch_size,
-            collate_fn=lambda batch: collate_fn_recommend(batch, self.model.session_maxlen),
-        )
-
-        logits = []
-        device = self.model.get_model_device()
-        self.model.item_model.to_device(device)
-        with torch.no_grad():
-            for x_batch in tqdm.tqdm(recommend_dataloader):
-                x_batch = x_batch.to(device)  # [batch_size, session_maxlen]
-                logits_batch = (
-                    self.model.predict(x_batch, candidate_items_inds).detach().cpu().numpy()
-                )  # [batch_size, n_items]
-                logits.append(logits_batch)
-
-        logits_array = np.concatenate(logits, axis=0)  # [n_users, n_items]
-        user_item_interactions[Columns.Item] = self.item_id_map.convert_to_external(
-            user_item_interactions[Columns.Item]
-        )
-        users = user_item_interactions[Columns.User].drop_duplicates().sort_values()
-        recs = self.collect_recs(
-            user_item_interactions=user_item_interactions,
-            candidate_items=candidate_items,
-            users=users,
-            logits=logits_array,
-            top_k=top_k,
-        )
-        return recs
-
-    # TODO move implementation to processor
-    def get_supported_items(self, item_features: pd.Series) -> List[int]:
-        """TODO"""
-        supported_ids = set(self.item_id_map.get_external_sorted_by_internal())
-        mask = item_features.isin(supported_ids)
-
-        item_features = item_features[mask]
-
-        return item_features.to_list()
-
-    def _filter_candidate_items(self, candidate_items: Sequence[int], supported_items: Sequence[int]) -> List[int]:
-        supported_candidate_items = list(set(candidate_items).intersection(supported_items))
-        filtered_items_cnt = len(candidate_items) - len(supported_candidate_items)
-        if filtered_items_cnt > 0:
-            logger.warning("filtered out %s candidate items which are not supported by model", filtered_items_cnt)
-
-        return supported_candidate_items
-
-    def _filter_datasets(
-        self,
-        supported_items: Sequence[int],
-        user_item_interactions: pd.DataFrame,
-        item_features: pd.DataFrame,
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        item_features = item_features[item_features.isin(supported_items)]
-        user_item_interactions = user_item_interactions[user_item_interactions[Columns.Item].isin(supported_items)]
-
-        return user_item_interactions, item_features
-
-    def collect_recs(
-        self,
-        user_item_interactions: pd.DataFrame,
-        candidate_items: List[int],
-        users: List[str],
-        logits: np.ndarray,  # [users, candidate_items]
-        top_k: int,
-    ) -> pd.DataFrame:
-        """TODO"""
-        user2hist = user_item_interactions.groupby(Columns.User)[Columns.Item].agg(set).to_dict()
-        candidate_items_array = np.array(candidate_items)
-        inds = np.argsort(-logits, axis=1)
-
-        records = []
-        for i, user in enumerate(tqdm.tqdm(users)):
-            cur_hist = user2hist[user]
-            cur_top_k = top_k + len(cur_hist)
-
-            cur_rec = candidate_items_array[inds[i, :cur_top_k]]
-            cur_scores = logits[i, inds[i, :cur_top_k]]
-            mask = [rec not in cur_hist for rec in cur_rec]
-            cur_recs = list(compress(cur_rec, mask))[:top_k]
-            cur_scores = list(compress(cur_scores, mask))[:top_k]
-
-            records.append(
-                (
-                    user,
-                    cur_recs,
-                    cur_scores,
-                )
-            )
-
-        recs = pd.DataFrame(
-            records,
-            columns=[
-                Columns.User,
-                Columns.Item,
-                Columns.Weight,
-            ],
-        ).explode([Columns.Item, Columns.Weight])
-        recs[Columns.Rank] = recs.groupby(Columns.User).cumcount() + 1
-
-        return recs
