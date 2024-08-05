@@ -20,6 +20,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 from IPython.display import display
+from packaging.version import Version
 
 from rectools import Columns
 
@@ -132,6 +133,7 @@ class MetricsApp:
         >>> fig = app.fig
         >>> fig = fig.update_layout(title="Metrics comparison")
         """
+        cls._validate_nbformat_version()
         cls._validate_models_metrics_base(models_metrics)
         cls._validate_models_metrics_split(models_metrics)
         if models_metadata is None:
@@ -159,6 +161,19 @@ class MetricsApp:
         if Columns.Split in self.data.columns:
             return sorted(self.data[Columns.Split].unique())
         return None
+
+    @staticmethod
+    def _validate_nbformat_version() -> None:
+        try:
+            import nbformat  # pylint: disable=import-outside-toplevel
+
+            nbformat_version = Version(nbformat.__version__)
+            if nbformat_version < Version("4.2.0"):
+                raise ValueError(
+                    f"Mime type rendering requires nbformat>=4.2.0 but the installed version is {nbformat_version}"
+                )
+        except ImportError:
+            raise ValueError("Mime type rendering requires nbformat>=4.2.0 but it is not installed")
 
     @staticmethod
     def _validate_models_metrics_base(models_metrics: pd.DataFrame) -> None:
