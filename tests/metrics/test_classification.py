@@ -209,8 +209,8 @@ class TestDebiasableClassificationMetric:
         debiased_metric = copy(metric)
         debiased_metric.debias_config = DEBIAS_CONFIG
 
-        downsample_interactions = debias_interactions(INTERACTIONS, config=DEBIAS_CONFIG)
-        expected_metric_per_user = metric.calc_per_user(RECO, downsample_interactions, CATALOG)
+        debiased_interactions = debias_interactions(INTERACTIONS, config=DEBIAS_CONFIG)
+        expected_metric_per_user = metric.calc_per_user(RECO, debiased_interactions, CATALOG)
 
         actual_metric_per_user = debiased_metric.calc_per_user(RECO, INTERACTIONS, CATALOG)
         actual_metric = debiased_metric.calc(RECO, INTERACTIONS, CATALOG)

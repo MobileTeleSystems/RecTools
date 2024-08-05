@@ -28,13 +28,13 @@ from .base import MetricAtK
 @attr.s(frozen=True)
 class DebiasConfig:
     """
-    Config with debias method parameters.
+    Config for debiasing method parameters.
 
     Parameters
     ----------
     iqr_coef : float, default 1.5
-        The interquartile range coefficient (IQR), which is needed to calculate the maximum boundary 
-        (Q3 + iqr_coef * IQR) at which popular items will be removed from test interactions.
+        The interquartile range (IQR) coefficient required to calculate the maximum accepted popularity border 
+        (Q3 + iqr_coef * IQR), which is necessary to down-sample every item to a value that does not exceed it.
     random_state : int, optional, default None
         Pseudorandom number generator state to control the down-sampling.
     """
@@ -46,10 +46,7 @@ class DebiasConfig:
 @attr.s
 class DebiasableMetrikAtK(MetricAtK):
     """
-    Debias metric base class.
-
-    Warning: This class should not be used directly.
-    Use derived classes instead.
+    Debiasing metric base class.
 
     Warning: This class should not be used directly.
     Use derived classes instead.
@@ -77,7 +74,7 @@ class DebiasableMetrikAtK(MetricAtK):
 
 def debias_interactions(interactions: pd.DataFrame, config: DebiasConfig) -> pd.DataFrame:
     """
-    Downsample the size of interactions, excluding some interactions with popular items.
+    Down-sample the size of interactions, excluding some interactions with popular items.
 
     Algorithm:
 
