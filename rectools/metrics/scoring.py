@@ -34,7 +34,7 @@ from .serendipity import SerendipityMetric, calc_serendipity_metrics
 
 
 def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
-    metrics: tp.Dict[str, MetricAtK],
+    metrics: tp.Mapping[str, MetricAtK],
     reco: pd.DataFrame,
     interactions: tp.Optional[pd.DataFrame] = None,
     prev_interactions: tp.Optional[pd.DataFrame] = None,

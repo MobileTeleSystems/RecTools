@@ -173,7 +173,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
 
     def test_success_debias(self) -> None:
         debias_config = DebiasConfig(iqr_coef=1.5, random_state=32)
-        debias_metrics = {
+        debiased_metrics = {
             "debiased_precision@3": Precision(k=3, debias_config=debias_config),
             "debiased_rprecision@3": Precision(k=3, r_precision=True, debias_config=debias_config),
             "debiased_recall@3": Recall(k=3, debias_config=debias_config),
@@ -207,13 +207,13 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         debiased_interactions = debias_interactions(self.interactions, config=debias_config)
 
         actual = calc_metrics(
-            metrics=debias_metrics,  # type: ignore
+            metrics=debiased_metrics,
             reco=self.reco,
             interactions=self.interactions,
             catalog=self.catalog,
         )
         expected = calc_metrics(
-            metrics=metrics,  # type: ignore
+            metrics=metrics,
             reco=self.reco,
             interactions=debiased_interactions,
             catalog=self.catalog,
