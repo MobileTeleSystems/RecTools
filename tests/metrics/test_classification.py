@@ -199,7 +199,7 @@ class TestHitRate:
 
 class TestDebiasableClassificationMetric:
     @pytest.mark.parametrize(
-        "metric, debiased_metric",
+        "metric",
         (
             Accuracy(k=2),
             MCC(k=2),

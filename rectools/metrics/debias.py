@@ -33,7 +33,7 @@ class DebiasConfig:
     Parameters
     ----------
     iqr_coef : float, default 1.5
-        The interquartile range (IQR) coefficient required to calculate the maximum accepted popularity border 
+        The interquartile range (IQR) coefficient required to calculate the maximum accepted popularity border
         (Q3 + iqr_coef * IQR), which is necessary to down-sample every item to a value that does not exceed it.
     random_state : int, optional, default None
         Pseudorandom number generator state to control the down-sampling.

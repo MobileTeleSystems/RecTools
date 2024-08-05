@@ -224,7 +224,7 @@ class TestDebiasableRankingMetric:
             MRR(k=3),
         ),
     )
-    def test_calc(self, metric: RankingMetric, debiased_metric: RankingMetric) -> None:
+    def test_calc(self, metric: RankingMetric) -> None:
         debiased_metric = copy(metric)
         debiased_metric.debias_config = DEBIAS_CONFIG
 
