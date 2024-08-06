@@ -140,14 +140,15 @@ class ModelBase:
         self._check_is_fitted()
         self._check_k(k)
 
+        item_id_map = self._get_item_id_map(dataset)
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
-            items_to_recommend, dataset, assume_external_ids
+            items_to_recommend, item_id_map, assume_external_ids
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
             users,
-            dataset.user_id_map,
+            dataset,
             dataset.n_hot_users,
             assume_external_ids,
             "user",
@@ -176,9 +177,9 @@ class ModelBase:
         reco_cold = self._adjust_reco_types(reco_cold, target_type=dataset.user_id_map.external_dtype)
 
         if assume_external_ids:
-            reco_hot_final = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
-            reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
-            reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+            reco_hot_final = self._reco_to_external(reco_hot, dataset.user_id_map, item_id_map)
+            reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, item_id_map)
+            reco_cold_final = self._reco_items_to_external(reco_cold, item_id_map)
         else:
             reco_hot_final, reco_warm_final, reco_cold_final = reco_hot, reco_warm, reco_cold
         del reco_hot, reco_warm, reco_cold
@@ -256,14 +257,15 @@ class ModelBase:
         self._check_is_fitted()
         self._check_k(k)
 
+        item_id_map = self._get_item_id_map(dataset)
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
-            items_to_recommend, dataset, assume_external_ids
+            items_to_recommend, item_id_map, assume_external_ids
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
             target_items,
-            dataset.item_id_map,
+            dataset,
             dataset.n_hot_items,
             assume_external_ids,
             "item",
@@ -302,9 +304,9 @@ class ModelBase:
             # We don't filter cold reco since we never recommend cold items
 
         if assume_external_ids:
-            reco_hot_final = self._reco_to_external(reco_hot, dataset.item_id_map, dataset.item_id_map)
-            reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
-            reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+            reco_hot_final = self._reco_to_external(reco_hot, dataset.item_id_map, item_id_map)
+            reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, item_id_map)
+            reco_cold_final = self._reco_items_to_external(reco_cold, item_id_map)
         else:
             reco_hot_final, reco_warm_final, reco_cold_final = reco_hot, reco_warm, reco_cold
         del reco_hot, reco_warm, reco_cold
@@ -333,28 +335,31 @@ class ModelBase:
 
     @classmethod
     def _get_sorted_item_ids_to_recommend(
-        cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
+        cls, items_to_recommend: tp.Optional[AnyIds], item_id_map: IdMap, assume_external_ids: bool
     ) -> tp.Optional[InternalIdsArray]:
         if items_to_recommend is None:
             return None
 
         if assume_external_ids:
-            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
+            item_ids_to_recommend = item_id_map.convert_to_internal(items_to_recommend, strict=False)
         else:
             item_ids_to_recommend = cls._ensure_internal_ids_valid(items_to_recommend)
 
         sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
         return sorted_item_ids_to_recommend
 
-    @classmethod
     def _split_targets_by_hot_warm_cold(
-        cls,
+        self,
         targets: AnyIds,  # users for U2I or target items for I2I
-        id_map: IdMap,
+        dataset: Dataset,
         n_hot: int,
         assume_external_ids: bool,
         entity: tp.Literal["user", "item"],
     ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
+        if entity == "user":
+            id_map = dataset.user_id_map
+        else:
+            id_map = dataset.item_id_map
         if assume_external_ids:
             known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
             try:
@@ -365,7 +370,7 @@ class ModelBase:
                     f"{entity}_id` type in dataset ({id_map.external_dtype})"
                 )
         else:
-            target_ids = cls._ensure_internal_ids_valid(targets)
+            target_ids = self._ensure_internal_ids_valid(targets)
             known_mask = target_ids < id_map.size
             known_ids = target_ids[known_mask]
             cold_ids = target_ids[~known_mask]
@@ -422,6 +427,9 @@ class ModelBase:
             .head(k)
         )
         return df_reco["tid"].values, df_reco["iid"].values, df_reco["score"].values
+
+    def _get_item_id_map(self, dataset: Dataset) -> IdMap:
+        return dataset.item_id_map
 
     @classmethod
     def _reco_to_external(cls, reco: InternalRecoTriplet, target_id_map: IdMap, item_id_map: IdMap) -> RecoTriplet:
