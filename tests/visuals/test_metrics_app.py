@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import typing as tp
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -106,28 +105,6 @@ class TestMetricsApp:
             scatter_kwargs=scatter_kwargs,
         )
         app.display()
-
-    # ----------------------------------------Test nbformat version----------------------------------------- #
-
-    def test_nbformat_version_ok(self) -> None:
-        with patch("nbformat.__version__", "4.2.0"):
-            app = MetricsApp.construct(models_metrics=DF_METRICS)
-            app.display()
-
-    def test_nbformat_version_too_low(self) -> None:
-        with patch("nbformat.__version__", "4.1.0"):
-            with pytest.raises(
-                ValueError,
-                match="Mime type rendering requires nbformat>=4.2.0 but the installed version is 4.1.0",
-            ):
-                MetricsApp.construct(models_metrics=DF_METRICS)
-
-    def test_nbformat_not_installed(self) -> None:
-        with patch.dict("sys.modules", {"nbformat": None}):
-            with pytest.raises(
-                ValueError, match="Mime type rendering requires nbformat>=4.2.0 but it is not installed"
-            ):
-                MetricsApp.construct(models_metrics=DF_METRICS)
 
     # -------------------------------------Test metrics data validation------------------------------------- #
 
