@@ -304,8 +304,8 @@ class ModelBase:
             # We don't filter cold reco since we never recommend cold items
 
         if assume_external_ids:
-            reco_hot_final = self._reco_to_external(reco_hot, dataset.item_id_map, item_id_map)
-            reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, item_id_map)
+            reco_hot_final = self._reco_to_external(reco_hot, item_id_map, item_id_map)
+            reco_warm_final = self._reco_to_external(reco_warm, item_id_map, item_id_map)
             reco_cold_final = self._reco_items_to_external(reco_cold, item_id_map)
         else:
             reco_hot_final, reco_warm_final, reco_cold_final = reco_hot, reco_warm, reco_cold

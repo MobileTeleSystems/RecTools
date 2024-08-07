@@ -117,34 +117,68 @@ class SasRecRecommenderModel(ModelBase):
         dataset: RecDataset,
         n_hot: int,
         assume_external_ids: bool,
-        entity: tp.Literal["user", "item"],  # now for user entity only
+        entity: tp.Literal["user", "item"],
     ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
 
         if entity == "user":
-            id_map = dataset.user_id_map
-        else:
-            id_map = dataset.item_id_map
+            return self._split_user_targets(
+                targets=targets,
+                dataset=dataset,
+                assume_external_ids=assume_external_ids,
+            )
 
+        return self._split_item_targets(
+            targets=targets,
+            dataset_item_id_map=dataset.item_id_map,
+            assume_external_ids=assume_external_ids,
+        )
+
+    def _split_user_targets(
+        self,
+        targets: AnyIds,
+        dataset: RecDataset,
+        assume_external_ids: bool,
+    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
         train = dataset.get_raw_interactions()
         items = self.item_id_map.get_external_sorted_by_internal()
         train = train[train[Columns.Item].isin(items)]
         hot_users = train[Columns.User].drop_duplicates()
 
         if assume_external_ids:
-            hot_ids = np.array(list(set(targets).intersection(hot_users)))
-            warm_ids = np.array([])
-            cold_ids = np.array([])
-            hot_ids = id_map.convert_to_internal(hot_ids)
+            hot_ids = targets[pd.Series(targets).isin(hot_users)]
+            hot_ids = dataset.user_id_map.convert_to_internal(hot_ids)
         else:
             targets = np.unique(self._ensure_internal_ids_valid(targets))
-            train_users = id_map.convert_to_internal(hot_users)
-            hot_ids = np.array(list(set(targets).intersection(train_users)))
-            warm_ids = np.array([])
-            cold_ids = np.array([])
+            train_users = dataset.user_id_map.convert_to_internal(hot_users)
+            hot_ids = targets[pd.Series(targets).isin(train_users)]
 
+        warm_ids = np.array([])
+        cold_ids = np.array([])
         n_cold = len(targets) - len(hot_ids)
         warnings.warn(f"{n_cold} users were filtered out as cold users")
+        return hot_ids, warm_ids, cold_ids
 
+    def _split_item_targets(
+        self,
+        targets: AnyIds,
+        dataset_item_id_map: IdMap,
+        assume_external_ids: bool,
+    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
+        if assume_external_ids:
+            hot_ids, cold_ids = self.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
+        else:
+            target_ids = self._ensure_internal_ids_valid(targets)
+            hot_ids, cold_ids = self.item_id_map.convert_to_internal(
+                dataset_item_id_map.convert_to_external(target_ids), strict=False, return_missing=True
+            )
+        try:
+            cold_ids = cold_ids.astype(self.item_id_map.external_dtype)
+        except ValueError:
+            raise TypeError(
+                f"Given item ids must be convertible to the "
+                f"item_id` type in model ({self.item_id_map.external_dtype})"
+            )
+        warm_ids = np.array([])
         return hot_ids, warm_ids, cold_ids
 
     def _recommend_u2i(
@@ -255,7 +289,21 @@ class SasRecRecommenderModel(ModelBase):
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
-        raise NotImplementedError()
+        if sorted_item_ids_to_recommend is None:
+            sorted_item_ids_to_recommend = self.item_id_map.get_sorted_internal()[1:]  # model internal
+        item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, factors]
+        ranker = ImplicitRanker(
+            Distance.COSINE,
+            item_embs,  # [n_items + 1, factors]
+            item_embs,  # [n_items + 1, factors]
+        )
+        return ranker.rank(
+            subject_ids=target_ids,  # model internal
+            k=k,
+            filter_pairs_csr=None,
+            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
+            num_threads=0,
+        )
 
     def _get_item_id_map(self, dataset: RecDataset) -> IdMap:
         return self.item_id_map
