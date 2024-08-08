@@ -8,16 +8,16 @@ import pandas as pd
 import torch
 import tqdm
 from lightning_fabric import seed_everything
-from scipy import sparse
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from rectools import AnyIds, Columns
 from rectools.dataset import Dataset as RecDataset
+from rectools.dataset import Interactions
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.types import AnyIdsArray, InternalIdsArray
+from rectools.types import InternalIdsArray
 
 logger = logging.getLogger(__name__)
 
@@ -111,102 +111,79 @@ class SasRecRecommenderModel(ModelBase):
         self.trainer.fit(self.model, fit_dataloader)
         self.model = self.trainer.model
 
-    def _split_targets_by_hot_warm_cold(
-        self,
-        targets: AnyIds,  # users for U2I or target items for I2I
-        dataset: RecDataset,
-        n_hot: int,
-        assume_external_ids: bool,
-        entity: tp.Literal["user", "item"],
-    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
+    def _process_dataset_u2i(self, dataset: RecDataset, users: AnyIds, assume_external_ids: bool) -> RecDataset:
+        """
+        For SasRec u2i recommend we prepare dataset that consists only of model know items during fit.
+        And only of desired target user ids. Some user ids might be dropped with a warning
+        """
+        if not assume_external_ids:
+            raise ValueError(f"Model {self.__class__.__name__} doesn't support recommending in internal ids")
 
-        if entity == "user":
-            return self._split_user_targets(
-                targets=targets,
-                dataset=dataset,
-                assume_external_ids=assume_external_ids,
+        interactions = dataset.get_raw_interactions()
+        known_item_ids = self.item_id_map.get_external_sorted_by_internal()
+        interactions = interactions[interactions[Columns.User].isin(users)]
+        interactions = interactions[interactions[Columns.Item].isin(known_item_ids)]
+
+        n_actual_users = interactions[Columns.User].nunique()
+        n_requested_users = len(pd.unique(users))
+        if n_actual_users < n_requested_users:
+            warnings.warn(
+                f"{n_requested_users-n_actual_users} were filtered from recommendations because of missing known items"
             )
 
-        return self._split_item_targets(
-            targets=targets,
-            dataset_item_id_map=dataset.item_id_map,
-            assume_external_ids=assume_external_ids,
+        # External -> rec_user_internal IdMap for users
+        rec_user_id_map = IdMap.from_values(interactions[Columns.User].unique())
+        interactions[Columns.User] = rec_user_id_map.convert_to_internal(interactions[Columns.User])
+
+        # External -> model_internal IdMap for items
+        interactions[Columns.Item] = self.item_id_map.convert_to_internal(interactions[Columns.Item])
+
+        # For now featurer are dropped because model doesn't support them
+        filtered_dataset = RecDataset(
+            user_id_map=rec_user_id_map, item_id_map=self.item_id_map, interactions=Interactions(interactions)
         )
+        return filtered_dataset
 
-    def _split_user_targets(
-        self,
-        targets: AnyIds,
-        dataset: RecDataset,
-        assume_external_ids: bool,
-    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
-        train = dataset.get_raw_interactions()
-        items = self.item_id_map.get_external_sorted_by_internal()
-        train = train[train[Columns.Item].isin(items)]
-        hot_users = train[Columns.User].drop_duplicates()
+    def _process_dataset_i2i(self, dataset: RecDataset, target_items: AnyIds, assume_external_ids: bool) -> RecDataset:
+        """
+        For SasRec u2i recommend we prepare dataset that consists only of model know items during fit.
+        And only of desired target user ids. Some user ids might be dropped with a warning
+        """
+        if not assume_external_ids:
+            raise ValueError(f"Model {self.__class__.__name__} doesn't support recommending in internal ids")
 
-        if assume_external_ids:
-            hot_ids = targets[pd.Series(targets).isin(hot_users)]
-            hot_ids = dataset.user_id_map.convert_to_internal(hot_ids)
-        else:
-            targets = np.unique(self._ensure_internal_ids_valid(targets))
-            train_users = dataset.user_id_map.convert_to_internal(hot_users)
-            hot_ids = targets[pd.Series(targets).isin(train_users)]
+        interactions = dataset.get_raw_interactions()
+        known_item_ids = self.item_id_map.get_external_sorted_by_internal()
+        interactions = interactions[interactions[Columns.Item].isin(known_item_ids)]
 
-        warm_ids = np.array([])
-        cold_ids = np.array([])
-        n_cold = len(targets) - len(hot_ids)
-        warnings.warn(f"{n_cold} users were filtered out as cold users")
-        return hot_ids, warm_ids, cold_ids
+        # External -> model_internal IdMap for items
+        interactions[Columns.Item] = self.item_id_map.convert_to_internal(interactions[Columns.Item])
 
-    def _split_item_targets(
-        self,
-        targets: AnyIds,
-        dataset_item_id_map: IdMap,
-        assume_external_ids: bool,
-    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
-        if assume_external_ids:
-            hot_ids, cold_ids = self.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
-        else:
-            target_ids = self._ensure_internal_ids_valid(targets)
-            hot_ids, cold_ids = self.item_id_map.convert_to_internal(
-                dataset_item_id_map.convert_to_external(target_ids), strict=False, return_missing=True
-            )
-        try:
-            cold_ids = cold_ids.astype(self.item_id_map.external_dtype)
-        except ValueError:
-            raise TypeError(
-                f"Given item ids must be convertible to the "
-                f"item_id` type in model ({self.item_id_map.external_dtype})"
-            )
-        warm_ids = np.array([])
-        return hot_ids, warm_ids, cold_ids
+        # External -> dataset internal IdMap for users (we don't use this in recommend for items)
+        interactions[Columns.User] = dataset.user_id_map.convert_to_internal(interactions[Columns.User])
+
+        # For now featurer are dropped because model doesn't support them
+        filtered_dataset = RecDataset(
+            user_id_map=dataset.user_id_map, item_id_map=self.item_id_map, interactions=Interactions(interactions)
+        )
+        return filtered_dataset
 
     def _recommend_u2i(
         self,
-        user_ids: InternalIdsArray,
-        dataset: RecDataset,
+        user_ids: InternalIdsArray,  # n_rec_users
+        dataset: RecDataset,  # [n_rec_users x n_items + 1]
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
     ) -> InternalRecoTriplet:
 
-        rec_df = dataset.get_raw_interactions()
-        mask = pd.Series(dataset.user_id_map.convert_to_internal(rec_df[Columns.User])).isin(user_ids)
-        rec_df = rec_df[mask]  # external
-        rec_df[Columns.Item] = self.item_id_map.convert_to_internal(rec_df[Columns.Item])  # model internal
-
-        items = pd.Series(self.item_id_map.get_sorted_internal()[1:])
         if sorted_item_ids_to_recommend is None:
-            candidate_items = items  # model internal
-        else:
-            candidate_items = sorted_item_ids_to_recommend[
-                pd.Series(sorted_item_ids_to_recommend).isin(items)
-            ]  # model internal
+            sorted_item_ids_to_recommend = self.item_id_map.get_sorted_internal()[1:]  # model internal
 
         self.model = self.model.eval()
         self.model.to(self.device)
 
-        recommend_dataset = SequenceDataset.from_interactions(user_item_interactions=rec_df)
+        recommend_dataset = SequenceDataset.from_interactions(dataset.interactions.df)
         recommend_dataloader = DataLoader(
             recommend_dataset,
             batch_size=self.batch_size,
@@ -226,65 +203,28 @@ class SasRecRecommenderModel(ModelBase):
         user_embs = np.concatenate(session_embs, axis=0)  # [n_rec_users, factors]
         item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, factors]
 
-        return self.get_scores(
-            user_item_interactions=rec_df,
-            candidate_items=candidate_items.values,
-            filter_viewed=filter_viewed,
-            user_embs=user_embs,
-            item_embs=item_embs,
-            user_id_map=dataset.user_id_map,
-            k=k,
-        )
-
-    def get_scores(
-        self,
-        user_item_interactions: pd.DataFrame,
-        filter_viewed: bool,
-        user_embs: np.ndarray,
-        item_embs: np.ndarray,
-        user_id_map: IdMap,
-        k: int,
-        candidate_items: np.ndarray,
-    ) -> InternalRecoTriplet:
-        """TODO"""
-        # external -> rec_user_internal
-        user_map = IdMap.from_values(user_item_interactions[Columns.User].drop_duplicates().sort_values())
-        user_item_interactions[Columns.User] = user_map.convert_to_internal(
-            user_item_interactions[Columns.User]
-        )  # rec_user_internal
-
-        if filter_viewed:
-            values = np.ones(len(user_item_interactions))
-            ui_csr_for_filter = sparse.csr_matrix(
-                (
-                    values.astype(np.float32),
-                    (
-                        user_item_interactions[Columns.User].values,  # rec_user_internal
-                        user_item_interactions[Columns.Item].values,  # model internal
-                    ),
-                ),
-            )  # [n_rec_users, n_hist_items]
-        else:
-            ui_csr_for_filter = None
-
         ranker = ImplicitRanker(
             Distance.DOT,
             user_embs,  # [n_rec_users, factors]
             item_embs,  # [n_items + 1, factors]
         )
+        filter_pairs_csr = dataset.get_user_item_matrix() if filter_viewed else None
+
+        # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
+
         all_target_ids, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=np.arange(user_map.size),  # rec_user_internal
+            subject_ids=user_ids,  # n_rec_users
             k=k,
-            filter_pairs_csr=ui_csr_for_filter,
-            sorted_object_whitelist=candidate_items,  # model internal
-            num_threads=0,
+            filter_pairs_csr=filter_pairs_csr,  # [n_rec_users x n_items + 1]
+            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
+            num_threads=0,  # TODO: think about it
         )
-        all_target_ids = user_id_map.convert_to_internal(user_map.convert_to_external(all_target_ids))
-        return all_target_ids, all_reco_ids, all_scores
+
+        return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
 
     def _recommend_i2i(
         self,
-        target_ids: InternalIdsArray,
+        target_ids: InternalIdsArray,  # model internal
         dataset: RecDataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
@@ -292,6 +232,10 @@ class SasRecRecommenderModel(ModelBase):
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.item_id_map.get_sorted_internal()[1:]  # model internal
         item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, factors]
+
+        # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
+        # Should we use torch dot and topk? Should be faster
+
         ranker = ImplicitRanker(
             Distance.COSINE,
             item_embs,  # [n_items + 1, factors]
@@ -304,9 +248,6 @@ class SasRecRecommenderModel(ModelBase):
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
             num_threads=0,
         )
-
-    def _get_item_id_map(self, dataset: RecDataset) -> IdMap:
-        return self.item_id_map
 
 
 # TODO: think about moving all data processing to SequenceDataset.from_dataset method.
