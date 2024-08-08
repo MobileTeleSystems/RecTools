@@ -17,7 +17,7 @@ from rectools.dataset import Interactions
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.types import InternalIdsArray
+from rectools.types import InternalIdsArray, AnyIdsArray
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,21 @@ class SasRecRecommenderModel(ModelBase):
         logger.info("building trainer")
         self.trainer.fit(self.model, fit_dataloader)
         self.model = self.trainer.model
+        
+    def _split_targets_by_hot_warm_cold(
+        self,
+        targets: AnyIds,  # users for U2I or target items for I2I
+        dataset: RecDataset,
+        n_hot: int,
+        assume_external_ids: bool,
+        entity: tp.Literal["user", "item"],
+    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
+        if entity == "user":
+            return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])
+        
+        known_ids, new_ids = self.item_id_map.convert_to_internal(return_missing=True)
+        warnings.warn(f"{len(new_ids)} target items were considered cold because their are not known by the model")
+        return known_ids, np.asarray([]), np.asarray([])
 
     def _process_dataset_u2i(self, dataset: RecDataset, users: AnyIds, assume_external_ids: bool) -> RecDataset:
         """
@@ -120,7 +135,7 @@ class SasRecRecommenderModel(ModelBase):
             raise ValueError(f"Model {self.__class__.__name__} doesn't support recommending in internal ids")
 
         interactions = dataset.get_raw_interactions()
-        known_item_ids = self.item_id_map.get_external_sorted_by_internal()
+        known_item_ids = self.item_id_map.get_external_sorted_by_internal()[1:]
         interactions = interactions[interactions[Columns.User].isin(users)]
         interactions = interactions[interactions[Columns.Item].isin(known_item_ids)]
 
@@ -128,7 +143,7 @@ class SasRecRecommenderModel(ModelBase):
         n_requested_users = len(pd.unique(users))
         if n_actual_users < n_requested_users:
             warnings.warn(
-                f"{n_requested_users-n_actual_users} were filtered from recommendations because of missing known items"
+                f"{n_requested_users-n_actual_users} target users were considered cold because of missing known items"
             )
 
         # External -> rec_user_internal IdMap for users
@@ -145,10 +160,6 @@ class SasRecRecommenderModel(ModelBase):
         return filtered_dataset
 
     def _process_dataset_i2i(self, dataset: RecDataset, target_items: AnyIds, assume_external_ids: bool) -> RecDataset:
-        """
-        For SasRec u2i recommend we prepare dataset that consists only of model know items during fit.
-        And only of desired target user ids. Some user ids might be dropped with a warning
-        """
         if not assume_external_ids:
             raise ValueError(f"Model {self.__class__.__name__} doesn't support recommending in internal ids")
 
