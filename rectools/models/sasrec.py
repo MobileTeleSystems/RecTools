@@ -17,7 +17,7 @@ from rectools.dataset import Interactions
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.types import InternalIdsArray, AnyIdsArray
+from rectools.types import AnyIdsArray, InternalIdsArray
 
 logger = logging.getLogger(__name__)
 
@@ -110,19 +110,19 @@ class SasRecRecommenderModel(ModelBase):
         logger.info("building trainer")
         self.trainer.fit(self.model, fit_dataloader)
         self.model = self.trainer.model
-        
+
+    @classmethod
     def _split_targets_by_hot_warm_cold(
-        self,
+        cls,
         targets: AnyIds,  # users for U2I or target items for I2I
         dataset: RecDataset,
-        n_hot: int,
         assume_external_ids: bool,
         entity: tp.Literal["user", "item"],
     ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
         if entity == "user":
             return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])
-        
-        known_ids, new_ids = self.item_id_map.convert_to_internal(return_missing=True)
+
+        known_ids, new_ids = dataset.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
         warnings.warn(f"{len(new_ids)} target items were considered cold because their are not known by the model")
         return known_ids, np.asarray([]), np.asarray([])
 

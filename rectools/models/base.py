@@ -151,14 +151,13 @@ class ModelBase:
         dataset = self._process_dataset_u2i(dataset, users, assume_external_ids)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
-            items_to_recommend, dataset.item_id_map, assume_external_ids
+            items_to_recommend, dataset, assume_external_ids
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_user_ids, warm_user_ids, cold_user_ids = self._split_targets_by_hot_warm_cold(
             users,
             dataset,
-            dataset.n_hot_users,
             assume_external_ids,
             "user",
         )
@@ -271,14 +270,13 @@ class ModelBase:
         dataset = self._process_dataset_i2i(dataset, target_items, assume_external_ids)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(
-            items_to_recommend, dataset.item_id_map, assume_external_ids
+            items_to_recommend, dataset, assume_external_ids
         )
 
         # Here for hot and warm we get internal ids, for cold we keep given ids
         hot_target_ids, warm_target_ids, cold_target_ids = self._split_targets_by_hot_warm_cold(
             target_items,
             dataset,
-            dataset.n_hot_items,
             assume_external_ids,
             "item",
         )
@@ -349,31 +347,31 @@ class ModelBase:
 
     @classmethod
     def _get_sorted_item_ids_to_recommend(
-        cls, items_to_recommend: tp.Optional[AnyIds], item_id_map: IdMap, assume_external_ids: bool
+        cls, items_to_recommend: tp.Optional[AnyIds], dataset: Dataset, assume_external_ids: bool
     ) -> tp.Optional[InternalIdsArray]:
         if items_to_recommend is None:
             return None
 
         if assume_external_ids:
-            item_ids_to_recommend = item_id_map.convert_to_internal(items_to_recommend, strict=False)
+            item_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
         else:
             item_ids_to_recommend = cls._ensure_internal_ids_valid(items_to_recommend)
 
         sorted_item_ids_to_recommend = np.unique(item_ids_to_recommend)
         return sorted_item_ids_to_recommend
 
+    @classmethod
     def _split_targets_by_hot_warm_cold(
-        self,
+        cls,
         targets: AnyIds,  # users for U2I or target items for I2I
         dataset: Dataset,
-        n_hot: int,
         assume_external_ids: bool,
         entity: tp.Literal["user", "item"],
     ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
         if entity == "user":
-            id_map = dataset.user_id_map
+            id_map, n_hot = dataset.user_id_map, dataset.n_hot_users
         else:
-            id_map = dataset.item_id_map
+            id_map, n_hot = dataset.item_id_map, dataset.n_hot_items
         if assume_external_ids:
             known_ids, cold_ids = id_map.convert_to_internal(targets, strict=False, return_missing=True)
             try:
@@ -384,7 +382,7 @@ class ModelBase:
                     f"{entity}_id` type in dataset ({id_map.external_dtype})"
                 )
         else:
-            target_ids = self._ensure_internal_ids_valid(targets)
+            target_ids = cls._ensure_internal_ids_valid(targets)
             known_mask = target_ids < id_map.size
             known_ids = target_ids[known_mask]
             cold_ids = target_ids[~known_mask]
