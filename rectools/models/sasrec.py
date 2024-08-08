@@ -123,7 +123,10 @@ class SasRecRecommenderModel(ModelBase):
             return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])
 
         known_ids, new_ids = dataset.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
-        warnings.warn(f"{len(new_ids)} target items were considered cold because their are not known by the model")
+        warnings.warn(
+            f"""{len(new_ids)} target items were considered cold because their are not known by the model.
+            They will not get recommendations"""
+        )
         return known_ids, np.asarray([]), np.asarray([])
 
     def _process_dataset_u2i(self, dataset: RecDataset, users: AnyIds, assume_external_ids: bool) -> RecDataset:
@@ -143,7 +146,8 @@ class SasRecRecommenderModel(ModelBase):
         n_requested_users = len(pd.unique(users))
         if n_actual_users < n_requested_users:
             warnings.warn(
-                f"{n_requested_users-n_actual_users} target users were considered cold because of missing known items"
+                f"""{n_requested_users-n_actual_users} target users were considered cold because of missing known items.
+                They will not get recommendations"""
             )
 
         # External -> rec_user_internal IdMap for users
@@ -153,7 +157,7 @@ class SasRecRecommenderModel(ModelBase):
         # External -> model_internal IdMap for items
         interactions[Columns.Item] = self.item_id_map.convert_to_internal(interactions[Columns.Item])
 
-        # For now featurer are dropped because model doesn't support them
+        # For now features are dropped because model doesn't support them
         filtered_dataset = RecDataset(
             user_id_map=rec_user_id_map, item_id_map=self.item_id_map, interactions=Interactions(interactions)
         )
@@ -204,15 +208,16 @@ class SasRecRecommenderModel(ModelBase):
         session_embs = []
         device = self.model.get_model_device()
         self.model.item_model.to_device(device)
+        item_embs = self.model.item_model.get_all_embeddings()  # [n_items + 1, factors]
         with torch.no_grad():
             for x_batch in tqdm.tqdm(recommend_dataloader):
                 x_batch = x_batch.to(device)  # [batch_size, session_maxlen]
-                session_batch = self.model.predict(x_batch)  # [batch_size, factors]
-                session_batch = session_batch.detach().cpu().numpy()
-                session_embs.append(session_batch)
+                encoded = self.model.encode_sessions(x_batch, item_embs)[:, -1, :]  # [batch_size, factors]
+                encoded = encoded.detach().cpu().numpy()
+                session_embs.append(encoded)
 
         user_embs = np.concatenate(session_embs, axis=0)  # [n_rec_users, factors]
-        item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, factors]
+        item_embs = item_embs.detach().cpu().numpy()
 
         ranker = ImplicitRanker(
             Distance.DOT,
@@ -533,29 +538,6 @@ class SASRec(torch.nn.Module):
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, factors]
         logits = session_embs @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
         return logits
-
-    def predict(
-        self,
-        sessions: torch.Tensor,
-    ) -> torch.Tensor:
-        # TODO fix docstring
-        """
-        Inference model function
-
-        Args
-        -------
-            sessions (np.ndarray): [batch_size, maxlen] users' sessions
-            item_indices (np.ndarray): [candidates_count] 1D array of candidate items
-
-        Returns
-        -------
-            torch.Tensor: [batch_size, candidates_count] logits for each user
-
-        """
-        item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, factors]
-        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, factors]
-        final_feat = session_embs[:, -1, :]  # only use last QKV classifier, a waste [batch_size, factors]
-        return final_feat
 
 
 class Trainer:
