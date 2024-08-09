@@ -9,15 +9,15 @@ import torch
 import tqdm
 from lightning_fabric import seed_everything
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as TorchDataset
 
-from rectools import AnyIds, Columns
-from rectools.dataset import Dataset as RecDataset
-from rectools.dataset import Interactions
+from rectools import Columns, ExternalIds
+from rectools.dataset import Dataset, Interactions
 from rectools.dataset.identifiers import IdMap
-from rectools.models.base import InternalRecoTriplet, ModelBase
+from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.types import AnyIdsArray, InternalIdsArray
+from rectools.types import ExternalIdsArray, InternalIdsArray
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class SasRecRecommenderModel(ModelBase):
 
     def _fit(
         self,
-        dataset: RecDataset,
+        dataset: Dataset,
     ) -> None:
         """TODO"""
         train = dataset.get_raw_interactions()
@@ -114,29 +114,25 @@ class SasRecRecommenderModel(ModelBase):
     @classmethod
     def _split_targets_by_hot_warm_cold(
         cls,
-        targets: AnyIds,  # users for U2I or target items for I2I
-        dataset: RecDataset,
-        assume_external_ids: bool,
+        targets: ExternalIds,  # users for U2I or target items for I2I
+        dataset: Dataset,
         entity: tp.Literal["user", "item"],
-    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, AnyIdsArray]:
+    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, ExternalIdsArray]:
         if entity == "user":
+            # We already filtered out warm and cold user ids and handled unsupported targets
             return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])
 
+        # Warm items were already filtered out from dataset
         known_ids, new_ids = dataset.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
-        warnings.warn(
-            f"""{len(new_ids)} target items were considered cold because their are not known by the model.
-            They will not get recommendations"""
-        )
-        return known_ids, np.asarray([]), np.asarray([])
+        return known_ids, np.asarray([]), new_ids
 
-    def _process_dataset_u2i(self, dataset: RecDataset, users: AnyIds, assume_external_ids: bool) -> RecDataset:
+    def _process_dataset_u2i(
+        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+    ) -> Dataset:
         """
         For SasRec u2i recommend we prepare dataset that consists only of model know items during fit.
         And only of desired target user ids. Some user ids might be dropped with a warning
         """
-        if not assume_external_ids:
-            raise ValueError(f"Model {self.__class__.__name__} doesn't support recommending in internal ids")
-
         interactions = dataset.get_raw_interactions()
         known_item_ids = self.item_id_map.get_external_sorted_by_internal()[1:]
         interactions = interactions[interactions[Columns.User].isin(users)]
@@ -145,10 +141,12 @@ class SasRecRecommenderModel(ModelBase):
         n_actual_users = interactions[Columns.User].nunique()
         n_requested_users = len(pd.unique(users))
         if n_actual_users < n_requested_users:
-            warnings.warn(
-                f"""{n_requested_users-n_actual_users} target users were considered cold because of missing known items.
-                They will not get recommendations"""
-            )
+            explanation = f"""{n_requested_users-n_actual_users} target users were considered cold
+            because of missing known items. They can not get recommendations from model {self.__class__.__name__}"""
+            if on_unsupported_targets == "warn":
+                warnings.warn(explanation)
+            elif on_unsupported_targets == "raise":
+                raise ValueError(explanation)
 
         # External -> rec_user_internal IdMap for users
         rec_user_id_map = IdMap.from_values(interactions[Columns.User].unique())
@@ -158,27 +156,28 @@ class SasRecRecommenderModel(ModelBase):
         interactions[Columns.Item] = self.item_id_map.convert_to_internal(interactions[Columns.Item])
 
         # For now features are dropped because model doesn't support them
-        filtered_dataset = RecDataset(
+        filtered_dataset = Dataset(
             user_id_map=rec_user_id_map, item_id_map=self.item_id_map, interactions=Interactions(interactions)
         )
         return filtered_dataset
 
-    def _process_dataset_i2i(self, dataset: RecDataset, target_items: AnyIds, assume_external_ids: bool) -> RecDataset:
-        if not assume_external_ids:
-            raise ValueError(f"Model {self.__class__.__name__} doesn't support recommending in internal ids")
+    def _process_dataset_i2i(
+        self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
+    ) -> Dataset:
 
         interactions = dataset.get_raw_interactions()
         known_item_ids = self.item_id_map.get_external_sorted_by_internal()
+
         interactions = interactions[interactions[Columns.Item].isin(known_item_ids)]
 
         # External -> model_internal IdMap for items
         interactions[Columns.Item] = self.item_id_map.convert_to_internal(interactions[Columns.Item])
 
-        # External -> dataset internal IdMap for users (we don't use this in recommend for items)
+        # External -> dataset internal IdMap for users (we don't care about them in i2i)
         interactions[Columns.User] = dataset.user_id_map.convert_to_internal(interactions[Columns.User])
 
-        # For now featurer are dropped because model doesn't support them
-        filtered_dataset = RecDataset(
+        # For now features are dropped because model doesn't support them
+        filtered_dataset = Dataset(
             user_id_map=dataset.user_id_map, item_id_map=self.item_id_map, interactions=Interactions(interactions)
         )
         return filtered_dataset
@@ -186,7 +185,7 @@ class SasRecRecommenderModel(ModelBase):
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,  # n_rec_users
-        dataset: RecDataset,  # [n_rec_users x n_items + 1]
+        dataset: Dataset,  # [n_rec_users x n_items + 1]
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
@@ -217,12 +216,12 @@ class SasRecRecommenderModel(ModelBase):
                 session_embs.append(encoded)
 
         user_embs = np.concatenate(session_embs, axis=0)  # [n_rec_users, factors]
-        item_embs = item_embs.detach().cpu().numpy()
+        item_embs_np = item_embs.detach().cpu().numpy()
 
         ranker = ImplicitRanker(
             Distance.DOT,
             user_embs,  # [n_rec_users, factors]
-            item_embs,  # [n_items + 1, factors]
+            item_embs_np,  # [n_items + 1, factors]
         )
         filter_pairs_csr = dataset.get_user_item_matrix() if filter_viewed else None
 
@@ -241,7 +240,7 @@ class SasRecRecommenderModel(ModelBase):
     def _recommend_i2i(
         self,
         target_ids: InternalIdsArray,  # model internal
-        dataset: RecDataset,
+        dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
@@ -266,13 +265,7 @@ class SasRecRecommenderModel(ModelBase):
         )
 
 
-# TODO: think about moving all data processing to SequenceDataset.from_dataset method.
-# This would also mean creating different dataset types for fit and recommend
-# If we have different dataset types for fit and recommend,
-# we can also split to x/y/w and pad with zeros in dataset, not dataloader
-
-
-class SequenceDataset(Dataset):
+class SequenceDataset(TorchDataset):
     """TODO"""
 
     def __init__(self, sessions: List[List[int]], weights: List[List[float]]):
