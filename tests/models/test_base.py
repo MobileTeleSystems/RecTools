@@ -378,7 +378,7 @@ class TestHotWarmCold:
             for phrase in ("support", "cold"):
                 assert phrase in str(w[-1].message)
             assert "warm" not in str(w[-1].message)  # TODO: test with warm warning
-            
+
     # TODO: check correct reco with "ignore"
 
     @pytest.mark.parametrize("dataset_key", ("no_features", "with_features"))

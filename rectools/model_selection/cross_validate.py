@@ -7,7 +7,7 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset, Features, IdMap, Interactions
 from rectools.metrics import calc_metrics
 from rectools.metrics.base import MetricAtK
-from rectools.models.base import ModelBase
+from rectools.models.base import ErrorBehaviour, ModelBase
 from rectools.types import ExternalIds
 
 from .splitter import Splitter
@@ -63,6 +63,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     prefer_warm_inference_over_cold: bool = True,
     ref_models: tp.Optional[tp.List[str]] = None,
     validate_ref_models: bool = False,
+    on_unsupported_targets: ErrorBehaviour = "warn",
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -99,6 +100,15 @@ def cross_validate(  # pylint: disable=too-many-locals
     validate_ref_models : bool, default False
         If True include models specified in `ref_models` to all metrics calculations
         and receive their metrics from cross-validation.
+    on_unsupported_targets : Literal["raise", "warn", "ignore"], default "warn"
+        How to handle warm/cold target users when model doesn't support warm/cold inference.
+        Specify "warn" to filter with warning (default in `cross_validate`).
+        Specify "ignore" to filter unsupported targets without a warning.
+        It is highly recommended to pass `CoveredUsers` DQ metric to catch all models with
+        insufficient recommendations for each fold.
+        Specify "raise" to raise ValueError in case unsupported targets are passed. In cross-validation
+        this may cause unexpected errors for some of the complicated models.
+
 
     Returns
     -------
@@ -158,6 +168,7 @@ def cross_validate(  # pylint: disable=too-many-locals
                 k=k,
                 filter_viewed=filter_viewed,
                 items_to_recommend=item_ids_to_recommend,
+                on_unsupported_targets=on_unsupported_targets,
             )
 
         # ### Generate recommendations and calc metrics
@@ -175,6 +186,7 @@ def cross_validate(  # pylint: disable=too-many-locals
                     k=k,
                     filter_viewed=filter_viewed,
                     items_to_recommend=item_ids_to_recommend,
+                    on_unsupported_targets=on_unsupported_targets,
                 )
 
             metric_values = calc_metrics(
