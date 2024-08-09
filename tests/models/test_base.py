@@ -15,6 +15,7 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
 from rectools.models.base import (
+    ErrorBehaviour,
     FixedColdRecoModelMixin,
     InternalRecoTriplet,
     ModelBase,
@@ -201,7 +203,14 @@ class TestHotWarmCold:
         self.warms = {"u2i": [50], "i2i": [16]}
         self.colds = {"u2i": [60], "i2i": [18]}
 
-    def _get_reco(self, targets: ExternalIds, model_key: str, dataset_key: str, kind: str) -> pd.DataFrame:
+    def _get_reco(
+        self,
+        targets: ExternalIds,
+        model_key: str,
+        dataset_key: str,
+        kind: str,
+        on_unsupported_targets: ErrorBehaviour = "raise",
+    ) -> pd.DataFrame:
         model = self.models[model_key]
         if kind == "u2i":
             reco = model.recommend(
@@ -210,6 +219,7 @@ class TestHotWarmCold:
                 k=2,
                 filter_viewed=False,
                 add_rank_col=False,
+                on_unsupported_targets=on_unsupported_targets,
             )
             reco.rename(columns={Columns.User: "target"}, inplace=True)
         elif kind == "i2i":
@@ -219,6 +229,7 @@ class TestHotWarmCold:
                 k=2,
                 add_rank_col=False,
                 filter_itself=False,
+                on_unsupported_targets=on_unsupported_targets,
             )
             reco.rename(columns={Columns.TargetItem: "target"}, inplace=True)
         else:
@@ -331,16 +342,44 @@ class TestHotWarmCold:
     @pytest.mark.parametrize("dataset_key", ("no_features", "with_features"))
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
     @pytest.mark.parametrize("model_key", ("hot", "hot_warm"))
-    def test_not_cold_models_raise_on_cold(self, dataset_key: str, kind: str, model_key: str) -> None:
+    def test_not_cold_models_with_cold_targets(self, dataset_key: str, kind: str, model_key: str) -> None:
         targets = self.colds[kind]
+
+        # raise
         with pytest.raises(ValueError, match="doesn't support recommendations for cold"):
-            self._get_reco(targets, model_key, dataset_key, kind)
+            self._get_reco(targets, model_key, dataset_key, kind, on_unsupported_targets="raise")
+
+        # ignore
+        self._get_reco(targets, model_key, dataset_key, kind, on_unsupported_targets="ignore")
+
+        # warn
+        with warnings.catch_warnings(record=True) as w:
+            self._get_reco(targets, model_key, dataset_key, kind, on_unsupported_targets="warn")
+            assert len(w) == 1
+            for phrase in ("support", "cold"):
+                assert phrase in str(w[-1].message)
+            assert "warm" not in str(w[-1].message)
 
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
-    def test_warm_only_model_raises_on_warm_without_features(self, kind: str) -> None:
+    def test_warm_only_model_with_warm_targets_without_features(self, kind: str) -> None:
         targets = self.warms[kind]
+
+        # raise
         with pytest.raises(ValueError, match="doesn't support recommendations for cold"):
-            self._get_reco(targets, "hot_warm", "no_features", kind)
+            self._get_reco(targets, "hot_warm", "no_features", kind, on_unsupported_targets="raise")
+
+        # ignore
+        self._get_reco(targets, "hot_warm", "no_features", kind, on_unsupported_targets="ignore")
+
+        # warn
+        with warnings.catch_warnings(record=True) as w:
+            self._get_reco(targets, "hot_warm", "no_features", kind, on_unsupported_targets="warn")
+            assert len(w) == 1
+            for phrase in ("support", "cold"):
+                assert phrase in str(w[-1].message)
+            assert "warm" not in str(w[-1].message)  # TODO: test with warm warning
+            
+    # TODO: check correct reco with "ignore"
 
     @pytest.mark.parametrize("dataset_key", ("no_features", "with_features"))
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
