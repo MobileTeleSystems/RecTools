@@ -190,7 +190,6 @@ class ModelBase:
         reco_hot_final = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
         reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
-        # TODO: union with _adjust_reco_types?
 
         del reco_hot, reco_warm, reco_cold
 
