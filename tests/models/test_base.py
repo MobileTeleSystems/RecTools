@@ -343,14 +343,17 @@ class TestHotWarmCold:
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
     @pytest.mark.parametrize("model_key", ("hot", "hot_warm"))
     def test_not_cold_models_with_cold_targets(self, dataset_key: str, kind: str, model_key: str) -> None:
-        targets = self.colds[kind]
+        targets = self.colds[kind] + self.hots[kind]
 
         # raise
         with pytest.raises(ValueError, match="doesn't support recommendations for cold"):
             self._get_reco(targets, model_key, dataset_key, kind, on_unsupported_targets="raise")
 
         # ignore
-        self._get_reco(targets, model_key, dataset_key, kind, on_unsupported_targets="ignore")
+        actual = self._get_reco(targets, model_key, dataset_key, kind, on_unsupported_targets="ignore")
+        expected_targets = self.hots[kind]
+        expected = self._get_reco(expected_targets, model_key, dataset_key, kind)
+        pd.testing.assert_frame_equal(actual, expected)
 
         # warn
         with warnings.catch_warnings(record=True) as w:
@@ -362,14 +365,17 @@ class TestHotWarmCold:
 
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
     def test_warm_only_model_with_warm_targets_without_features(self, kind: str) -> None:
-        targets = self.warms[kind]
+        targets = self.warms[kind] + self.hots[kind]
 
         # raise
         with pytest.raises(ValueError, match="doesn't support recommendations for cold"):
             self._get_reco(targets, "hot_warm", "no_features", kind, on_unsupported_targets="raise")
 
         # ignore
-        self._get_reco(targets, "hot_warm", "no_features", kind, on_unsupported_targets="ignore")
+        actual = self._get_reco(targets, "hot_warm", "no_features", kind, on_unsupported_targets="ignore")
+        expected_targets = self.hots[kind]
+        expected = self._get_reco(expected_targets, "hot_warm", "no_features", kind)
+        pd.testing.assert_frame_equal(actual, expected)
 
         # warn
         with warnings.catch_warnings(record=True) as w:
@@ -378,18 +384,20 @@ class TestHotWarmCold:
             for phrase in ("support", "cold"):
                 assert phrase in str(w[-1].message)
             assert "warm" not in str(w[-1].message)
-            
-            
+
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
     def test_hot_only_model_with_warm_targets(self, kind: str) -> None:
-        targets = self.warms[kind]
+        targets = self.warms[kind] + self.hots[kind]
 
         # raise
         with pytest.raises(ValueError, match="doesn't support recommendations for warm"):
             self._get_reco(targets, "hot", "with_features", kind, on_unsupported_targets="raise")
 
         # ignore
-        self._get_reco(targets, "hot", "with_features", kind, on_unsupported_targets="ignore")
+        actual = self._get_reco(targets, "hot", "with_features", kind, on_unsupported_targets="ignore")
+        expected_targets = self.hots[kind]
+        expected = self._get_reco(expected_targets, "hot", "with_features", kind)
+        pd.testing.assert_frame_equal(actual, expected)
 
         # warn
         with warnings.catch_warnings(record=True) as w:
@@ -397,8 +405,6 @@ class TestHotWarmCold:
             assert len(w) == 1
             for phrase in ("support", "cold", "warm"):
                 assert phrase in str(w[-1].message)
-
-    # TODO: check correct reco with "ignore" 
 
     @pytest.mark.parametrize("dataset_key", ("no_features", "with_features"))
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
