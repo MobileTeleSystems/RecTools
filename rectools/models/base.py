@@ -73,16 +73,18 @@ class ModelBase:
     def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
         raise NotImplementedError()
 
-    def _process_dataset_u2i(
+    def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
-        # This method could be overwritten for models that require specific logic
+        # This method should be overwritten for models that require dataset processing for u2i recommendations
+        # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
         return dataset
 
-    def _process_dataset_i2i(
+    def _custom_transform_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
-        # This method could be overwritten for models that require specific logic
+        # This method should be overwritten for models that require dataset processing for i2i recommendations
+        # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
         return dataset
 
     def recommend(
@@ -152,7 +154,8 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
-        dataset = self._process_dataset_u2i(dataset, users, on_unsupported_targets)
+
+        dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
 
@@ -265,7 +268,7 @@ class ModelBase:
         self._check_is_fitted()
         self._check_k(k)
 
-        dataset = self._process_dataset_i2i(dataset, target_items, on_unsupported_targets)
+        dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
 
