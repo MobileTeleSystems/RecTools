@@ -79,7 +79,7 @@ RecTools is on PyPI, so you can use `pip` to install it.
 ```
 pip install rectools
 ```
-The default version doesn't contain all the dependencies, because some of them are needed only for specific models. Available user extensions are the following:
+The default version doesn't contain all the dependencies, because some of them are needed only for specific funcitonality. Available user extensions are the following:
 
 - `lightfm`: adds wrapper for LightFM model,
 - `torch`: adds models based on neural nets,
@@ -125,7 +125,7 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 [Contributing guide](CONTRIBUTING.rst)
 
 To install all requirements
-- you must have `python3` and `poetry==1.4.0` installed
+- you must have `python3` and `poetry` installed
 - make sure you have no active virtual environments (deactivate conda `base` if applicable)
 - run
 ```

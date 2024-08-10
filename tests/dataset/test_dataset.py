@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 import typing as tp
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
@@ -284,3 +285,145 @@ class TestDataset:
         if not include_datetime:
             expected.drop(columns=Columns.Datetime, inplace=True)
         pd.testing.assert_frame_equal(actual, expected)
+
+    @pytest.fixture
+    def dataset_to_filter(self) -> Dataset:
+        item_id_map = IdMap.from_values([10, 20, 30, 40, 50])
+        user_id_map = IdMap.from_values([10, 11, 12, 13, 14])
+        df = pd.DataFrame(
+            [
+                [0, 0, 1, "2021-09-01"],
+                [4, 2, 1, "2021-09-02"],
+                [2, 1, 1, "2021-09-02"],
+                [2, 2, 1, "2021-09-03"],
+                [3, 2, 1, "2021-09-03"],
+                [3, 3, 1, "2021-09-03"],
+                [3, 4, 1, "2021-09-04"],
+                [1, 2, 1, "2021-09-04"],
+                [3, 1, 1, "2021-09-05"],
+                [4, 2, 1, "2021-09-05"],
+                [3, 3, 1, "2021-09-06"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        ).astype({Columns.Datetime: "datetime64[ns]"})
+        interactions = Interactions(df)
+        return Dataset(user_id_map, item_id_map, interactions)
+
+    @pytest.fixture
+    def dataset_with_features_to_filter(self, dataset_to_filter: Dataset) -> Dataset:
+        user_features = DenseFeatures(
+            values=np.array([[1, 10], [2, 20], [3, 30], [4, 40], [5, 50]]),
+            names=("f1", "f2"),
+        )
+        item_features = SparseFeatures(
+            values=sparse.csr_matrix(
+                [
+                    [3.2, 0, 1],
+                    [2.4, 2, 0],
+                    [0.0, 0, 1],
+                    [1.0, 5, 1],
+                    [2.0, 1, 1],
+                ],
+            ),
+            names=(("f1", None), ("f2", 100), ("f2", 200)),
+        )
+        return Dataset(
+            dataset_to_filter.user_id_map,
+            dataset_to_filter.item_id_map,
+            dataset_to_filter.interactions,
+            user_features,
+            item_features,
+        )
+
+    @pytest.mark.parametrize("keep_features_for_removed_entities", (True, False))
+    @pytest.mark.parametrize(
+        "keep_external_ids, expected_external_item_ids, expected_external_user_ids",
+        ((True, np.array([10, 30, 20]), np.array([10, 14, 12])), (False, np.array([0, 2, 1]), np.array([0, 4, 2]))),
+    )
+    def test_filter_dataset_on_interactions_df_row_indexes_without_features(
+        self,
+        dataset_to_filter: Dataset,
+        keep_features_for_removed_entities: bool,
+        keep_external_ids: bool,
+        expected_external_item_ids: np.ndarray,
+        expected_external_user_ids: np.ndarray,
+    ) -> None:
+        rows_to_keep = np.arange(4)
+        filtered_dataset = dataset_to_filter.filter_on_interactions_df_row_indexes(
+            rows_to_keep,
+            keep_external_ids=keep_external_ids,
+            keep_features_for_removed_entities=keep_features_for_removed_entities,
+        )
+        expected_interactions_2x_internal_df = pd.DataFrame(
+            [
+                [0, 0, 1, "2021-09-01"],
+                [1, 1, 1, "2021-09-02"],
+                [2, 2, 1, "2021-09-02"],
+                [2, 1, 1, "2021-09-03"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
+        np.testing.assert_equal(filtered_dataset.user_id_map.external_ids, expected_external_user_ids)
+        np.testing.assert_equal(filtered_dataset.item_id_map.external_ids, expected_external_item_ids)
+        pd.testing.assert_frame_equal(filtered_dataset.interactions.df, expected_interactions_2x_internal_df)
+        assert filtered_dataset.user_features is None
+        assert filtered_dataset.item_features is None
+
+    @pytest.mark.parametrize(
+        "keep_external_ids, keep_features_for_removed_entities, expected_external_item_ids, expected_external_user_ids",
+        (
+            (True, False, np.array([10, 30, 20]), np.array([10, 14, 12])),
+            (False, False, np.array([0, 2, 1]), np.array([0, 4, 2])),
+            (True, True, np.array([10, 30, 20, 40, 50]), np.array([10, 14, 12, 11, 13])),
+            (False, True, np.array([0, 2, 1, 3, 4]), np.array([0, 4, 2, 1, 3])),
+        ),
+    )
+    def test_filter_dataset_on_interactions_df_row_indexes_with_features(
+        self,
+        dataset_with_features_to_filter: Dataset,
+        keep_features_for_removed_entities: bool,
+        keep_external_ids: bool,
+        expected_external_item_ids: np.ndarray,
+        expected_external_user_ids: np.ndarray,
+    ) -> None:
+        rows_to_keep = np.arange(4)
+        filtered_dataset = dataset_with_features_to_filter.filter_on_interactions_df_row_indexes(
+            rows_to_keep,
+            keep_external_ids=keep_external_ids,
+            keep_features_for_removed_entities=keep_features_for_removed_entities,
+        )
+        expected_interactions_2x_internal_df = pd.DataFrame(
+            [
+                [0, 0, 1, "2021-09-01"],
+                [1, 1, 1, "2021-09-02"],
+                [2, 2, 1, "2021-09-02"],
+                [2, 1, 1, "2021-09-03"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
+        np.testing.assert_equal(filtered_dataset.user_id_map.external_ids, expected_external_user_ids)
+        np.testing.assert_equal(filtered_dataset.item_id_map.external_ids, expected_external_item_ids)
+        pd.testing.assert_frame_equal(filtered_dataset.interactions.df, expected_interactions_2x_internal_df)
+
+        # Check features
+        old_user_features = dataset_with_features_to_filter.user_features
+        old_item_features = dataset_with_features_to_filter.item_features
+        new_user_features = filtered_dataset.user_features
+        new_item_features = filtered_dataset.item_features
+        assert new_user_features is not None and new_item_features is not None  # for mypy
+        assert old_user_features is not None and old_item_features is not None  # for mypy
+
+        kept_internal_user_ids = (
+            dataset_with_features_to_filter.user_id_map.convert_to_internal(expected_external_user_ids)
+            if keep_external_ids
+            else expected_external_user_ids
+        )
+        kept_internal_item_ids = (
+            dataset_with_features_to_filter.item_id_map.convert_to_internal(expected_external_item_ids)
+            if keep_external_ids
+            else expected_external_item_ids
+        )
+        np.testing.assert_equal(new_user_features.values, old_user_features.values[kept_internal_user_ids])
+        assert new_user_features.names == old_user_features.names
+        assert_sparse_matrix_equal(new_item_features.values, old_item_features.values[kept_internal_item_ids])
+        assert new_item_features.names == old_item_features.names
