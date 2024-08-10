@@ -96,7 +96,7 @@ all = [
     "rectools-lightfm",
     "nmslib", 
     "torch", "pytorch-lightning",
-    "ipywidgets", "plotly", "nbformat"
+    "ipywidgets", "plotly", "nbformat",
 ]
 
 
