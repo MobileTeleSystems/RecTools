@@ -377,9 +377,28 @@ class TestHotWarmCold:
             assert len(w) == 1
             for phrase in ("support", "cold"):
                 assert phrase in str(w[-1].message)
-            assert "warm" not in str(w[-1].message)  # TODO: test with warm warning
+            assert "warm" not in str(w[-1].message)
+            
+            
+    @pytest.mark.parametrize("kind", ("u2i", "i2i"))
+    def test_hot_only_model_with_warm_targets(self, kind: str) -> None:
+        targets = self.warms[kind]
 
-    # TODO: check correct reco with "ignore"
+        # raise
+        with pytest.raises(ValueError, match="doesn't support recommendations for warm"):
+            self._get_reco(targets, "hot", "with_features", kind, on_unsupported_targets="raise")
+
+        # ignore
+        self._get_reco(targets, "hot", "with_features", kind, on_unsupported_targets="ignore")
+
+        # warn
+        with warnings.catch_warnings(record=True) as w:
+            self._get_reco(targets, "hot", "with_features", kind, on_unsupported_targets="warn")
+            assert len(w) == 1
+            for phrase in ("support", "cold", "warm"):
+                assert phrase in str(w[-1].message)
+
+    # TODO: check correct reco with "ignore" 
 
     @pytest.mark.parametrize("dataset_key", ("no_features", "with_features"))
     @pytest.mark.parametrize("kind", ("u2i", "i2i"))
