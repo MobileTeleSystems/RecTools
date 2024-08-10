@@ -79,7 +79,7 @@ RecTools is on PyPI, so you can use `pip` to install it.
 ```
 pip install rectools
 ```
-The default version doesn't contain all the dependencies, because some of them are needed only for specific funcitonality. Available user extensions are the following:
+The default version doesn't contain all the dependencies, because some of them are needed only for specific functionality. Available user extensions are the following:
 
 - `lightfm`: adds wrapper for LightFM model,
 - `torch`: adds models based on neural nets,
