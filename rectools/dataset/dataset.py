@@ -274,10 +274,10 @@ class Dataset:
             Filtered dataset that has only selected interactions, new ids mapping and processed features.
         """
         interactions_df = self.get_raw_interactions() if keep_external_ids else self.interactions.df
-        train = interactions_df.iloc[row_indexes_to_keep]
-        user_id_map = IdMap.from_values(train[Columns.User].values)  # 2x internal
-        item_id_map = IdMap.from_values(train[Columns.Item].values)  # 2x internal
-        interactions_train = Interactions.from_raw(train, user_id_map, item_id_map)  # 2x internal
+        interactions_df = interactions_df.iloc[row_indexes_to_keep]
+        user_id_map = IdMap.from_values(interactions_df[Columns.User].values)  # 2x internal
+        item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)  # 2x internal
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)  # 2x internal
 
         def _handle_features(
             features: tp.Optional[Features], target_id_map: IdMap, dataset_id_map: IdMap
@@ -305,7 +305,7 @@ class Dataset:
         filtered_dataset = Dataset(
             user_id_map=user_id_map,
             item_id_map=item_id_map,
-            interactions=interactions_train,
+            interactions=interactions,
             user_features=user_features_new,
             item_features=item_features_new,
         )
