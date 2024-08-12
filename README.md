@@ -125,7 +125,7 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 [Contributing guide](CONTRIBUTING.rst)
 
 To install all requirements
-- you must have `python3` and `poetry` installed
+- you must have `python>=3.8` and `poetry>=1.5.0` installed
 - make sure you have no active virtual environments (deactivate conda `base` if applicable)
 - run
 ```

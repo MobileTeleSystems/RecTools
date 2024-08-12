@@ -337,14 +337,10 @@ class MetricsApp:
             options=self.meta_names,
         )
 
-        # Initialize go.FigureWidget initial chart state
-        if not self.fig.data:
-            chart_data = self._create_chart_data(use_avg, fold_i)
-            legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
-            self.fig = self._create_chart_figure(
-                chart_data, metric_x.value, metric_y.value, Columns.Model, legend_title
-            )
-            fig_widget = go.FigureWidget(data=self.fig.data, layout=self.fig.layout)
+        chart_data = self._create_chart_data(use_avg, fold_i)
+        legend_title = f"{meta_feature.value}, {DEFAULT_LEGEND_TITLE}" if use_meta.value else DEFAULT_LEGEND_TITLE
+        self.fig = self._create_chart_figure(chart_data, metric_x.value, metric_y.value, Columns.Model, legend_title)
+        fig_widget = go.FigureWidget(data=self.fig.data, layout=self.fig.layout)
 
         def update(event: tp.Callable[..., tp.Any]) -> None:  # pragma: no cover
             self._update_figure_widget(fig_widget, metric_x, metric_y, use_avg, fold_i, meta_feature, use_meta)
