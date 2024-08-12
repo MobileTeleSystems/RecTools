@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import typing as tp
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -98,26 +97,12 @@ class TestMetricsApp:
         auto_display: bool,
         scatter_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
     ) -> None:
-        with patch("rectools.visuals.metrics_app.MetricsApp.display", MagicMock()):
-            app = MetricsApp.construct(
-                models_metrics=models_metrics,
-                models_metadata=model_metadata,
-                show_legend=show_legend,
-                auto_display=auto_display,
-                scatter_kwargs=scatter_kwargs,
-            )
-            _ = app.fig
-
-    @pytest.mark.parametrize("model_metadata", (None, DF_METAINFO))
-    def test_display(
-        self,
-        model_metadata: tp.Optional[pd.DataFrame],
-    ) -> None:
         app = MetricsApp.construct(
-            models_metrics=DF_METRICS,
+            models_metrics=models_metrics,
             models_metadata=model_metadata,
-            show_legend=True,
-            auto_display=False,
+            show_legend=show_legend,
+            auto_display=auto_display,
+            scatter_kwargs=scatter_kwargs,
         )
         app.display()
 
