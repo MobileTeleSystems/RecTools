@@ -104,7 +104,7 @@ class SasRecDataPreparator:
         # TODO: user features and item features are dropped for now
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
-        item_id_map = item_id_map.add_ids(interactions[Columns.Item].values)
+        item_id_map = item_id_map.add_ids(np.unique(interactions[Columns.Item]))  # TODO: remove unique
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
         dataset = Dataset(user_id_map, item_id_map, interactions)
 
@@ -265,7 +265,7 @@ class SasRecRecommenderModel(ModelBase):
         return filtered_dataset
 
     @classmethod
-    def _split_targets_by_hot_warm_cold(
+    def _split_targets_by_hot_warm_cold(  # TODO: remove this
         cls,
         targets: ExternalIds,  # users for U2I or target items for I2I
         dataset: Dataset,
@@ -316,8 +316,8 @@ class SasRecRecommenderModel(ModelBase):
                 encoded = encoded.detach().cpu().numpy()
                 session_embs.append(encoded)
 
-        user_embs = np.concatenate(session_embs, axis=0)  # [n_rec_users, factors]
-        user_embs = user_embs[user_ids]
+        user_embs = np.concatenate(session_embs, axis=0)
+        user_embs = user_embs[user_ids]  # in case user_ids are not sorted properly
         item_embs_np = item_embs.detach().cpu().numpy()
 
         ranker = ImplicitRanker(
@@ -330,8 +330,6 @@ class SasRecRecommenderModel(ModelBase):
             ui_csr_for_filter = user_items[user_ids]
         else:
             ui_csr_for_filter = None
-
-        # TODO: make sure user_ids, user_embs and filter_pairs_csr are all sorted correctly
 
         # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
 
