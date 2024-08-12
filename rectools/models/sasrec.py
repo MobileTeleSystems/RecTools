@@ -3,7 +3,6 @@ import typing as tp
 import warnings
 from typing import List, Tuple
 
-import attr
 import numpy as np
 import pandas as pd
 import torch
@@ -19,6 +18,8 @@ from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import ExternalIdsArray, InternalIdsArray
+
+PADDING_VALUE = "PAD"
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,9 @@ class SequenceDataset(TorchDataset):
     ) -> "SequenceDataset":
         """TODO"""
         sessions = (
-            interactions.sort_values(Columns.Datetime).groupby(Columns.User)[[Columns.Item, Columns.Weight]].agg(list)
+            interactions.sort_values(Columns.Datetime)
+            .groupby(Columns.User, sort=True)[[Columns.Item, Columns.Weight]]
+            .agg(list)
         )
         sessions, weights = (
             sessions[Columns.Item].to_list(),
@@ -55,35 +58,57 @@ class SequenceDataset(TorchDataset):
         return cls(sessions=sessions, weights=weights)
 
 
-@attr.s(auto_attribs=True)
 class SasRecDataPreparator:
     """TODO"""
-    session_maxlen: int
-    batch_size: int
-    items_extra_tokens: tp.Iterable[tp.Hashable] = ["PAD"]
-    shuffle_train: bool = False
-    train_min_user_interactions: int = 2
-    # TODO: add SequenceDatasetType for fit and recommend
+
+    def __init__(
+        self,
+        session_maxlen: int,
+        batch_size: int,
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE),
+        shuffle_train: bool = False,
+        train_min_user_interactions: int = 2,
+    ) -> None:
+        self.session_maxlen = session_maxlen
+        self.batch_size = batch_size
+        self.item_extra_tokens = item_extra_tokens
+        self.shuffle_train = shuffle_train
+        self.train_min_user_interactions = train_min_user_interactions
+        self.item_id_map: IdMap
+        # TODO: add SequenceDatasetType for fit and recommend
+
+    @property
+    def n_item_extra_tokens(self) -> int:
+        """TODO"""
+        return len(self.item_extra_tokens)
+
+    def get_known_item_ids(self) -> np.ndarray:
+        """TODO"""
+        return self.item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
+
+    def get_known_items_sorted_internal_ids(self) -> np.ndarray:
+        """TODO"""
+        return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
 
     def process_dataset_train(self, dataset: Dataset) -> Dataset:
         """TODO"""
         interactions = dataset.get_raw_interactions()
 
+        # Filter interactions
         user_stats = interactions[Columns.User].value_counts()
         users = user_stats[user_stats >= self.train_min_user_interactions].index
         interactions = interactions[(interactions[Columns.User].isin(users))]
-
-        user_id_map = IdMap.from_values(interactions[Columns.User].values)
-        interactions[Columns.User] = user_id_map.convert_to_internal(interactions[Columns.User])
-
         interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_maxlen + 1)
 
-        item_id_map = IdMap.from_values(self.items_extra_tokens)
-        item_id_map = item_id_map.add_ids(interactions[Columns.Item])
-        interactions[Columns.Item] = item_id_map.convert_to_internal(interactions[Columns.Item])
+        # Construct dataset
+        # TODO: user features and item features are dropped for now
+        user_id_map = IdMap.from_values(interactions[Columns.User].values)
+        item_id_map = IdMap.from_values(self.item_extra_tokens)
+        item_id_map = item_id_map.add_ids(interactions[Columns.Item].values)
+        interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
+        dataset = Dataset(user_id_map, item_id_map, interactions)
 
-        # user features and item features are dropped for now
-        dataset = Dataset(user_id_map, item_id_map, Interactions(interactions))
+        self.item_id_map = dataset.item_id_map
         return dataset
 
     def _collate_fn_train(
@@ -109,13 +134,10 @@ class SasRecDataPreparator:
         sequence_dataset = SequenceDataset.from_interactions(processed_dataset.interactions.df)
         train_dataloader = DataLoader(
             sequence_dataset, collate_fn=self._collate_fn_train, batch_size=self.batch_size, shuffle=self.shuffle_train
-        )  # TODO: add optional parameters too?
+        )
         return train_dataloader
 
-    @classmethod
-    def process_dataset_recommend(
-        cls, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour, item_id_map: IdMap
-    ) -> Dataset:
+    def process_dataset_recommend(self, dataset: Dataset, users: ExternalIds) -> Dataset:
         """
         Filter out interactions and adapt id maps.
         Final dataset will consist only of model known items during fit and only of required
@@ -125,35 +147,35 @@ class SasRecDataPreparator:
         Final user_id_map is an enumerated list of supported (filtered) target users
         Final item_id_map is model item_id_map constructed during training
         """
+        # Filter interactions
         interactions = dataset.get_raw_interactions()
-        known_item_ids = item_id_map.get_external_sorted_by_internal()[1:]
         interactions = interactions[interactions[Columns.User].isin(users)]
-        interactions = interactions[interactions[Columns.Item].isin(known_item_ids)]
+        interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
 
-        # This is the only place where we can make this check since all other methods will get filtered dataset
-        n_actual_users = interactions[Columns.User].nunique()
-        n_requested_users = len(pd.unique(users))
-        if n_actual_users < n_requested_users:
-            explanation = f"""{n_requested_users-n_actual_users} target users were considered cold
-            because of missing known items. They can not get recommendations from model"""
-            if on_unsupported_targets == "warn":
-                warnings.warn(explanation)
-            elif on_unsupported_targets == "raise":
-                raise ValueError(explanation)
+        # Construct dataset
+        # TODO: For now features are dropped because model doesn't support them
+        rec_user_id_map = IdMap.from_values(interactions[Columns.User])
+        n_filtered = len(users) - rec_user_id_map.size
+        if n_filtered > 0:
+            explanation = f"""{n_filtered} target users were considered cold
+            because of missing known items"""
+            warnings.warn(explanation)
+        filtered_interactions = Interactions.from_raw(interactions, rec_user_id_map, self.item_id_map)
+        filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
+        return filtered_dataset
 
-        # External -> rec_user_internal IdMap for users
-        rec_user_id_map = IdMap.from_values(interactions[Columns.User].unique())
-        interactions[Columns.User] = rec_user_id_map.convert_to_internal(interactions[Columns.User])
-        # Filtered users are added to user id map and considered "warm"
-        # rec_user_id_map.add_ids(dataset.user_id_map.get_external_sorted_by_internal())
-
-        # External -> model_internal IdMap for items
-        interactions[Columns.Item] = item_id_map.convert_to_internal(interactions[Columns.Item])
-
-        # For now features are dropped because model doesn't support them
-        filtered_dataset = Dataset(
-            user_id_map=rec_user_id_map, item_id_map=item_id_map, interactions=Interactions(interactions)
-        )
+    def process_dataset_recommend_to_items(self, dataset: Dataset) -> Dataset:
+        """
+        Filter out interactions and adapt id maps.
+        Final dataset will consist only of model known items during fit.
+        Final user_id_map is the same as dataset original
+        Final item_id_map is model item_id_map constructed during training
+        """
+        # TODO: For now features are dropped because model doesn't support them
+        interactions = dataset.get_raw_interactions()
+        interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
+        filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
+        filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
@@ -192,10 +214,9 @@ class SasRecRecommenderModel(ModelBase):
         loss: str = "softmax",
         verbose: int = 0,
         random_state: int = False,
-    ):
+    ):  # pylint: disable=too-many-instance-attributes
         super().__init__(verbose=verbose)
         self.session_maxlen = session_maxlen
-        self.batch_size = batch_size
         self.n_blocks = n_blocks
         self.factors = factors
         self.n_heads = n_heads
@@ -204,10 +225,8 @@ class SasRecRecommenderModel(ModelBase):
         self.use_pos_emb = use_pos_emb
         self.device = torch.device(device)
         self.model: SASRec
-        self.item_id_map: IdMap
         self.trainer = Trainer(
             lr=lr,
-            batch_size=self.batch_size,
             epochs=epochs,
             device=self.device,
             loss=loss,
@@ -224,8 +243,7 @@ class SasRecRecommenderModel(ModelBase):
         processed_dataset = self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
 
-        self.item_id_map = processed_dataset.item_id_map
-
+        n_items = self.data_preparator.item_id_map.size
         self.model = SASRec(
             n_blocks=self.n_blocks,
             factors=self.factors,
@@ -233,12 +251,18 @@ class SasRecRecommenderModel(ModelBase):
             session_maxlen=self.session_maxlen,
             dropout_rate=self.dropout_rate,
             use_pos_emb=self.use_pos_emb,
-            n_items=self.item_id_map.size,
+            n_items=n_items,  # TODO: can we init a SASRec net without knowing this?
             item_net_dropout_rate=self.item_net_dropout_rate,
         )
 
         self.trainer.fit(self.model, train_dataloader)
         self.model = self.trainer.model
+
+    def _process_dataset_u2i(
+        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+    ) -> Dataset:
+        filtered_dataset = self.data_preparator.process_dataset_recommend(dataset, users)
+        return filtered_dataset
 
     @classmethod
     def _split_targets_by_hot_warm_cold(
@@ -250,44 +274,17 @@ class SasRecRecommenderModel(ModelBase):
 
         if entity == "user":
             # We already filtered out warm and cold user ids
-            return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])
+            _, new_ids = dataset.user_id_map.convert_to_internal(targets, strict=False, return_missing=True)
+            return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])  # new_ids
 
         # Warm items were already filtered out from dataset
         known_ids, new_ids = dataset.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
         return known_ids, np.asarray([]), new_ids
 
-    def _process_dataset_u2i(
-        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
-    ) -> Dataset:
-        filtered_dataset = self.data_preparator.process_dataset_recommend(
-            dataset, users, on_unsupported_targets, self.item_id_map
-        )
-        return filtered_dataset
-
     def _process_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
-        """
-        Filter out interactions and adapt id maps.
-        Final dataset will consist only of model known items during fit.
-        Final user_id_map is the same as dataset original
-        Final item_id_map is model item_id_map constructed during training
-        """
-        interactions = dataset.get_raw_interactions()
-        known_item_ids = self.item_id_map.get_external_sorted_by_internal()
-
-        interactions = interactions[interactions[Columns.Item].isin(known_item_ids)]
-
-        # External -> model_internal IdMap for items
-        interactions[Columns.Item] = self.item_id_map.convert_to_internal(interactions[Columns.Item])
-
-        # External -> dataset internal IdMap for users (we don't care about them in i2i)
-        interactions[Columns.User] = dataset.user_id_map.convert_to_internal(interactions[Columns.User])
-
-        # For now features are dropped because model doesn't support them
-        filtered_dataset = Dataset(
-            user_id_map=dataset.user_id_map, item_id_map=self.item_id_map, interactions=Interactions(interactions)
-        )
+        filtered_dataset = self.data_preparator.process_dataset_recommend_to_items(dataset)
         return filtered_dataset
 
     def _recommend_u2i(
@@ -300,7 +297,7 @@ class SasRecRecommenderModel(ModelBase):
     ) -> InternalRecoTriplet:
 
         if sorted_item_ids_to_recommend is None:
-            sorted_item_ids_to_recommend = self.item_id_map.get_sorted_internal()[1:]  # model internal
+            sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
         self.model = self.model.eval()
         self.model.to(self.device)
@@ -320,6 +317,7 @@ class SasRecRecommenderModel(ModelBase):
                 session_embs.append(encoded)
 
         user_embs = np.concatenate(session_embs, axis=0)  # [n_rec_users, factors]
+        user_embs = user_embs[user_ids]
         item_embs_np = item_embs.detach().cpu().numpy()
 
         ranker = ImplicitRanker(
@@ -327,17 +325,24 @@ class SasRecRecommenderModel(ModelBase):
             user_embs,  # [n_rec_users, factors]
             item_embs_np,  # [n_items + 1, factors]
         )
-        filter_pairs_csr = dataset.get_user_item_matrix() if filter_viewed else None
+        if filter_viewed:
+            user_items = dataset.get_user_item_matrix(include_weights=False)
+            ui_csr_for_filter = user_items[user_ids]
+        else:
+            ui_csr_for_filter = None
+
+        # TODO: make sure user_ids, user_embs and filter_pairs_csr are all sorted correctly
 
         # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
 
-        all_target_ids, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=user_ids,  # n_rec_users
+        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
+            subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
             k=k,
-            filter_pairs_csr=filter_pairs_csr,  # [n_rec_users x n_items + 1]
+            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 1]
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
             num_threads=0,  # TODO: think about receiving CPU num_threads from user
         )
+        all_target_ids = user_ids[user_ids_indices]
 
         return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
 
@@ -349,7 +354,7 @@ class SasRecRecommenderModel(ModelBase):
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         if sorted_item_ids_to_recommend is None:
-            sorted_item_ids_to_recommend = self.item_id_map.get_sorted_internal()[1:]  # model internal
+            sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
         item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, factors]
 
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
@@ -447,7 +452,6 @@ class TransformerDecoder(nn.Module):
         self.attention_layers = torch.nn.ModuleList()
         self.forward_layernorms = torch.nn.ModuleList()
         self.forward_layers = torch.nn.ModuleList()
-        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
 
         for _ in range(n_blocks):
             new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
@@ -478,8 +482,6 @@ class TransformerDecoder(nn.Module):
             seqs = self.forward_layers[i](seqs)
             seqs *= timeline_mask
 
-        seqs = self.last_layernorm(seqs)  # [batch_size, session_maxlen, factors]
-
         return seqs
 
 
@@ -508,12 +510,13 @@ class SASRec(torch.nn.Module):
             self.pos_emb = torch.nn.Embedding(session_maxlen, factors)
         self.emb_dropout = torch.nn.Dropout(p=dropout_rate)
 
-        self.transformer_decoder = TransformerDecoder(
+        self.encoder = TransformerDecoder(
             n_blocks=n_blocks,
             factors=factors,
             n_heads=n_heads,
             dropout_rate=dropout_rate,
         )
+        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
 
     def get_model_device(self) -> torch.device:
         """TODO"""
@@ -548,11 +551,13 @@ class SASRec(torch.nn.Module):
             torch.ones((session_maxlen, session_maxlen), dtype=torch.bool, device=self.get_model_device())
         )
 
-        seqs = self.transformer_decoder(
+        seqs = self.encoder(
             seqs=seqs,
             attention_mask=attention_mask,
             timeline_mask=timeline_mask,
         )  # [batch_size, session_maxlen, factors]
+
+        seqs = self.last_layernorm(seqs)  # [batch_size, session_maxlen, factors]
 
         return seqs
 
@@ -573,7 +578,6 @@ class Trainer:
     def __init__(
         self,
         lr: float,
-        batch_size: int,
         epochs: int,
         device: torch.device,
         loss: str = "softmax",
@@ -581,7 +585,6 @@ class Trainer:
         self.model: SASRec
         self.optimizer: torch.optim.Adam
         self.lr = lr
-        self.batch_size = batch_size
         self.epochs = epochs
         self.device = device
         self.loss_func = self._init_loss_func(loss)  # TODO: move loss func to `SasRec` class
