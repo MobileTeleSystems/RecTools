@@ -65,7 +65,7 @@ class SasRecDataPreparator:
         self,
         session_maxlen: int,
         batch_size: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE),
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         shuffle_train: bool = False,
         train_min_user_interactions: int = 2,
     ) -> None:
