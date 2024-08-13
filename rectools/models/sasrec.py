@@ -66,7 +66,7 @@ class SasRecDataPreparator:
         session_maxlen: int,
         batch_size: int,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
-        shuffle_train: bool = True,
+        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
         train_min_user_interactions: int = 2,
     ) -> None:
         self.session_maxlen = session_maxlen
