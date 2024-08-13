@@ -517,7 +517,7 @@ class SASRec(torch.nn.Module):
 
         if self.use_pos_emb:
             positions = torch.tile(
-                torch.arange(session_maxlen, -1, -1), (batch_size, 1)
+                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_maxlen]
             seqs += self.pos_emb(positions.to(self.get_model_device()))
 
