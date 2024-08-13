@@ -101,6 +101,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         }
     """
     split_iterator = splitter.split(dataset.interactions, collect_fold_stats=True)
+    raw_interactions = dataset.get_raw_interactions()
 
     split_infos = []
     metrics_all = []
@@ -113,7 +114,7 @@ def cross_validate(  # pylint: disable=too-many-locals
             keep_external_ids=True,
             keep_features_for_removed_entities=prefer_warm_inference_over_cold,
         )
-        interactions_df_test = dataset.get_raw_interactions().iloc[test_ids]
+        interactions_df_test = raw_interactions.iloc[test_ids]
         test_users = interactions_df_test[Columns.User].unique()
         prev_interactions = fold_dataset.get_raw_interactions()
         catalog = prev_interactions[Columns.Item].unique()
