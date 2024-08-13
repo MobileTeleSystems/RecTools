@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import torch
 import tqdm
-from lightning_fabric import seed_everything
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
@@ -17,7 +16,7 @@ from rectools.dataset import Dataset, Interactions
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.types import ExternalIdsArray, InternalIdsArray
+from rectools.types import InternalIdsArray
 
 PADDING_VALUE = "PAD"
 
@@ -118,7 +117,7 @@ class SasRecDataPreparator:
         """
         Truncate each session from right to keep (session_maxlen+1) last items.
         Do left padding until  (session_maxlen+1) is reached.
-        Split to `x`, `y`, and `yw`. 
+        Split to `x`, `y`, and `yw`.
         """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_maxlen))
@@ -180,9 +179,8 @@ class SasRecDataPreparator:
         return filtered_dataset
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
-        """TODO"""
+        """Right truncation, left padding to session_maxlen"""
         x = np.zeros((len(batch), self.session_maxlen))
-        # left padding, left truncation
         for i, (ses, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_maxlen :]
         return torch.LongTensor(x)
@@ -196,7 +194,7 @@ class SasRecDataPreparator:
         return recommend_dataloader
 
 
-class SasRecRecommenderModel(ModelBase):
+class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
     """TODO"""
 
     def __init__(
@@ -210,21 +208,20 @@ class SasRecRecommenderModel(ModelBase):
         factors: int,
         n_heads: int,
         dropout_rate: float,
-        item_net_dropout_rate: float,
         use_pos_emb: bool = True,
         loss: str = "softmax",
         verbose: int = 0,
-        random_state: int = False,
-    ):  # pylint: disable=too-many-instance-attributes
+        cpu_n_threads: int = 0,
+    ):
         super().__init__(verbose=verbose)
         self.session_maxlen = session_maxlen
         self.n_blocks = n_blocks
         self.factors = factors
         self.n_heads = n_heads
         self.dropout_rate = dropout_rate
-        self.item_net_dropout_rate = item_net_dropout_rate
         self.use_pos_emb = use_pos_emb
         self.device = torch.device(device)
+        self.n_threads = cpu_n_threads
         self.model: SASRec
         self.trainer = Trainer(
             lr=lr,
@@ -233,9 +230,8 @@ class SasRecRecommenderModel(ModelBase):
             loss=loss,
         )
         self.data_preparator = SasRecDataPreparator(session_maxlen, batch_size)
-        if random_state is not None:
-            torch.use_deterministic_algorithms(True)
-            seed_everything(random_state, workers=True)
+        self.u2i_dist = Distance.DOT
+        self.i2i_dist = Distance.COSINE
 
     def _fit(
         self,
@@ -253,7 +249,6 @@ class SasRecRecommenderModel(ModelBase):
             dropout_rate=self.dropout_rate,
             use_pos_emb=self.use_pos_emb,
             n_items=n_items,  # TODO: can we init a SASRec net without knowing this?
-            item_net_dropout_rate=self.item_net_dropout_rate,
         )
 
         self.trainer.fit(self.model, train_dataloader)
@@ -265,7 +260,6 @@ class SasRecRecommenderModel(ModelBase):
         filtered_dataset = self.data_preparator.process_dataset_recommend(dataset, users)
         return filtered_dataset
 
-
     def _process_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
@@ -274,7 +268,7 @@ class SasRecRecommenderModel(ModelBase):
 
     def _recommend_u2i(
         self,
-        user_ids: InternalIdsArray,  # n_rec_users
+        user_ids: InternalIdsArray,
         dataset: Dataset,  # [n_rec_users x n_items + 1]
         k: int,
         filter_viewed: bool,
@@ -302,11 +296,11 @@ class SasRecRecommenderModel(ModelBase):
                 session_embs.append(encoded)
 
         user_embs = np.concatenate(session_embs, axis=0)
-        user_embs = user_embs[user_ids]  # in case user_ids are not sorted properly
+        user_embs = user_embs[user_ids]
         item_embs_np = item_embs.detach().cpu().numpy()
 
         ranker = ImplicitRanker(
-            Distance.DOT,
+            self.u2i_dist,
             user_embs,  # [n_rec_users, factors]
             item_embs_np,  # [n_items + 1, factors]
         )
@@ -323,7 +317,7 @@ class SasRecRecommenderModel(ModelBase):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 1]
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-            num_threads=0,  # TODO: think about receiving CPU num_threads from user
+            num_threads=self.n_threads,
         )
         all_target_ids = user_ids[user_ids_indices]
 
@@ -344,7 +338,7 @@ class SasRecRecommenderModel(ModelBase):
         # Should we use torch dot and topk? Should be faster
 
         ranker = ImplicitRanker(
-            Distance.COSINE,
+            self.i2i_dist,
             item_embs,  # [n_items + 1, factors]
             item_embs,  # [n_items + 1, factors]
         )
@@ -385,7 +379,7 @@ class PointWiseFeedForward(torch.nn.Module):
 class ItemNet(nn.Module):
     """TODO"""
 
-    def __init__(self, factors: int, n_items: int, item_net_dropout_rate: float):
+    def __init__(self, factors: int, n_items: int, dropout_rate: float):
         super().__init__()
 
         self.catalogue: torch.Tensor
@@ -395,7 +389,7 @@ class ItemNet(nn.Module):
             embedding_dim=factors,
             padding_idx=0,
         )
-        self.drop_layer = nn.Dropout(item_net_dropout_rate)
+        self.drop_layer = nn.Dropout(dropout_rate)
 
     def forward(self) -> torch.Tensor:
         """TODO"""
@@ -435,6 +429,7 @@ class TransformerDecoder(nn.Module):
         self.attention_layers = torch.nn.ModuleList()
         self.forward_layernorms = torch.nn.ModuleList()
         self.forward_layers = torch.nn.ModuleList()
+        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
 
         for _ in range(n_blocks):
             new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
@@ -465,6 +460,8 @@ class TransformerDecoder(nn.Module):
             seqs = self.forward_layers[i](seqs)
             seqs *= timeline_mask
 
+        seqs = self.last_layernorm(seqs)
+
         return seqs
 
 
@@ -479,7 +476,6 @@ class SASRec(torch.nn.Module):
         session_maxlen: int,
         dropout_rate: float,
         n_items: int,
-        item_net_dropout_rate: float,
         use_pos_emb: bool = True,
     ):
         super().__init__()
@@ -487,10 +483,11 @@ class SASRec(torch.nn.Module):
         self.n_items = n_items
         self.session_maxlen = session_maxlen
 
-        self.item_model = ItemNet(factors, n_items, item_net_dropout_rate)
+        self.item_model = ItemNet(factors, n_items, dropout_rate)
 
         if self.use_pos_emb:
             self.pos_emb = torch.nn.Embedding(session_maxlen, factors)
+
         self.emb_dropout = torch.nn.Dropout(p=dropout_rate)
 
         self.encoder = TransformerDecoder(
@@ -499,7 +496,6 @@ class SASRec(torch.nn.Module):
             n_heads=n_heads,
             dropout_rate=dropout_rate,
         )
-        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
 
     def get_model_device(self) -> torch.device:
         """TODO"""
@@ -514,14 +510,16 @@ class SASRec(torch.nn.Module):
             torch.Tensor. [batch_size, history_len, emdedding_dim]
 
         """
-        session_maxlen = sessions.shape[1]
-        seqs = item_embs[sessions]  # [batch_size, session_maxlen, factors]
+        batch_size, session_maxlen = sessions.shape
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_maxlen, 1]
 
-        # TODO: add inverse positional embedding (much talked about with good feedback)
+        seqs = item_embs[sessions]  # [batch_size, session_maxlen, factors]
+
         if self.use_pos_emb:
-            positions = np.tile(np.array(range(session_maxlen)), [sessions.shape[0], 1])  # [batch_size, session_maxlen]
-            seqs += self.pos_emb(torch.LongTensor(positions).to(self.get_model_device()))
+            positions = torch.tile(
+                torch.arange(session_maxlen, -1, -1), (batch_size, 1)
+            )  # [batch_size, session_maxlen]
+            seqs += self.pos_emb(positions.to(self.get_model_device()))
 
         # TODO: do we need to fill padding embeds in sessions to all zeros
         # or should we use the learnt padding embedding? Should we make it an option for user to decide?
@@ -539,8 +537,6 @@ class SASRec(torch.nn.Module):
             attention_mask=attention_mask,
             timeline_mask=timeline_mask,
         )  # [batch_size, session_maxlen, factors]
-
-        seqs = self.last_layernorm(seqs)  # [batch_size, session_maxlen, factors]
 
         return seqs
 
@@ -638,8 +634,8 @@ class Trainer:
 
     def xavier_normal_init(self, model: nn.Module) -> None:
         """TODO"""
-        for name, param in model.named_parameters():
+        for _, param in model.named_parameters():
             try:
                 torch.nn.init.xavier_normal_(param.data)
-            except ValueError as err:
-                logger.info("unable to init param %s with xavier: %s", name, err)
+            except ValueError:
+                pass
