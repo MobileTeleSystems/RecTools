@@ -265,22 +265,6 @@ class SasRecRecommenderModel(ModelBase):
         filtered_dataset = self.data_preparator.process_dataset_recommend(dataset, users)
         return filtered_dataset
 
-    @classmethod
-    def _split_targets_by_hot_warm_cold(  # TODO: remove this
-        cls,
-        targets: ExternalIds,  # users for U2I or target items for I2I
-        dataset: Dataset,
-        entity: tp.Literal["user", "item"],
-    ) -> tp.Tuple[InternalIdsArray, InternalIdsArray, ExternalIdsArray]:
-
-        if entity == "user":
-            # We already filtered out warm and cold user ids
-            _, new_ids = dataset.user_id_map.convert_to_internal(targets, strict=False, return_missing=True)
-            return dataset.user_id_map.get_sorted_internal(), np.asarray([]), np.asarray([])  # new_ids
-
-        # Warm items were already filtered out from dataset
-        known_ids, new_ids = dataset.item_id_map.convert_to_internal(targets, strict=False, return_missing=True)
-        return known_ids, np.asarray([]), new_ids
 
     def _process_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
