@@ -222,6 +222,16 @@ class TestLightFMWrapperModel:
             actual,
         )
 
+    def test_with_warp_kos(self, dataset: Dataset) -> None:
+        base_model = DeterministicLightFM(no_components=2, loss="warp-kos")
+        try:
+            LightFMWrapperModel(model=base_model, epochs=10).fit(dataset)
+        except NotImplementedError:
+            pytest.fail("Should not raise NotImplementedError")
+        except ValueError:
+            # LightFM raises ValueError with the dataset
+            pass
+
     def test_get_vectors(self, dataset_with_features: Dataset) -> None:
         base_model = LightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model).fit(dataset_with_features)
