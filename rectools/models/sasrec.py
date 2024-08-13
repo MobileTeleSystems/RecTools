@@ -153,11 +153,11 @@ class SasRecDataPreparator:
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]  # todo: fast_isin
         interactions = interactions[interactions[Columns.Item].isin(items_internal)]
-        
+
         # Convert to external ids
         interactions[Columns.Item] = dataset.item_id_map.convert_to_external(interactions[Columns.Item])
         interactions[Columns.User] = dataset.user_id_map.convert_to_external(interactions[Columns.User])
-        
+
         # Prepare new user id mapping
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
@@ -179,6 +179,7 @@ class SasRecDataPreparator:
         Final user_id_map is the same as dataset original
         Final item_id_map is model item_id_map constructed during training
         """
+        # TODO: optimize by filtering in internal ids
         # TODO: For now features are dropped because model doesn't support them
         interactions = dataset.get_raw_interactions()
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
@@ -359,31 +360,6 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         )
 
 
-class PointWiseFeedForward(torch.nn.Module):
-    """TODO"""
-
-    def __init__(self, factors: int, dropout_rate: float):
-        super().__init__()
-
-        self.conv1 = torch.nn.Conv1d(factors, factors, kernel_size=1)
-        self.dropout1 = torch.nn.Dropout(p=dropout_rate)
-        self.relu = torch.nn.ReLU()
-        self.conv2 = torch.nn.Conv1d(factors, factors, kernel_size=1)
-        self.dropout2 = torch.nn.Dropout(p=dropout_rate)
-
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        """TODO"""
-        # [batch_size, session_maxlen, factors] -> [batch_size, factors, session_maxlen]
-        inputs = inputs.transpose(-1, -2)
-        outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs)))))
-        # [batch_size, factors, session_maxlen] -> [batch_size, session_maxlen, factors]
-        outputs = outputs.transpose(-1, -2)
-        # [batch_size, factors, session_maxlen] -> [batch_size, session_maxlen, factors]
-        inputs = inputs.transpose(-1, -2)
-        outputs += inputs
-        return outputs
-
-
 class ItemNet(nn.Module):
     """TODO"""
 
@@ -421,6 +397,39 @@ class ItemNet(nn.Module):
         return self.item_emb.weight.device
 
 
+class TransformerBlock(nn.Module):
+    """TODO"""
+
+    def __init__(self, factors: int, factors_ff: int, n_heads: int, dropout_rate: float) -> None:
+        """TODO"""
+        super().__init__()
+        self.multi_head_attn = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True)
+
+        self.layer_norm1 = nn.LayerNorm(factors)
+        self.layer_norm2 = nn.LayerNorm(factors)
+
+        # Pointwise Feed-Forward
+        self.ff_linear1 = nn.Linear(factors, factors_ff)
+        self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
+        self.ff_relu = torch.nn.ReLU()
+        self.ff_linear2 = nn.Linear(factors_ff, factors)
+        self.ff_dropout2 = torch.nn.Dropout(dropout_rate)
+
+    def forward(self, seqs: torch.Tensor, attention_mask: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        q = self.layer_norm1(seqs)
+        mha_outputs, _ = self.multi_head_attn(q, seqs, seqs, attn_mask=attention_mask)
+        seqs = q + mha_outputs
+        seqs = self.layer_norm2(seqs)
+
+        # Pointwise Feed-Forward
+        ff_outputs = self.ff_dropout2(self.ff_linear2(self.ff_relu(self.ff_dropout1(self.ff_linear1(seqs)))))
+        ff_outputs += seqs
+
+        ff_outputs *= timeline_mask
+        return ff_outputs
+
+
 class TransformerDecoder(nn.Module):
     """TODO"""
 
@@ -432,25 +441,10 @@ class TransformerDecoder(nn.Module):
         dropout_rate: float,
     ):
         super().__init__()
-
-        self.attention_layernorms = torch.nn.ModuleList()  # to be Q for self-attention
-        self.attention_layers = torch.nn.ModuleList()
-        self.forward_layernorms = torch.nn.ModuleList()
-        self.forward_layers = torch.nn.ModuleList()
-        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
-
-        for _ in range(n_blocks):
-            new_attn_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
-            self.attention_layernorms.append(new_attn_layernorm)
-
-            new_attn_layer = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True)
-            self.attention_layers.append(new_attn_layer)
-
-            new_fwd_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
-            self.forward_layernorms.append(new_fwd_layernorm)
-
-            new_fwd_layer = PointWiseFeedForward(factors, dropout_rate)
-            self.forward_layers.append(new_fwd_layer)
+        self.transformer_blocks = nn.ModuleList(
+            [TransformerBlock(factors, factors, n_heads, dropout_rate) for _ in range(n_blocks)]
+        )
+        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)  # TODO: remove
 
     def forward(
         self,
@@ -459,14 +453,8 @@ class TransformerDecoder(nn.Module):
         timeline_mask: torch.Tensor,
     ) -> torch.Tensor:
         """TODO"""
-        for i, _ in enumerate(self.attention_layers):
-            q = self.attention_layernorms[i](seqs)  # [batch_size, session_maxlen, factors]
-            mha_outputs, _ = self.attention_layers[i](q, seqs, seqs, attn_mask=attention_mask)
-            seqs = q + mha_outputs
-
-            seqs = self.forward_layernorms[i](seqs)
-            seqs = self.forward_layers[i](seqs)
-            seqs *= timeline_mask
+        for block in self.transformer_blocks:
+            seqs = block(seqs, attention_mask, timeline_mask)
 
         seqs = self.last_layernorm(seqs)
 
@@ -525,7 +513,7 @@ class SASRec(torch.nn.Module):
 
         if self.use_pos_emb:
             positions = torch.tile(
-                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)
+                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)  # inverse positions for variable length seqs
             )  # [batch_size, session_maxlen]
             seqs += self.pos_emb(positions.to(self.get_model_device()))
 
@@ -569,6 +557,7 @@ class Trainer:
         device: torch.device,
         loss: str = "softmax",
     ):
+        """TODO"""
         self.model: SASRec
         self.optimizer: torch.optim.Adam
         self.lr = lr
