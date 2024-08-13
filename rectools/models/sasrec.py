@@ -461,6 +461,33 @@ class TransformerDecoder(nn.Module):
         return seqs
 
 
+class InversePositionalEncoding(torch.nn.Module):
+    """TODO"""
+
+    def __init__(self, use_pos_emb: bool, dropout_rate: float, session_maxlen: int, factors: int):
+        super().__init__()
+        self.pos_emb = torch.nn.Embedding(session_maxlen, factors) if use_pos_emb else None
+
+        self.emb_dropout = torch.nn.Dropout(dropout_rate)
+
+    def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        batch_size, session_maxlen, _ = sessions.shape
+
+        if self.pos_emb is not None:
+            positions = torch.tile(
+                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)  # inverse positions for variable length seqs
+            )  # [batch_size, session_maxlen]
+            sessions += self.pos_emb(positions.to(sessions.device))
+
+        # TODO: do we need to fill padding embeds in sessions to all zeros
+        # or should we use the learnt padding embedding? Should we make it an option for user to decide?
+        sessions *= timeline_mask  # [batch_size, session_maxlen, factors]
+        sessions = self.emb_dropout(sessions)
+
+        return sessions
+
+
 class SASRec(torch.nn.Module):
     """TODO"""
 
@@ -475,18 +502,12 @@ class SASRec(torch.nn.Module):
         use_pos_emb: bool = True,
     ):
         super().__init__()
-        self.use_pos_emb = use_pos_emb
-        self.n_items = n_items
-        self.session_maxlen = session_maxlen
 
         self.item_model = ItemNet(factors, n_items, dropout_rate)
 
-        if self.use_pos_emb:
-            self.pos_emb = torch.nn.Embedding(session_maxlen, factors)
+        self.pos_encoder = InversePositionalEncoding(use_pos_emb, dropout_rate, session_maxlen, factors)
 
-        self.emb_dropout = torch.nn.Dropout(p=dropout_rate)
-
-        self.encoder = TransformerDecoder(
+        self.transformer_decoder = TransformerDecoder(
             n_blocks=n_blocks,
             factors=factors,
             n_heads=n_heads,
@@ -506,21 +527,12 @@ class SASRec(torch.nn.Module):
             torch.Tensor. [batch_size, history_len, emdedding_dim]
 
         """
-        batch_size, session_maxlen = sessions.shape
+        session_maxlen = sessions.shape[1]
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_maxlen, 1]
 
         seqs = item_embs[sessions]  # [batch_size, session_maxlen, factors]
 
-        if self.use_pos_emb:
-            positions = torch.tile(
-                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)  # inverse positions for variable length seqs
-            )  # [batch_size, session_maxlen]
-            seqs += self.pos_emb(positions.to(self.get_model_device()))
-
-        # TODO: do we need to fill padding embeds in sessions to all zeros
-        # or should we use the learnt padding embedding? Should we make it an option for user to decide?
-        seqs *= timeline_mask  # [batch_size, session_maxlen, factors]
-        seqs = self.emb_dropout(seqs)
+        seqs = self.pos_encoder(seqs, timeline_mask)
 
         # TODO do we need to mask padding embs attention?
         # [session_maxlen, session_maxlen]
@@ -528,7 +540,7 @@ class SASRec(torch.nn.Module):
             torch.ones((session_maxlen, session_maxlen), dtype=torch.bool, device=self.get_model_device())
         )
 
-        seqs = self.encoder(
+        seqs = self.transformer_decoder(
             seqs=seqs,
             attention_mask=attention_mask,
             timeline_mask=timeline_mask,
