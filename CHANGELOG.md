@@ -17,17 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `display()` method in `MetricsApp` ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
 - `IntraListDiversity` metric computation in `cross_validate` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- Allow warp-kos loss for LightFMWrapperModel ([#175](https://github.com/MobileTeleSystems/RecTools/pull/175))
 
 ### Removed
 - [Breaking] `assume_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
-
-
-### Fixed
-- `IntraListDiversity` metric computation in `cross_validate` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
-
-
-### Fixed
-- Allow warp-kos loss for LightFMWrapperModel ([#175](https://github.com/MobileTeleSystems/RecTools/pull/175))
 
 ## [0.7.0] - 29.07.2024
 
