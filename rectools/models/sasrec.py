@@ -104,7 +104,7 @@ class SasRecDataPreparator:
         # TODO: user features and item features are dropped for now
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
-        item_id_map = item_id_map.add_ids(np.unique(interactions[Columns.Item]))  # TODO: remove unique
+        item_id_map = item_id_map.add_ids(interactions[Columns.Item])
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
         dataset = Dataset(user_id_map, item_id_map, interactions)
 
