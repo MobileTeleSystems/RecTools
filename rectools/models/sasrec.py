@@ -147,14 +147,22 @@ class SasRecDataPreparator:
         Final user_id_map is an enumerated list of supported (filtered) target users
         Final item_id_map is model item_id_map constructed during training
         """
-        # Filter interactions
-        interactions = dataset.get_raw_interactions()
-        interactions = interactions[interactions[Columns.User].isin(users)]
-        interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
+        # Filter interactions in dataset internal ids
+        interactions = dataset.interactions.df
+        users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
+        items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
+        interactions = interactions[interactions[Columns.User].isin(users_internal)]  # todo: fast_isin
+        interactions = interactions[interactions[Columns.Item].isin(items_internal)]
+        
+        # Convert to external ids
+        interactions[Columns.Item] = dataset.item_id_map.convert_to_external(interactions[Columns.Item])
+        interactions[Columns.User] = dataset.user_id_map.convert_to_external(interactions[Columns.User])
+        
+        # Prepare new user id mapping
+        rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
         # Construct dataset
         # TODO: For now features are dropped because model doesn't support them
-        rec_user_id_map = IdMap.from_values(interactions[Columns.User])
         n_filtered = len(users) - rec_user_id_map.size
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold
@@ -275,7 +283,7 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
     ) -> InternalRecoTriplet:
 
-        if sorted_item_ids_to_recommend is None:
+        if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
         self.model = self.model.eval()
