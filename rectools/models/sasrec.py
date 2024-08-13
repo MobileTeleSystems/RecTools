@@ -114,20 +114,21 @@ class SasRecDataPreparator:
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
-        """TODO"""
+    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+        """
+        Truncate each session from right to keep (session_maxlen+1) last items.
+        Do left padding until  (session_maxlen+1) is reached.
+        Split to `x`, `y`, and `yw`. 
+        """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_maxlen))
         y = np.zeros((batch_size, self.session_maxlen))
         yw = np.zeros((batch_size, self.session_maxlen))
-        # left padding
         for i, (ses, ses_weights) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_maxlen]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_maxlen]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_maxlen]
-
-        # TODO: LongTensor will cast int to weights. Change to FloatTensor (check quality)
-        return torch.LongTensor(x), torch.LongTensor(y), torch.LongTensor(yw)
+        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """TODO"""
