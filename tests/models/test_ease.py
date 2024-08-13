@@ -23,35 +23,14 @@ from rectools.dataset import Dataset
 from rectools.models import EASEModel
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 class TestEASEModel:
-    def test_from_config(self) -> None:
-        config = {
-            "regularization": 500,
-            "num_threads": 1,
-            "verbose": 1,
-        }
-        model = EASEModel.from_config(config)
-        assert model.num_threads == 1
-        assert model.verbose == 1
-        assert model.regularization == 500
-
-    def test_get_config(self) -> None:
-        model = EASEModel(
-            regularization=500,
-            num_threads=1,
-            verbose=1,
-        )
-        config = model.get_config()
-        expected = {
-            "regularization": 500,
-            "num_threads": 1,
-            "verbose": 1,
-        }
-        assert config == expected
-
     @pytest.fixture
     def dataset(self) -> Dataset:
         return DATASET
@@ -245,3 +224,44 @@ class TestEASEModel:
                 dataset=dataset,
                 k=2,
             )
+
+
+class TestEASEModelConfiguration:
+    def test_from_config(self) -> None:
+        config = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        model = EASEModel.from_config(config)
+        assert model.num_threads == 1
+        assert model.verbose == 1
+        assert model.regularization == 500
+
+    def test_get_config(self) -> None:
+        model = EASEModel(
+            regularization=500,
+            num_threads=1,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    def test_get_config_and_from_config_compatibility(self) -> None:
+        initial_config = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        model = EASEModel()
+        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = EASEModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

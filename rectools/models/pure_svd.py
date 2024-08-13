@@ -72,7 +72,6 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         random_state: tp.Optional[int] = None,
         verbose: int = 0,
     ):
-        self._config = self._make_config(factors, tol, maxiter, random_state, verbose)
         super().__init__(verbose=verbose)
 
         self.factors = factors
@@ -83,13 +82,14 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
 
-    def _make_config(
-        self, factors: int, tol: float, maxiter: tp.Optional[int], random_state: tp.Optional[int], verbose: int
-    ) -> PureSVDModelConfig:
-        return PureSVDModelConfig(factors=factors, tol=tol, maxiter=maxiter, random_state=random_state, verbose=verbose)
-
     def _get_config(self) -> PureSVDModelConfig:
-        return self._config
+        return PureSVDModelConfig(
+            factors=self.factors,
+            tol=self.tol,
+            maxiter=self.maxiter,
+            random_state=self.random_state,
+            verbose=self.verbose,
+        )
 
     @classmethod
     def _from_config(cls, config: PureSVDModelConfig) -> tpe.Self:

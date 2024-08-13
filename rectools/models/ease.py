@@ -68,18 +68,14 @@ class EASEModel(ModelBase[EASEModelConfig]):
         num_threads: int = 1,
         verbose: int = 0,
     ):
-        self._config = self._make_config(regularization, num_threads, verbose)
 
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
         self.num_threads = num_threads
 
-    def _make_config(self, regularization: float, num_threads: int, verbose: int) -> EASEModelConfig:
-        return EASEModelConfig(regularization=regularization, num_threads=num_threads, verbose=verbose)
-
     def _get_config(self) -> EASEModelConfig:
-        return self._config
+        return EASEModelConfig(regularization=self.regularization, num_threads=self.num_threads, verbose=self.verbose)
 
     @classmethod
     def _from_config(cls, config: EASEModelConfig) -> tpe.Self:

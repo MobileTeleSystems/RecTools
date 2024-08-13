@@ -81,18 +81,14 @@ class RandomModel(ModelBase[RandomModelConfig]):
     config_class = RandomModelConfig
 
     def __init__(self, random_state: tp.Optional[int] = None, verbose: int = 0):
-        self._config = self._make_config(random_state, verbose)
         super().__init__(verbose=verbose)
         self.random_state = random_state
         self.random_gen = _RandomGen(random_state)
 
         self.all_item_ids: np.ndarray
 
-    def _make_config(self, random_state: tp.Optional[int], verbose: int) -> RandomModelConfig:
-        return RandomModelConfig(random_state=random_state, verbose=verbose)
-
     def _get_config(self) -> RandomModelConfig:
-        return self._config
+        return RandomModelConfig(random_state=self.random_state, verbose=self.verbose)
 
     @classmethod
     def _from_config(cls, config: RandomModelConfig) -> tpe.Self:
