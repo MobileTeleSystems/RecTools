@@ -17,15 +17,26 @@
 import typing as tp
 
 import numpy as np
+import typing_extensions as tpe
 from scipy.sparse.linalg import svds
 
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
+from rectools.models.base import ModelConfig
 from rectools.models.rank import Distance
 from rectools.models.vector import Factors, VectorModel
 
 
-class PureSVDModel(VectorModel):
+class PureSVDModelConfig(ModelConfig):
+    """Config for `PureSVD` model."""
+
+    factors: int = 10
+    tol: float = 0
+    maxiter: tp.Optional[int] = None
+    random_state: tp.Optional[int] = None
+
+
+class PureSVDModel(VectorModel[PureSVDModelConfig]):
     """
     PureSVD matrix factorization model.
 
@@ -51,6 +62,8 @@ class PureSVDModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
+    config_class = PureSVDModelConfig
+
     def __init__(
         self,
         factors: int = 10,
@@ -59,6 +72,7 @@ class PureSVDModel(VectorModel):
         random_state: tp.Optional[int] = None,
         verbose: int = 0,
     ):
+        self._config = self._make_config(factors, tol, maxiter, random_state, verbose)
         super().__init__(verbose=verbose)
 
         self.factors = factors
@@ -68,6 +82,24 @@ class PureSVDModel(VectorModel):
 
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
+
+    def _make_config(
+        self, factors: int, tol: float, maxiter: tp.Optional[int], random_state: tp.Optional[int], verbose: int
+    ) -> PureSVDModelConfig:
+        return PureSVDModelConfig(factors=factors, tol=tol, maxiter=maxiter, random_state=random_state, verbose=verbose)
+
+    def _get_config(self) -> PureSVDModelConfig:
+        return self._config
+
+    @classmethod
+    def _from_config(cls, config: PureSVDModelConfig) -> tpe.Self:
+        return cls(
+            factors=config.factors,
+            tol=config.tol,
+            maxiter=config.maxiter,
+            random_state=config.random_state,
+            verbose=config.verbose,
+        )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)

@@ -29,6 +29,41 @@ from .utils import assert_second_fit_refits_model
 
 
 class TestPureSVDModel:
+
+    def test_from_config(self) -> None:
+        config = {
+            "factors": 100,
+            "tol": 0,
+            "maxiter": 100,
+            "random_state": 32,
+            "verbose": 0,
+        }
+        model = PureSVDModel.from_config(config)
+        assert model.factors == 100
+        assert model.tol == 0
+        assert model.maxiter == 100
+        assert model.random_state == 32
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize("random_state", (None, 42))
+    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+        model = PureSVDModel(
+            factors=100,
+            tol=1,
+            maxiter=100,
+            random_state=random_state,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "factors": 100,
+            "tol": 1,
+            "maxiter": 100,
+            "random_state": random_state,
+            "verbose": 1,
+        }
+        assert config == expected
+
     @pytest.fixture
     def dataset(self) -> Dataset:
         return DATASET

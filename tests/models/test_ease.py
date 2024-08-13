@@ -27,6 +27,31 @@ from .utils import assert_second_fit_refits_model
 
 
 class TestEASEModel:
+    def test_from_config(self) -> None:
+        config = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        model = EASEModel.from_config(config)
+        assert model.num_threads == 1
+        assert model.verbose == 1
+        assert model.regularization == 500
+
+    def test_get_config(self) -> None:
+        model = EASEModel(
+            regularization=500,
+            num_threads=1,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        assert config == expected
+
     @pytest.fixture
     def dataset(self) -> Dataset:
         return DATASET

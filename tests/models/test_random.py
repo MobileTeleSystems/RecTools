@@ -28,6 +28,29 @@ from .utils import assert_second_fit_refits_model
 
 
 class TestRandomSampler:
+
+    def test_from_config(self) -> None:
+        config = {
+            "random_state": 32,
+            "verbose": 0,
+        }
+        model = RandomModel.from_config(config)
+        assert model.random_state == 32
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize("random_state", (None, 42))
+    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+        model = RandomModel(
+            random_state=random_state,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "random_state": random_state,
+            "verbose": 1,
+        }
+        assert config == expected
+
     def test_sample_small_n(self) -> None:
         gen = _RandomGen(42)
         sampler = _RandomSampler(np.arange(10), gen)
