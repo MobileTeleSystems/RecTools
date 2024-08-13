@@ -397,40 +397,64 @@ class ItemNet(nn.Module):
         return self.item_emb.weight.device
 
 
-class TransformerBlock(nn.Module):
+class PointWiseFeedForward(nn.Module):
     """TODO"""
 
-    def __init__(self, factors: int, factors_ff: int, n_heads: int, dropout_rate: float) -> None:
+    def __init__(self, factors: int, factors_ff: int, dropout_rate: float) -> None:
         """TODO"""
         super().__init__()
-        self.multi_head_attn = torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True)
-
-        self.layer_norm1 = nn.LayerNorm(factors)
-        self.layer_norm2 = nn.LayerNorm(factors)
-
-        # Pointwise Feed-Forward
         self.ff_linear1 = nn.Linear(factors, factors_ff)
         self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
         self.ff_relu = torch.nn.ReLU()
         self.ff_linear2 = nn.Linear(factors_ff, factors)
         self.ff_dropout2 = torch.nn.Dropout(dropout_rate)
 
-    def forward(self, seqs: torch.Tensor, attention_mask: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, seqs: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        q = self.layer_norm1(seqs)
-        mha_outputs, _ = self.multi_head_attn(q, seqs, seqs, attn_mask=attention_mask)
-        seqs = q + mha_outputs
-        seqs = self.layer_norm2(seqs)
-
-        # Pointwise Feed-Forward
-        ff_outputs = self.ff_dropout2(self.ff_linear2(self.ff_relu(self.ff_dropout1(self.ff_linear1(seqs)))))
-        ff_outputs += seqs
-
-        ff_outputs *= timeline_mask
-        return ff_outputs
+        output = self.ff_relu(self.ff_dropout1(self.ff_linear1(seqs)))
+        fin = self.ff_dropout2(self.ff_linear2(output))
+        return fin
 
 
-class TransformerDecoder(nn.Module):
+class SasRecTransformerBlocks(nn.Module):
+    """Exactly SASRec authors architecture but with torch MHA realisation"""
+
+    def __init__(
+        self,
+        n_blocks: int,
+        factors: int,
+        n_heads: int,
+        dropout_rate: float,
+    ):
+        super().__init__()
+        self.n_blocks = n_blocks
+        self.multi_head_attn = nn.ModuleList(
+            [torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
+        )  # TODO: original architecture had another version of MHA
+        self.q_layer_norm = nn.ModuleList([nn.LayerNorm(factors) for _ in range(n_blocks)])
+        self.ff_layer_norm = nn.ModuleList([nn.LayerNorm(factors) for _ in range(n_blocks)])
+        self.feed_forward = nn.ModuleList(
+            [PointWiseFeedForward(factors, factors, dropout_rate) for _ in range(n_blocks)]
+        )
+        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)
+
+    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        for i in range(self.n_blocks):
+            q = self.q_layer_norm[i](seqs)
+            mha_output, _ = self.multi_head_attn[i](q, seqs, seqs, attn_mask=attn_mask, need_weights=False)
+            seqs = q + mha_output
+            ff_input = self.ff_layer_norm[i](seqs)
+            seqs = self.feed_forward[i](ff_input)
+            seqs += ff_input
+            seqs *= timeline_mask
+
+        seqs = self.last_layernorm(seqs)
+
+        return seqs
+
+
+class PreLNTransformerBlocks(nn.Module):  # not changing metrics, even a bit worse
     """TODO"""
 
     def __init__(
@@ -441,22 +465,30 @@ class TransformerDecoder(nn.Module):
         dropout_rate: float,
     ):
         super().__init__()
-        self.transformer_blocks = nn.ModuleList(
-            [TransformerBlock(factors, factors, n_heads, dropout_rate) for _ in range(n_blocks)]
+        self.n_blocks = n_blocks
+        self.multi_head_attn = nn.ModuleList(
+            [torch.nn.MultiheadAttention(factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
         )
-        self.last_layernorm = torch.nn.LayerNorm(factors, eps=1e-8)  # TODO: remove
+        self.mha_layer_norm = nn.ModuleList([nn.LayerNorm(factors) for _ in range(n_blocks)])
+        self.mha_dropout = nn.Dropout(dropout_rate)
+        self.ff_layer_norm = nn.ModuleList([nn.LayerNorm(factors) for _ in range(n_blocks)])
+        self.feed_forward = nn.ModuleList(
+            [PointWiseFeedForward(factors, factors, dropout_rate) for _ in range(n_blocks)]
+        )
 
-    def forward(
-        self,
-        seqs: torch.Tensor,
-        attention_mask: torch.Tensor,
-        timeline_mask: torch.Tensor,
-    ) -> torch.Tensor:
+    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        for block in self.transformer_blocks:
-            seqs = block(seqs, attention_mask, timeline_mask)
-
-        seqs = self.last_layernorm(seqs)
+        for i in range(self.n_blocks):
+            mha_input = self.mha_layer_norm[i](seqs)
+            mha_output, _ = self.multi_head_attn[i](
+                mha_input, mha_input, mha_input, attn_mask=attn_mask, need_weights=False
+            )
+            mha_output = self.mha_dropout(mha_output)
+            seqs = seqs + mha_output
+            ff_input = self.ff_layer_norm[i](seqs)
+            ff_output = self.feed_forward[i](ff_input)
+            seqs = seqs + ff_output
+            seqs *= timeline_mask
 
         return seqs
 
@@ -464,31 +496,29 @@ class TransformerDecoder(nn.Module):
 class InversePositionalEncoding(torch.nn.Module):
     """TODO"""
 
-    def __init__(self, use_pos_emb: bool, dropout_rate: float, session_maxlen: int, factors: int):
+    def __init__(self, use_pos_emb: bool, session_maxlen: int, factors: int):
         super().__init__()
         self.pos_emb = torch.nn.Embedding(session_maxlen, factors) if use_pos_emb else None
-
-        self.emb_dropout = torch.nn.Dropout(dropout_rate)
 
     def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
         """TODO"""
         batch_size, session_maxlen, _ = sessions.shape
 
         if self.pos_emb is not None:
+            # Inverse positions for variable length sequences (equals to absolute positions for same length)
             positions = torch.tile(
-                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)  # inverse positions for variable length seqs
+                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_maxlen]
             sessions += self.pos_emb(positions.to(sessions.device))
 
         # TODO: do we need to fill padding embeds in sessions to all zeros
         # or should we use the learnt padding embedding? Should we make it an option for user to decide?
         sessions *= timeline_mask  # [batch_size, session_maxlen, factors]
-        sessions = self.emb_dropout(sessions)
 
         return sessions
 
 
-class SASRec(torch.nn.Module):
+class SASRec(torch.nn.Module):  # TODO: this is actually a universal SessionEncoder
     """TODO"""
 
     def __init__(
@@ -500,19 +530,21 @@ class SASRec(torch.nn.Module):
         dropout_rate: float,
         n_items: int,
         use_pos_emb: bool = True,
-    ):
+        use_causal_attn: bool = True,
+        transformer_architecture=SasRecTransformerBlocks,
+    ) -> None:
         super().__init__()
 
         self.item_model = ItemNet(factors, n_items, dropout_rate)
-
-        self.pos_encoder = InversePositionalEncoding(use_pos_emb, dropout_rate, session_maxlen, factors)
-
-        self.transformer_decoder = TransformerDecoder(
+        self.pos_encoding = InversePositionalEncoding(use_pos_emb, session_maxlen, factors)
+        self.emb_dropout = torch.nn.Dropout(dropout_rate)
+        self.transformer_blocks = transformer_architecture(
             n_blocks=n_blocks,
             factors=factors,
             n_heads=n_heads,
             dropout_rate=dropout_rate,
         )
+        self.use_causal_attn = use_causal_attn
 
     def get_model_device(self) -> torch.device:
         """TODO"""
@@ -524,28 +556,20 @@ class SASRec(torch.nn.Module):
 
         Returns
         -------
-            torch.Tensor. [batch_size, history_len, emdedding_dim]
+            torch.Tensor. [batch_size, session_maxlen, factors]
 
         """
         session_maxlen = sessions.shape[1]
+        attn_mask = None
+        if self.use_causal_attn:
+            attn_mask = ~torch.tril(
+                torch.ones((session_maxlen, session_maxlen), dtype=torch.bool, device=sessions.device)
+            )
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_maxlen, 1]
-
         seqs = item_embs[sessions]  # [batch_size, session_maxlen, factors]
-
-        seqs = self.pos_encoder(seqs, timeline_mask)
-
-        # TODO do we need to mask padding embs attention?
-        # [session_maxlen, session_maxlen]
-        attention_mask = ~torch.tril(
-            torch.ones((session_maxlen, session_maxlen), dtype=torch.bool, device=self.get_model_device())
-        )
-
-        seqs = self.transformer_decoder(
-            seqs=seqs,
-            attention_mask=attention_mask,
-            timeline_mask=timeline_mask,
-        )  # [batch_size, session_maxlen, factors]
-
+        seqs = self.pos_encoding(seqs, timeline_mask)
+        seqs = self.emb_dropout(seqs)
+        seqs = self.transformer_blocks(seqs, timeline_mask, attn_mask)
         return seqs
 
     def forward(
@@ -627,8 +651,7 @@ class Trainer:
         loss = loss * w
         n = (loss > 0).to(loss.dtype)
         loss = torch.sum(loss) / torch.sum(n)
-        joint_loss = loss  # + reg_loss
-        joint_loss.backward()
+        loss.backward()
         self.optimizer.step()
 
     def _init_optimizers(self) -> torch.optim.Adam:
