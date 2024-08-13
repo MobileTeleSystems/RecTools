@@ -346,3 +346,63 @@ class TestImplicitALSWrapperModel:
                 dataset=dataset,
                 k=2,
             )
+
+    def test_fit_partial(self, use_gpu: bool, dataset: Dataset) -> None:
+        base_model = AlternatingLeastSquares(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        model = ImplicitALSWrapperModel(model=base_model).fit(dataset)
+        data = [
+            [150, 11],
+            [150, 12],
+            [150, 15],
+        ]
+        new_interactions = pd.DataFrame(data, columns=Columns.UserItem)
+        new_interactions[Columns.Weight] = 1
+        new_interactions[Columns.Datetime] = "2021-09-10"
+        new_dataset = dataset.construct_new_datasets(new_interactions)
+        model.fit_partial(new_dataset)
+        actual = model.recommend(
+            users=[150],  # new user
+            dataset=new_dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [150, 150],
+                Columns.Item: [12, 11],
+                Columns.Rank: [1, 2],
+            }
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True), actual
+        )
+
+    def test_fit_partial_with_features(self, use_gpu: bool, dataset: Dataset) -> None:
+        user_id_map = IdMap.from_values(["u1", "u2", "u3"])
+        item_id_map = IdMap.from_values(["i1", "i2", "i3"])
+        interactions_df = pd.DataFrame(
+            [
+                ["u1", "i1", 0.1, "2021-09-09"],
+                ["u2", "i1", 0.1, "2021-09-09"],
+                ["u2", "i2", 0.5, "2021-09-05"],
+                ["u2", "i3", 0.2, "2021-09-05"],
+                ["u1", "i3", 0.2, "2021-09-05"],
+                ["u3", "i1", 0.2, "2021-09-05"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        )
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        user_features_df = pd.DataFrame({"id": ["u1", "u2", "u3"], "f1": [0.3, 0.4, 0.5]})
+        user_features = DenseFeatures.from_dataframe(user_features_df, user_id_map)
+        item_features_df = pd.DataFrame({"id": ["i1", "i1"], "feature": ["f1", "f2"], "value": [2.1, 100]})
+        item_features = SparseFeatures.from_flatten(item_features_df, item_id_map)
+        dataset = Dataset(user_id_map, item_id_map, interactions, user_features, item_features)
+
+        # In case of big number of iterations there are differences between CPU and GPU results
+        base_model = AlternatingLeastSquares(factors=32, num_threads=2, use_gpu=use_gpu)
+        self._init_model_factors_inplace(base_model, dataset)
+
+        model = ImplicitALSWrapperModel(model=base_model, fit_features_together=False).fit(dataset)
+        with pytest.raises(NotImplementedError, match="fit_partial with explicit features is not implemented"):
+            model.fit_partial(dataset)

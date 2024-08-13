@@ -90,6 +90,25 @@ class ImplicitALSWrapperModel(VectorModel):
                 self.verbose,
             )
 
+    def _fit_partial(self, dataset: Dataset) -> None:
+        # deepcopy does not copy model.item_factors and model.user_factors.
+        # That causes issues with partial fit.
+        users = dataset.get_hot_users()
+        items = dataset.get_hot_items()
+
+        ui_csr = dataset.get_user_item_matrix(
+            include_weights=True, include_warm_users=True, include_warm_items=True
+        ).astype(np.float32)
+        iu_csr = ui_csr[:, items].T.tocsr(copy=False)
+
+        # TODO: implement partial fit for explicit features
+        if dataset.get_hot_item_features() or dataset.get_hot_user_features():
+            raise NotImplementedError("fit_partial with explicit features is not implemented")
+
+        for _ in range(self.model.iterations):
+            self.model.partial_fit_users(users, ui_csr[users])
+            self.model.partial_fit_items(items, iu_csr)
+
     def _get_users_factors(self, dataset: Dataset) -> Factors:
         return Factors(get_users_vectors(self.model))
 

@@ -21,6 +21,7 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
+from rectools.types import InternalIdsArray
 
 from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
 from .identifiers import IdMap
@@ -91,6 +92,14 @@ class Dataset:
             return None
         return self.item_features.take(range(self.n_hot_items))
 
+    def get_hot_users(self) -> InternalIdsArray:
+        """Return internal ids of hot users."""
+        return self.interactions.df[Columns.User].unique()
+
+    def get_hot_items(self) -> InternalIdsArray:
+        """Return internal ids of hot items."""
+        return self.interactions.df[Columns.Item].unique()
+
     @classmethod
     def construct(
         cls,
@@ -138,9 +147,7 @@ class Dataset:
         Dataset
             Container with all input data, converted to `rectools` structures.
         """
-        for col in (Columns.User, Columns.Item):
-            if col not in interactions_df:
-                raise KeyError(f"Column '{col}' must be present in `interactions_df`")
+        cls._check_columns_present(interactions_df)
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
@@ -194,6 +201,12 @@ class Dataset:
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"An error has occurred while constructing {feature_type} features: {e!r}")
 
+    @staticmethod
+    def _check_columns_present(interactions_df: pd.DataFrame) -> None:
+        for col in (Columns.User, Columns.Item):
+            if col not in interactions_df:
+                raise KeyError(f"Column '{col}' must be present in `interactions_df`")
+
     def get_user_item_matrix(
         self,
         include_weights: bool = True,
@@ -245,3 +258,72 @@ class Dataset:
         pd.DataFrame
         """
         return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
+
+    def construct_new_datasets(
+        self,
+        interactions_df: pd.DataFrame,
+        user_features_df: tp.Optional[pd.DataFrame] = None,
+        cat_user_features: tp.Iterable[str] = (),
+        make_dense_user_features: bool = False,
+        item_features_df: tp.Optional[pd.DataFrame] = None,
+        cat_item_features: tp.Iterable[str] = (),
+        make_dense_item_features: bool = False,
+    ) -> "Dataset":
+        """
+        Create new dataset by merging user_id_map and item_id_map.
+        This function is useful when you want to use fit_partial.
+
+        Parameters
+        ----------
+        interactions_df : pd.DataFrame
+            New interactions table.
+            The same structure as in `construct` method.
+        user_features_df, item_features_df : pd.DataFrame, optional
+            New user (item) explicit features table.
+            The same structure as in `construct` method.
+        cat_user_features, cat_item_features : tp.Iterable[str], default ``()``
+            List of categorical user (item) feature names for
+            `SparseFeatures.from_flatten` method.
+            Used only if `make_dense_user_features` (`make_dense_item_features`)
+            flag is ``False`` and `user_features_df` (`item_features_df`) is not ``None``.
+        make_dense_user_features, make_dense_item_features : bool, default ``False``
+            Create user (item) features as dense or sparse.
+            Used only if `user_features_df` (`item_features_df`) is not ``None``.
+            - if ``False``, `SparseFeatures.from_flatten` method will be used;
+            - if ``True``,  `DenseFeatures.from_dataframe` method will be used.
+
+        Returns
+        -------
+        Dataset
+            New dataset with added data.
+        """
+        self._check_columns_present(interactions_df)
+
+        new_user_id_map = self.user_id_map.add_ids(interactions_df[Columns.User].values, raise_if_already_present=False)
+        new_item_id_map = self.item_id_map.add_ids(interactions_df[Columns.Item].values, raise_if_already_present=False)
+        new_interactions = Interactions.from_raw(interactions_df, new_user_id_map, new_item_id_map)
+
+        new_user_features, new_user_id_map = self._make_features(
+            user_features_df,
+            cat_user_features,
+            make_dense_user_features,
+            new_user_id_map,
+            Columns.User,
+            "user",
+        )
+        new_item_features, new_item_id_map = self._make_features(
+            item_features_df,
+            cat_item_features,
+            make_dense_item_features,
+            new_item_id_map,
+            Columns.Item,
+            "item",
+        )
+
+        return Dataset(
+            new_user_id_map,
+            new_item_id_map,
+            new_interactions,
+            new_user_features,
+            new_item_features,
+        )

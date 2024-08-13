@@ -222,6 +222,38 @@ class TestLightFMWrapperModel:
             actual,
         )
 
+    def test_fit_partial(self, dataset: Dataset) -> None:
+        base_model = DeterministicLightFM(no_components=2, loss="logistic")
+        model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset)
+        data = [
+            [150, 11],
+            [150, 12],
+            [150, 15],
+        ]
+        new_interactions = pd.DataFrame(data, columns=Columns.UserItem)
+        new_interactions[Columns.Weight] = 1
+        new_interactions[Columns.Datetime] = "2021-09-10"
+        new_dataset = dataset.construct_new_datasets(interactions_df=new_interactions)
+        model.fit_partial(new_dataset)
+        actual = model.recommend(
+            users=np.array([150]),  # new user
+            dataset=new_dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [150, 150],
+                Columns.Item: [15, 12],
+                Columns.Rank: [1, 2],
+            }
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
     def test_with_warp_kos(self, dataset: Dataset) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="warp-kos")
         try:

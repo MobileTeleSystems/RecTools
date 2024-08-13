@@ -71,6 +71,26 @@ class ModelBase:
     def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
         raise NotImplementedError()
 
+    def fit_partial(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
+        """
+        Partial fit model.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Dataset with input data.
+
+        Returns
+        -------
+        self
+        """
+        self._fit_partial(dataset, *args, **kwargs)
+        self.is_fitted = True
+        return self
+
+    def _fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
     def recommend(
         self,
         users: AnyIds,

@@ -14,6 +14,7 @@
 
 import typing as tp
 from copy import deepcopy
+from typing import Any
 
 import numpy as np
 from lightfm import LightFM
@@ -84,6 +85,23 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
             user_features=user_features,
             item_features=item_features,
             sample_weight=sample_weight,
+            epochs=self.n_epochs,
+            num_threads=self.n_threads,
+            verbose=self.verbose > 0,
+        )
+
+    def _fit_partial(self, dataset: Dataset, *args: Any, **kwargs: Any) -> None:  # type: ignore
+        self.model = deepcopy(self._model)
+
+        ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
+        user_features = self._prepare_features(dataset.get_hot_user_features(), dataset.n_hot_users)
+        item_features = self._prepare_features(dataset.get_hot_item_features(), dataset.n_hot_items)
+
+        self.model.fit_partial(
+            ui_coo,
+            user_features=user_features,
+            item_features=item_features,
+            sample_weight=ui_coo,
             epochs=self.n_epochs,
             num_threads=self.n_threads,
             verbose=self.verbose > 0,
