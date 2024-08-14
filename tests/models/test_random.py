@@ -208,13 +208,14 @@ class TestRandomModelConfiguration:
         }
         assert config == expected
 
-    def test_get_config_and_from_config_compatibility(self) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
             "random_state": 32,
             "verbose": 0,
         }
         model = RandomModel()
-        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config)
+        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config, simple_types)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
         default_config: tp.Dict[str, int] = {}

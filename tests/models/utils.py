@@ -58,18 +58,18 @@ def assert_default_config_and_default_model_params_are_the_same(
 
 
 def assert_get_config_and_from_config_compatibility(
-    model: ModelBase, dataset: Dataset, initial_config: tp.Dict[str, tp.Any], simple_types: tp.Optional[bool] = None
+    model: ModelBase, dataset: Dataset, initial_config: tp.Dict[str, tp.Any], simple_types: bool
 ) -> None:
     def get_reco(model: ModelBase) -> pd.DataFrame:
         return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)
 
     model_1 = model.from_config(initial_config)
     reco_1 = get_reco(model_1)
-    config_1 = model_1.get_config(simple_types=simple_types) if simple_types is not None else model_1.get_config()
+    config_1 = model_1.get_config(simple_types=simple_types)
 
     model_2 = model.from_config(config_1)
     reco_2 = get_reco(model_2)
-    config_2 = model_2.get_config(simple_types=simple_types) if simple_types is not None else model_2.get_config()
+    config_2 = model_2.get_config(simple_types=simple_types)
 
     assert config_1 == config_2
     pd.testing.assert_frame_equal(reco_1, reco_2)
