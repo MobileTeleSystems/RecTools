@@ -108,7 +108,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     for train_ids, test_ids, split_info in split_iterator:
         split_infos.append(split_info)
 
-        fold_dataset = dataset.filter_on_interactions_df_row_indexes(
+        fold_dataset = dataset.filter_interactions_df_rows(
             row_indexes_to_keep=train_ids,
             keep_external_ids=True,
             keep_features_for_removed_entities=prefer_warm_inference_over_cold,

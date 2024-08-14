@@ -247,7 +247,7 @@ class Dataset:
         """
         return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
 
-    def filter_on_interactions_df_row_indexes(
+    def filter_interactions_df_rows(
         self,
         row_indexes_to_keep: np.ndarray,
         keep_external_ids: bool = True,
@@ -273,7 +273,7 @@ class Dataset:
         Dataset
             Filtered dataset that has only selected interactions, new ids mapping and processed features.
         """
-        interactions_df = self.interactions.df.loc[row_indexes_to_keep]
+        interactions_df = self.interactions.df.iloc[row_indexes_to_keep]
 
         # 1x internal -> 2x internal
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)

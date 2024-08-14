@@ -340,7 +340,7 @@ class TestDataset:
         "keep_external_ids, expected_external_item_ids, expected_external_user_ids",
         ((True, np.array([10, 30, 20]), np.array([10, 14, 12])), (False, np.array([0, 2, 1]), np.array([0, 4, 2]))),
     )
-    def test_filter_dataset_on_interactions_df_row_indexes_without_features(
+    def test_filter_dataset_interactions_df_rows_without_features(
         self,
         dataset_to_filter: Dataset,
         keep_features_for_removed_entities: bool,
@@ -349,7 +349,7 @@ class TestDataset:
         expected_external_user_ids: np.ndarray,
     ) -> None:
         rows_to_keep = np.arange(4)
-        filtered_dataset = dataset_to_filter.filter_on_interactions_df_row_indexes(
+        filtered_dataset = dataset_to_filter.filter_interactions_df_rows(
             rows_to_keep,
             keep_external_ids=keep_external_ids,
             keep_features_for_removed_entities=keep_features_for_removed_entities,
@@ -378,7 +378,7 @@ class TestDataset:
             (False, True, np.array([0, 2, 1, 3, 4]), np.array([0, 4, 2, 1, 3])),
         ),
     )
-    def test_filter_dataset_on_interactions_df_row_indexes_with_features(
+    def test_filter_dataset_interactions_df_rows_with_features(
         self,
         dataset_with_features_to_filter: Dataset,
         keep_features_for_removed_entities: bool,
@@ -387,7 +387,7 @@ class TestDataset:
         expected_external_user_ids: np.ndarray,
     ) -> None:
         rows_to_keep = np.arange(4)
-        filtered_dataset = dataset_with_features_to_filter.filter_on_interactions_df_row_indexes(
+        filtered_dataset = dataset_with_features_to_filter.filter_interactions_df_rows(
             rows_to_keep,
             keep_external_ids=keep_external_ids,
             keep_features_for_removed_entities=keep_features_for_removed_entities,
