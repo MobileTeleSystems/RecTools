@@ -14,11 +14,11 @@
 
 import typing as tp
 from copy import deepcopy
-from typing import Any
 
 import numpy as np
 from lightfm import LightFM
 from scipy import sparse
+from sklearn.base import clone
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
@@ -90,22 +90,79 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
             verbose=self.verbose > 0,
         )
 
-    def _fit_partial(self, dataset: Dataset, *args: Any, **kwargs: Any) -> None:  # type: ignore
-        self.model = deepcopy(self._model)
+    def _fit_partial(self, dataset: Dataset, epochs: tp.Optional[int] = None) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
 
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
         user_features = self._prepare_features(dataset.get_hot_user_features(), dataset.n_hot_users)
         item_features = self._prepare_features(dataset.get_hot_item_features(), dataset.n_hot_items)
+        epochs = epochs if epochs is not None else self.n_epochs
+        sample_weight = None if self._model.loss == "warp-kos" else ui_coo
+
+        if self.is_fitted:
+            self.model._check_initialized()  # pylint: disable=W0212
+            self._resize_model(ui_coo, user_features, item_features)
 
         self.model.fit_partial(
             ui_coo,
             user_features=user_features,
             item_features=item_features,
-            sample_weight=ui_coo,
-            epochs=self.n_epochs,
+            sample_weight=sample_weight,
+            epochs=epochs,
             num_threads=self.n_threads,
             verbose=self.verbose > 0,
         )
+
+    # Based on LightFMResizable by @JohnPaton
+    # https://github.com/lyst/lightfm/issues/347#issuecomment-707829342
+    def _resize_model(
+        self,
+        interactions: sparse.coo_matrix,
+        user_features: tp.Optional[sparse.csr_matrix] = None,
+        item_features: tp.Optional[sparse.csr_matrix] = None,
+    ) -> None:
+        """Resizes the model to accommodate new users/items/features"""
+        no_components = self.model.no_components
+        no_user_features, no_item_features = interactions.shape
+
+        if user_features and hasattr(user_features, "shape"):
+            no_user_features = user_features.shape[-1]
+        if item_features and hasattr(item_features, "shape"):
+            no_item_features = item_features.shape[-1]
+
+        if (
+            no_user_features == self.model.user_embeddings.shape[0]
+            and no_item_features == self.model.item_embeddings.shape[0]
+        ):
+            return
+
+        new_model = clone(self.model)
+        new_model._initialize(no_components, no_item_features, no_user_features)  # pylint: disable=W0212
+
+        for attr in (
+            "item_embeddings",
+            "item_embedding_gradients",
+            "item_embedding_momentum",
+            "item_biases",
+            "item_bias_gradients",
+            "item_bias_momentum",
+            "user_embeddings",
+            "user_embedding_gradients",
+            "user_embedding_momentum",
+            "user_biases",
+            "user_bias_gradients",
+            "user_bias_momentum",
+        ):
+            # extend attribute matrices with new rows/cols from
+            # freshly initialized model with right shape
+            old_array = getattr(self.model, attr)
+            old_slice = [slice(None, i) for i in old_array.shape]
+            new_array = getattr(new_model, attr)
+            new_array[tuple(old_slice)] = old_array
+            setattr(self.model, attr, new_array)
+
+        return
 
     @staticmethod
     def _prepare_features(features: tp.Optional[Features], n_hot: int) -> tp.Optional[sparse.csr_matrix]:

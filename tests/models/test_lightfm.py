@@ -236,16 +236,16 @@ class TestLightFMWrapperModel:
         new_dataset = dataset.construct_new_datasets(interactions_df=new_interactions)
         model.fit_partial(new_dataset)
         actual = model.recommend(
-            users=np.array([150]),  # new user
+            users=np.array([10, 150]),  # new user
             dataset=new_dataset,
             k=2,
             filter_viewed=False,
         )
         expected = pd.DataFrame(
             {
-                Columns.User: [150, 150],
-                Columns.Item: [15, 12],
-                Columns.Rank: [1, 2],
+                Columns.User: [10, 10, 150, 150],
+                Columns.Item: [11, 12, 11, 12],
+                Columns.Rank: [1, 2, 1, 2],
             }
         )
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)

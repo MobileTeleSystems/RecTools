@@ -91,8 +91,9 @@ class ImplicitALSWrapperModel(VectorModel):
             )
 
     def _fit_partial(self, dataset: Dataset) -> None:
-        # deepcopy does not copy model.item_factors and model.user_factors.
-        # That causes issues with partial fit.
+        # Implicit ALS assumes to fit first on all data.
+        if not self.is_fitted:
+            raise NotFittedError(self.__class__.__name__)
         users = dataset.get_hot_users()
         items = dataset.get_hot_items()
 

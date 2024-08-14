@@ -361,16 +361,16 @@ class TestImplicitALSWrapperModel:
         new_dataset = dataset.construct_new_datasets(new_interactions)
         model.fit_partial(new_dataset)
         actual = model.recommend(
-            users=[150],  # new user
+            users=[10, 150],  # old user, new user
             dataset=new_dataset,
             k=2,
             filter_viewed=False,
         )
         expected = pd.DataFrame(
             {
-                Columns.User: [150, 150],
-                Columns.Item: [12, 11],
-                Columns.Rank: [1, 2],
+                Columns.User: [10, 10, 150, 150],
+                Columns.Item: [14, 13, 12, 11],
+                Columns.Rank: [1, 2, 1, 2],
             }
         )
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
