@@ -294,12 +294,12 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
 
         session_embs = []
-        device = self.model.get_model_device()
-        self.model.item_model.to_device(device)
+        # device = self.model.get_model_device()
+        # self.model.item_model.to_device(device)
         item_embs = self.model.item_model.get_all_embeddings()  # [n_items + 1, factors]
         with torch.no_grad():
             for x_batch in tqdm.tqdm(recommend_dataloader):
-                x_batch = x_batch.to(device)  # [batch_size, session_maxlen]
+                x_batch = x_batch.to(self.device)  # [batch_size, session_maxlen]
                 encoded = self.model.encode_sessions(x_batch, item_embs)[:, -1, :]  # [batch_size, factors]
                 encoded = encoded.detach().cpu().numpy()
                 session_embs.append(encoded)
@@ -361,12 +361,12 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
 
 
 class ItemNet(nn.Module):
-    """TODO"""
+    """Base class for item embeddings. To use more complicated logic then just id embeddings inherit
+    from this class and pass your custom ItemNet to your model params"""
 
     def __init__(self, factors: int, n_items: int, dropout_rate: float):
         super().__init__()
 
-        self.catalogue: torch.Tensor
         self.n_items = n_items
         self.item_emb = nn.Embedding(
             num_embeddings=n_items,
@@ -380,21 +380,19 @@ class ItemNet(nn.Module):
         item_embs = self.item_emb(self.catalogue)
         item_embs = self.drop_layer(item_embs)
         return item_embs
+    
+    @property
+    def catalogue(self) -> torch.Tensor:
+        return torch.LongTensor(list(range(self.n_items)), device=self.item_emb.weight.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(self.catalogue)  # [n_items + 1, factors]
-        item_embs = self.drop_layer(item_embs)
-        return item_embs
-
-    def to_device(self, device: torch.device) -> None:
-        """TODO"""
-        catalogue = torch.LongTensor(list(range(self.n_items)))
-        self.catalogue = catalogue.to(device)
-
-    def get_device(self) -> torch.device:
-        """TODO"""
-        return self.item_emb.weight.device
+        return self.forward(self.catalogue)
+    
+    @classmethod
+    def from_dataset(cls, dataset: Dataset, factors: int, dropout_rate: int):
+        n_items = dataset.item_id_map.size
+        return ItemNet(factors, n_items, dropout_rate)
 
 
 class PointWiseFeedForward(nn.Module):
@@ -546,9 +544,9 @@ class SASRec(torch.nn.Module):  # TODO: this is actually a universal SessionEnco
         )
         self.use_causal_attn = use_causal_attn
 
-    def get_model_device(self) -> torch.device:
-        """TODO"""
-        return self.item_model.get_device()
+    # def get_model_device(self) -> torch.device:
+    #     """TODO"""
+    #     return self.item_model.get_device()
 
     def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
@@ -613,7 +611,8 @@ class Trainer:
 
         self.xavier_normal_init(self.model)
         self.model.train()  # enable model training
-        self.model.item_model.to_device(self.device)
+        
+        # self.model.item_model.to_device(self.device)
 
         epoch_start_idx = 1
 
