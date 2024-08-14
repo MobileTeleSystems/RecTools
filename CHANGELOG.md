@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Configs for EASE, Random, PureSVD models ([#178](https://github.com/MobileTeleSystems/RecTools/pull/178))
 - Configs for implicit models ([#167](https://github.com/MobileTeleSystems/RecTools/pull/167))
 
 

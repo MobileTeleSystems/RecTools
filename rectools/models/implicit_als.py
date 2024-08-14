@@ -32,6 +32,7 @@ from rectools.models.base import ModelConfig
 from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
+from .base import RandomState
 from .rank import Distance
 from .vector import Factors, VectorModel
 
@@ -65,20 +66,6 @@ AlternatingLeastSquaresClass = tpe.Annotated[
 
 DType = tpe.Annotated[
     np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
-]
-
-
-def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.RandomState]]) -> tp.Union[None, int]:
-    if rs is None or isinstance(rs, int):
-        return rs
-
-    # NOBUG: We can add serialization using get/set_state, but it's not human readable
-    raise TypeError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
-
-
-RandomState = tpe.Annotated[
-    tp.Union[None, int, np.random.RandomState],
-    PlainSerializer(func=_serialize_random_state, when_used="json"),
 ]
 
 

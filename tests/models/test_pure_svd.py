@@ -25,10 +25,15 @@ from rectools.models.pure_svd import PureSVDModel
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 class TestPureSVDModel:
+
     @pytest.fixture
     def dataset(self) -> Dataset:
         return DATASET
@@ -252,3 +257,57 @@ class TestPureSVDModel:
                 dataset=dataset,
                 k=2,
             )
+
+
+class TestPureSVDModelConfiguration:
+
+    def test_from_config(self) -> None:
+        config = {
+            "factors": 100,
+            "tol": 0,
+            "maxiter": 100,
+            "random_state": 32,
+            "verbose": 0,
+        }
+        model = PureSVDModel.from_config(config)
+        assert model.factors == 100
+        assert model.tol == 0
+        assert model.maxiter == 100
+        assert model.random_state == 32
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize("random_state", (None, 42))
+    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+        model = PureSVDModel(
+            factors=100,
+            tol=1,
+            maxiter=100,
+            random_state=random_state,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "factors": 100,
+            "tol": 1,
+            "maxiter": 100,
+            "random_state": random_state,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "factors": 2,
+            "tol": 0,
+            "maxiter": 100,
+            "random_state": 32,
+            "verbose": 0,
+        }
+        model = PureSVDModel()
+        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = PureSVDModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
