@@ -24,7 +24,11 @@ from rectools.dataset import Dataset
 from rectools.models import ImplicitItemKNNWrapperModel
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 class TestImplicitItemKNNWrapperModel:
@@ -309,9 +313,6 @@ class TestImplicitItemKNNWrapperModelConfiguration:
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        def get_reco(model: ImplicitItemKNNWrapperModel) -> pd.DataFrame:
-            return model.fit(DATASET).recommend(users=np.array([10, 20]), dataset=DATASET, k=2, filter_viewed=False)
-
         initial_config = {
             "model": {
                 "cls": TFIDFRecommender,
@@ -319,19 +320,10 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             },
             "verbose": 1,
         }
-
-        model_1 = ImplicitItemKNNWrapperModel.from_config(initial_config)
-        reco_1 = get_reco(model_1)
-        config_1 = model_1.get_config(simple_types=simple_types)
-
-        model_2 = ImplicitItemKNNWrapperModel.from_config(config_1)
-        reco_2 = get_reco(model_2)
-        config_2 = model_2.get_config(simple_types=simple_types)
-
-        assert config_1 == config_2
-        pd.testing.assert_frame_equal(reco_1, reco_2)
+        model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
+        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config, simple_types)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
-        model_from_config = ImplicitItemKNNWrapperModel.from_config({"model": {}})
-        model_from_params = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
-        assert model_from_config.get_config() == model_from_params.get_config()
+        default_config: tp.Dict[str, tp.Any] = {"model": {}}
+        model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
