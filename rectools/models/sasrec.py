@@ -1,6 +1,7 @@
 import logging
 import typing as tp
 import warnings
+from copy import deepcopy
 from typing import List, Tuple
 
 import numpy as np
@@ -223,15 +224,20 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         cpu_n_threads: int = 0,
     ):
         super().__init__(verbose=verbose)
-        self.session_maxlen = session_maxlen
-        self.n_blocks = n_blocks
-        self.factors = factors
-        self.n_heads = n_heads
-        self.dropout_rate = dropout_rate
-        self.use_pos_emb = use_pos_emb
         self.device = torch.device(device)
         self.n_threads = cpu_n_threads
-        self.model: SASRec
+        self.model: TransformerBasedSessionEncoder
+        self._model = TransformerBasedSessionEncoder(
+            n_blocks=n_blocks,
+            factors=factors,
+            n_heads=n_heads,
+            session_maxlen=session_maxlen,
+            dropout_rate=dropout_rate,
+            use_pos_emb=use_pos_emb,
+            use_causal_attn=True,
+            transformer_blocks_type=SasRecTransformerBlocks,
+            item_net_type=IdEmbeddingsItemNet,
+        )
         self.trainer = Trainer(
             lr=lr,
             epochs=epochs,
@@ -249,16 +255,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         processed_dataset = self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
 
-        n_items = self.data_preparator.item_id_map.size
-        self.model = SASRec(
-            n_blocks=self.n_blocks,
-            factors=self.factors,
-            n_heads=self.n_heads,
-            session_maxlen=self.session_maxlen,
-            dropout_rate=self.dropout_rate,
-            use_pos_emb=self.use_pos_emb,
-            n_items=n_items,  # TODO: can we init a SASRec net without knowing this?
-        )
+        self.model = deepcopy(self._model)  # TODO: check that it works
+        self.model.costruct_item_net(processed_dataset)
 
         self.trainer.fit(self.model, train_dataloader)
         self.model = self.trainer.model
@@ -294,8 +292,6 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
 
         session_embs = []
-        # device = self.model.get_model_device()
-        # self.model.item_model.to_device(device)
         item_embs = self.model.item_model.get_all_embeddings()  # [n_items + 1, factors]
         with torch.no_grad():
             for x_batch in tqdm.tqdm(recommend_dataloader):
@@ -360,9 +356,31 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         )
 
 
-class ItemNet(nn.Module):
-    """Base class for item embeddings. To use more complicated logic then just id embeddings inherit
-    from this class and pass your custom ItemNet to your model params"""
+ItemNetT = tp.TypeVar("ItemNetT", bound="ItemNetBase")
+
+
+class ItemNetBase(nn.Module):
+    """Base class ItemNet. Used only for type hinting."""
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset(cls: tp.Type[ItemNetT], dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> ItemNetT:
+        """TODO"""
+        raise NotImplementedError()
+
+    def get_all_embeddings(self) -> torch.Tensor:
+        """TODO"""
+        raise NotImplementedError()
+
+
+class IdEmbeddingsItemNet(ItemNetBase):
+    """
+    Base class for item embeddings. To use more complicated logic then just id embeddings inherit
+    from this class and pass your custom ItemNet to your model params
+    """
 
     def __init__(self, factors: int, n_items: int, dropout_rate: float):
         super().__init__()
@@ -375,24 +393,26 @@ class ItemNet(nn.Module):
         )
         self.drop_layer = nn.Dropout(dropout_rate)
 
-    def forward(self) -> torch.Tensor:
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(self.catalogue)
+        item_embs = self.item_emb(items)
         item_embs = self.drop_layer(item_embs)
         return item_embs
-    
+
     @property
     def catalogue(self) -> torch.Tensor:
-        return torch.LongTensor(list(range(self.n_items)), device=self.item_emb.weight.device)
+        """TODO"""
+        return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
         return self.forward(self.catalogue)
-    
+
     @classmethod
-    def from_dataset(cls, dataset: Dataset, factors: int, dropout_rate: int):
+    def from_dataset(cls: tp.Type[ItemNetT], dataset: Dataset, factors: int, dropout_rate: float) -> ItemNetT:
+        """TODO"""
         n_items = dataset.item_id_map.size
-        return ItemNet(factors, n_items, dropout_rate)
+        return cls(factors, n_items, dropout_rate)
 
 
 class PointWiseFeedForward(nn.Module):
@@ -414,7 +434,15 @@ class PointWiseFeedForward(nn.Module):
         return fin
 
 
-class SasRecTransformerBlocks(nn.Module):
+class TransformerBlocksBase(nn.Module):
+    """Base class transformer blocks. Used only for type hinting."""
+
+    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+        """Forward"""
+        raise NotImplementedError()
+
+
+class SasRecTransformerBlocks(TransformerBlocksBase):
     """Exactly SASRec authors architecture but with torch MHA realisation"""
 
     def __init__(
@@ -452,8 +480,12 @@ class SasRecTransformerBlocks(nn.Module):
         return seqs
 
 
-class PreLNTransformerBlocks(nn.Module):  # not changing metrics, even a bit worse
-    """TODO"""
+class PreLNTransformerBlocks(TransformerBlocksBase):
+    """
+    Based on https://arxiv.org/pdf/2002.04745
+    On Kion open dataset didn't change metrics, even got a bit worse
+    But let's keep it for now
+    """
 
     def __init__(
         self,
@@ -503,7 +535,8 @@ class InversePositionalEncoding(torch.nn.Module):
         batch_size, session_maxlen, _ = sessions.shape
 
         if self.pos_emb is not None:
-            # Inverse positions for variable length sequences (equals to absolute positions for same length)
+            # Inverse positions are appropriate for variable length sequences across different batches
+            # They are equal to absolute positions for fixed sequence length across different batches
             positions = torch.tile(
                 torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_maxlen]
@@ -516,7 +549,7 @@ class InversePositionalEncoding(torch.nn.Module):
         return sessions
 
 
-class SASRec(torch.nn.Module):  # TODO: this is actually a universal SessionEncoder
+class TransformerBasedSessionEncoder(torch.nn.Module):
     """TODO"""
 
     def __init__(
@@ -526,27 +559,30 @@ class SASRec(torch.nn.Module):  # TODO: this is actually a universal SessionEnco
         n_heads: int,
         session_maxlen: int,
         dropout_rate: float,
-        n_items: int,
-        use_pos_emb: bool = True,
+        use_pos_emb: bool = True,  # TODO: add pos_encoding_type option for user to pass
         use_causal_attn: bool = True,
-        transformer_architecture=SasRecTransformerBlocks,
+        transformer_blocks_type: tp.Type[TransformerBlocksBase] = SasRecTransformerBlocks,
+        item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,
     ) -> None:
         super().__init__()
 
-        self.item_model = ItemNet(factors, n_items, dropout_rate)
+        self.item_model: ItemNetBase
         self.pos_encoding = InversePositionalEncoding(use_pos_emb, session_maxlen, factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
-        self.transformer_blocks = transformer_architecture(
+        self.transformer_blocks = transformer_blocks_type(
             n_blocks=n_blocks,
             factors=factors,
             n_heads=n_heads,
             dropout_rate=dropout_rate,
         )
         self.use_causal_attn = use_causal_attn
+        self.item_net_architecture = item_net_type
+        self.factors = factors
+        self.dropout_rate = dropout_rate
 
-    # def get_model_device(self) -> torch.device:
-    #     """TODO"""
-    #     return self.item_model.get_device()
+    def costruct_item_net(self, dataset: Dataset) -> None:
+        """TODO"""
+        self.item_model = self.item_net_architecture.from_dataset(dataset, self.factors, self.dropout_rate)
 
     def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
@@ -592,7 +628,7 @@ class Trainer:
         loss: str = "softmax",
     ):
         """TODO"""
-        self.model: SASRec
+        self.model: TransformerBasedSessionEncoder
         self.optimizer: torch.optim.Adam
         self.lr = lr
         self.epochs = epochs
@@ -601,7 +637,7 @@ class Trainer:
 
     def fit(
         self,
-        model: SASRec,
+        model: TransformerBasedSessionEncoder,
         fit_dataloader: DataLoader,
     ) -> None:
         """TODO"""
@@ -611,7 +647,7 @@ class Trainer:
 
         self.xavier_normal_init(self.model)
         self.model.train()  # enable model training
-        
+
         # self.model.item_model.to_device(self.device)
 
         epoch_start_idx = 1
