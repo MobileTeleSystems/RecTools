@@ -371,12 +371,8 @@ class Dataset:
         """
         self._check_columns_present(interactions_df)
 
-        old_hot_user_id_map = IdMap.from_dict(
-            {e: i for e, i in zip(self.get_hot_users_external(), self.get_hot_users_internal())}
-        )
-        old_hot_item_id_map = IdMap.from_dict(
-            {e: i for e, i in zip(self.get_hot_items_external(), self.get_hot_items_internal())}
-        )
+        old_hot_user_id_map = IdMap.from_dict(dict(zip(self.get_hot_users_external(), self.get_hot_users_internal())))
+        old_hot_item_id_map = IdMap.from_dict(dict(zip(self.get_hot_items_external(), self.get_hot_items_internal())))
         new_user_id_map = old_hot_user_id_map.add_ids(
             interactions_df[Columns.User].values, raise_if_already_present=False
         )
