@@ -322,6 +322,40 @@ class TestLightFMWrapperModel:
             actual,
         )
 
+    def test_fit_partial_with_same_dataset(self, dataset: Dataset) -> None:
+        base_model = DeterministicLightFM(no_components=2, loss="logistic")
+        model = LightFMWrapperModel(model=base_model, epochs=10).fit(dataset)
+        actual = model.recommend(
+            users=np.array([10, 20, 150]),  # hot, hot, cold
+            dataset=dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10, 20, 20, 150, 150],
+                Columns.Item: [11, 12, 11, 12, 11, 12],
+                Columns.Rank: [1, 2, 1, 2, 1, 2],
+            }
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+        model.fit_partial(dataset, epochs=1)
+        actual = model.recommend(
+            users=np.array([10, 20, 150]),  # hot, hot, cold
+            dataset=dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
     def test_with_warp_kos(self, dataset: Dataset) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="warp-kos")
         try:

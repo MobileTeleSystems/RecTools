@@ -412,3 +412,35 @@ class TestImplicitALSWrapperModel:
         model = ImplicitALSWrapperModel(model=base_model, fit_features_together=False).fit(dataset)
         with pytest.raises(NotImplementedError, match="fit_partial with explicit features is not implemented"):
             model.fit_partial(dataset)
+
+    def test_fit_partial_with_same_data(self, use_gpu: bool, dataset: Dataset) -> None:
+        base_model = AlternatingLeastSquares(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        model = ImplicitALSWrapperModel(model=base_model).fit(dataset)
+        actual = model.recommend(
+            users=[10, 20],
+            dataset=dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10, 20, 20],
+                Columns.Item: [12, 11, 11, 12],
+                Columns.Rank: [1, 2, 1, 2],
+            }
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True), actual
+        )
+        model.fit_partial(dataset)
+        actual2 = model.recommend(
+            users=[10, 20],
+            dataset=dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        pd.testing.assert_frame_equal(actual2.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual2.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True), actual2
+        )
