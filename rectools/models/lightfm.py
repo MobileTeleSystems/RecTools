@@ -126,9 +126,9 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
         no_components = self.model.no_components
         no_user_features, no_item_features = interactions.shape
 
-        if user_features and hasattr(user_features, "shape"):
+        if user_features is not None and hasattr(user_features, "shape"):
             no_user_features = user_features.shape[-1]
-        if item_features and hasattr(item_features, "shape"):
+        if item_features is not None and hasattr(item_features, "shape"):
             no_item_features = item_features.shape[-1]
 
         if (
