@@ -21,7 +21,7 @@ import pandas as pd
 from scipy import sparse
 
 from rectools import Columns
-from rectools.types import InternalIdsArray
+from rectools.types import ExternalIdsArray, InternalIdsArray
 
 from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
 from .identifiers import IdMap
@@ -99,6 +99,14 @@ class Dataset:
     def get_hot_items_internal(self) -> InternalIdsArray:
         """Return internal ids of hot items."""
         return self.interactions.df[Columns.Item].unique()
+
+    def get_hot_users_external(self) -> ExternalIdsArray:
+        """Return external ids of hot users."""
+        return self.user_id_map.convert_to_external(self.get_hot_users_internal())
+
+    def get_hot_items_external(self) -> ExternalIdsArray:
+        """Return external ids of hot items."""
+        return self.item_id_map.convert_to_external(self.get_hot_items_internal())
 
     @classmethod
     def construct(
@@ -299,8 +307,18 @@ class Dataset:
         """
         self._check_columns_present(interactions_df)
 
-        new_user_id_map = self.user_id_map.add_ids(interactions_df[Columns.User].values, raise_if_already_present=False)
-        new_item_id_map = self.item_id_map.add_ids(interactions_df[Columns.Item].values, raise_if_already_present=False)
+        old_hot_user_id_map = IdMap.from_dict(
+            {e: i for e, i in zip(self.get_hot_users_external(), self.get_hot_users_internal())}
+        )
+        old_hot_item_id_map = IdMap.from_dict(
+            {e: i for e, i in zip(self.get_hot_items_external(), self.get_hot_items_internal())}
+        )
+        new_user_id_map = old_hot_user_id_map.add_ids(
+            interactions_df[Columns.User].values, raise_if_already_present=False
+        )
+        new_item_id_map = old_hot_item_id_map.add_ids(
+            interactions_df[Columns.Item].values, raise_if_already_present=False
+        )
         new_interactions = Interactions.from_raw(interactions_df, new_user_id_map, new_item_id_map)
 
         new_user_features, new_user_id_map = self._make_features(

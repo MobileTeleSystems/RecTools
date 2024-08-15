@@ -380,13 +380,13 @@ class TestDataset:
             item_features_df=new_item_features_df,
             cat_item_features=["f2"],
         )
-        expected_user_id_map = IdMap.from_values(["u1", "u2", "u3", "u4", "u5"])
-        expected_item_id_map = IdMap.from_values(["i1", "i2", "i5", "i7", "i8"])
+        expected_user_id_map = IdMap.from_values(["u1", "u2", "u3", "u5", "u4"])
+        expected_item_id_map = IdMap.from_values(["i1", "i2", "i5", "i8", "i7"])
         expected_interactions = Interactions(
             pd.DataFrame(
                 [
-                    [1, 4, 5.0, datetime(2021, 9, 3)],
-                    [4, 0, 3.0, datetime(2021, 9, 9)],
+                    [1, 3, 5.0, datetime(2021, 9, 3)],
+                    [3, 0, 3.0, datetime(2021, 9, 9)],
                 ],
                 columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
             ),
