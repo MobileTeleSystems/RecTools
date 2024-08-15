@@ -17,6 +17,7 @@
 import typing as tp
 
 import attr
+import numpy as np
 import pandas as pd
 from scipy import sparse
 
@@ -266,6 +267,69 @@ class Dataset:
         pd.DataFrame
         """
         return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
+
+    def filter_interactions(
+        self,
+        row_indexes_to_keep: np.ndarray,
+        keep_external_ids: bool = True,
+        keep_features_for_removed_entities: bool = True,
+    ) -> "Dataset":
+        """
+        Generate filtered dataset that contains only provided `row_indexes_to_keep` from original
+        dataset interactions dataframe.
+        Resulting dataset will get new id mapping for both users and items.
+
+        Parameters
+        ----------
+        row_indexes_to_keep : np.ndarray
+            Original dataset interactions df row indexes that are to be kept
+        keep_external_ids : bool, default `True`
+            Whether to keep external ids -> 2x internal ids mapping (default).
+            Otherwise internal -> 2x internal ids mapping will be created.
+        keep_features_for_removed_entities : bool, default `True`
+            Whether to keep all features for users and items that are not hot any more.
+
+        Returns
+        -------
+        Dataset
+            Filtered dataset that has only selected interactions, new ids mapping and processed features.
+        """
+        interactions_df = self.interactions.df.iloc[row_indexes_to_keep]
+
+        # 1x internal -> 2x internal
+        user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
+        item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+
+        def _handle_features(
+            features: tp.Optional[Features], target_id_map: IdMap, dataset_id_map: IdMap
+        ) -> tp.Tuple[tp.Optional[Features], IdMap]:
+            if features is None:
+                return None, target_id_map
+
+            if keep_features_for_removed_entities:
+                all_features_ids = np.arange(len(features))
+                target_id_map = target_id_map.add_ids(all_features_ids, raise_if_already_present=False)
+
+            needed_ids = target_id_map.get_external_sorted_by_internal()
+            features = features.take(needed_ids)
+            return features, target_id_map
+
+        user_features_new, user_id_map = _handle_features(self.user_features, user_id_map, self.user_id_map)
+        item_features_new, item_id_map = _handle_features(self.item_features, item_id_map, self.item_id_map)
+
+        if keep_external_ids:  # external -> 2x internal
+            user_id_map = IdMap(self.user_id_map.convert_to_external(user_id_map.external_ids))
+            item_id_map = IdMap(self.item_id_map.convert_to_external(item_id_map.external_ids))
+
+        filtered_dataset = Dataset(
+            user_id_map=user_id_map,
+            item_id_map=item_id_map,
+            interactions=interactions,
+            user_features=user_features_new,
+            item_features=item_features_new,
+        )
+        return filtered_dataset
 
     def rebuild_with_new_data(
         self,
