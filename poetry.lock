@@ -1548,6 +1548,37 @@ psutil = "*"
 pybind11 = "<2.6.2"
 
 [[package]]
+name = "nmslib-metabrainz"
+version = "2.1.3"
+description = "Non-Metric Space Library (NMSLIB)"
+optional = true
+python-versions = "*"
+files = [
+    {file = "nmslib-metabrainz-2.1.3.tar.gz", hash = "sha256:b6daaad3c58fd99269b81038be18724a90d80bd766bf8c3fecce0e6792b7a320"},
+    {file = "nmslib_metabrainz-2.1.3-cp310-cp310-macosx_11_0_x86_64.whl", hash = "sha256:a81b1da07a5362790b92c0974252baace450a929e8de8d86565241925c59d91f"},
+    {file = "nmslib_metabrainz-2.1.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2109585536165e4023f428e0915a0cbbce8df1c9aaced22f54fb5df46d61e7c9"},
+    {file = "nmslib_metabrainz-2.1.3-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:6afecb06eaabeefb5621b167f6c2fa915291da0dbc9efcbb59b4c966f43f6609"},
+    {file = "nmslib_metabrainz-2.1.3-cp310-cp310-win_amd64.whl", hash = "sha256:de31394b6ed9b129845bb75e5bffb19d0aecb627d2d6bf78fe011af283d82cc4"},
+    {file = "nmslib_metabrainz-2.1.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:131cb09dc59b70b6ca79d9905aac2ff19fae78ad2342896a6ae21a2c10fb4c5c"},
+    {file = "nmslib_metabrainz-2.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3322188e2605152e8b79d2a303da593830ac65b6074214406183f806967a6a5d"},
+    {file = "nmslib_metabrainz-2.1.3-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:511063e12a1f0466434b6b7687ccc3ebe61f9dccd90a6b3f640be6d9075ada11"},
+    {file = "nmslib_metabrainz-2.1.3-cp311-cp311-win_amd64.whl", hash = "sha256:bc456ba641345378bd905530ec7ce4a888ab4ed6fb2e4ce8e0a17d0da49892a3"},
+    {file = "nmslib_metabrainz-2.1.3-cp312-cp312-macosx_10_9_universal2.whl", hash = "sha256:e7ab474aab49f72685d53ab05cdca6ed26d85ef3f14d626bc82fd99622abc52a"},
+    {file = "nmslib_metabrainz-2.1.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:00c9da0dec39a5b0048664baca12ffac1f872ed3066a6d3f67242aa70abebd20"},
+    {file = "nmslib_metabrainz-2.1.3-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:a0a1c235d421f43341d1e09360d10d7ad6ee8ef80fec4e411411b96303d524a4"},
+    {file = "nmslib_metabrainz-2.1.3-cp312-cp312-win_amd64.whl", hash = "sha256:3066e8d20449a46087d6349dff5421018fb618e3236bf20229a1b09bb7421a12"},
+    {file = "nmslib_metabrainz-2.1.3-cp39-cp39-macosx_11_0_x86_64.whl", hash = "sha256:1c72bafdb9a6d36582d7b95602b9e232ab60858b285e66be85ed302f32b1caec"},
+    {file = "nmslib_metabrainz-2.1.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ca42286934700daac3575475b06a47db6f66843bdb871f587834b458c3df2101"},
+    {file = "nmslib_metabrainz-2.1.3-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:c5cee14b4fd0605e788504f617b43fc3609a71ddc8f535eefc25b8931ea17925"},
+    {file = "nmslib_metabrainz-2.1.3-cp39-cp39-win_amd64.whl", hash = "sha256:def4d2f84bd55e703b9563e977e40d87bcda52b4042ec9211f7ccf189a296632"},
+]
+
+[package.dependencies]
+numpy = {version = ">=1.10.0", markers = "python_version >= \"3.5\""}
+psutil = "*"
+pybind11 = ">=2.2.3"
+
+[[package]]
 name = "numpy"
 version = "1.24.4"
 description = "Fundamental package for array computing in Python"
@@ -3276,13 +3307,13 @@ docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.link
 testing = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more-itertools", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy", "pytest-ruff (>=0.2.1)"]
 
 [extras]
-all = ["ipywidgets", "nbformat", "nmslib", "plotly", "pytorch-lightning", "rectools-lightfm", "torch", "torch"]
+all = ["ipywidgets", "nbformat", "nmslib", "nmslib-metabrainz", "plotly", "pytorch-lightning", "rectools-lightfm", "torch", "torch"]
 lightfm = ["rectools-lightfm"]
-nmslib = ["nmslib"]
+nmslib = ["nmslib", "nmslib-metabrainz"]
 torch = ["pytorch-lightning", "torch", "torch"]
 visuals = ["ipywidgets", "nbformat", "plotly"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1, <3.13"
-content-hash = "a03c7330ef9c93ffd446973f403a64bc3b060f4c2faff5493bed190cb1946107"
+content-hash = "d13962f958b8a425c50426728eba26c1fefeffb01fe8a4918d78a054d2df0b73"
