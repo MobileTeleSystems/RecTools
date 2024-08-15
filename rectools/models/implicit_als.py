@@ -94,8 +94,8 @@ class ImplicitALSWrapperModel(VectorModel):
         # Implicit ALS assumes to fit first on all data.
         if not self.is_fitted:
             raise NotFittedError(self.__class__.__name__)
-        users = dataset.get_hot_users()
-        items = dataset.get_hot_items()
+        users = dataset.get_hot_users_internal()
+        items = dataset.get_hot_items_internal()
 
         ui_csr = dataset.get_user_item_matrix(
             include_weights=True, include_warm_users=True, include_warm_items=True

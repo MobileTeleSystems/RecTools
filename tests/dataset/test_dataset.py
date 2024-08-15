@@ -67,13 +67,15 @@ class TestDataset:
         expected_item_features: tp.Optional[Features],
         expected_user_id_map: tp.Optional[IdMap] = None,
         expected_item_id_map: tp.Optional[IdMap] = None,
+        expected_interactions: tp.Optional[Interactions] = None,
     ) -> None:
         expected_user_id_map = expected_user_id_map or self.expected_user_id_map
         expected_item_id_map = expected_item_id_map or self.expected_item_id_map
+        expected_interactions = expected_interactions or self.expected_interactions
 
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, self.expected_interactions)
+        assert_interactions_set_equal(actual.interactions, expected_interactions)
         assert_feature_set_equal(actual.user_features, expected_user_features)
         assert_feature_set_equal(actual.item_features, expected_item_features)
 
@@ -284,3 +286,124 @@ class TestDataset:
         if not include_datetime:
             expected.drop(columns=Columns.Datetime, inplace=True)
         pd.testing.assert_frame_equal(actual, expected)
+
+    def test_rebuild_with_new_data_without_feature(self) -> None:
+        dataset = Dataset.construct(self.interactions_df)
+        new_interactions_df = pd.DataFrame(
+            [
+                ["u2", "i3", 5, "2021-09-03"],
+                ["u4", "i1", 3, "2021-09-09"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        )
+        new_dataset = dataset.rebuild_with_new_data(new_interactions_df)
+        expected_user_id_map = IdMap.from_values(["u1", "u2", "u3", "u4"])
+        expected_item_id_map = IdMap.from_values(["i1", "i2", "i5", "i3"])
+        expected_interactions = Interactions(
+            pd.DataFrame(
+                [
+                    [1, 3, 5.0, datetime(2021, 9, 3)],
+                    [3, 0, 3.0, datetime(2021, 9, 9)],
+                ],
+                columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            ),
+        )
+
+        self.assert_dataset_equal_to_expected(
+            new_dataset,
+            None,
+            None,
+            expected_item_id_map=expected_item_id_map,
+            expected_user_id_map=expected_user_id_map,
+            expected_interactions=expected_interactions,
+        )
+
+    def test_rebuild_with_new_data_with_feature(self) -> None:
+        user_features_df = pd.DataFrame(
+            [
+                ["u1", 77, 99],
+                ["u2", 33, 55],
+                ["u3", 22, 11],
+                ["u4", 22, 11],  # Warm user
+            ],
+            columns=[Columns.User, "f1", "f2"],
+        )
+        item_features_df = pd.DataFrame(
+            [
+                ["i2", "f1", 3],
+                ["i2", "f2", 20],
+                ["i5", "f2", 20],
+                ["i5", "f2", 30],
+                ["i7", "f2", 70],  # Warm item
+            ],
+            columns=[Columns.Item, "feature", "value"],
+        )
+        dataset = Dataset.construct(
+            self.interactions_df,
+            user_features_df=user_features_df,
+            make_dense_user_features=True,
+            item_features_df=item_features_df,
+            cat_item_features=["f2"],
+        )
+        new_interactions_df = pd.DataFrame(
+            [
+                ["u2", "i8", 5, "2021-09-03"],  # Warm item in interactions
+                ["u5", "i1", 3, "2021-09-09"],  # Warm user in interactions
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        )
+        new_user_features_df = pd.DataFrame(
+            [
+                ["u1", 77, 99],
+                ["u2", 33, 55],
+                ["u3", 22, 11],
+                ["u4", 22, 11],  # Warm user in old data
+                ["u5", 55, 22],  # Warm user in new data
+            ],
+            columns=[Columns.User, "f1", "f2"],
+        )
+        new_item_features_df = pd.DataFrame(
+            [
+                ["i2", "f1", 3],
+                ["i2", "f2", 20],
+                ["i5", "f2", 20],
+                ["i5", "f2", 30],
+                ["i7", "f2", 70],  # Warm item in old data
+                ["i8", "f2", 70],  # Warm item in new data
+            ],
+            columns=[Columns.Item, "feature", "value"],
+        )
+        new_dataset = dataset.rebuild_with_new_data(
+            new_interactions_df,
+            user_features_df=new_user_features_df,
+            make_dense_user_features=True,
+            item_features_df=new_item_features_df,
+            cat_item_features=["f2"],
+        )
+        expected_user_id_map = IdMap.from_values(["u1", "u2", "u3", "u4", "u5"])
+        expected_item_id_map = IdMap.from_values(["i1", "i2", "i5", "i7", "i8"])
+        expected_interactions = Interactions(
+            pd.DataFrame(
+                [
+                    [1, 4, 5.0, datetime(2021, 9, 3)],
+                    [4, 0, 3.0, datetime(2021, 9, 9)],
+                ],
+                columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            ),
+        )
+
+        expected_user_features = DenseFeatures.from_dataframe(new_user_features_df, expected_user_id_map, Columns.User)
+        expected_item_features = SparseFeatures.from_flatten(
+            new_item_features_df,
+            expected_item_id_map,
+            ["f2"],
+            id_col=Columns.Item,
+        )
+        self.assert_dataset_equal_to_expected(
+            new_dataset,
+            expected_user_features,
+            expected_item_features,
+            expected_user_id_map,
+            expected_item_id_map,
+            expected_interactions,
+        )

@@ -92,11 +92,11 @@ class Dataset:
             return None
         return self.item_features.take(range(self.n_hot_items))
 
-    def get_hot_users(self) -> InternalIdsArray:
+    def get_hot_users_internal(self) -> InternalIdsArray:
         """Return internal ids of hot users."""
         return self.interactions.df[Columns.User].unique()
 
-    def get_hot_items(self) -> InternalIdsArray:
+    def get_hot_items_internal(self) -> InternalIdsArray:
         """Return internal ids of hot items."""
         return self.interactions.df[Columns.Item].unique()
 
@@ -259,7 +259,7 @@ class Dataset:
         """
         return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
 
-    def construct_new_datasets(
+    def rebuild_with_new_data(
         self,
         interactions_df: pd.DataFrame,
         user_features_df: tp.Optional[pd.DataFrame] = None,

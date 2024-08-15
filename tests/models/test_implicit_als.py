@@ -358,7 +358,7 @@ class TestImplicitALSWrapperModel:
         new_interactions = pd.DataFrame(data, columns=Columns.UserItem)
         new_interactions[Columns.Weight] = 1
         new_interactions[Columns.Datetime] = "2021-09-10"
-        new_dataset = dataset.construct_new_datasets(new_interactions)
+        new_dataset = dataset.rebuild_with_new_data(new_interactions)
         model.fit_partial(new_dataset)
         actual = model.recommend(
             users=[10, 150],  # old user, new user
@@ -377,6 +377,12 @@ class TestImplicitALSWrapperModel:
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True), actual
         )
+
+    def test_second_fit_partial_without_fit(self, use_gpu: bool, dataset: Dataset) -> None:
+        base_model = AlternatingLeastSquares(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        model = ImplicitALSWrapperModel(model=base_model)
+        with pytest.raises(NotFittedError, match="ImplicitALSWrapperModel isn't fitted, call method `fit` first."):
+            model.fit_partial(dataset)
 
     def test_fit_partial_with_features(self, use_gpu: bool, dataset: Dataset) -> None:
         user_id_map = IdMap.from_values(["u1", "u2", "u3"])
