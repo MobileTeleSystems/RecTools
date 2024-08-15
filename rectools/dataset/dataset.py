@@ -247,7 +247,7 @@ class Dataset:
         """
         return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
 
-    def filter_interactions_df_rows(
+    def filter_interactions(
         self,
         row_indexes_to_keep: np.ndarray,
         keep_external_ids: bool = True,

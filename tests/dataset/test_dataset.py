@@ -349,7 +349,7 @@ class TestDataset:
         expected_external_user_ids: np.ndarray,
     ) -> None:
         rows_to_keep = np.arange(4)
-        filtered_dataset = dataset_to_filter.filter_interactions_df_rows(
+        filtered_dataset = dataset_to_filter.filter_interactions(
             rows_to_keep,
             keep_external_ids=keep_external_ids,
             keep_features_for_removed_entities=keep_features_for_removed_entities,
@@ -387,7 +387,7 @@ class TestDataset:
         expected_external_user_ids: np.ndarray,
     ) -> None:
         rows_to_keep = np.arange(4)
-        filtered_dataset = dataset_with_features_to_filter.filter_interactions_df_rows(
+        filtered_dataset = dataset_with_features_to_filter.filter_interactions(
             rows_to_keep,
             keep_external_ids=keep_external_ids,
             keep_features_for_removed_entities=keep_features_for_removed_entities,
