@@ -6,6 +6,7 @@ from functools import reduce
 import attr
 import numpy as np
 import pandas as pd
+from catboost import CatBoostRanker, Pool
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -15,28 +16,39 @@ from rectools.models.base import AnyIds, ModelBase, NotFittedError
 
 
 @tp.runtime_checkable
-class BaseClassifier(tp.Protocol):
-    # TODO: this is not final.
-    # See details: https://mypy.readthedocs.io/en/stable/protocols.html#defining-subprotocols-and-subclassing-protocols
-    def fit(self, data: pd.DataFrame) -> None: ...
+class ClassifierBase(tp.Protocol):
+    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        "Train a model."
 
-    def predict_proba(self, data: pd.DataFrame) -> np.ndarray: ...
+    def predict_proba(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray:
+        "Return the predicted probability for each class for each sample."
 
 
-# TODO: BaseRanker (for CatboostRanker and others like it)
+@tp.runtime_checkable
+class RankerBase(tp.Protocol):
+    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        "Train a model."
+
+    def predict(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray:
+        "Return the predicted probability for each class for each sample."
+
 
 # TODO: add tests with sklearn classifier (and ranker if there is any). we have sklearn in dependencies
 
-# TODO: add CatboostReranker(RerankerBase) (catboost dependency to  extras?)
-
 
 class RerankerBase:
-    def __init__(self, model: BaseClassifier):  # TODO: add ranker class
+    def __init__(self, model: tp.Union[ClassifierBase, RankerBase]):
         self.model = model
-        self.is_classifier = isinstance(model, BaseClassifier)
 
-    def fit(self, candidates_with_target: pd.DataFrame) -> None:
-        self.model.fit(candidates_with_target.drop(columns=Columns.UserItem))
+    def prerare_data_for_fit(self, candidates_with_target: pd.DataFrame) -> pd.DataFrame:
+        candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
+        return candidates_with_target
+
+    def fit(self, candidates_with_target: pd.DataFrame, **kwargs: tp.Any) -> None:
+        candidates_with_target = self.prerare_data_for_fit(candidates_with_target)
+        self.model.fit(
+            candidates_with_target.drop(columns=Columns.Target), candidates_with_target[Columns.Target], **kwargs
+        )
 
     def rerank(self, candidates: pd.DataFrame) -> pd.DataFrame:
         reco = candidates[Columns.UserItem].copy()
@@ -45,13 +57,45 @@ class RerankerBase:
         # TODO: think about it
         # x_full = x_full[self.model.feature_names_]
 
-        if self.is_classifier:
-            # TODO: для всех ли классифайеров подходит? sklearn, lightgbm - ?
+        if isinstance(self.model, ClassifierBase):
             reco[Columns.Score] = self.model.predict_proba(x_full)[:, 1]
+        elif isinstance(self.model, RankerBase):
+            reco[Columns.Score] = self.model.predict(x_full)
         else:
-            pass  # TODO
+            raise ValueError("Got unexpected model_type")
         reco.sort_values(by=[Columns.User, Columns.Score], ascending=False, inplace=True)
         return reco
+
+
+class CatBoostRerankerWrapper(RerankerBase):
+    def __init__(self, model: tp.Union[ClassifierBase, RankerBase] = CatBoostRanker()):
+        super().__init__(model)
+        self.is_classifier = isinstance(model, ClassifierBase)
+
+    def prerare_data_for_fit(self, candidates_with_target: pd.DataFrame, **kwargs: tp.Any) -> Pool:
+        group_ids = candidates_with_target.sort_values(by=Columns.User)[Columns.User].values
+        candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
+
+        if self.is_classifier:
+            train = Pool(
+                data=candidates_with_target.drop(columns=Columns.Target),
+                label=candidates_with_target[Columns.Target],
+                **kwargs,
+            )
+        elif isinstance(self.model, RankerBase):
+            train = Pool(
+                data=candidates_with_target.drop(columns=Columns.Target),
+                label=candidates_with_target[Columns.Target],
+                group_id=group_ids,
+                **kwargs,
+            )
+        else:
+            raise ValueError("Got unexpected model_type")
+        return train
+
+    def fit(self, candidates_with_target: pd.DataFrame, **kwargs: tp.Any) -> None:
+        train = self.prerare_data_for_fit(candidates_with_target, **kwargs)
+        self.model.fit(train)
 
 
 class CandidatesFeatureCollectorBase:
@@ -379,8 +423,8 @@ class TwoStageModel(ModelBase):
         Fits all first-stage models on full dataset
         """
         train_with_target = self.get_train_with_targets_for_reranker(dataset)  # external / internal ids
-        self.reranker.fit(train_with_target)  # TODO: add a flag to keep user/item id features somewhere
-        self._fit_first_cadidate_generators(dataset, for_train=False)
+        self.reranker.fit(train_with_target, **kwargs)  # TODO: add a flag to keep user/item id features somewhere
+        self._fit_first_candidate_generators(dataset, for_train=False)
 
     def get_train_with_targets_for_reranker(self, dataset: Dataset) -> pd.DataFrame:
         """
@@ -400,7 +444,7 @@ class TwoStageModel(ModelBase):
             dataset, self.splitter
         )
 
-        self._fit_first_cadidate_generators(history_dataset, for_train=True)
+        self._fit_first_candidate_generators(history_dataset, for_train=True)
 
         candidates = self._get_candidates_from_first_stage(  # external / internal
             users=train_targets[Columns.User].unique(),  # external / internal
@@ -446,7 +490,7 @@ class TwoStageModel(ModelBase):
         train["target"] = train["target"].fillna(0).astype("int32")
         return train
 
-    def _fit_first_cadidate_generators(self, dataset: Dataset, for_train: bool) -> None:
+    def _fit_first_candidate_generators(self, dataset: Dataset, for_train: bool) -> None:
         """
         Fit the first-stage candidate generators on the dataset.
 
@@ -574,7 +618,7 @@ class TwoStageModel(ModelBase):
                 for_train=False,
             )
         except NotFittedError:
-            self._fit_first_cadidate_generators(dataset, for_train=False)
+            self._fit_first_candidate_generators(dataset, for_train=False)
             candidates = self._get_candidates_from_first_stage(
                 users=users,
                 dataset=dataset,
