@@ -95,11 +95,11 @@ class Dataset:
 
     def get_hot_users_internal(self) -> InternalIdsArray:
         """Return internal ids of hot users."""
-        return self.interactions.df[Columns.User].unique()
+        return np.arange(self.n_hot_users)
 
     def get_hot_items_internal(self) -> InternalIdsArray:
         """Return internal ids of hot items."""
-        return self.interactions.df[Columns.Item].unique()
+        return np.arange(self.n_hot_items)
 
     def get_hot_users_external(self) -> ExternalIdsArray:
         """Return external ids of hot users."""

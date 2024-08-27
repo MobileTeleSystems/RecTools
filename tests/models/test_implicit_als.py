@@ -369,7 +369,7 @@ class TestImplicitALSWrapperModel:
         expected = pd.DataFrame(
             {
                 Columns.User: [10, 10, 150, 150],
-                Columns.Item: [14, 13, 12, 11],
+                Columns.Item: [12, 11, 12, 11],
                 Columns.Rank: [1, 2, 1, 2],
             }
         )
