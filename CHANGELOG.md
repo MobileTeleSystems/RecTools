@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `filter_interactions` method of `Dataset` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
 - `on_unsupported_targets` parameter to  `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
 - Implement `fit_partial()` for `ImplicitALSWrapperModel` and `LightFMWrapperModel` ([#179](https://github.com/MobileTeleSystems/RecTools/pull/179))
+- Use nmslib-metabrainz for Python 3.11 and upper ([#180](https://github.com/MobielTeleSystems/RecTools/pull/180))
 
 ### Fixed
 - `display()` method in `MetricsApp` ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
