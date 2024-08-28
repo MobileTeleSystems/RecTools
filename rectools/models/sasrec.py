@@ -628,13 +628,13 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         self.trainer.fit(self.model, train_dataloader)
         self.model = self.trainer.model
 
-    def _process_dataset_u2i(
+    def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
         filtered_dataset = self.data_preparator.process_dataset_recommend(dataset, users)
         return filtered_dataset
 
-    def _process_dataset_i2i(
+    def _custom_transform_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
         filtered_dataset = self.data_preparator.process_dataset_recommend_to_items(dataset)
