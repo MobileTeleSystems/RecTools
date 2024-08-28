@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nbformat >= 4.2.0` dependency to `[visuals]` extra ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
 - `filter_interactions` method of `Dataset` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
 - `on_unsupported_targets` parameter to  `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- Use nmslib-metabrainz for Python 3.11 and upper ([#180](https://github.com/MobielTeleSystems/RecTools/pull/180))
 
 ### Fixed
 - `display()` method in `MetricsApp` ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
