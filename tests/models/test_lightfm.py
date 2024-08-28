@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -221,6 +221,16 @@ class TestLightFMWrapperModel:
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_with_warp_kos(self, dataset: Dataset) -> None:
+        base_model = DeterministicLightFM(no_components=2, loss="warp-kos")
+        try:
+            LightFMWrapperModel(model=base_model, epochs=10).fit(dataset)
+        except NotImplementedError:
+            pytest.fail("Should not raise NotImplementedError")
+        except ValueError:
+            # LightFM raises ValueError with the dataset
+            pass
 
     def test_get_vectors(self, dataset_with_features: Dataset) -> None:
         base_model = LightFM(no_components=2, loss="logistic")

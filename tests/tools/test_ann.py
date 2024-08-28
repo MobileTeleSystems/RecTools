@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import pickle
-import sys
 from typing import Callable, Dict, Hashable, List, Union
 
 import numpy as np
@@ -21,8 +20,6 @@ import pytest
 
 from rectools.dataset import IdMap
 from rectools.tools import ItemToItemAnnRecommender, UserToItemAnnRecommender
-
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 11), reason="`nmslib` is not compatible with Python >= 3.11")
 
 
 class TestItemToItemAnnRecommender:

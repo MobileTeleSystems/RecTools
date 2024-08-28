@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,18 +23,23 @@ Metrics
 -------
 `metrics.Precision`
 `metrics.Recall`
-`metrics.F1Beta`
-`metrics.Accuracy`
-`metrics.MCC`
 `metrics.MAP`
 `metrics.NDCG`
 `metrics.MRR`
+`metrics.HitRate`
+`metrics.PartialAUC`
+`metrics.PAP`
+`metrics.F1Beta`
+`metrics.Accuracy`
+`metrics.MCC`
 `metrics.MeanInvUserFreq`
 `metrics.IntraListDiversity`
 `metrics.AvgRecPopularity`
 `metrics.Serendipity`
-`metrics.HitRate`
 `metrics.Intersection`
+`metrics.SufficientReco`
+`metrics.UnrepeatedReco`
+`metrics.CoveredUsers`
 
 Tools
 -----
@@ -42,15 +47,20 @@ Tools
 `metrics.PairwiseDistanceCalculator`
 `metrics.PairwiseHammingDistanceCalculator`
 `metrics.SparsePairwiseHammingDistanceCalculator`
+`metrics.DebiasConfig`
+`metrics.debias_interactions`
 """
 
+from .auc import PAP, PartialAUC
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
+from .debias import DebiasConfig, debias_interactions
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
     SparsePairwiseHammingDistanceCalculator,
 )
 from .diversity import IntraListDiversity
+from .dq import CoveredUsers, SufficientReco, UnrepeatedReco
 from .intersection import Intersection
 from .novelty import MeanInvUserFreq
 from .popularity import AvgRecPopularity
@@ -67,6 +77,8 @@ __all__ = (
     "HitRate",
     "MAP",
     "NDCG",
+    "PartialAUC",
+    "PAP",
     "MRR",
     "MeanInvUserFreq",
     "IntraListDiversity",
@@ -77,4 +89,9 @@ __all__ = (
     "PairwiseHammingDistanceCalculator",
     "SparsePairwiseHammingDistanceCalculator",
     "Intersection",
+    "SufficientReco",
+    "UnrepeatedReco",
+    "CoveredUsers",
+    "DebiasConfig",
+    "debias_interactions",
 )

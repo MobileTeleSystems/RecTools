@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -422,11 +422,25 @@ class TestPopularInCategoryModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+    @pytest.mark.parametrize("popularity", ("mean_weight", "n_users", "n_interactions"))
+    @pytest.mark.parametrize("category_feature", ("f1", "f2"))
+    @pytest.mark.parametrize("mixing_strategy", ("group", "rotate"))
+    @pytest.mark.parametrize("ratio_strategy", ("equal", "proportional"))
+    @pytest.mark.parametrize("n_categories", (2, None))
+    def test_second_fit_refits_model(
+        self,
+        dataset: Dataset,
+        popularity: str,
+        category_feature: str,
+        mixing_strategy: str,
+        ratio_strategy: str,
+        n_categories: tp.Optional[int],
+    ) -> None:
         model = PopularInCategoryModel(
-            category_feature="f2",
-            popularity="mean_weight",
-            mixing_strategy="group",
-            ratio_strategy="proportional",
+            category_feature=category_feature,
+            popularity=popularity,
+            mixing_strategy=mixing_strategy,
+            ratio_strategy=ratio_strategy,
+            n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)

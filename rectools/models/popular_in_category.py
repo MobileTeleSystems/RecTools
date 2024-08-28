@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -160,15 +160,19 @@ class PopularInCategoryModel(PopularModel):
 
     def _calc_category_scores(self, dataset: Dataset, interactions: pd.DataFrame) -> None:
         scores_dict = {}
+        empty_columns = []
         for column_num in self.category_columns:
             item_idx = dataset.item_features.values.getcol(column_num).nonzero()[0]  # type: ignore
-            self.category_interactions[column_num] = interactions[interactions[Columns.Item].isin(item_idx)].copy()
+            category_interactions = interactions[interactions[Columns.Item].isin(item_idx)]
             # Category interactions might be empty
-            if self.category_interactions[column_num].shape[0] == 0:
-                self.category_columns.remove(column_num)
+            if category_interactions.shape[0] == 0:
+                empty_columns.append(column_num)
             else:
+                self.category_interactions[column_num] = category_interactions.copy()
                 col, func = self._get_groupby_col_and_agg_func(self.popularity)
                 scores_dict[column_num] = self.category_interactions[column_num][col].apply(func)
+
+        self.category_columns = [col for col in self.category_columns if col not in empty_columns]
         self.category_scores = pd.Series(scores_dict).sort_values(ascending=False)
 
     def _define_categories_for_analysis(self) -> None:
@@ -177,7 +181,7 @@ class PopularInCategoryModel(PopularModel):
                 self.n_effective_categories = self.n_categories
                 relevant_categories = self.category_scores.head(self.n_categories).index
                 self.category_scores = self.category_scores.loc[relevant_categories]
-                self.category_columns = relevant_categories
+                self.category_columns = relevant_categories.to_list()
             else:
                 self.n_effective_categories = len(self.category_columns)
                 warnings.warn(
@@ -188,6 +192,13 @@ class PopularInCategoryModel(PopularModel):
             self.n_effective_categories = len(self.category_columns)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
+
+        self.category_columns = []
+        self.category_interactions = {}
+        self.models = {}
+        self.category_scores = pd.Series()
+        self.n_effective_categories = 0
+
         self._check_category_feature(dataset)
         interactions = self._filter_interactions(dataset.interactions.df)
         self._calc_category_scores(dataset, interactions)

@@ -9,14 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- Extended Theory&Practice RecSys baselines tutorial ([#139](https://github.com/MobileTeleSystems/RecTools/pull/139))
-- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140))
-- `Intersection` metric ([#148](https://github.com/MobileTeleSystems/RecTools/pull/148))
-- New params (`tol`, `maxiter`, `random_state`) to the `PureSVD` model ([#130](https://github.com/MobileTeleSystems/RecTools/pull/130))
+- `Debias` mechanism for classification, ranking and auc metrics. New parameter `is_debiased` to `calc_from_confusion_df`, `calc_per_user_from_confusion_df` methods of classification metrics, `calc_from_fitted`, `calc_per_user_from_fitted` methods of auc and rankning (`MAP`) metrics, `calc_from_merged`, `calc_per_user_from_merged` methods of ranking (`NDCG`, `MRR`) metrics. ([#152](https://github.com/MobileTeleSystems/RecTools/pull/152))
+- `nbformat >= 4.2.0` dependency to `[visuals]` extra ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
+- `filter_interactions` method of `Dataset` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- `on_unsupported_targets` parameter to  `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- Use nmslib-metabrainz for Python 3.11 and upper ([#180](https://github.com/MobielTeleSystems/RecTools/pull/180))
 
 ### Fixed
-- Used the latest version of `lightfm` that allows to install it using `poetry>=1.5.0` ([#141](https://github.com/MobileTeleSystems/RecTools/pull/141))
+- `display()` method in `MetricsApp` ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
+- `IntraListDiversity` metric computation in `cross_validate` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- Allow warp-kos loss for LightFMWrapperModel ([#175](https://github.com/MobileTeleSystems/RecTools/pull/175))
+
+### Removed
+- [Breaking] `assume_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+
+## [0.7.0] - 29.07.2024
+
+### Added
+- Extended Theory&Practice RecSys baselines tutorial ([#139](https://github.com/MobileTeleSystems/RecTools/pull/139))
+- `MetricsApp` to create plotly scatterplot widgets for metric-to-metric trade-off analysis ([#140](https://github.com/MobileTeleSystems/RecTools/pull/140), [#154](https://github.com/MobileTeleSystems/RecTools/pull/154))
+- `Intersection` metric ([#148](https://github.com/MobileTeleSystems/RecTools/pull/148))
+- `PartialAUC` and `PAP` metrics  ([#149](https://github.com/MobileTeleSystems/RecTools/pull/149))
+- New params (`tol`, `maxiter`, `random_state`) to the `PureSVD` model ([#130](https://github.com/MobileTeleSystems/RecTools/pull/130))
+- Recommendations data quality metrics: `SufficientReco`, `UnrepeatedReco`, `CoveredUsers` ([#155](https://github.com/MobileTeleSystems/RecTools/pull/155))
+- `r_precision` parameter to `Precision` metric ([#155](https://github.com/MobileTeleSystems/RecTools/pull/155))
+
+### Fixed
+- Used `rectools-lightfm` instead of pure `lightfm` that allowed to install it using `poetry>=1.5.0` ([#165](https://github.com/MobileTeleSystems/RecTools/pull/165))
 - Added restriction to `pytorch` version for MacOSX + x86_64 that allows to install it on such platforms ([#142](https://github.com/MobileTeleSystems/RecTools/pull/142))
+- `PopularInCategoryModel` fitting for multiple times, `cross_validate` compatibility, behaviour with empty category interactions ([#163](https://github.com/MobileTeleSystems/RecTools/pull/163))
 
 
 ## [0.6.0] - 13.05.2024

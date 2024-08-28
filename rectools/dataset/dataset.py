@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -247,7 +247,7 @@ class Dataset:
         """
         return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
 
-    def filter_on_interactions_df_row_indexes(
+    def filter_interactions(
         self,
         row_indexes_to_keep: np.ndarray,
         keep_external_ids: bool = True,
@@ -273,11 +273,12 @@ class Dataset:
         Dataset
             Filtered dataset that has only selected interactions, new ids mapping and processed features.
         """
-        interactions_df = self.get_raw_interactions() if keep_external_ids else self.interactions.df
-        train = interactions_df.iloc[row_indexes_to_keep]
-        user_id_map = IdMap.from_values(train[Columns.User].values)  # 2x internal
-        item_id_map = IdMap.from_values(train[Columns.Item].values)  # 2x internal
-        interactions_train = Interactions.from_raw(train, user_id_map, item_id_map)  # 2x internal
+        interactions_df = self.interactions.df.iloc[row_indexes_to_keep]
+
+        # 1x internal -> 2x internal
+        user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
+        item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
 
         def _handle_features(
             features: tp.Optional[Features], target_id_map: IdMap, dataset_id_map: IdMap
@@ -286,26 +287,24 @@ class Dataset:
                 return None, target_id_map
 
             if keep_features_for_removed_entities:
-                all_features_ids = np.arange(len(features))  # 1x internal
-                if keep_external_ids:
-                    all_features_ids = dataset_id_map.convert_to_external(all_features_ids)  # external
+                all_features_ids = np.arange(len(features))
                 target_id_map = target_id_map.add_ids(all_features_ids, raise_if_already_present=False)
 
-            needed_ids = target_id_map.get_external_sorted_by_internal()  # external or 1x internal
-            if keep_external_ids:
-                features = features.take(dataset_id_map.convert_to_internal(needed_ids))  # 2x internal
-            else:
-                features = features.take(needed_ids)  # 2x internal
-
+            needed_ids = target_id_map.get_external_sorted_by_internal()
+            features = features.take(needed_ids)
             return features, target_id_map
 
         user_features_new, user_id_map = _handle_features(self.user_features, user_id_map, self.user_id_map)
         item_features_new, item_id_map = _handle_features(self.item_features, item_id_map, self.item_id_map)
 
+        if keep_external_ids:  # external -> 2x internal
+            user_id_map = IdMap(self.user_id_map.convert_to_external(user_id_map.external_ids))
+            item_id_map = IdMap(self.item_id_map.convert_to_external(item_id_map.external_ids))
+
         filtered_dataset = Dataset(
             user_id_map=user_id_map,
             item_id_map=item_id_map,
-            interactions=interactions_train,
+            interactions=interactions,
             user_features=user_features_new,
             item_features=item_features_new,
         )

@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -20,19 +20,28 @@ import pytest
 from rectools import Columns
 from rectools.metrics import (
     MAP,
+    MCC,
     MRR,
     NDCG,
+    PAP,
     Accuracy,
     AvgRecPopularity,
+    CoveredUsers,
+    DebiasConfig,
+    F1Beta,
     HitRate,
     Intersection,
     IntraListDiversity,
     MeanInvUserFreq,
     PairwiseHammingDistanceCalculator,
+    PartialAUC,
     Precision,
     Recall,
     Serendipity,
+    SufficientReco,
+    UnrepeatedReco,
     calc_metrics,
+    debias_interactions,
 )
 from rectools.metrics.base import MetricAtK
 
@@ -88,12 +97,17 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         metrics = {
             "prec@1": Precision(k=1),
             "prec@2": Precision(k=2),
+            "rprec@2": Precision(k=2, r_precision=True),
             "recall@1": Recall(k=1),
             "accuracy@1": Accuracy(k=1),
             "hitrate@1": HitRate(k=1),
             "map@1": MAP(k=1),
             "map@2": MAP(k=2),
             "ndcg@1": NDCG(k=1, log_base=3),
+            "pauc@1": PartialAUC(k=1),
+            "pauc@2": PartialAUC(k=2),
+            "pap@1": PAP(k=1),
+            "pap@2": PAP(k=2),
             "mrr@1": MRR(k=1),
             "miuf": MeanInvUserFreq(k=3),
             "arp": AvgRecPopularity(k=2),
@@ -101,6 +115,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": Serendipity(k=3),
             "intersection": Intersection(k=2, ref_k=2),
             "custom": MetricAtK(k=1),
+            "sufficient": SufficientReco(k=2),
+            "unrepeated": UnrepeatedReco(k=2),
+            "covered_users": CoveredUsers(k=2),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
             actual = calc_metrics(
@@ -109,12 +126,17 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
         expected = {
             "prec@1": 0.25,
             "prec@2": 0.375,
+            "rprec@2": 0.5,
             "recall@1": 0.125,
             "accuracy@1": 0.825,
             "hitrate@1": 0.25,
             "map@1": 0.125,
             "map@2": 0.375,
             "ndcg@1": 0.25,
+            "pauc@1": 0.25,
+            "pauc@2": 0.375,
+            "pap@1": 0.25,
+            "pap@2": 0.375,
             "mrr@1": 0.25,
             "miuf": 0.125,
             "arp": 2.75,
@@ -122,6 +144,9 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "serendipity": 0,
             "intersection_one": 0.375,
             "intersection_two": 0.75,
+            "sufficient": 0.25,
+            "unrepeated": 1,
+            "covered_users": 0.75,
         }
         assert actual == expected
 
@@ -135,10 +160,62 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (Serendipity(k=1), ["reco"]),
             (Serendipity(k=1), ["reco", "interactions"]),
             (Serendipity(k=1), ["reco", "interactions", "prev_interactions"]),
+            (PAP(k=1), ["reco"]),
+            (PartialAUC(k=1), ["reco"]),
             (Intersection(k=1), ["reco"]),
+            (CoveredUsers(k=1), ["reco"]),
         ),
     )
     def test_raises(self, metric: MetricAtK, arg_names: tp.List[str]) -> None:
         kwargs = {name: getattr(self, name) for name in arg_names}
         with pytest.raises(ValueError):
             calc_metrics({"m": metric}, **kwargs)
+
+    def test_success_debias(self) -> None:
+        debias_config = DebiasConfig(iqr_coef=1.5, random_state=32)
+        debiased_metrics = {
+            "debiased_precision@3": Precision(k=3, debias_config=debias_config),
+            "debiased_rprecision@3": Precision(k=3, r_precision=True, debias_config=debias_config),
+            "debiased_recall@3": Recall(k=3, debias_config=debias_config),
+            "debiased_f1beta@3": F1Beta(k=3, debias_config=debias_config),
+            "debiased_accuracy@3": Accuracy(k=3, debias_config=debias_config),
+            "debiased_mcc@3": MCC(k=3, debias_config=debias_config),
+            "debiased_hitrate@3": HitRate(k=3, debias_config=debias_config),
+            "debiased_map@1": MAP(k=1, debias_config=debias_config),
+            "debiased_map@3": MAP(k=3, debias_config=debias_config),
+            "debiased_ndcg@3": NDCG(k=3, debias_config=debias_config),
+            "debiased_mrr@3": MRR(k=3, debias_config=debias_config),
+            "debiased_pap@3": PAP(k=3, debias_config=debias_config),
+            "debiased_partauc@3": PartialAUC(k=3, debias_config=debias_config),
+        }
+        metrics = {
+            "debiased_precision@3": Precision(k=3),
+            "debiased_rprecision@3": Precision(k=3, r_precision=True),
+            "debiased_recall@3": Recall(k=3),
+            "debiased_f1beta@3": F1Beta(k=3),
+            "debiased_accuracy@3": Accuracy(k=3),
+            "debiased_mcc@3": MCC(k=3),
+            "debiased_hitrate@3": HitRate(k=3),
+            "debiased_map@1": MAP(k=1),
+            "debiased_map@3": MAP(k=3),
+            "debiased_ndcg@3": NDCG(k=3),
+            "debiased_mrr@3": MRR(k=3),
+            "debiased_pap@3": PAP(k=3),
+            "debiased_partauc@3": PartialAUC(k=3),
+        }
+
+        debiased_interactions = debias_interactions(self.interactions, config=debias_config)
+
+        actual = calc_metrics(
+            metrics=debiased_metrics,
+            reco=self.reco,
+            interactions=self.interactions,
+            catalog=self.catalog,
+        )
+        expected = calc_metrics(
+            metrics=metrics,
+            reco=self.reco,
+            interactions=debiased_interactions,
+            catalog=self.catalog,
+        )
+        assert actual == expected

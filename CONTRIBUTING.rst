@@ -33,7 +33,7 @@ Pull Request Process
 #. Create a virtual environment and install dependencies including all 
    extras and development dependencies.
    
-   #. Make sure you have ``python3`` and ``poetry==1.4.0`` installed
+   #. Make sure you have ``python>=3.8`` and ``poetry>=1.5.0`` installed
    #. Deactivate any active virtual environments. Deactivate conda ``base``
       environment if applicable
    #. Run ``make install`` command which will create a virtual env and

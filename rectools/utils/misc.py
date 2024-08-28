@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -137,7 +137,7 @@ def is_instance(obj: tp.Any, types: tp.Union[AnyType, tp.Tuple[AnyType, ...]]) -
 
 
 def select_by_type(
-    objects: tp.Dict[tp.Any, tp.Any],
+    objects: tp.Mapping[tp.Any, tp.Any],
     types: tp.Union[AnyType, tp.Tuple[AnyType, ...]],
 ) -> tp.Dict[tp.Any, tp.Any]:
     """

@@ -4,6 +4,7 @@ REPORTS=.reports
 BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
+SCRIPTS=scripts
 
 
 
@@ -21,37 +22,37 @@ install: .venv .reports
 # Linters
 
 .isort:
-	poetry run isort --check ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run isort --check ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .black:
-	poetry run black --check --diff ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run black --check --diff ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .pylint:
-	poetry run pylint --jobs 4 ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run pylint --jobs 4 ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .mypy:
-	poetry run mypy ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run mypy ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .flake8:
-	poetry run flake8 ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run flake8 ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .bandit:
-	poetry run bandit -q -c bandit.yml -r ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run bandit -q -c bandit.yml -r ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .codespell:
-	poetry run codespell ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run codespell ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 
 # Fixers & formatters
 
 .isort_fix:
-	poetry run isort ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run isort ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .autopep8_fix:
-	poetry run autopep8 --in-place -r ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run autopep8 --in-place -r ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 .black_fix:
-	poetry run black -q  ${SOURCES} ${TESTS} ${BENCHMARK}
+	poetry run black -q  ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 
 # Tests
@@ -60,7 +61,7 @@ install: .venv .reports
 	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py --ignore=rectools/models/lightfm.py
+	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/models/lightfm.py
 
 coverage: .venv .reports
 	poetry run coverage run --source ${SOURCES} --module pytest
@@ -79,6 +80,15 @@ lint: .venv .lint
 
 .test: .pytest .doctest
 test: .venv .test
+
+
+# Copyright
+
+copyright:
+	poetry run python -m scripts.copyright --check ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
+
+copyright_fix:
+	poetry run python -m scripts.copyright ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
 
 
 # Cleaning

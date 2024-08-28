@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -77,12 +77,13 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
         user_features = self._prepare_features(dataset.get_hot_user_features(), dataset.n_hot_users)
         item_features = self._prepare_features(dataset.get_hot_item_features(), dataset.n_hot_items)
+        sample_weight = None if self._model.loss == "warp-kos" else ui_coo
 
         self.model.fit(
             ui_coo,
             user_features=user_features,
             item_features=item_features,
-            sample_weight=ui_coo,
+            sample_weight=sample_weight,
             epochs=self.n_epochs,
             num_threads=self.n_threads,
             verbose=self.verbose > 0,

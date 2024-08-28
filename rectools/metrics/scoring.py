@@ -1,4 +1,4 @@
-#  Copyright 2022 MTS (Mobile Telesystems)
+#  Copyright 2022-2024 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -21,9 +21,11 @@ import pandas as pd
 
 from rectools.utils import select_by_type
 
+from .auc import AucMetric, calc_auc_metrics
 from .base import Catalog, MetricAtK, merge_reco
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
+from .dq import CrossDQMetric, RecoDQMetric, calc_cross_dq_metrics, calc_reco_dq_metrics
 from .intersection import IntersectionMetric, calc_intersection_metrics
 from .novelty import NoveltyMetric, calc_novelty_metrics
 from .popularity import PopularityMetric, calc_popularity_metrics
@@ -32,7 +34,7 @@ from .serendipity import SerendipityMetric, calc_serendipity_metrics
 
 
 def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
-    metrics: tp.Dict[str, MetricAtK],
+    metrics: tp.Mapping[str, MetricAtK],
     reco: pd.DataFrame,
     interactions: tp.Optional[pd.DataFrame] = None,
     prev_interactions: tp.Optional[pd.DataFrame] = None,
@@ -48,7 +50,7 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
         Dict of metric objects to calculate,
         where key is metric name and value is metric object.
     reco : pd.DataFrame
-            Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
+        Recommendations table with columns `Columns.User`, `Columns.Item`, `Columns.Rank`.
     interactions : pd.DataFrame, optional
         Interactions table with columns `Columns.User`, `Columns.Item`.
         Obligatory only for some types of metrics.
@@ -132,6 +134,14 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
         ranking_values = calc_ranking_metrics(ranking_metrics, merged)
         results.update(ranking_values)
 
+    # AUC based ranking
+    auc_metrics = select_by_type(metrics, AucMetric)
+    if auc_metrics:
+        if interactions is None:
+            raise ValueError("For calculating AUC-like metrics it's necessary to set 'interactions'")
+        auc_values = calc_auc_metrics(auc_metrics, reco, interactions)
+        results.update(auc_values)
+
     # Novelty
     novelty_metrics = select_by_type(metrics, NoveltyMetric)
     if novelty_metrics:
@@ -185,6 +195,20 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
         results.update(intersection_values)
         expected_results_len += len(intersection_values) - len(intersection_metrics)
 
+    # DQ
+    cross_dq_metrics = select_by_type(metrics, CrossDQMetric)
+    if cross_dq_metrics:
+        if interactions is None:
+            raise ValueError("For calculating some of the required DQ metrics it's necessary to set 'interactions'")
+        cross_dq_values = calc_cross_dq_metrics(cross_dq_metrics, reco, interactions)
+        results.update(cross_dq_values)
+
+    reco_dq_metrics = select_by_type(metrics, RecoDQMetric)
+    if reco_dq_metrics:
+        reco_dq_values = calc_reco_dq_metrics(reco_dq_metrics, reco)
+        results.update(reco_dq_values)
+
     if len(results) < expected_results_len:
         warnings.warn("Custom metrics are not supported.")
+
     return results
