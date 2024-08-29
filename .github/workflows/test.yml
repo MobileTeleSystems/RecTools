@@ -71,7 +71,7 @@ jobs:
         run: make test
 
       - name: Upload coverage
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.9' && ! contains(github.ref, 'experimental')
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true
