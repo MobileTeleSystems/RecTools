@@ -234,11 +234,11 @@ class ModelBase:
             Otherwise all items from dataset will be used.
             Item ids are supposed to be external
         add_rank_col : bool, default True
-            Whether to add rank column to recommendations.
-            If True column `Columns.Rank` will be added.
-            This column contain integers from 1 to ``number of item recommendations``.
-            In any case recommendations are sorted per rank for every target item.
-            Less rank means more relevant recommendation.
+             Whether to add rank column to recommendations.
+             If True column `Columns.Rank` will be added.
+             This column contain integers from 1 to ``number of item recommendations``.
+             In any case recommendations are sorted per rank for every target item.
+             Less rank means more relevant recommendation.
         on_unsupported_targets : Literal["raise", "warn", "ignore"], default "raise"
             How to handle warm/cold target users when model doesn't support warm/cold inference.
             Specify "raise" to raise ValueError in case unsupported targets are passed (default).
