@@ -2,6 +2,7 @@ import logging
 import typing as tp
 import warnings
 from copy import deepcopy
+from collections import defaultdict
 from typing import List, Tuple
 
 import numpy as np
@@ -52,6 +53,92 @@ class TransformerLayersBase(nn.Module):
         raise NotImplementedError()
 
 
+class CatFeatureEmebbedingsItem(ItemNetBase):
+    
+    def __init__(self, n_factors: int, n_feature_values: int, dropout_rate: float):
+        super().__init__()
+
+        self.n_feature_values = n_feature_values
+        self.feature_value_emb = nn.Embedding(
+            num_embeddings=n_feature_values,
+            embedding_dim=n_factors,
+            padding_idx=0,  # TODO: add padding_idx
+        )
+        self.drop_layer = nn.Dropout(dropout_rate)
+    
+    def forward(self, feature_values: torch.Tensor) -> torch.Tensor:
+        feature_embedding = self.feature_value_emb(feature_values)
+        feature_embedding = self.drop_layer(feature_embedding)
+        return feature_embedding
+
+    @property
+    def catalogue_values(self) -> torch.Tensor: # TODO: rename
+        """TODO"""
+        return torch.arange(0, self.n_features, device=self.item_emb.weight.device)
+
+    def get_all_embeddings(self) -> torch.Tensor:
+        """TODO"""
+        return self.forward(self.catalogue_values)
+
+    @classmethod
+    def from_list(cls: tp.Type[ItemNetT], values: tp.Any, n_factors: int, dropout_rate: float) -> ItemNetT:
+        """TODO"""
+        n_feature_values = len(values)
+        return cls(n_factors=n_factors, n_feature_values=n_feature_values, dropout_rate=dropout_rate)
+
+
+class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
+    
+    def __init__(self, n_factors: int, all_features: tp.Dict[str, tp.List[tp.Any]], dropout_rate: float):
+        super().__init__()
+
+        self.n_factors = n_factors
+        self.dropout_rate = dropout_rate
+
+        self.category_embedding = nn.ModuleDict(
+            {
+                feature_name: CatFeatureEmebbedingsItem.from_list(feature_values, n_factors, dropout_rate)
+                for feature_name, feature_values in all_features.items()
+            }
+        )
+
+    def forward(self, features: tp.Dict[str, torch.Tensor]) -> torch.Tensor:  # TODO: Return Items
+        """TODO"""
+        features_embedings = torch.zeros((1, self.n_factors))
+        for feature_name, feature_value in features.items():
+            feature_embedings = torch.sum(self.category_embedding[feature_name](feature_value))
+            features_embedings += feature_embedings
+        return features_embedings
+    
+    @property
+    def catalogue_feature(self) -> torch.Tensor: # TODO: rename
+        """TODO"""
+        return torch.arange(0, self.n_features, device=self.item_emb.weight.device)
+
+    def get_all_embeddings(self) -> torch.Tensor:
+        """TODO"""
+        return self.forward(self.feature_catalogue)
+
+    @classmethod
+    def from_dataset(cls: tp.Type[ItemNetT], dataset: Dataset, n_factors: int, dropout_rate: float) -> ItemNetT:
+        """TODO"""
+        all_features = cls.get_features_dict(dataset)
+        return cls(n_factors=n_factors, all_features=all_features, dropout_rate=dropout_rate)
+
+    @staticmethod
+    def get_features_dict(dataset: Dataset) -> tp.Dict[str, tp.List[tp.Any]]:
+        """TODO"""
+        all_features_dict: tp.Dict[str, tp.List[tp.Any]] = defaultdict(list)
+        for feature_name, feature_value in dataset.item_features.names:
+            all_features_dict[feature_name].append(feature_value)
+
+        # TODO: creating feature internals ids
+        map_feature_name = dict(enumerate(all_features_dict.keys()))
+        # MAy be using IdMap???
+        
+        return all_features_dict
+
+
 class IdEmbeddingsItemNet(ItemNetBase):
     """
     Base class for item embeddings. To use more complicated logic then just id embeddings inherit
@@ -89,6 +176,15 @@ class IdEmbeddingsItemNet(ItemNetBase):
         """TODO"""
         n_items = dataset.item_id_map.size
         return cls(n_factors, n_items, dropout_rate)
+
+
+class ConstructedItemNet(nn.Module):
+    """TODO"""
+
+    def __init__(self, n_factors: int, n_items: int, dropout_rate: float) -> None:
+        """TODO"""
+        super().__init__()
+        pass
 
 
 class PointWiseFeedForward(nn.Module):
