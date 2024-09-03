@@ -20,6 +20,10 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    from pytorch_lightning import LightningModule, Trainer
+
 PADDING_VALUE = "PAD"
 
 logger = logging.getLogger(__name__)  # TODO: remove
@@ -251,7 +255,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         self.n_factors = n_factors
         self.dropout_rate = dropout_rate
 
-    def costruct_item_net(self, dataset: Dataset) -> None:
+    def construct_item_net(self, dataset: Dataset) -> None:
         """TODO"""
         self.item_model = self.item_net_type.from_dataset(dataset, self.n_factors, self.dropout_rate)
 
@@ -286,96 +290,6 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, n_factors]
         logits = session_embs @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
         return logits
-
-
-# ####  --------------  Trainer  --------------  #### #
-
-
-class Trainer:
-    """TODO"""
-
-    def __init__(
-        self,
-        lr: float,
-        epochs: int,
-        device: torch.device,
-        loss: str = "softmax",
-    ):
-        """TODO"""
-        self.model: TransformerBasedSessionEncoder
-        self.optimizer: torch.optim.Adam
-        self.lr = lr
-        self.epochs = epochs
-        self.device = device
-        self.loss_func = self._init_loss_func(loss)  # TODO: move loss func to `SasRec` class
-
-    def fit(
-        self,
-        model: TransformerBasedSessionEncoder,
-        fit_dataloader: DataLoader,
-    ) -> None:
-        """TODO"""
-        self.model = model
-        self.optimizer = self._init_optimizers()
-        self.model.to(self.device)
-
-        self.xavier_normal_init(self.model)
-        self.model.train()  # enable model training
-
-        # self.model.item_model.to_device(self.device)
-
-        epoch_start_idx = 1
-
-        # ce_criterion = torch.nn.CrossEntropyLoss()
-        # https://github.com/NVIDIA/pix2pixHD/issues/9 how could an old bug appear again...
-
-        for epoch in range(epoch_start_idx, self.epochs + 1):
-            logger.info("training epoch %s", epoch)
-            for x, y, w in fit_dataloader:
-                x = x.to(self.device)  # [batch_size, session_maxlen]
-                y = y.to(self.device)  # [batch_size, session_maxlen]
-                w = w.to(self.device)  # [batch_size, session_maxlen]
-
-                self.train_step(x, y, w)
-
-    def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> None:
-        """TODO"""
-        self.optimizer.zero_grad()
-        logits = self.model(x)  # [batch_size, session_maxlen, n_items + 1]
-        # We are using CrossEntropyLoss with a multi-dimensional case
-
-        # Logits must be passed in form of [batch_size, n_items + 1, session_maxlen],
-        #  where n_items + 1 is number of classes
-
-        # Target label indexes must be passed in a form of [batch_size, session_maxlen]
-        # (`0` index for "PAD" ix excluded from loss)
-
-        # Loss output will have a shape of [batch_size, session_maxlen]
-        # and will have zeros for every `0` target label
-        loss = self.loss_func(logits.transpose(1, 2), y)  # [batch_size, session_maxlen]
-        loss = loss * w
-        n = (loss > 0).to(loss.dtype)
-        loss = torch.sum(loss) / torch.sum(n)
-        loss.backward()
-        self.optimizer.step()
-
-    def _init_optimizers(self) -> torch.optim.Adam:
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98))
-        return optimizer
-
-    def _init_loss_func(self, loss: str) -> nn.CrossEntropyLoss:
-
-        if loss == "softmax":
-            return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
-        raise ValueError(f"loss {loss} is not supported")
-
-    def xavier_normal_init(self, model: nn.Module) -> None:
-        """TODO"""
-        for _, param in model.named_parameters():
-            try:
-                torch.nn.init.xavier_normal_(param.data)
-            except ValueError:
-                pass
 
 
 # ####  --------------  Data Processor  --------------  #### #
@@ -561,6 +475,77 @@ class SasRecDataPreparator:
         return recommend_dataloader
 
 
+# ####  --------------  Lightning Model  --------------  #### #
+
+
+class SasRec(LightningModule):
+    """TODO"""
+
+    def __init__(
+        self,
+        torch_model: TransformerBasedSessionEncoder,
+        lr: float,
+        loss: str = "softmax",  # TODO: move loss func to `SasRec` class
+    ):
+        super().__init__()
+        self.lr = lr
+        self.loss_func = self._init_loss_func(loss)
+        self.torch_model = torch_model
+
+    def forward(
+        self,
+        sessions: torch.Tensor,  # [batch_size, session_maxlen]
+    ) -> torch.Tensor:
+        """TODO"""
+        return self.torch_model(sessions)
+
+    def on_train_start(self) -> None:
+        """TODO"""
+        self.xavier_normal_init()
+
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
+        """TODO"""
+        x, y, w = batch
+        logits = self.forward(x)  # [batch_size, session_maxlen, n_items + 1]
+        # We are using CrossEntropyLoss with a multi-dimensional case
+
+        # Logits must be passed in form of [batch_size, n_items + 1, session_maxlen],
+        #  where n_items + 1 is number of classes
+
+        # Target label indexes must be passed in a form of [batch_size, session_maxlen]
+        # (`0` index for "PAD" ix excluded from loss)
+
+        # Loss output will have a shape of [batch_size, session_maxlen]
+        # and will have zeros for every `0` target label
+        loss = self.loss_func(logits.transpose(1, 2), y)  # [batch_size, session_maxlen]
+        loss = loss * w
+        n = (loss > 0).to(loss.dtype)
+        loss = torch.sum(loss) / torch.sum(n)
+        return loss
+
+    def configure_optimizers(self) -> torch.optim.Adam:
+        """TODO"""
+        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=(0.9, 0.98))
+        return optimizer
+
+    # ce_criterion = torch.nn.CrossEntropyLoss()
+    # https://github.com/NVIDIA/pix2pixHD/issues/9 how could an old bug appear again...
+
+    def _init_loss_func(self, loss: str) -> nn.CrossEntropyLoss:
+        """TODO"""
+        if loss == "softmax":
+            return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
+        raise ValueError(f"loss {loss} is not supported")
+
+    def xavier_normal_init(self) -> None:
+        """TODO"""
+        for _, param in self.named_parameters():
+            try:
+                torch.nn.init.xavier_normal_(param.data)
+            except ValueError:
+                pass
+
+
 # ####  --------------  SASRec Model  --------------  #### #
 
 
@@ -584,6 +569,7 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         cpu_n_threads: int = 0,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,  # SASRec authors net
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
+        deterministic: bool = False,
     ):
         super().__init__(verbose=verbose)
         self.device = torch.device(device)
@@ -600,15 +586,21 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
             transformer_layers_type=transformer_layers_type,
             item_net_type=item_net_type,
         )
-        self.trainer = Trainer(  # TODO: move to lightning trainer and add option to pass initialized trainer
-            lr=lr,
-            epochs=epochs,
-            device=self.device,
-            loss=loss,
+        self.lightning_model: SasRec
+        self.trainer: Trainer
+        self._trainer = Trainer(
+            max_epochs=epochs,
+            min_epochs=epochs,
+            devices=1,
+            limit_val_batches=0,
+            num_sanity_val_steps=0,
+            deterministic=deterministic,
         )
         self.data_preparator = SasRecDataPreparator(session_maxlen, batch_size)  # TODO: add data_preparator_type
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
+        self.lr = lr
+        self.loss = loss
 
     def _fit(
         self,
@@ -618,10 +610,12 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
 
         self.model = deepcopy(self._model)  # TODO: check that it works
-        self.model.costruct_item_net(processed_dataset)
+        self.model.construct_item_net(processed_dataset)
+        self.lightning_model = SasRec(self.model, self.lr, self.loss)
 
-        self.trainer.fit(self.model, train_dataloader)
-        self.model = self.trainer.model
+        self.trainer = deepcopy(self._trainer)
+
+        self.trainer.fit(self.lightning_model, train_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -645,8 +639,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        self.model = self.model.eval()
-        self.model.to(self.device)
+        self.lightning_model = self.lightning_model.eval()
+        self.lightning_model.torch_model.to(self.device)
 
         # Dataset has already been filtered and adapted to known item_id_map
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
@@ -666,8 +660,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
 
         ranker = ImplicitRanker(
             self.u2i_dist,
-            user_embs,  # [n_rec_users, n_factors]
-            item_embs_np,  # [n_items + 1, n_factors]
+            user_embs,  # [n_rec_users, factors]
+            item_embs_np,  # [n_items + 1, factors]
         )
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -697,15 +691,17 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
     ) -> InternalRecoTriplet:
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
-        item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
+        item_embs = (
+            self.lightning_model.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()
+        )  # [n_items + 1, factors]
 
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
         # Should we use torch dot and topk? Should be faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,
-            item_embs,  # [n_items + 1, n_factors]
-            item_embs,  # [n_items + 1, n_factors]
+            item_embs,  # [n_items + 1, factors]
+            item_embs,  # [n_items + 1, factors]
         )
         return ranker.rank(
             subject_ids=target_ids,  # model internal
@@ -714,3 +710,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
             num_threads=0,
         )
+
+    @property
+    def torch_model(self) -> TransformerBasedSessionEncoder:
+        """TODO"""
+        return self.lightning_model.torch_model
