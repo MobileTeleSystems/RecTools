@@ -21,13 +21,14 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
 
 from rectools import Columns, InternalIds
 from rectools.dataset import Dataset, Interactions, features
 from rectools.types import InternalIdsArray
 
 from .base import Scores
-from .popular import PopularModel
+from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelBaseMixin, PopularModelConfig
 
 
 class MixingStrategy(Enum):
@@ -44,7 +45,16 @@ class RatioStrategy(Enum):
     PROPORTIONAL = "proportional"
 
 
-class PopularInCategoryModel(PopularModel):
+class PopularInCategoryModelConfig(PopularModelConfig):
+    """Config for `PopularInCategoryModel`."""
+
+    category_feature: str
+    n_categories: tp.Optional[int] = None
+    mixing_strategy: MixingStrategy = MixingStrategy.ROTATE
+    ratio_strategy: RatioStrategy = RatioStrategy.PROPORTIONAL
+
+
+class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularInCategoryModelConfig]):
     """
     Model generating recommendations based on popularity of items.
 
@@ -98,6 +108,8 @@ class PopularInCategoryModel(PopularModel):
     recommends_for_warm = False
     recommends_for_cold = True
 
+    config_class = PopularInCategoryModelConfig
+
     def __init__(
         self,
         category_feature: str,
@@ -143,6 +155,35 @@ class PopularInCategoryModel(PopularModel):
         except ValueError:
             possible_values = {item.value for item in RatioStrategy.__members__.values()}
             raise ValueError(f"`ratio_strategy` must be one of the {possible_values}. Got {ratio_strategy}.")
+
+    def _get_config(self) -> PopularInCategoryModelConfig:
+        return PopularInCategoryModelConfig(
+            category_feature=self.category_feature,
+            n_categories=self.n_categories,
+            mixing_strategy=self.mixing_strategy,
+            ratio_strategy=self.ratio_strategy,
+            popularity=self.popularity,
+            period=self.period,
+            begin_from=self.begin_from,
+            add_cold=self.add_cold,
+            inverse=self.inverse,
+            verbose=self.verbose,
+        )
+
+    @classmethod
+    def _from_config(cls, config: PopularInCategoryModelConfig) -> tpe.Self:
+        return cls(
+            category_feature=config.category_feature,
+            n_categories=config.n_categories,
+            mixing_strategy=config.mixing_strategy.value,
+            ratio_strategy=config.ratio_strategy.value,
+            popularity=config.popularity.value,
+            period=config.period,
+            begin_from=config.begin_from,
+            add_cold=config.add_cold,
+            inverse=config.inverse,
+            verbose=config.verbose,
+        )
 
     def _check_category_feature(self, dataset: Dataset) -> None:
         if not dataset.item_features:

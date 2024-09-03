@@ -20,6 +20,7 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
 from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
@@ -28,7 +29,7 @@ from rectools.models.base import ModelConfig
 from rectools.types import InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
-from .base import FixedColdRecoModelMixin, ModelBase, Scores, ScoresArray
+from .base import FixedColdRecoModelMixin, ModelBase, ModelConfig_T, Scores, ScoresArray
 from .utils import get_viewed_item_ids
 
 
@@ -51,7 +52,54 @@ class PopularModelConfig(ModelConfig):
     inverse: bool = False
 
 
-class PopularModel(FixedColdRecoModelMixin, ModelBase):
+class PopularModelBaseMixin(ModelBase[ModelConfig_T]):
+    """Mixin for models based on popularity."""
+
+    def __init__(
+        self,
+        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
+        period: tp.Optional[timedelta] = None,
+        begin_from: tp.Optional[datetime] = None,
+        add_cold: bool = False,
+        inverse: bool = False,
+        verbose: int = 0,
+    ):
+        super().__init__(verbose=verbose)
+        try:
+            self.popularity = Popularity(popularity)
+        except ValueError:
+            possible_values = {item.value for item in Popularity.__members__.values()}
+            raise ValueError(f"`popularity` must be one of the {possible_values}. Got {popularity}.")
+
+        if period is not None and begin_from is not None:
+            raise ValueError("Only one of `period` and `begin_from` can be set")
+        self.period = period
+        self.begin_from = begin_from
+
+        self.add_cold = add_cold
+        self.inverse = inverse
+
+    def _filter_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
+        if self.begin_from is not None:
+            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
+        elif self.period is not None:
+            begin_from = interactions[Columns.Datetime].max() - self.period
+            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
+        return interactions
+
+    def _get_groupby_col_and_agg_func(self, popularity: Popularity) -> tp.Tuple[str, str]:
+        if popularity == Popularity.N_USERS:
+            return Columns.User, "nunique"
+        if popularity == Popularity.N_INTERACTIONS:
+            return Columns.User, "count"
+        if popularity == Popularity.MEAN_WEIGHT:
+            return Columns.Weight, "mean"
+        if popularity == Popularity.SUM_WEIGHT:
+            return Columns.Weight, "sum"
+        raise ValueError(f"Unexpected popularity {popularity}")
+
+
+class PopularModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularModelConfig]):
     """
     Model generating recommendations based on popularity of items.
 
@@ -87,6 +135,8 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
     recommends_for_warm = False
     recommends_for_cold = True
 
+    config_class = PopularModelConfig
+
     def __init__(
         self,
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
@@ -96,31 +146,37 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         inverse: bool = False,
         verbose: int = 0,
     ):
-        super().__init__(verbose=verbose)
-
-        try:
-            self.popularity = Popularity(popularity)
-        except ValueError:
-            possible_values = {item.value for item in Popularity.__members__.values()}
-            raise ValueError(f"`popularity` must be one of the {possible_values}. Got {popularity}.")
-
-        if period is not None and begin_from is not None:
-            raise ValueError("Only one of `period` and `begin_from` can be set")
-        self.period = period
-        self.begin_from = begin_from
-
-        self.add_cold = add_cold
-        self.inverse = inverse
+        super().__init__(
+            popularity=popularity,
+            period=period,
+            begin_from=begin_from,
+            add_cold=add_cold,
+            inverse=inverse,
+            verbose=verbose,
+        )
 
         self.popularity_list: tp.Tuple[InternalIdsArray, ScoresArray]
 
-    def _filter_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
-        if self.begin_from is not None:
-            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
-        elif self.period is not None:
-            begin_from = interactions[Columns.Datetime].max() - self.period
-            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
-        return interactions
+    def _get_config(self) -> PopularModelConfig:
+        return PopularModelConfig(
+            popularity=self.popularity,
+            period=self.period,
+            begin_from=self.begin_from,
+            add_cold=self.add_cold,
+            inverse=self.inverse,
+            verbose=self.verbose,
+        )
+
+    @classmethod
+    def _from_config(cls, config: PopularModelConfig) -> tpe.Self:
+        return cls(
+            popularity=config.popularity.value,
+            period=config.period,
+            begin_from=config.begin_from,
+            add_cold=config.add_cold,
+            inverse=config.inverse,
+            verbose=config.verbose,
+        )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         interactions = self._filter_interactions(dataset.interactions.df)
@@ -140,18 +196,6 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
             scores = scores[::-1]
 
         self.popularity_list = (items, scores)
-
-    @classmethod
-    def _get_groupby_col_and_agg_func(cls, popularity: Popularity) -> tp.Tuple[str, str]:
-        if popularity == Popularity.N_USERS:
-            return Columns.User, "nunique"
-        if popularity == Popularity.N_INTERACTIONS:
-            return Columns.User, "count"
-        if popularity == Popularity.MEAN_WEIGHT:
-            return Columns.Weight, "mean"
-        if popularity == Popularity.SUM_WEIGHT:
-            return Columns.Weight, "sum"
-        raise ValueError(f"Unexpected popularity {popularity}")
 
     def _recommend_u2i(
         self,

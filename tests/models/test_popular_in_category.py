@@ -22,7 +22,13 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import PopularInCategoryModel
-from tests.models.utils import assert_second_fit_refits_model
+from rectools.models.popular import Popularity
+from rectools.models.popular_in_category import MixingStrategy, RatioStrategy
+from tests.models.utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 @pytest.mark.filterwarnings("ignore")
@@ -444,3 +450,150 @@ class TestPopularInCategoryModel:
             n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)
+
+
+class TestPopularInCategoryModelConfiguration:
+    @pytest.fixture
+    def interactions_df(self) -> pd.DataFrame:
+        interactions_df = pd.DataFrame(
+            [
+                [70, 11, 1, "2021-11-30"],
+                [70, 12, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-30"],
+                [10, 12, 1, "2021-11-29"],
+                [10, 13, 9, "2021-11-28"],
+                [20, 11, 1, "2021-11-27"],
+                [20, 14, 2, "2021-11-26"],
+                [20, 14, 1, "2021-11-25"],
+                [20, 14, 1, "2021-11-25"],
+                [20, 14, 1, "2021-11-25"],
+                [20, 14, 1, "2021-11-25"],
+                [20, 14, 1, "2021-11-25"],
+                [30, 11, 1, "2021-11-24"],
+                [30, 12, 1, "2021-11-23"],
+                [30, 14, 1, "2021-11-23"],
+                [30, 15, 5, "2021-11-21"],
+                [30, 15, 5, "2021-11-21"],
+                [40, 11, 1, "2021-11-20"],
+                [40, 12, 1, "2021-11-19"],
+                [50, 12, 1, "2021-11-19"],
+                [60, 12, 1, "2021-11-19"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return interactions_df
+
+    @pytest.fixture
+    def item_features_df(self) -> pd.DataFrame:
+        item_features_df = pd.DataFrame(
+            {
+                "id": [11, 11, 12, 12, 13, 13, 14, 14, 14],
+                "feature": ["f1", "f2", "f1", "f2", "f1", "f2", "f1", "f2", "f3"],
+                "value": [100, "a", 100, "b", 100, "b", 200, "c", 1],
+            }
+        )
+        return item_features_df
+
+    @pytest.fixture
+    def dataset(self, interactions_df: pd.DataFrame, item_features_df: pd.DataFrame) -> Dataset:
+        user_features_df = pd.DataFrame(
+            {
+                "id": [10, 50],
+                "feature": ["f1", "f1"],
+                "value": [1, 1],
+            }
+        )
+        dataset = Dataset.construct(
+            interactions_df=interactions_df,
+            user_features_df=user_features_df,
+            item_features_df=item_features_df,
+            cat_item_features=["f2", "f1"],
+        )
+        return dataset
+
+    def test_from_config(self) -> None:
+        config = {
+            "category_feature": "f1",
+            "n_categories": 2,
+            "mixing_strategy": "group",
+            "ratio_strategy": "equal",
+            "popularity": "n_interactions",
+            "period": timedelta(days=7),
+            "begin_from": None,
+            "add_cold": True,
+            "inverse": True,
+            "verbose": 0,
+        }
+        model = PopularInCategoryModel.from_config(config)
+        assert model.category_feature == "f1"
+        assert model.n_categories == 2
+        assert model.mixing_strategy == MixingStrategy("group")
+        assert model.ratio_strategy == RatioStrategy("equal")
+        assert model.popularity == Popularity("n_interactions")
+        assert model.period == timedelta(days=7)
+        assert model.begin_from is None
+        assert model.add_cold is True
+        assert model.inverse is True
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23)))
+    @pytest.mark.parametrize("popularity", ("mean_weight", "sum_weight"))
+    def test_get_config(
+        self,
+        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
+        begin_from: tp.Optional[datetime],
+    ) -> None:
+        model = PopularInCategoryModel(
+            category_feature="f2",
+            n_categories=3,
+            mixing_strategy="rotate",
+            ratio_strategy="proportional",
+            popularity=popularity,
+            period=None,
+            begin_from=begin_from,
+            add_cold=False,
+            inverse=False,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "category_feature": "f2",
+            "n_categories": 3,
+            "mixing_strategy": MixingStrategy("rotate"),
+            "ratio_strategy": RatioStrategy("proportional"),
+            "popularity": Popularity(popularity),
+            "period": None,
+            "begin_from": begin_from,
+            "add_cold": False,
+            "inverse": False,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize("category_feature", ("f1", "f2"))
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(
+        self,
+        dataset: Dataset,
+        category_feature: str,
+        simple_types: bool,
+    ) -> None:
+        initial_config = {
+            "category_feature": category_feature,
+            "n_categories": 2,
+            "mixing_strategy": "group",
+            "ratio_strategy": "equal",
+            "popularity": "n_users",
+            "period": None,
+            "begin_from": None,
+            "add_cold": True,
+            "inverse": False,
+            "verbose": 0,
+        }
+        model = PopularInCategoryModel(category_feature)
+        assert_get_config_and_from_config_compatibility(model, dataset, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, str] = {"category_feature": "f2"}
+        model = PopularInCategoryModel(category_feature="f2")
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

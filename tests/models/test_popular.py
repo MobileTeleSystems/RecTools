@@ -22,7 +22,14 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import PopularModel
-from tests.models.utils import assert_second_fit_refits_model
+from rectools.models.popular import Popularity
+from tests.models.utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
+
+from .data import DATASET
 
 
 class TestPopularModel:
@@ -212,3 +219,67 @@ class TestPopularModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = PopularModel()
         assert_second_fit_refits_model(model, dataset)
+
+
+class TestPopularModelConfiguration:
+
+    def test_from_config(self) -> None:
+        config = {
+            "popularity": "n_interactions",
+            "period": timedelta(days=7),
+            "begin_from": None,
+            "add_cold": True,
+            "inverse": True,
+            "verbose": 0,
+        }
+        model = PopularModel.from_config(config)
+        assert model.popularity.value == "n_interactions"
+        assert model.period == timedelta(days=7)
+        assert model.begin_from is None
+        assert model.add_cold is True
+        assert model.inverse is True
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23)))
+    @pytest.mark.parametrize("popularity", ("mean_weight", "sum_weight"))
+    def test_get_config(
+        self,
+        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
+        begin_from: tp.Optional[datetime],
+    ) -> None:
+        model = PopularModel(
+            popularity=popularity,
+            period=None,
+            begin_from=begin_from,
+            add_cold=False,
+            inverse=False,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "popularity": Popularity(popularity),
+            "period": None,
+            "begin_from": begin_from,
+            "add_cold": False,
+            "inverse": False,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "popularity": "n_users",
+            "period": None,
+            "begin_from": None,
+            "add_cold": True,
+            "inverse": False,
+            "verbose": 0,
+        }
+        model = PopularModel()
+        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = PopularModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
