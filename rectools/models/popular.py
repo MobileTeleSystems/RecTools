@@ -65,25 +65,22 @@ class PopularModelBaseMixin(ModelBase[ModelConfig_T]):
         verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
-        try:
-            self.popularity = Popularity(popularity)
-        except ValueError:
-            possible_values = {item.value for item in Popularity.__members__.values()}
-            raise ValueError(f"`popularity` must be one of the {possible_values}. Got {popularity}.")
-
         if period is not None and begin_from is not None:
             raise ValueError("Only one of `period` and `begin_from` can be set")
+        self.popularity = Popularity(popularity)
         self.period = period
         self.begin_from = begin_from
 
         self.add_cold = add_cold
         self.inverse = inverse
 
-    def _filter_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
-        if self.begin_from is not None:
-            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
-        elif self.period is not None:
-            begin_from = interactions[Columns.Datetime].max() - self.period
+    def _filter_interactions(
+        self, interactions: pd.DataFrame, period: tp.Optional[timedelta], begin_from: tp.Optional[datetime]
+    ) -> pd.DataFrame:
+        if begin_from is not None:
+            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
+        elif period is not None:
+            begin_from = interactions[Columns.Datetime].max() - period
             interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
         return interactions
 
@@ -179,7 +176,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularModelCo
         )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
-        interactions = self._filter_interactions(dataset.interactions.df)
+        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
 
         col, func = self._get_groupby_col_and_agg_func(self.popularity)
         items_scores = interactions.groupby(Columns.Item)[col].agg(func).sort_values(ascending=False)

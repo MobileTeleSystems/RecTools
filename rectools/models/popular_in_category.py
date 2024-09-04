@@ -133,6 +133,8 @@ class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[Popu
         )
 
         self.category_feature = category_feature
+        self.mixing_strategy = MixingStrategy(mixing_strategy)
+        self.ratio_strategy = RatioStrategy(ratio_strategy)
         self.category_columns: tp.List[int] = []
         self.category_interactions: tp.Dict[int, pd.DataFrame] = {}
         self.category_scores: pd.Series
@@ -143,18 +145,6 @@ class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[Popu
             self.n_categories = n_categories
         else:
             raise ValueError(f"`n_categories` must be a positive number. Got {n_categories}")
-
-        try:
-            self.mixing_strategy = MixingStrategy(mixing_strategy)
-        except ValueError:
-            possible_values = {item.value for item in MixingStrategy.__members__.values()}
-            raise ValueError(f"`mixing_strategy` must be one of the {possible_values}. Got {mixing_strategy}.")
-
-        try:
-            self.ratio_strategy = RatioStrategy(ratio_strategy)
-        except ValueError:
-            possible_values = {item.value for item in RatioStrategy.__members__.values()}
-            raise ValueError(f"`ratio_strategy` must be one of the {possible_values}. Got {ratio_strategy}.")
 
     def _get_config(self) -> PopularInCategoryModelConfig:
         return PopularInCategoryModelConfig(
@@ -241,7 +231,7 @@ class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[Popu
         self.n_effective_categories = 0
 
         self._check_category_feature(dataset)
-        interactions = self._filter_interactions(dataset.interactions.df)
+        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
         self._calc_category_scores(dataset, interactions)
         self._define_categories_for_analysis()
 

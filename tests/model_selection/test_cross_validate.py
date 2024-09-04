@@ -209,7 +209,7 @@ class TestCrossValidate:
             dataset=self.dataset,
             splitter=splitter,
             metrics=self.metrics,
-            models=self.models,
+            models=self.models,  # type: ignore
             k=2,
             filter_viewed=False,
             items_to_recommend=items_to_recommend,
@@ -426,7 +426,7 @@ class TestCrossValidate:
             dataset=self.dataset,
             splitter=splitter,
             metrics=self.metrics_intersection,
-            models=self.models,
+            models=self.models,  # type: ignore
             k=2,
             filter_viewed=False,
             ref_models=ref_models,
