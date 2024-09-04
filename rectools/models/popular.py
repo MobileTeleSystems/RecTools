@@ -74,14 +74,12 @@ class PopularModelBaseMixin(ModelBase[ModelConfig_T]):
         self.add_cold = add_cold
         self.inverse = inverse
 
-    def _filter_interactions(
-        self, interactions: pd.DataFrame, period: tp.Optional[timedelta], begin_from: tp.Optional[datetime]
-    ) -> pd.DataFrame:
-        if begin_from is not None:
-            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
-        elif period is not None:
-            begin_from = interactions[Columns.Datetime].max() - period
-            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
+    def _filter_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
+        if self.begin_from is not None:
+            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
+        elif self.period is not None:
+            self.begin_from = interactions[Columns.Datetime].max() - self.period
+            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
         return interactions
 
     def _get_groupby_col_and_agg_func(self, popularity: Popularity) -> tp.Tuple[str, str]:
@@ -176,7 +174,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularModelCo
         )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
-        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
+        interactions = self._filter_interactions(dataset.interactions.df)
 
         col, func = self._get_groupby_col_and_agg_func(self.popularity)
         items_scores = interactions.groupby(Columns.Item)[col].agg(func).sort_values(ascending=False)

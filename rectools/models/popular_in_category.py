@@ -231,7 +231,7 @@ class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[Popu
         self.n_effective_categories = 0
 
         self._check_category_feature(dataset)
-        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
+        interactions = self._filter_interactions(dataset.interactions.df)
         self._calc_category_scores(dataset, interactions)
         self._define_categories_for_analysis()
 
