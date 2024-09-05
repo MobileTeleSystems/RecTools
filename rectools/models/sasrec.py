@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 import tqdm
 import typing_extensions as tpe
+from pytorch_lightning import LightningModule, Trainer
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
@@ -19,10 +20,6 @@ from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
-
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    from pytorch_lightning import LightningModule, Trainer
 
 PADDING_VALUE = "PAD"
 
@@ -53,6 +50,65 @@ class TransformerLayersBase(nn.Module):
 
     def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         """Forward"""
+        raise NotImplementedError()
+
+
+class SessionEncoderDataPreparatorBase:
+    """Base class for data preparator. Used only for type hinting."""
+
+    def __init__(
+        self,
+        session_maxlen: int,
+        batch_size: int,
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
+        shuffle_train: bool = True,
+        train_min_user_interactions: int = 2,
+    ) -> None:
+        """TODO"""
+        raise NotImplementedError()
+
+    def get_known_items_sorted_internal_ids(self) -> np.ndarray:
+        """TODO"""
+        raise NotImplementedError()
+
+    def process_dataset_train(self, dataset: Dataset) -> Dataset:
+        """TODO"""
+        raise NotImplementedError()
+
+    def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
+        """TODO"""
+        raise NotImplementedError()
+
+    def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
+        """TODO"""
+        raise NotImplementedError()
+
+    def transform_dataset_u2i(self, dataset: Dataset, users: ExternalIds) -> Dataset:
+        """TODO"""
+        raise NotImplementedError()
+
+    def transform_dataset_i2i(self, dataset: Dataset) -> Dataset:
+        """TODO"""
+        raise NotImplementedError()
+
+
+class SessionEncoderLightningModuleBase(LightningModule):
+    """Base class for lightning module. Used only for type hinting."""
+
+    def forward(self, sessions: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        raise NotImplementedError()
+
+    def on_train_start(self) -> None:
+        """TODO"""
+        raise NotImplementedError()
+
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
+        """TODO"""
+        raise NotImplementedError()
+
+    def configure_optimizers(self) -> torch.optim.Adam:
+        """TODO"""
         raise NotImplementedError()
 
 
@@ -265,7 +321,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
         Returns
         -------
-            torch.Tensor. [batch_size, session_maxlen, factors]
+            torch.Tensor. [batch_size, session_maxlen, n_factors]
 
         """
         session_maxlen = sessions.shape[1]
@@ -329,7 +385,7 @@ class SequenceDataset(TorchDataset):
         return cls(sessions=sessions, weights=weights)
 
 
-class SasRecDataPreparator:
+class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
     """TODO"""
 
     def __init__(
@@ -478,7 +534,7 @@ class SasRecDataPreparator:
 # ####  --------------  Lightning Model  --------------  #### #
 
 
-class SasRec(LightningModule):
+class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     """TODO"""
 
     def __init__(
@@ -486,11 +542,13 @@ class SasRec(LightningModule):
         torch_model: TransformerBasedSessionEncoder,
         lr: float,
         loss: str = "softmax",  # TODO: move loss func to `SasRec` class
+        adam_betas: Tuple[float, float] = (0.9, 0.98),
     ):
         super().__init__()
         self.lr = lr
         self.loss_func = self._init_loss_func(loss)
         self.torch_model = torch_model
+        self.adam_betas = adam_betas
 
     def forward(
         self,
@@ -501,7 +559,7 @@ class SasRec(LightningModule):
 
     def on_train_start(self) -> None:
         """TODO"""
-        self.xavier_normal_init()
+        self._xavier_normal_init()
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
@@ -525,7 +583,7 @@ class SasRec(LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """TODO"""
-        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=(0.9, 0.98))
+        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
         return optimizer
 
     # ce_criterion = torch.nn.CrossEntropyLoss()
@@ -537,7 +595,7 @@ class SasRec(LightningModule):
             return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
         raise ValueError(f"loss {loss} is not supported")
 
-    def xavier_normal_init(self) -> None:
+    def _xavier_normal_init(self) -> None:
         """TODO"""
         for _, param in self.named_parameters():
             try:
@@ -567,9 +625,12 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         loss: str = "softmax",
         verbose: int = 0,
         cpu_n_threads: int = 0,
+        deterministic: bool = False,
+        trainer: tp.Optional[Trainer] = None,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,  # SASRec authors net
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
-        deterministic: bool = False,
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SasRecDataPreparator,
+        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(verbose=verbose)
         self.device = torch.device(device)
@@ -586,17 +647,20 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
             transformer_layers_type=transformer_layers_type,
             item_net_type=item_net_type,
         )
-        self.lightning_model: SasRec
+        self.lightning_module_type = lightning_module_type
         self.trainer: Trainer
-        self._trainer = Trainer(
-            max_epochs=epochs,
-            min_epochs=epochs,
-            devices=1,
-            limit_val_batches=0,
-            num_sanity_val_steps=0,
-            deterministic=deterministic,
-        )
-        self.data_preparator = SasRecDataPreparator(session_maxlen, batch_size)  # TODO: add data_preparator_type
+        if trainer is None:
+            self._trainer = Trainer(
+                max_epochs=epochs,
+                min_epochs=epochs,
+                deterministic=deterministic,
+                enable_progress_bar=verbose > 0,
+                enable_model_summary=verbose > 0,
+                logger=verbose > 0,
+            )
+        else:
+            self._trainer = trainer
+        self.data_preparator = data_preparator_type(session_maxlen, batch_size)
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
         self.lr = lr
@@ -611,11 +675,10 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
 
         self.model = deepcopy(self._model)  # TODO: check that it works
         self.model.construct_item_net(processed_dataset)
-        self.lightning_model = SasRec(self.model, self.lr, self.loss)
 
+        lightning_model = self.lightning_module_type(self.model, self.lr, self.loss)
         self.trainer = deepcopy(self._trainer)
-
-        self.trainer.fit(self.lightning_model, train_dataloader)
+        self.trainer.fit(lightning_model, train_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -635,12 +698,11 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
     ) -> InternalRecoTriplet:
-
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        self.lightning_model = self.lightning_model.eval()
-        self.lightning_model.torch_model.to(self.device)
+        self.model = self.model.eval()
+        self.model.to(self.device)
 
         # Dataset has already been filtered and adapted to known item_id_map
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
@@ -660,8 +722,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
 
         ranker = ImplicitRanker(
             self.u2i_dist,
-            user_embs,  # [n_rec_users, factors]
-            item_embs_np,  # [n_items + 1, factors]
+            user_embs,  # [n_rec_users, n_factors]
+            item_embs_np,  # [n_items + 1, n_factors]
         )
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -691,17 +753,15 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
     ) -> InternalRecoTriplet:
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
-        item_embs = (
-            self.lightning_model.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()
-        )  # [n_items + 1, factors]
+        item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
 
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
         # Should we use torch dot and topk? Should be faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,
-            item_embs,  # [n_items + 1, factors]
-            item_embs,  # [n_items + 1, factors]
+            item_embs,  # [n_items + 1, n_factors]
+            item_embs,  # [n_items + 1, n_factors]
         )
         return ranker.rank(
             subject_ids=target_ids,  # model internal
@@ -714,4 +774,4 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
     @property
     def torch_model(self) -> TransformerBasedSessionEncoder:
         """TODO"""
-        return self.lightning_model.torch_model
+        return self.model
