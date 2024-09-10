@@ -450,5 +450,21 @@ class SparseFeatures:
         """Return number of objects."""
         return self.values.shape[0]
 
+    def get_sparse_cat_features(self) -> "SparseFeatures":
+        """Return `SparseFeatures` only with categorical features.""" ""
+        cat_features_names_list: tp.List[SparseFeatureName] = []
+        ids_cat_features_names = []
+        for idx, (name, value) in enumerate(self.names):
+            if value != DIRECT_FEATURE_VALUE:
+                feature_name: SparseFeatureName = (name, value)
+                cat_features_names_list.append(feature_name)
+                ids_cat_features_names.append(idx)
+
+        cat_features_names_tuple: tp.Tuple[SparseFeatureName, ...] = tuple(cat_features_names_list)
+        return SparseFeatures(
+            values=self.values[:, ids_cat_features_names],
+            names=cat_features_names_tuple,
+        )
+
 
 Features = tp.Union[DenseFeatures, SparseFeatures]

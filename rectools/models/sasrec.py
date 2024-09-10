@@ -1,12 +1,13 @@
 import logging
 import typing as tp
 import warnings
-from copy import deepcopy
 from collections import defaultdict
+from copy import deepcopy
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 import torch
 import tqdm
 import typing_extensions as tpe
@@ -16,6 +17,7 @@ from torch.utils.data import Dataset as TorchDataset
 
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
+from rectools.dataset.features import SparseFeatures
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
@@ -54,89 +56,120 @@ class TransformerLayersBase(nn.Module):
 
 
 class CatFeatureEmebbedingsItem(ItemNetBase):
-    
-    def __init__(self, n_factors: int, n_feature_values: int, dropout_rate: float):
+    """Base class for single category feature embeddings. TODO."""
+
+    def __init__(self, n_factors: int, n_values: int, dropout_rate: float):
         super().__init__()
 
-        self.n_feature_values = n_feature_values
-        self.feature_value_emb = nn.Embedding(
-            num_embeddings=n_feature_values,
+        self.n_values = n_values
+        self.value_emb = nn.Embedding(
+            num_embeddings=n_values,
             embedding_dim=n_factors,
-            padding_idx=0,  # TODO: add padding_idx
+            # padding_idx=0,  # TODO: add padding_idx
         )
         self.drop_layer = nn.Dropout(dropout_rate)
-    
-    def forward(self, feature_values: torch.Tensor) -> torch.Tensor:
-        feature_embedding = self.feature_value_emb(feature_values)
-        feature_embedding = self.drop_layer(feature_embedding)
-        return feature_embedding
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        feature_embeddings = self.value_emb(values)
+        feature_embeddings = self.drop_layer(feature_embeddings)
+        return feature_embeddings
 
     @property
-    def catalogue_values(self) -> torch.Tensor: # TODO: rename
+    def catalogue_values(self) -> torch.Tensor:
         """TODO"""
-        return torch.arange(0, self.n_features, device=self.item_emb.weight.device)
+        return torch.arange(0, self.n_values, device=self.value_emb.weight.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
         return self.forward(self.catalogue_values)
 
     @classmethod
-    def from_list(cls: tp.Type[ItemNetT], values: tp.Any, n_factors: int, dropout_rate: float) -> ItemNetT:
+    def from_array(cls, values: np.ndarray, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
-        n_feature_values = len(values)
-        return cls(n_factors=n_factors, n_feature_values=n_feature_values, dropout_rate=dropout_rate)
+        n_values = values.size
+        return cls(n_factors, n_values, dropout_rate)
 
 
 class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
-    
-    def __init__(self, n_factors: int, all_features: tp.Dict[str, tp.List[tp.Any]], dropout_rate: float):
-        super().__init__()
+    """Base class for all category features embeddings. TODO."""
 
-        self.n_factors = n_factors
-        self.dropout_rate = dropout_rate
+    def __init__(
+        self,
+        item_features: SparseFeatures,
+        common_name_features_ids_map: tp.Dict[str, IdMap],
+        n_factors: int,
+        dropout_rate: float,
+    ):
+        super().__init__()  # TODO: Add dataset
 
-        self.category_embedding = nn.ModuleDict(
+        self.item_features = item_features
+        self.n_items = item_features.values.shape[0]
+
+        self.category_embeddings = nn.ModuleDict(
             {
-                feature_name: CatFeatureEmebbedingsItem.from_list(feature_values, n_factors, dropout_rate)
-                for feature_name, feature_values in all_features.items()
+                feature_name: CatFeatureEmebbedingsItem.from_array(
+                    feature_values.get_sorted_internal(), n_factors, dropout_rate
+                )
+                for feature_name, feature_values in common_name_features_ids_map.items()
             }
         )
 
-    def forward(self, features: tp.Dict[str, torch.Tensor]) -> torch.Tensor:  # TODO: Return Items
+        self.device = self.category_embeddings[list(self.category_embeddings.keys())[0]].value_emb.weight.device
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:  # TODO: Return Items
         """TODO"""
-        features_embedings = torch.zeros((1, self.n_factors))
-        for feature_name, feature_value in features.items():
-            feature_embedings = torch.sum(self.category_embedding[feature_name](feature_value))
-            features_embedings += feature_embedings
-        return features_embedings
-    
+        feature_dense = self.get_item_features_dense(items)
+
+        feature_embeddings = torch.concatenate(
+            [self.category_embeddings[feature_name].get_all_embeddings() for feature_name in self.category_embeddings],
+            dim=0,
+        )
+
+        feature_embedding_per_items = feature_dense @ feature_embeddings
+        return feature_embedding_per_items
+
+    def get_item_features_dense(self, items: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
+        return torch.from_numpy(feature_dense).to(self.device)
+
     @property
-    def catalogue_feature(self) -> torch.Tensor: # TODO: rename
+    def catalogue(self) -> torch.Tensor:  # TODO: rename
         """TODO"""
-        return torch.arange(0, self.n_features, device=self.item_emb.weight.device)
+        return torch.arange(0, self.n_items, device=self.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
-        return self.forward(self.feature_catalogue)
+        return self.forward(self.catalogue)
+
+    def get_all_embeddings_by_certain_feature(self, feature_name: str) -> torch.Tensor:
+        """TODO"""
+        return self.category_embeddings[feature_name].get_all_embeddings()
+
+    def get_all_embeddings_as_separate_features(self) -> tp.Dict[str, torch.Tensor]:
+        """TODO"""
+        feature_embeddings = {
+            feature_name: self.get_all_embeddings_by_certain_feature(feature_name)
+            for feature_name in self.category_embeddings
+        }
+        return feature_embeddings
 
     @classmethod
-    def from_dataset(cls: tp.Type[ItemNetT], dataset: Dataset, n_factors: int, dropout_rate: float) -> ItemNetT:
+    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
-        all_features = cls.get_features_dict(dataset)
-        return cls(n_factors=n_factors, all_features=all_features, dropout_rate=dropout_rate)
+        item_cat_features = dataset.item_features.get_sparse_cat_features()
 
-    @staticmethod
-    def get_features_dict(dataset: Dataset) -> tp.Dict[str, tp.List[tp.Any]]:
-        """TODO"""
-        all_features_dict: tp.Dict[str, tp.List[tp.Any]] = defaultdict(list)
-        for feature_name, feature_value in dataset.item_features.names:
-            all_features_dict[feature_name].append(feature_value)
+        common_name_features_ids_map: tp.Dict[str, tp.List[int]] = defaultdict(list)
+        for feature_name, feature_value in item_cat_features.names:
+            common_name_features_ids_map[feature_name].append(feature_value)
 
-        # TODO: creating feature internals ids
-        map_feature_name = dict(enumerate(all_features_dict.keys()))
-        # MAy be using IdMap???
-        
-        return all_features_dict
+        common_name_features_ids_map_with_idmap: tp.Dict[str, IdMap] = {
+            feature_name: IdMap.from_values(feature_values)
+            for feature_name, feature_values in common_name_features_ids_map.items()
+        }
+
+        return cls(item_cat_features, common_name_features_ids_map_with_idmap, n_factors, dropout_rate)
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
@@ -178,13 +211,69 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
 
-class ConstructedItemNet(nn.Module):
-    """TODO"""
+# class ConstructedItemNetBlock(nn.Module):  # Add position embs ???
+#     """TODO"""
 
-    def __init__(self, n_factors: int, n_items: int, dropout_rate: float) -> None:
-        """TODO"""
-        super().__init__()
-        pass
+#     # item_nets: tp.Dict[str, ItemNetBase]
+#     def __init__(
+#         self,
+#         n_items: int,
+#         ids_embeddings: IdEmbeddingsItemNet,
+#         category_features_embeddings: CatFeaturesEmebbedingsItemBlock,
+#     ) -> None:
+#         """TODO"""
+#         super().__init__()
+
+#         self.n_items = n_items
+
+#         self.ids_embeddings = ids_embeddings
+#         self.category_features_embeddings = category_features_embeddings
+
+#         # self.item_emb = nn.ModuleDict(item_nets)
+
+#     def forward(self, items: torch.Tensor) -> torch.Tensor:
+#         """TODO"""
+#         item_embs = self.ids_embeddings(items)  # IdEmbeddingsItemNet
+#         if self.category_features_embeddings is not None:
+#             # TODO: get only necessary category features for certain_items
+#             item_embs += self.category_features_embeddings(items)  # CatFeaturesEmebbedingsItemBlock
+
+#     @property
+#     def catalogue(self) -> torch.Tensor:
+#         """TODO"""
+#         return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
+
+#     def get_all_embeddings(self) -> torch.Tensor:
+#         """TODO"""
+#         return self.forward(self.catalogue)
+
+#     @classmethod
+#     def construct_nets_from_dataset(
+#         cls, dataset: Dataset, n_factors: int, dropout_rate: float, use_item_ids: bool, use_cat_item_features: bool
+#     ) -> tpe.Self:
+#         """TODO
+# Вместо классметод `from_dataset` он имеет метод `construct_nets_from_dataset`, который последовательно будет
+# вызывать методы `from_dataset` всего списка своих блоков сети.
+# Не забыть сохранить n_items для метода `get_all_embeddings`.
+#         """
+#         n_items = dataset.item_id_map.size
+
+#         ids_embeddings = None
+#         if use_item_ids:
+#             ids_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors, dropout_rate)
+
+#         # TODO: add method for getting only category features
+#         if use_cat_item_features:
+#             category_features_embeddings = None
+#             if dataset.item_features is not None:
+#                 category_features_embeddings = CatFeaturesEmebbedingsItemBlock(
+#                     dataset, n_factors=n_factors, dropout_rate=dropout_rate
+#                 )
+#             else:
+#                 explanation = f"""dataset doesn't have item features."""
+#                 warnings.warn(explanation)
+
+#         return cls(n_items, ids_embeddings, category_features_embeddings)
 
 
 class PointWiseFeedForward(nn.Module):
@@ -528,6 +617,7 @@ class SasRecDataPreparator:
         self.shuffle_train = shuffle_train
         self.train_min_user_interactions = train_min_user_interactions
         self.item_id_map: IdMap
+        self.item_features: SparseFeatures
         # TODO: add SequenceDatasetType for fit and recommend
 
     @property
@@ -558,10 +648,31 @@ class SasRecDataPreparator:
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
+
+        # get item features
+        item_features = None
+        if dataset.item_features is not None:
+            internal_ids = dataset.item_id_map.convert_to_internal(interactions[Columns.Item].unique())
+            item_features_by_sorted_interactions = dataset.item_features.take(internal_ids)
+
+            dtype = item_features_by_sorted_interactions.values.dtype
+            num_features = item_features_by_sorted_interactions.values.shape[1]
+            pad_item_features = sp.csr_matrix((1, num_features), dtype=dtype)
+
+            item_features_values = sp.bmat(
+                [[pad_item_features.toarray()], [item_features_by_sorted_interactions.values]], format="csr"
+            )
+
+            item_features = SparseFeatures.from_iterables(
+                values=item_features_values, names=dataset.item_features.names
+            )
+
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
-        dataset = Dataset(user_id_map, item_id_map, interactions)
+
+        dataset = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
 
         self.item_id_map = dataset.item_id_map
+        self.item_features = item_features
         return dataset
 
     def _collate_fn_train(
@@ -623,7 +734,9 @@ class SasRecDataPreparator:
             because of missing known items"""
             warnings.warn(explanation)
         filtered_interactions = Interactions.from_raw(interactions, rec_user_id_map, self.item_id_map)
-        filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
+        filtered_dataset = Dataset(
+            rec_user_id_map, self.item_id_map, filtered_interactions, item_features=self.item_features
+        )
         return filtered_dataset
 
     def transform_dataset_i2i(self, dataset: Dataset) -> Dataset:
@@ -638,7 +751,9 @@ class SasRecDataPreparator:
         interactions = dataset.get_raw_interactions()
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
         filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
-        filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
+        filtered_dataset = Dataset(
+            dataset.user_id_map, self.item_id_map, filtered_interactions, item_features=self.item_features
+        )
         return filtered_dataset
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
