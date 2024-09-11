@@ -320,8 +320,9 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             },
             "verbose": 1,
         }
-        model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
-        assert_get_config_and_from_config_compatibility(model, DATASET, initial_config, simple_types)
+        assert_get_config_and_from_config_compatibility(
+            ImplicitItemKNNWrapperModel, DATASET, initial_config, simple_types
+        )
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
         default_config: tp.Dict[str, tp.Any] = {"model": {}}

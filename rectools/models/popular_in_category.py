@@ -16,7 +16,7 @@
 
 import typing as tp
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 
 import numpy as np
@@ -27,8 +27,8 @@ from rectools import Columns, InternalIds
 from rectools.dataset import Dataset, Interactions, features
 from rectools.types import InternalIdsArray
 
-from .base import Scores
-from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelBaseMixin, PopularModelConfig
+from .base import ModelBase, Scores
+from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, TimeDelta
 
 
 class MixingStrategy(Enum):
@@ -54,7 +54,9 @@ class PopularInCategoryModelConfig(PopularModelConfig):
     ratio_strategy: RatioStrategy = RatioStrategy.PROPORTIONAL
 
 
-class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularInCategoryModelConfig]):
+class PopularInCategoryModel(
+    FixedColdRecoModelMixin, PopularModelMixin, ModelBase[PopularInCategoryModelConfig]
+):  # pylint: disable=too-many-instance-attributes
     """
     Model generating recommendations based on popularity of items.
 
@@ -117,20 +119,22 @@ class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[Popu
         mixing_strategy: tp.Literal["rotate", "group"] = "rotate",
         ratio_strategy: tp.Literal["proportional", "equal"] = "proportional",
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: tp.Optional[timedelta] = None,
-        begin_from: tp.Optional[datetime] = None,
+        period: TimeDelta = None,
+        begin_from: tp.Optional[tp.Union[datetime, str]] = None,
         add_cold: bool = False,
         inverse: bool = False,
         verbose: int = 0,
     ):
         super().__init__(
-            popularity=popularity,
-            period=period,
-            begin_from=begin_from,
-            add_cold=add_cold,
-            inverse=inverse,
             verbose=verbose,
         )
+
+        self._validate_popular_model_attributes(popularity, period, begin_from)
+        self.period = period
+        self.begin_from = begin_from
+
+        self.add_cold = add_cold
+        self.inverse = inverse
 
         self.category_feature = category_feature
         self.mixing_strategy = MixingStrategy(mixing_strategy)
@@ -231,7 +235,7 @@ class PopularInCategoryModel(FixedColdRecoModelMixin, PopularModelBaseMixin[Popu
         self.n_effective_categories = 0
 
         self._check_category_feature(dataset)
-        interactions = self._filter_interactions(dataset.interactions.df)
+        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
         self._calc_category_scores(dataset, interactions)
         self._define_categories_for_analysis()
 

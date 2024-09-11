@@ -21,6 +21,7 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 import typing_extensions as tpe
+from pydantic import PlainSerializer, PlainValidator
 from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
@@ -29,7 +30,7 @@ from rectools.models.base import ModelConfig
 from rectools.types import InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
-from .base import FixedColdRecoModelMixin, ModelBase, ModelConfig_T, Scores, ScoresArray
+from .base import FixedColdRecoModelMixin, ModelBase, Scores, ScoresArray
 from .utils import get_viewed_item_ids
 
 
@@ -42,44 +43,68 @@ class Popularity(Enum):
     SUM_WEIGHT = "sum_weight"
 
 
+def _serialize_timedelta(td: tp.Optional[tp.Union[None, dict, timedelta]]) -> tp.Optional[timedelta]:
+    if isinstance(td, dict):
+        return timedelta(
+            days=td.get("days", 0),
+            seconds=td.get("seconds", 0),
+            microseconds=td.get("microseconds", 0),
+            milliseconds=td.get("milliseconds", 0),
+            minutes=td.get("minutes", 0),
+            hours=td.get("hours", 0),
+            weeks=td.get("weeks", 0),
+        )
+    return td
+
+
+def _deserialize_timedelta(td: tp.Optional[timedelta]) -> tp.Optional[dict]:
+    if td is None:
+        return td
+    return {"days": td.days, "seconds": td.seconds, "microseconds": td.microseconds}
+
+
+TimeDelta = tpe.Annotated[
+    tp.Union[None, timedelta, dict],
+    PlainValidator(func=_serialize_timedelta),
+    PlainSerializer(func=_deserialize_timedelta),
+]
+
+
 class PopularModelConfig(ModelConfig):
     """Config for `PopularModel`."""
 
     popularity: Popularity = Popularity.N_USERS
-    period: tp.Optional[timedelta] = None
-    begin_from: tp.Optional[datetime] = None
+    period: TimeDelta = None
+    begin_from: tp.Optional[tp.Union[datetime, str]] = None
     add_cold: bool = False
     inverse: bool = False
 
 
-class PopularModelBaseMixin(ModelBase[ModelConfig_T]):
+class PopularModelMixin:
     """Mixin for models based on popularity."""
 
-    def __init__(
+    def _validate_popular_model_attributes(
         self,
-        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: tp.Optional[timedelta] = None,
-        begin_from: tp.Optional[datetime] = None,
-        add_cold: bool = False,
-        inverse: bool = False,
-        verbose: int = 0,
-    ):
-        super().__init__(verbose=verbose)
+        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
+        period: TimeDelta,
+        begin_from: tp.Optional[tp.Union[datetime, str]],
+    ) -> None:
+        try:
+            self.popularity = Popularity(popularity)
+        except ValueError:
+            possible_values = {item.value for item in Popularity.__members__.values()}
+            raise ValueError(f"`popularity` must be one of the {possible_values}. Got {popularity}.")
         if period is not None and begin_from is not None:
             raise ValueError("Only one of `period` and `begin_from` can be set")
-        self.popularity = Popularity(popularity)
-        self.period = period
-        self.begin_from = begin_from
 
-        self.add_cold = add_cold
-        self.inverse = inverse
-
-    def _filter_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
-        if self.begin_from is not None:
-            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
-        elif self.period is not None:
-            self.begin_from = interactions[Columns.Datetime].max() - self.period
-            interactions = interactions.loc[interactions[Columns.Datetime] >= self.begin_from]
+    def _filter_interactions(
+        self, interactions: pd.DataFrame, period: TimeDelta, begin_from: tp.Optional[tp.Union[datetime, str]]
+    ) -> pd.DataFrame:
+        if begin_from is not None:
+            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
+        elif period is not None:
+            begin_from = interactions[Columns.Datetime].max() - period
+            interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
         return interactions
 
     def _get_groupby_col_and_agg_func(self, popularity: Popularity) -> tp.Tuple[str, str]:
@@ -94,7 +119,7 @@ class PopularModelBaseMixin(ModelBase[ModelConfig_T]):
         raise ValueError(f"Unexpected popularity {popularity}")
 
 
-class PopularModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularModelConfig]):
+class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[PopularModelConfig]):
     """
     Model generating recommendations based on popularity of items.
 
@@ -135,20 +160,21 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularModelCo
     def __init__(
         self,
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: tp.Optional[timedelta] = None,
-        begin_from: tp.Optional[datetime] = None,
+        period: TimeDelta = None,
+        begin_from: tp.Optional[tp.Union[datetime, str]] = None,
         add_cold: bool = False,
         inverse: bool = False,
         verbose: int = 0,
     ):
         super().__init__(
-            popularity=popularity,
-            period=period,
-            begin_from=begin_from,
-            add_cold=add_cold,
-            inverse=inverse,
             verbose=verbose,
         )
+        self._validate_popular_model_attributes(popularity, period, begin_from)
+        self.period = period
+        self.begin_from = begin_from
+
+        self.add_cold = add_cold
+        self.inverse = inverse
 
         self.popularity_list: tp.Tuple[InternalIdsArray, ScoresArray]
 
@@ -174,7 +200,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelBaseMixin[PopularModelCo
         )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
-        interactions = self._filter_interactions(dataset.interactions.df)
+        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
 
         col, func = self._get_groupby_col_and_agg_func(self.popularity)
         items_scores = interactions.groupby(Columns.Item)[col].agg(func).sort_values(ascending=False)

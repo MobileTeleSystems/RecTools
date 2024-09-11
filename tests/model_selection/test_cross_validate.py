@@ -168,7 +168,7 @@ class TestCrossValidate:
             "intersection": Intersection(1),
         }
 
-        self.models = {
+        self.models: tp.Dict[str, ModelBase] = {
             "popular": PopularModel(),
             "random": RandomModel(random_state=42),
         }
@@ -209,7 +209,7 @@ class TestCrossValidate:
             dataset=self.dataset,
             splitter=splitter,
             metrics=self.metrics,
-            models=self.models,  # type: ignore
+            models=self.models,
             k=2,
             filter_viewed=False,
             items_to_recommend=items_to_recommend,
@@ -426,7 +426,7 @@ class TestCrossValidate:
             dataset=self.dataset,
             splitter=splitter,
             metrics=self.metrics_intersection,
-            models=self.models,  # type: ignore
+            models=self.models,
             k=2,
             filter_viewed=False,
             ref_models=ref_models,
