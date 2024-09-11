@@ -112,6 +112,14 @@ class SessionEncoderLightningModuleBase(LightningModule):
         raise NotImplementedError()
 
 
+class PositionalEncodingBase(torch.nn.Module):
+    """Base class for positional encoding. Used only for type hinting."""
+
+    def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        raise NotImplementedError()
+
+
 class IdEmbeddingsItemNet(ItemNetBase):
     """
     Base class for item embeddings. To use more complicated logic then just id embeddings inherit
@@ -251,7 +259,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
         return seqs
 
 
-class LearnableInversePositionalEncoding(torch.nn.Module):
+class LearnableInversePositionalEncoding(PositionalEncodingBase):
     """TODO"""
 
     def __init__(self, use_pos_emb: bool, session_maxlen: int, n_factors: int):
@@ -290,15 +298,16 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         n_heads: int,
         session_maxlen: int,
         dropout_rate: float,
-        use_pos_emb: bool = True,  # TODO: add pos_encoding_type option for user to pass
+        use_pos_emb: bool = True,
         use_causal_attn: bool = True,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ) -> None:
         super().__init__()
 
         self.item_model: ItemNetBase
-        self.pos_encoding = LearnableInversePositionalEncoding(use_pos_emb, session_maxlen, n_factors)
+        self.pos_encoding = pos_encoding_type(use_pos_emb, session_maxlen, n_factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers_type(
             n_blocks=n_blocks,
@@ -607,10 +616,10 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 # ####  --------------  SASRec Model  --------------  #### #
 
 
-class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
+class SasRecModel(ModelBase):
     """TODO"""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         session_maxlen: int,
         lr: float,
@@ -631,6 +640,7 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SasRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ):
         super().__init__(verbose=verbose)
         self.device = torch.device(device)
@@ -646,6 +656,7 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
             use_causal_attn=True,
             transformer_layers_type=transformer_layers_type,
             item_net_type=item_net_type,
+            pos_encoding_type=pos_encoding_type,
         )
         self.lightning_module_type = lightning_module_type
         self.trainer: Trainer
@@ -753,6 +764,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
     ) -> InternalRecoTriplet:
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
+
+        self.model = self.model.eval()
         item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
 
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
