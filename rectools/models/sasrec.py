@@ -211,69 +211,92 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
 
-# class ConstructedItemNetBlock(nn.Module):  # Add position embs ???
-#     """TODO"""
+class ConstructedItemNetBlock(nn.Module):
+    """TODO"""
 
-#     # item_nets: tp.Dict[str, ItemNetBase]
-#     def __init__(
-#         self,
-#         n_items: int,
-#         ids_embeddings: IdEmbeddingsItemNet,
-#         category_features_embeddings: CatFeaturesEmebbedingsItemBlock,
-#     ) -> None:
-#         """TODO"""
-#         super().__init__()
+    def __init__(
+        self,
+        n_items: int,
+        # embeddings_nets: tp.List[ItemNetBase],
+        ids_embeddings: tp.Optional[IdEmbeddingsItemNet] = None,
+        category_features_embeddings: tp.Optional[CatFeaturesEmebbedingsItemBlock] = None,
+    ) -> None:
+        """TODO"""
+        super().__init__()
 
-#         self.n_items = n_items
+        self.n_items = n_items
 
-#         self.ids_embeddings = ids_embeddings
-#         self.category_features_embeddings = category_features_embeddings
+        item_nets = {}
+        if ids_embeddings is not None:
+            item_nets["item_embeddings"] = ids_embeddings
+        
+        if category_features_embeddings is not None:
+            item_nets["cat_features_embeddings"] = category_features_embeddings
+        
+        if ids_embeddings is None and category_features_embeddings is None:
+            explanation = "Either ids_embeddings or category_features_embeddings must be provided"
+            raise ValueError(explanation)
+        
+        # self.embeddings_nets = nn.ModuleList(embeddings_nets)
+        # self.ids_embeddings = ids_embeddings
+        # self.category_features_embeddings = category_features_embeddings
 
-#         # self.item_emb = nn.ModuleDict(item_nets)
+        self.item_emb = nn.ModuleDict(item_nets)
 
-#     def forward(self, items: torch.Tensor) -> torch.Tensor:
-#         """TODO"""
-#         item_embs = self.ids_embeddings(items)  # IdEmbeddingsItemNet
-#         if self.category_features_embeddings is not None:
-#             # TODO: get only necessary category features for certain_items
-#             item_embs += self.category_features_embeddings(items)  # CatFeaturesEmebbedingsItemBlock
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        item_embs = []
+        for embedding_layer_name in self.embeddings_nets:
+            item_embs.append(self.embeddings_nets[embedding_layer_name](items))
+        # item_embs = self.ids_embeddings(items)  # IdEmbeddingsItemNet
+        # if self.category_features_embeddings is not None:
+        #     # TODO: get only necessary category features for certain_items
+        #     item_embs += self.category_features_embeddings(items)  # CatFeaturesEmebbedingsItemBlock
+        return torch.sum(item_embs, dim=0)
 
-#     @property
-#     def catalogue(self) -> torch.Tensor:
-#         """TODO"""
-#         return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
+    @property
+    def catalogue(self) -> torch.Tensor:
+        """TODO"""
+        return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
 
-#     def get_all_embeddings(self) -> torch.Tensor:
-#         """TODO"""
-#         return self.forward(self.catalogue)
+    def get_all_embeddings(self) -> torch.Tensor:
+        """TODO"""
+        return self.forward(self.catalogue)
 
-#     @classmethod
-#     def construct_nets_from_dataset(
-#         cls, dataset: Dataset, n_factors: int, dropout_rate: float, use_item_ids: bool, use_cat_item_features: bool
-#     ) -> tpe.Self:
-#         """TODO
-# Вместо классметод `from_dataset` он имеет метод `construct_nets_from_dataset`, который последовательно будет
-# вызывать методы `from_dataset` всего списка своих блоков сети.
-# Не забыть сохранить n_items для метода `get_all_embeddings`.
-#         """
-#         n_items = dataset.item_id_map.size
+    @classmethod
+    def construct_nets_from_dataset(
+        cls, dataset: Dataset, n_factors: int, dropout_rate: float, use_ids_emb: bool, use_cat_features_embs: bool
+    ) -> tpe.Self:
+        """TODO
+        Вместо классметод `from_dataset` он имеет метод `construct_nets_from_dataset`, который последовательно будет
+        вызывать методы `from_dataset` всего списка своих блоков сети.
+        Не забыть сохранить n_items для метода `get_all_embeddings`.
+        """
+        n_items = dataset.item_id_map.size
+        
+        embeddings_nets = []
 
-#         ids_embeddings = None
-#         if use_item_ids:
-#             ids_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors, dropout_rate)
+        ids_embeddings = None
+        if use_ids_emb:
+            ids_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors, dropout_rate)
+            embeddings_nets.append(ids_embeddings)
 
-#         # TODO: add method for getting only category features
-#         if use_cat_item_features:
-#             category_features_embeddings = None
-#             if dataset.item_features is not None:
-#                 category_features_embeddings = CatFeaturesEmebbedingsItemBlock(
-#                     dataset, n_factors=n_factors, dropout_rate=dropout_rate
-#                 )
-#             else:
-#                 explanation = f"""dataset doesn't have item features."""
-#                 warnings.warn(explanation)
+        if use_cat_features_embs:
+            category_features_embeddings = None
+            if dataset.item_features is not None:
+                category_features_embeddings = CatFeaturesEmebbedingsItemBlock(
+                    dataset, n_factors=n_factors, dropout_rate=dropout_rate
+                )
+                embeddings_nets.append(category_features_embeddings)
+            else:
+                explanation = f"""dataset doesn't have item features."""
+                warnings.warn(explanation)
 
-#         return cls(n_items, ids_embeddings, category_features_embeddings)
+        if not embeddings_nets:
+            explanation = "Either ids_embeddings or category_features_embeddings must be provided"
+            raise ValueError(explanation)
+
+        return cls(n_items, embeddings_nets)
 
 
 class PointWiseFeedForward(nn.Module):
@@ -416,13 +439,15 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         session_maxlen: int,
         dropout_rate: float,
         use_pos_emb: bool = True,  # TODO: add pos_encoding_type option for user to pass
+        use_ids_emb: bool = True,
+        use_cat_item_features_emb: bool = False,
         use_causal_attn: bool = True,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,
-        item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,
+        item_net_type: tp.Type[ItemNetBase] = ConstructedItemNetBlock,
     ) -> None:
         super().__init__()
 
-        self.item_model: ItemNetBase
+        self.item_model: ConstructedItemNetBlock
         self.pos_encoding = LearnableInversePositionalEncoding(use_pos_emb, session_maxlen, n_factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers_type(
@@ -431,6 +456,8 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             n_heads=n_heads,
             dropout_rate=dropout_rate,
         )
+        self.use_ids_emb = use_ids_emb
+        self.use_cat_item_features_emb = use_cat_item_features_emb
         self.use_causal_attn = use_causal_attn
         self.item_net_type = item_net_type
         self.n_factors = n_factors
@@ -438,7 +465,9 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
     def costruct_item_net(self, dataset: Dataset) -> None:
         """TODO"""
-        self.item_model = self.item_net_type.from_dataset(dataset, self.n_factors, self.dropout_rate)
+        self.item_model = self.item_net_type.construct_nets_from_dataset(
+            dataset, self.n_factors, self.dropout_rate, self.use_ids_emb, self.use_cat_item_features_emb
+        )
 
     def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
@@ -790,6 +819,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         n_heads: int,
         dropout_rate: float,
         use_pos_emb: bool = True,
+        use_ids_emb: bool = True,
+        use_cat_item_features_emb: bool = False,
         loss: str = "softmax",
         verbose: int = 0,
         cpu_n_threads: int = 0,
@@ -807,6 +838,8 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
             session_maxlen=session_maxlen,
             dropout_rate=dropout_rate,
             use_pos_emb=use_pos_emb,
+            use_ids_emb=use_ids_emb,
+            use_cat_item_features_emb=use_cat_item_features_emb,
             use_causal_attn=True,
             transformer_layers_type=transformer_layers_type,
             item_net_type=item_net_type,
