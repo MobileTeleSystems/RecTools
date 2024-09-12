@@ -22,7 +22,7 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import PopularInCategoryModel
-from rectools.models.popular import Popularity, TimeDelta
+from rectools.models.popular import Popularity
 from rectools.models.popular_in_category import MixingStrategy, RatioStrategy
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -472,7 +472,9 @@ class TestPopularInCategoryModelConfiguration:
             },
         ),
     )
-    def test_from_config(self, period: TimeDelta, begin_from: tp.Optional[tp.Union[datetime, str]]) -> None:
+    def test_from_config(
+        self, period: tp.Optional[tp.Union[timedelta, dict]], begin_from: tp.Optional[tp.Union[datetime, str]]
+    ) -> None:
         config = {
             "category_feature": "f1",
             "n_categories": 2,
@@ -495,48 +497,28 @@ class TestPopularInCategoryModelConfiguration:
             assert model.mixing_strategy == MixingStrategy("group")
             assert model.ratio_strategy == RatioStrategy("equal")
             assert model.popularity == Popularity("n_interactions")
-            serialized_period = (
-                timedelta(
-                    days=period.get("days", 0),
-                    seconds=period.get("seconds", 0),
-                    microseconds=period.get("microseconds", 0),
-                    milliseconds=period.get("milliseconds", 0),
-                    minutes=period.get("minutes", 0),
-                    hours=period.get("hours", 0),
-                    weeks=period.get("weeks", 0),
-                )
-                if isinstance(period, dict)
-                else period
-            )
+            serialized_period = timedelta(**period) if isinstance(period, dict) else period
             assert model.period == serialized_period
-            assert model.begin_from == begin_from
+            serialiazed_begin_from = datetime.fromisoformat(begin_from) if isinstance(begin_from, str) else begin_from
+            assert model.begin_from == serialiazed_begin_from
             assert model.add_cold is True
             assert model.inverse is True
             assert model.verbose == 0
 
-    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23), "2021-11-23 10:20:30.400"))
+    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23)))
     @pytest.mark.parametrize(
         "period",
         (
             None,
             timedelta(days=7),
-            {
-                "days": 7,
-                "seconds": 123,
-                "microseconds": 12345,
-                "milliseconds": 32,
-                "minutes": 2,
-                "hours": 10,
-                "weeks": 7,
-            },
         ),
     )
     @pytest.mark.parametrize("popularity", ("mean_weight", "sum_weight"))
     def test_get_config(
         self,
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
-        period: TimeDelta,
-        begin_from: tp.Optional[tp.Union[datetime, str]],
+        period: tp.Optional[timedelta],
+        begin_from: tp.Optional[datetime],
     ) -> None:
         if period is not None and begin_from is not None:
             with pytest.raises(ValueError):
@@ -566,27 +548,18 @@ class TestPopularInCategoryModelConfiguration:
                 verbose=1,
             )
             config = model.get_config()
-            pre_serialized_period = (
-                timedelta(
-                    days=period.get("days", 0),
-                    seconds=period.get("seconds", 0),
-                    microseconds=period.get("microseconds", 0),
-                    milliseconds=period.get("milliseconds", 0),
-                    minutes=period.get("minutes", 0),
-                    hours=period.get("hours", 0),
-                    weeks=period.get("weeks", 0),
-                )
-                if isinstance(period, dict)
-                else period
-            )
             serialized_period = (
                 {
-                    "days": pre_serialized_period.days,
-                    "seconds": pre_serialized_period.seconds,
-                    "microseconds": pre_serialized_period.microseconds,
+                    key: value
+                    for key, value in {
+                        "days": period.days,
+                        "seconds": period.seconds,
+                        "microseconds": period.microseconds,
+                    }.items()
+                    if value != 0
                 }
-                if pre_serialized_period is not None
-                else pre_serialized_period
+                if isinstance(period, timedelta)
+                else period
             )
             expected = {
                 "category_feature": "f2",
@@ -624,8 +597,8 @@ class TestPopularInCategoryModelConfiguration:
         self,
         dataset: Dataset,
         category_feature: str,
-        period: TimeDelta,
-        begin_from: tp.Optional[tp.Union[datetime, str]],
+        period: tp.Optional[timedelta],
+        begin_from: tp.Optional[datetime],
         simple_types: bool,
     ) -> None:
         initial_config = {

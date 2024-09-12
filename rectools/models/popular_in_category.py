@@ -28,7 +28,7 @@ from rectools.dataset import Dataset, Interactions, features
 from rectools.types import InternalIdsArray
 
 from .base import ModelBase, Scores
-from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, TimeDelta
+from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, Popularity, TimeDelta
 
 
 class MixingStrategy(Enum):
@@ -119,8 +119,8 @@ class PopularInCategoryModel(
         mixing_strategy: tp.Literal["rotate", "group"] = "rotate",
         ratio_strategy: tp.Literal["proportional", "equal"] = "proportional",
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: TimeDelta = None,
-        begin_from: tp.Optional[tp.Union[datetime, str]] = None,
+        period: tp.Optional[TimeDelta] = None,
+        begin_from: tp.Optional[datetime] = None,
         add_cold: bool = False,
         inverse: bool = False,
         verbose: int = 0,
@@ -129,7 +129,9 @@ class PopularInCategoryModel(
             verbose=verbose,
         )
 
-        self._validate_popular_model_attributes(popularity, period, begin_from)
+        self._validate_popularity(popularity)
+        self.popularity = Popularity(popularity)
+        self._validate_time_attributes(period, begin_from)
         self.period = period
         self.begin_from = begin_from
 
@@ -137,8 +139,17 @@ class PopularInCategoryModel(
         self.inverse = inverse
 
         self.category_feature = category_feature
-        self.mixing_strategy = MixingStrategy(mixing_strategy)
-        self.ratio_strategy = RatioStrategy(ratio_strategy)
+        try:
+            self.mixing_strategy = MixingStrategy(mixing_strategy)
+        except ValueError:
+            possible_values = {item.value for item in MixingStrategy.__members__.values()}
+            raise ValueError(f"`mixing_strategy` must be one of the {possible_values}. Got {mixing_strategy}.")
+
+        try:
+            self.ratio_strategy = RatioStrategy(ratio_strategy)
+        except ValueError:
+            possible_values = {item.value for item in RatioStrategy.__members__.values()}
+            raise ValueError(f"`ratio_strategy` must be one of the {possible_values}. Got {ratio_strategy}.")
         self.category_columns: tp.List[int] = []
         self.category_interactions: tp.Dict[int, pd.DataFrame] = {}
         self.category_scores: pd.Series

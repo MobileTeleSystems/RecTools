@@ -43,30 +43,25 @@ class Popularity(Enum):
     SUM_WEIGHT = "sum_weight"
 
 
-def _serialize_timedelta(td: tp.Optional[tp.Union[None, dict, timedelta]]) -> tp.Optional[timedelta]:
+def _deserialize_timedelta(td: tp.Union[dict, timedelta]) -> timedelta:
     if isinstance(td, dict):
-        return timedelta(
-            days=td.get("days", 0),
-            seconds=td.get("seconds", 0),
-            microseconds=td.get("microseconds", 0),
-            milliseconds=td.get("milliseconds", 0),
-            minutes=td.get("minutes", 0),
-            hours=td.get("hours", 0),
-            weeks=td.get("weeks", 0),
-        )
+        return timedelta(**td)
     return td
 
 
-def _deserialize_timedelta(td: tp.Optional[timedelta]) -> tp.Optional[dict]:
-    if td is None:
-        return td
-    return {"days": td.days, "seconds": td.seconds, "microseconds": td.microseconds}
+def _serialize_timedelta(td: timedelta) -> dict:
+    serialized_td = {
+        key: value
+        for key, value in {"days": td.days, "seconds": td.seconds, "microseconds": td.microseconds}.items()
+        if value != 0
+    }
+    return serialized_td
 
 
 TimeDelta = tpe.Annotated[
-    tp.Union[None, timedelta, dict],
-    PlainValidator(func=_serialize_timedelta),
-    PlainSerializer(func=_deserialize_timedelta),
+    timedelta,
+    PlainValidator(func=_deserialize_timedelta),
+    PlainSerializer(func=_serialize_timedelta),
 ]
 
 
@@ -74,8 +69,8 @@ class PopularModelConfig(ModelConfig):
     """Config for `PopularModel`."""
 
     popularity: Popularity = Popularity.N_USERS
-    period: TimeDelta = None
-    begin_from: tp.Optional[tp.Union[datetime, str]] = None
+    period: tp.Optional[TimeDelta] = None
+    begin_from: tp.Optional[datetime] = None
     add_cold: bool = False
     inverse: bool = False
 
@@ -83,22 +78,27 @@ class PopularModelConfig(ModelConfig):
 class PopularModelMixin:
     """Mixin for models based on popularity."""
 
-    def _validate_popular_model_attributes(
-        self,
+    @classmethod
+    def _validate_popularity(
+        cls,
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
-        period: TimeDelta,
-        begin_from: tp.Optional[tp.Union[datetime, str]],
     ) -> None:
-        try:
-            self.popularity = Popularity(popularity)
-        except ValueError:
-            possible_values = {item.value for item in Popularity.__members__.values()}
+        possible_values = {item.value for item in Popularity.__members__.values()}
+        if popularity not in possible_values:
             raise ValueError(f"`popularity` must be one of the {possible_values}. Got {popularity}.")
+
+    @classmethod
+    def _validate_time_attributes(
+        cls,
+        period: tp.Optional[TimeDelta],
+        begin_from: tp.Optional[datetime],
+    ) -> None:
         if period is not None and begin_from is not None:
             raise ValueError("Only one of `period` and `begin_from` can be set")
 
+    @classmethod
     def _filter_interactions(
-        self, interactions: pd.DataFrame, period: TimeDelta, begin_from: tp.Optional[tp.Union[datetime, str]]
+        cls, interactions: pd.DataFrame, period: tp.Optional[TimeDelta], begin_from: tp.Optional[datetime]
     ) -> pd.DataFrame:
         if begin_from is not None:
             interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
@@ -107,7 +107,8 @@ class PopularModelMixin:
             interactions = interactions.loc[interactions[Columns.Datetime] >= begin_from]
         return interactions
 
-    def _get_groupby_col_and_agg_func(self, popularity: Popularity) -> tp.Tuple[str, str]:
+    @classmethod
+    def _get_groupby_col_and_agg_func(cls, popularity: Popularity) -> tp.Tuple[str, str]:
         if popularity == Popularity.N_USERS:
             return Columns.User, "nunique"
         if popularity == Popularity.N_INTERACTIONS:
@@ -160,8 +161,8 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
     def __init__(
         self,
         popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: TimeDelta = None,
-        begin_from: tp.Optional[tp.Union[datetime, str]] = None,
+        period: tp.Optional[TimeDelta] = None,
+        begin_from: tp.Optional[datetime] = None,
         add_cold: bool = False,
         inverse: bool = False,
         verbose: int = 0,
@@ -169,7 +170,9 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
         super().__init__(
             verbose=verbose,
         )
-        self._validate_popular_model_attributes(popularity, period, begin_from)
+        self._validate_popularity(popularity)
+        self.popularity = Popularity(popularity)
+        self._validate_time_attributes(period, begin_from)
         self.period = period
         self.begin_from = begin_from
 
