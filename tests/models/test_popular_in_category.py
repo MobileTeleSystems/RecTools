@@ -22,69 +22,78 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import PopularInCategoryModel
-from tests.models.utils import assert_second_fit_refits_model
+from rectools.models.popular import Popularity
+from rectools.models.popular_in_category import MixingStrategy, RatioStrategy
+from tests.models.utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
+
+
+@pytest.fixture(name="interactions_df")  # https://github.com/pylint-dev/pylint/issues/6531
+def _interactions_df() -> pd.DataFrame:
+    interactions_df = pd.DataFrame(
+        [
+            [70, 11, 1, "2021-11-30"],
+            [70, 12, 1, "2021-11-30"],
+            [10, 11, 1, "2021-11-30"],
+            [10, 12, 1, "2021-11-29"],
+            [10, 13, 9, "2021-11-28"],
+            [20, 11, 1, "2021-11-27"],
+            [20, 14, 2, "2021-11-26"],
+            [20, 14, 1, "2021-11-25"],
+            [20, 14, 1, "2021-11-25"],
+            [20, 14, 1, "2021-11-25"],
+            [20, 14, 1, "2021-11-25"],
+            [20, 14, 1, "2021-11-25"],
+            [30, 11, 1, "2021-11-24"],
+            [30, 12, 1, "2021-11-23"],
+            [30, 14, 1, "2021-11-23"],
+            [30, 15, 5, "2021-11-21"],
+            [30, 15, 5, "2021-11-21"],
+            [40, 11, 1, "2021-11-20"],
+            [40, 12, 1, "2021-11-19"],
+            [50, 12, 1, "2021-11-19"],
+            [60, 12, 1, "2021-11-19"],
+        ],
+        columns=Columns.Interactions,
+    )
+    return interactions_df
+
+
+@pytest.fixture(name="item_features_df")
+def _item_features_df() -> pd.DataFrame:
+    item_features_df = pd.DataFrame(
+        {
+            "id": [11, 11, 12, 12, 13, 13, 14, 14, 14],
+            "feature": ["f1", "f2", "f1", "f2", "f1", "f2", "f1", "f2", "f3"],
+            "value": [100, "a", 100, "b", 100, "b", 200, "c", 1],
+        }
+    )
+    return item_features_df
+
+
+@pytest.fixture(name="dataset")
+def _dataset(interactions_df: pd.DataFrame, item_features_df: pd.DataFrame) -> Dataset:
+    user_features_df = pd.DataFrame(
+        {
+            "id": [10, 50],
+            "feature": ["f1", "f1"],
+            "value": [1, 1],
+        }
+    )
+    dataset = Dataset.construct(
+        interactions_df=interactions_df,
+        user_features_df=user_features_df,
+        item_features_df=item_features_df,
+        cat_item_features=["f2", "f1"],
+    )
+    return dataset
 
 
 @pytest.mark.filterwarnings("ignore")
 class TestPopularInCategoryModel:
-    @pytest.fixture
-    def interactions_df(self) -> pd.DataFrame:
-        interactions_df = pd.DataFrame(
-            [
-                [70, 11, 1, "2021-11-30"],
-                [70, 12, 1, "2021-11-30"],
-                [10, 11, 1, "2021-11-30"],
-                [10, 12, 1, "2021-11-29"],
-                [10, 13, 9, "2021-11-28"],
-                [20, 11, 1, "2021-11-27"],
-                [20, 14, 2, "2021-11-26"],
-                [20, 14, 1, "2021-11-25"],
-                [20, 14, 1, "2021-11-25"],
-                [20, 14, 1, "2021-11-25"],
-                [20, 14, 1, "2021-11-25"],
-                [20, 14, 1, "2021-11-25"],
-                [30, 11, 1, "2021-11-24"],
-                [30, 12, 1, "2021-11-23"],
-                [30, 14, 1, "2021-11-23"],
-                [30, 15, 5, "2021-11-21"],
-                [30, 15, 5, "2021-11-21"],
-                [40, 11, 1, "2021-11-20"],
-                [40, 12, 1, "2021-11-19"],
-                [50, 12, 1, "2021-11-19"],
-                [60, 12, 1, "2021-11-19"],
-            ],
-            columns=Columns.Interactions,
-        )
-        return interactions_df
-
-    @pytest.fixture
-    def item_features_df(self) -> pd.DataFrame:
-        item_features_df = pd.DataFrame(
-            {
-                "id": [11, 11, 12, 12, 13, 13, 14, 14, 14],
-                "feature": ["f1", "f2", "f1", "f2", "f1", "f2", "f1", "f2", "f3"],
-                "value": [100, "a", 100, "b", 100, "b", 200, "c", 1],
-            }
-        )
-        return item_features_df
-
-    @pytest.fixture
-    def dataset(self, interactions_df: pd.DataFrame, item_features_df: pd.DataFrame) -> Dataset:
-        user_features_df = pd.DataFrame(
-            {
-                "id": [10, 50],
-                "feature": ["f1", "f1"],
-                "value": [1, 1],
-            }
-        )
-        dataset = Dataset.construct(
-            interactions_df=interactions_df,
-            user_features_df=user_features_df,
-            item_features_df=item_features_df,
-            cat_item_features=["f2", "f1"],
-        )
-        return dataset
-
     @classmethod
     def assert_reco(
         cls,
@@ -444,3 +453,151 @@ class TestPopularInCategoryModel:
             n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)
+
+
+class TestPopularInCategoryModelConfiguration:
+    @pytest.mark.parametrize(
+        "begin_from,period,expected_begin_from,expected_period",
+        (
+            (None, timedelta(days=7), None, timedelta(days=7)),
+            (datetime(2021, 11, 23), None, datetime(2021, 11, 23), None),
+            ("2021-11-23T10:20:30.400", None, datetime(2021, 11, 23, 10, 20, 30, 400000), None),
+            (
+                None,
+                {
+                    "days": 7,
+                    "seconds": 123,
+                    "microseconds": 12345,
+                    "milliseconds": 32,
+                    "minutes": 2,
+                    "weeks": 7,
+                },
+                None,
+                timedelta(days=56, seconds=243, microseconds=44345),
+            ),
+        ),
+    )
+    def test_from_config(
+        self,
+        period: tp.Optional[tp.Union[timedelta, dict]],
+        begin_from: tp.Optional[tp.Union[datetime, str]],
+        expected_begin_from: tp.Optional[datetime],
+        expected_period: tp.Optional[dict],
+    ) -> None:
+        config = {
+            "category_feature": "f1",
+            "n_categories": 2,
+            "mixing_strategy": "group",
+            "ratio_strategy": "equal",
+            "popularity": "n_interactions",
+            "period": period,
+            "begin_from": begin_from,
+            "add_cold": True,
+            "inverse": True,
+            "verbose": 0,
+        }
+        model = PopularInCategoryModel.from_config(config)
+        assert model.category_feature == "f1"
+        assert model.n_categories == 2
+        assert model.mixing_strategy == MixingStrategy("group")
+        assert model.ratio_strategy == RatioStrategy("equal")
+        assert model.popularity == Popularity("n_interactions")
+        assert model.period == expected_period
+        assert model.begin_from == expected_begin_from
+        assert model.add_cold is True
+        assert model.inverse is True
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize(
+        "begin_from,period,expected_period",
+        (
+            (
+                None,
+                timedelta(weeks=2, days=7, hours=23, milliseconds=12345),
+                {"days": 21, "microseconds": 345000, "seconds": 82812},
+            ),
+            (datetime(2021, 11, 23, 10, 20, 30, 400000), None, None),
+        ),
+    )
+    def test_get_config(
+        self,
+        period: tp.Optional[timedelta],
+        begin_from: tp.Optional[datetime],
+        expected_period: tp.Optional[timedelta],
+    ) -> None:
+        model = PopularInCategoryModel(
+            category_feature="f2",
+            n_categories=3,
+            mixing_strategy="rotate",
+            ratio_strategy="proportional",
+            popularity="n_users",
+            period=period,
+            begin_from=begin_from,
+            add_cold=False,
+            inverse=False,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "category_feature": "f2",
+            "n_categories": 3,
+            "mixing_strategy": MixingStrategy("rotate"),
+            "ratio_strategy": RatioStrategy("proportional"),
+            "popularity": Popularity("n_users"),
+            "period": expected_period,
+            "begin_from": begin_from,
+            "add_cold": False,
+            "inverse": False,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize(
+        "begin_from,period,simple_types",
+        (
+            (
+                None,
+                timedelta(weeks=1, days=2, hours=3, minutes=4, seconds=5, milliseconds=6000, microseconds=70000),
+                True,
+            ),
+            (datetime(2021, 11, 23), None, False),
+            ("2021-11-23T10:20:30.400", None, True),
+            (
+                None,
+                {
+                    "days": 7,
+                    "seconds": 123,
+                    "microseconds": 12345,
+                    "milliseconds": 32,
+                    "minutes": 2,
+                    "weeks": 7,
+                },
+                False,
+            ),
+        ),
+    )
+    def test_get_config_and_from_config_compatibility(
+        self,
+        dataset: Dataset,
+        period: tp.Optional[timedelta],
+        begin_from: tp.Optional[datetime],
+        simple_types: bool,
+    ) -> None:
+        initial_config = {
+            "category_feature": "f1",
+            "n_categories": 2,
+            "mixing_strategy": "group",
+            "ratio_strategy": "equal",
+            "popularity": "n_users",
+            "period": period,
+            "begin_from": begin_from,
+            "add_cold": True,
+            "inverse": False,
+            "verbose": 0,
+        }
+        assert_get_config_and_from_config_compatibility(PopularInCategoryModel, dataset, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, str] = {"category_feature": "f2"}
+        model = PopularInCategoryModel(category_feature="f2")
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

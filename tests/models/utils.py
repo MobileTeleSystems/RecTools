@@ -58,7 +58,7 @@ def assert_default_config_and_default_model_params_are_the_same(
 
 
 def assert_get_config_and_from_config_compatibility(
-    model: ModelBase, dataset: Dataset, initial_config: tp.Dict[str, tp.Any], simple_types: bool
+    model: tp.Type[ModelBase], dataset: Dataset, initial_config: tp.Dict[str, tp.Any], simple_types: bool
 ) -> None:
     def get_reco(model: ModelBase) -> pd.DataFrame:
         return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)

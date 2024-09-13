@@ -168,7 +168,7 @@ class TestCrossValidate:
             "intersection": Intersection(1),
         }
 
-        self.models = {
+        self.models: tp.Dict[str, ModelBase] = {
             "popular": PopularModel(),
             "random": RandomModel(random_state=42),
         }
