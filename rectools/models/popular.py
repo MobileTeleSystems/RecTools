@@ -75,16 +75,21 @@ class PopularModelConfig(ModelConfig):
     inverse: bool = False
 
 
+PopularityOptions = tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"]
+
+
 class PopularModelMixin:
     """Mixin for models based on popularity."""
 
     @classmethod
     def _validate_popularity(
         cls,
-        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
-    ) -> None:
-        possible_values = {item.value for item in Popularity.__members__.values()}
-        if popularity not in possible_values:
+        popularity: PopularityOptions,
+    ) -> Popularity:
+        try:
+            return Popularity(popularity)
+        except ValueError:
+            possible_values = {item.value for item in Popularity.__members__.values()}
             raise ValueError(f"`popularity` must be one of the {possible_values}. Got {popularity}.")
 
     @classmethod
@@ -160,8 +165,8 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
 
     def __init__(
         self,
-        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: tp.Optional[TimeDelta] = None,
+        popularity: PopularityOptions = "n_users",
+        period: tp.Optional[timedelta] = None,
         begin_from: tp.Optional[datetime] = None,
         add_cold: bool = False,
         inverse: bool = False,
@@ -170,8 +175,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
         super().__init__(
             verbose=verbose,
         )
-        self._validate_popularity(popularity)
-        self.popularity = Popularity(popularity)
+        self.popularity = self._validate_popularity(popularity)
         self._validate_time_attributes(period, begin_from)
         self.period = period
         self.begin_from = begin_from

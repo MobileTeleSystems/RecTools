@@ -31,8 +31,8 @@ from tests.models.utils import (
 )
 
 
-@pytest.fixture(name="interactions_df")
-def custom_interactions_df() -> pd.DataFrame:
+@pytest.fixture(name="interactions_df")  # https://github.com/pylint-dev/pylint/issues/6531
+def _interactions_df() -> pd.DataFrame:
     interactions_df = pd.DataFrame(
         [
             [70, 11, 1, "2021-11-30"],
@@ -63,7 +63,7 @@ def custom_interactions_df() -> pd.DataFrame:
 
 
 @pytest.fixture(name="item_features_df")
-def custom_item_features_df() -> pd.DataFrame:
+def _item_features_df() -> pd.DataFrame:
     item_features_df = pd.DataFrame(
         {
             "id": [11, 11, 12, 12, 13, 13, 14, 14, 14],
@@ -75,7 +75,7 @@ def custom_item_features_df() -> pd.DataFrame:
 
 
 @pytest.fixture(name="dataset")
-def custom_dataset(interactions_df: pd.DataFrame, item_features_df: pd.DataFrame) -> Dataset:
+def _dataset(interactions_df: pd.DataFrame, item_features_df: pd.DataFrame) -> Dataset:
     user_features_df = pd.DataFrame(
         {
             "id": [10, 50],
@@ -456,24 +456,33 @@ class TestPopularInCategoryModel:
 
 
 class TestPopularInCategoryModelConfiguration:
-    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23), "2021-11-23T10:20:30.400+02:30"))
     @pytest.mark.parametrize(
-        "period",
+        "begin_from,period,expected_begin_from,expected_period",
         (
-            None,
-            timedelta(days=7),
-            {
-                "days": 7,
-                "seconds": 123,
-                "microseconds": 12345,
-                "milliseconds": 32,
-                "minutes": 2,
-                "weeks": 7,
-            },
+            (None, timedelta(days=7), None, timedelta(days=7)),
+            (datetime(2021, 11, 23), None, datetime(2021, 11, 23), None),
+            ("2021-11-23T10:20:30.400", None, datetime(2021, 11, 23, 10, 20, 30, 400000), None),
+            (
+                None,
+                {
+                    "days": 7,
+                    "seconds": 123,
+                    "microseconds": 12345,
+                    "milliseconds": 32,
+                    "minutes": 2,
+                    "weeks": 7,
+                },
+                None,
+                timedelta(days=56, seconds=243, microseconds=44345),
+            ),
         ),
     )
     def test_from_config(
-        self, period: tp.Optional[tp.Union[timedelta, dict]], begin_from: tp.Optional[tp.Union[datetime, str]]
+        self,
+        period: tp.Optional[tp.Union[timedelta, dict]],
+        begin_from: tp.Optional[tp.Union[datetime, str]],
+        expected_begin_from: tp.Optional[datetime],
+        expected_period: tp.Optional[dict],
     ) -> None:
         config = {
             "category_feature": "f1",
@@ -487,122 +496,95 @@ class TestPopularInCategoryModelConfiguration:
             "inverse": True,
             "verbose": 0,
         }
-        if period is not None and begin_from is not None:
-            with pytest.raises(ValueError):
-                model = PopularInCategoryModel.from_config(config)
-        else:
-            model = PopularInCategoryModel.from_config(config)
-            assert model.category_feature == "f1"
-            assert model.n_categories == 2
-            assert model.mixing_strategy == MixingStrategy("group")
-            assert model.ratio_strategy == RatioStrategy("equal")
-            assert model.popularity == Popularity("n_interactions")
-            serialized_period = timedelta(**period) if isinstance(period, dict) else period
-            assert model.period == serialized_period
-            serialiazed_begin_from = datetime.fromisoformat(begin_from) if isinstance(begin_from, str) else begin_from
-            assert model.begin_from == serialiazed_begin_from
-            assert model.add_cold is True
-            assert model.inverse is True
-            assert model.verbose == 0
+        model = PopularInCategoryModel.from_config(config)
+        assert model.category_feature == "f1"
+        assert model.n_categories == 2
+        assert model.mixing_strategy == MixingStrategy("group")
+        assert model.ratio_strategy == RatioStrategy("equal")
+        assert model.popularity == Popularity("n_interactions")
+        assert model.period == expected_period
+        assert model.begin_from == expected_begin_from
+        assert model.add_cold is True
+        assert model.inverse is True
+        assert model.verbose == 0
 
-    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23)))
     @pytest.mark.parametrize(
-        "period",
+        "begin_from,period,expected_period",
         (
-            None,
-            timedelta(days=7),
+            (
+                None,
+                timedelta(weeks=2, days=7, hours=23, milliseconds=12345),
+                {"days": 21, "microseconds": 345000, "seconds": 82812},
+            ),
+            (datetime(2021, 11, 23, 10, 20, 30, 400000), None, None),
         ),
     )
-    @pytest.mark.parametrize("popularity", ("mean_weight", "sum_weight"))
     def test_get_config(
         self,
-        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"],
         period: tp.Optional[timedelta],
         begin_from: tp.Optional[datetime],
+        expected_period: tp.Optional[timedelta],
     ) -> None:
-        if period is not None and begin_from is not None:
-            with pytest.raises(ValueError):
-                model = PopularInCategoryModel(
-                    category_feature="f2",
-                    n_categories=3,
-                    mixing_strategy="rotate",
-                    ratio_strategy="proportional",
-                    popularity=popularity,
-                    period=period,
-                    begin_from=begin_from,
-                    add_cold=False,
-                    inverse=False,
-                    verbose=1,
-                )
-        else:
-            model = PopularInCategoryModel(
-                category_feature="f2",
-                n_categories=3,
-                mixing_strategy="rotate",
-                ratio_strategy="proportional",
-                popularity=popularity,
-                period=period,
-                begin_from=begin_from,
-                add_cold=False,
-                inverse=False,
-                verbose=1,
-            )
-            config = model.get_config()
-            serialized_period = (
-                {
-                    key: value
-                    for key, value in {
-                        "days": period.days,
-                        "seconds": period.seconds,
-                        "microseconds": period.microseconds,
-                    }.items()
-                    if value != 0
-                }
-                if isinstance(period, timedelta)
-                else period
-            )
-            expected = {
-                "category_feature": "f2",
-                "n_categories": 3,
-                "mixing_strategy": MixingStrategy("rotate"),
-                "ratio_strategy": RatioStrategy("proportional"),
-                "popularity": Popularity(popularity),
-                "period": serialized_period,
-                "begin_from": begin_from,
-                "add_cold": False,
-                "inverse": False,
-                "verbose": 1,
-            }
-            assert config == expected
+        model = PopularInCategoryModel(
+            category_feature="f2",
+            n_categories=3,
+            mixing_strategy="rotate",
+            ratio_strategy="proportional",
+            popularity="n_users",
+            period=period,
+            begin_from=begin_from,
+            add_cold=False,
+            inverse=False,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "category_feature": "f2",
+            "n_categories": 3,
+            "mixing_strategy": MixingStrategy("rotate"),
+            "ratio_strategy": RatioStrategy("proportional"),
+            "popularity": Popularity("n_users"),
+            "period": expected_period,
+            "begin_from": begin_from,
+            "add_cold": False,
+            "inverse": False,
+            "verbose": 1,
+        }
+        assert config == expected
 
-    @pytest.mark.parametrize("begin_from", (None, datetime(2021, 11, 23), "2021-11-23T10:20:30.400"))
     @pytest.mark.parametrize(
-        "period",
+        "begin_from,period,simple_types",
         (
-            None,
-            timedelta(days=7),
-            {
-                "days": 7,
-                "seconds": 123,
-                "milliseconds": 32,
-                "minutes": 2,
-                "hours": 10,
-                "weeks": 7,
-            },
+            (
+                None,
+                timedelta(weeks=1, days=2, hours=3, minutes=4, seconds=5, milliseconds=6000, microseconds=70000),
+                True,
+            ),
+            (datetime(2021, 11, 23), None, False),
+            ("2021-11-23T10:20:30.400", None, True),
+            (
+                None,
+                {
+                    "days": 7,
+                    "seconds": 123,
+                    "microseconds": 12345,
+                    "milliseconds": 32,
+                    "minutes": 2,
+                    "weeks": 7,
+                },
+                False,
+            ),
         ),
     )
-    @pytest.mark.parametrize("category_feature", ("f1", "f2"))
-    @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(
         self,
         dataset: Dataset,
-        category_feature: str,
         period: tp.Optional[timedelta],
         begin_from: tp.Optional[datetime],
         simple_types: bool,
     ) -> None:
         initial_config = {
-            "category_feature": category_feature,
+            "category_feature": "f1",
             "n_categories": 2,
             "mixing_strategy": "group",
             "ratio_strategy": "equal",
@@ -613,13 +595,7 @@ class TestPopularInCategoryModelConfiguration:
             "inverse": False,
             "verbose": 0,
         }
-        if period is not None and begin_from is not None:
-            with pytest.raises(ValueError):
-                PopularInCategoryModel(category_feature=category_feature, period=period, begin_from=begin_from)
-        else:
-            assert_get_config_and_from_config_compatibility(
-                PopularInCategoryModel, dataset, initial_config, simple_types
-            )
+        assert_get_config_and_from_config_compatibility(PopularInCategoryModel, dataset, initial_config, simple_types)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
         default_config: tp.Dict[str, str] = {"category_feature": "f2"}

@@ -16,7 +16,7 @@
 
 import typing as tp
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 import numpy as np
@@ -28,7 +28,7 @@ from rectools.dataset import Dataset, Interactions, features
 from rectools.types import InternalIdsArray
 
 from .base import ModelBase, Scores
-from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, Popularity, TimeDelta
+from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, PopularityOptions
 
 
 class MixingStrategy(Enum):
@@ -118,8 +118,8 @@ class PopularInCategoryModel(
         n_categories: tp.Optional[int] = None,
         mixing_strategy: tp.Literal["rotate", "group"] = "rotate",
         ratio_strategy: tp.Literal["proportional", "equal"] = "proportional",
-        popularity: tp.Literal["n_users", "n_interactions", "mean_weight", "sum_weight"] = "n_users",
-        period: tp.Optional[TimeDelta] = None,
+        popularity: PopularityOptions = "n_users",
+        period: tp.Optional[timedelta] = None,
         begin_from: tp.Optional[datetime] = None,
         add_cold: bool = False,
         inverse: bool = False,
@@ -129,8 +129,7 @@ class PopularInCategoryModel(
             verbose=verbose,
         )
 
-        self._validate_popularity(popularity)
-        self.popularity = Popularity(popularity)
+        self.popularity = self._validate_popularity(popularity)
         self._validate_time_attributes(period, begin_from)
         self.period = period
         self.begin_from = begin_from
