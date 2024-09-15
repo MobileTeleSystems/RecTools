@@ -72,7 +72,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     validate_ref_models : bool, default False
         If True include models specified in `ref_models` to all metrics calculations
         and receive their metrics from cross-validation.
-    on_unsupported_targets : Literal["raise", "warn", "ignore"], default "warn"
+    on_unsupported_targets : {"raise", "warn", "ignore"}, default "warn"
         How to handle warm/cold target users when model doesn't support warm/cold inference.
         Specify "warn" to filter with warning (default in `cross_validate`).
         Specify "ignore" to filter unsupported targets without a warning.
