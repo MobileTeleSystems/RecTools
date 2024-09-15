@@ -123,6 +123,15 @@ click = "8.1.7"
 gitpython = "3.1.43"
 
 
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = {version = "7.4.7", python = ">=3.9"}
+nbsphinx = "0.9.5"
+sphinx-rtd-theme = "2.0.0"
+
+
 [tool.black]
 line-length = 120
 target-version = ["py38", "py39", "py310", "py311", "py312"]

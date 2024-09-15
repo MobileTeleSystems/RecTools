@@ -14,9 +14,10 @@ SCRIPTS=scripts
 	mkdir ${REPORTS}
 
 .venv:
-	poetry install -E all --no-root
+	poetry env use 3.10
 
 install: .venv .reports
+	poetry install -E all --with docs --no-root
 
 
 # Linters

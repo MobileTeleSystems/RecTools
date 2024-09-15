@@ -9,17 +9,13 @@ build:
       - cp -r examples docs/source/
     post_install:
       - pip install --no-cache-dir poetry
-      - poetry export -f requirements.txt -o requirements.txt -E all --without-hashes
+      - poetry export -f requirements.txt -o requirements.txt -E all --with-docs --without-hashes
       - pip install --no-cache-dir -r requirements.txt
 
 sphinx:
   builder: html
   configuration: docs/source/conf.py
   fail_on_warning: false
-
-python:
-   install:
-   - requirements: docs/requirements.txt
 
 formats:
   - pdf
