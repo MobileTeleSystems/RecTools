@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 project = "RecTools"
 copyright = """
-2022 MTS (Mobile Telesystems)
+2022-2024 MTS (Mobile Telesystems)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
