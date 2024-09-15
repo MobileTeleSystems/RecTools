@@ -65,18 +65,26 @@ Install from PyPi using pip
     $ pip install rectools
 
 RecTools is compatible with all operating systems and with Python 3.8+.
-The default version doesn't contain all the dependencies. Optional dependencies are the following:
 
-lightfm: adds wrapper for LightFM model,
-torch: adds models based on neural nets,
-nmslib: adds fast ANN recommenders.
-all: all extra dependencies
+The default version doesn't contain all the dependencies, because some of them are needed only for specific functionality. Available user extensions are the following:
 
-Install RecTools with selected dependencies:
+- `lightfm`: adds wrapper for LightFM model,
+- `torch`: adds models based on neural nets,
+- `visuals`: adds visualization tools,
+- `nmslib`: adds fast ANN recommenders.
+
+Install extension:
 
 .. code-block:: bash
 
-    $ pip install rectools[lightfm,torch]
+    $ pip install rectools[extension-name]
+
+Install all extensions:
+
+.. code-block:: bash
+
+    $ pip install rectools[all]
+
 
 Why RecTools?
 -------------
