@@ -76,6 +76,11 @@ class CatFeatureEmebbedingsItem(ItemNetBase):
         return feature_embeddings
 
     @property
+    def device(self) -> torch.device:
+        """TODO"""
+        return self.value_emb.weight.device
+
+    @property
     def catalogue_values(self) -> torch.Tensor:
         """TODO"""
         return torch.arange(0, self.n_values, device=self.value_emb.weight.device)
@@ -115,8 +120,6 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
             }
         )
 
-        self.device = self.category_embeddings[list(self.category_embeddings.keys())[0]].value_emb.weight.device
-
     def forward(self, items: torch.Tensor) -> torch.Tensor:  # TODO: Return Items
         """TODO"""
         feature_dense = self.get_item_features_dense(items)
@@ -129,13 +132,22 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
         feature_embedding_per_items = feature_dense @ feature_embeddings
         return feature_embedding_per_items
 
+    @property
+    def device(self) -> torch.device:
+        """TODO"""
+        return self.category_embeddings[list(self.category_embeddings.keys())[0]].value_emb.weight.device
+
+    def get_item_features_by_certain_feature(self, feature_name: str) -> torch.Tensor:
+        """TODO"""
+        return self.category_embeddings[feature_name].get_all_embeddings()
+
     def get_item_features_dense(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
         return torch.from_numpy(feature_dense).to(self.device)
 
     @property
-    def catalogue(self) -> torch.Tensor:  # TODO: rename
+    def catalogue(self) -> torch.Tensor:
         """TODO"""
         return torch.arange(0, self.n_items, device=self.device)
 
@@ -143,17 +155,18 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
         """TODO"""
         return self.forward(self.catalogue)
 
-    def get_all_embeddings_by_certain_feature(self, feature_name: str) -> torch.Tensor:
-        """TODO"""
-        return self.category_embeddings[feature_name].get_all_embeddings()
+    # TODO: remove from Open Source
+    # def get_all_embeddings_by_certain_feature(self, feature_name: str) -> torch.Tensor:
+    #     """TODO"""
+    #     return self.category_embeddings[feature_name].get_all_embeddings()
 
-    def get_all_embeddings_as_separate_features(self) -> tp.Dict[str, torch.Tensor]:
-        """TODO"""
-        feature_embeddings = {
-            feature_name: self.get_all_embeddings_by_certain_feature(feature_name)
-            for feature_name in self.category_embeddings
-        }
-        return feature_embeddings
+    # def get_all_embeddings_as_separate_features(self) -> tp.Dict[str, torch.Tensor]:
+    #     """TODO"""
+    #     feature_embeddings = {
+    #         feature_name: self.get_all_embeddings_by_certain_feature(feature_name)
+    #         for feature_name in self.category_embeddings
+    #     }
+    #     return feature_embeddings
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
@@ -182,7 +195,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         super().__init__()
 
         self.n_items = n_items
-        self.item_emb = nn.Embedding(
+        self.ids_emb = nn.Embedding(
             num_embeddings=n_items,
             embedding_dim=n_factors,
             padding_idx=0,
@@ -191,14 +204,19 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(items)
+        item_embs = self.ids_emb(items)
         item_embs = self.drop_layer(item_embs)
         return item_embs
 
     @property
+    def device(self) -> torch.device:
+        """TODO"""
+        return self.ids_emb.weight.device
+
+    @property
     def catalogue(self) -> torch.Tensor:
         """TODO"""
-        return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
+        return torch.arange(0, self.n_items, device=self.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
@@ -211,7 +229,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
 
-class ConstructedItemNetBlock(nn.Module):
+class ConstructedItemNetBlock(ItemNetBase):
     """TODO"""
 
     def __init__(
@@ -219,7 +237,7 @@ class ConstructedItemNetBlock(nn.Module):
         n_items: int,
         # embeddings_nets: tp.List[ItemNetBase],
         ids_embeddings: tp.Optional[IdEmbeddingsItemNet] = None,
-        category_features_embeddings: tp.Optional[CatFeaturesEmebbedingsItemBlock] = None,
+        cat_features_embeddings: tp.Optional[CatFeaturesEmebbedingsItemBlock] = None,
     ) -> None:
         """TODO"""
         super().__init__()
@@ -228,12 +246,12 @@ class ConstructedItemNetBlock(nn.Module):
 
         item_nets = {}
         if ids_embeddings is not None:
-            item_nets["item_embeddings"] = ids_embeddings
+            item_nets["ids_embeddings"] = ids_embeddings
         
-        if category_features_embeddings is not None:
-            item_nets["cat_features_embeddings"] = category_features_embeddings
+        if cat_features_embeddings is not None:
+            item_nets["cat_features_embeddings"] = cat_features_embeddings
         
-        if ids_embeddings is None and category_features_embeddings is None:
+        if ids_embeddings is None and cat_features_embeddings is None:
             explanation = "Either ids_embeddings or category_features_embeddings must be provided"
             raise ValueError(explanation)
         
@@ -241,23 +259,32 @@ class ConstructedItemNetBlock(nn.Module):
         # self.ids_embeddings = ids_embeddings
         # self.category_features_embeddings = category_features_embeddings
 
-        self.item_emb = nn.ModuleDict(item_nets)
-
+        self.item_embeddings = nn.ModuleDict(item_nets)
+    
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         item_embs = []
-        for embedding_layer_name in self.embeddings_nets:
-            item_embs.append(self.embeddings_nets[embedding_layer_name](items))
+        for embedding_layer_name in self.item_embeddings:
+            item_embs.append(self.item_embeddings[embedding_layer_name](items))
         # item_embs = self.ids_embeddings(items)  # IdEmbeddingsItemNet
         # if self.category_features_embeddings is not None:
         #     # TODO: get only necessary category features for certain_items
         #     item_embs += self.category_features_embeddings(items)  # CatFeaturesEmebbedingsItemBlock
-        return torch.sum(item_embs, dim=0)
+        return torch.sum(torch.stack(item_embs, dim=0), dim=0)
+
+    @property
+    def device(self) -> torch.device:
+        """TODO"""
+        if "ids_embeddings" in self.item_embeddings:
+            device = self.item_embeddings.ids_embeddings.device
+        else:
+            device = self.item_embeddings.cat_features_embeddings.device
+        return device
 
     @property
     def catalogue(self) -> torch.Tensor:
         """TODO"""
-        return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
+        return torch.arange(0, self.n_items, device=self.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
@@ -279,24 +306,25 @@ class ConstructedItemNetBlock(nn.Module):
         ids_embeddings = None
         if use_ids_emb:
             ids_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors, dropout_rate)
-            embeddings_nets.append(ids_embeddings)
+            # embeddings_nets.append(ids_embeddings)
 
+        cat_features_embeddings = None
         if use_cat_features_embs:
-            category_features_embeddings = None
             if dataset.item_features is not None:
-                category_features_embeddings = CatFeaturesEmebbedingsItemBlock(
+                cat_features_embeddings = CatFeaturesEmebbedingsItemBlock.from_dataset(
                     dataset, n_factors=n_factors, dropout_rate=dropout_rate
                 )
-                embeddings_nets.append(category_features_embeddings)
+                # embeddings_nets.append(cat_features_embeddings)
             else:
                 explanation = f"""dataset doesn't have item features."""
                 warnings.warn(explanation)
 
-        if not embeddings_nets:
+        # if not embeddings_nets:
+        if ids_embeddings is None and cat_features_embeddings is None:
             explanation = "Either ids_embeddings or category_features_embeddings must be provided"
             raise ValueError(explanation)
 
-        return cls(n_items, embeddings_nets)
+        return cls(n_items, ids_embeddings, cat_features_embeddings)
 
 
 class PointWiseFeedForward(nn.Module):
@@ -549,7 +577,6 @@ class Trainer:
                 x = x.to(self.device)  # [batch_size, session_maxlen]
                 y = y.to(self.device)  # [batch_size, session_maxlen]
                 w = w.to(self.device)  # [batch_size, session_maxlen]
-
                 self.train_step(x, y, w)
 
     def train_step(self, x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> None:
@@ -825,7 +852,7 @@ class SasRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         verbose: int = 0,
         cpu_n_threads: int = 0,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,  # SASRec authors net
-        item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
+        item_net_type: tp.Type[ItemNetBase] = ConstructedItemNetBlock,  # item embeddings on ids and cat features
     ):
         super().__init__(verbose=verbose)
         self.device = torch.device(device)
