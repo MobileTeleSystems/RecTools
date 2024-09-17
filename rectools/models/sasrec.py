@@ -62,11 +62,7 @@ class CatFeatureEmebbedingsItem(ItemNetBase):
         super().__init__()
 
         self.n_values = n_values
-        self.value_emb = nn.Embedding(
-            num_embeddings=n_values,
-            embedding_dim=n_factors,
-            # padding_idx=0,  # TODO: add padding_idx
-        )
+        self.value_emb = nn.Embedding(num_embeddings=n_values, embedding_dim=n_factors)
         self.drop_layer = nn.Dropout(dropout_rate)
 
     def forward(self, values: torch.Tensor) -> torch.Tensor:
@@ -106,7 +102,7 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
         n_factors: int,
         dropout_rate: float,
     ):
-        super().__init__()  # TODO: Add dataset
+        super().__init__()
 
         self.item_features = item_features
         self.n_items = item_features.values.shape[0]
@@ -120,7 +116,7 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
             }
         )
 
-    def forward(self, items: torch.Tensor) -> torch.Tensor:  # TODO: Return Items
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         feature_dense = self.get_item_features_dense(items)
 
@@ -154,19 +150,6 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
         return self.forward(self.catalogue)
-
-    # TODO: remove from Open Source
-    # def get_all_embeddings_by_certain_feature(self, feature_name: str) -> torch.Tensor:
-    #     """TODO"""
-    #     return self.category_embeddings[feature_name].get_all_embeddings()
-
-    # def get_all_embeddings_as_separate_features(self) -> tp.Dict[str, torch.Tensor]:
-    #     """TODO"""
-    #     feature_embeddings = {
-    #         feature_name: self.get_all_embeddings_by_certain_feature(feature_name)
-    #         for feature_name in self.category_embeddings
-    #     }
-    #     return feature_embeddings
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
@@ -235,7 +218,6 @@ class ConstructedItemNetBlock(ItemNetBase):
     def __init__(
         self,
         n_items: int,
-        # embeddings_nets: tp.List[ItemNetBase],
         ids_embeddings: tp.Optional[IdEmbeddingsItemNet] = None,
         cat_features_embeddings: tp.Optional[CatFeaturesEmebbedingsItemBlock] = None,
     ) -> None:
@@ -247,29 +229,21 @@ class ConstructedItemNetBlock(ItemNetBase):
         item_nets = {}
         if ids_embeddings is not None:
             item_nets["ids_embeddings"] = ids_embeddings
-        
+
         if cat_features_embeddings is not None:
             item_nets["cat_features_embeddings"] = cat_features_embeddings
-        
+
         if ids_embeddings is None and cat_features_embeddings is None:
             explanation = "Either ids_embeddings or category_features_embeddings must be provided"
             raise ValueError(explanation)
-        
-        # self.embeddings_nets = nn.ModuleList(embeddings_nets)
-        # self.ids_embeddings = ids_embeddings
-        # self.category_features_embeddings = category_features_embeddings
 
         self.item_embeddings = nn.ModuleDict(item_nets)
-    
+
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         item_embs = []
         for embedding_layer_name in self.item_embeddings:
             item_embs.append(self.item_embeddings[embedding_layer_name](items))
-        # item_embs = self.ids_embeddings(items)  # IdEmbeddingsItemNet
-        # if self.category_features_embeddings is not None:
-        #     # TODO: get only necessary category features for certain_items
-        #     item_embs += self.category_features_embeddings(items)  # CatFeaturesEmebbedingsItemBlock
         return torch.sum(torch.stack(item_embs, dim=0), dim=0)
 
     @property
@@ -300,13 +274,10 @@ class ConstructedItemNetBlock(ItemNetBase):
         Не забыть сохранить n_items для метода `get_all_embeddings`.
         """
         n_items = dataset.item_id_map.size
-        
-        embeddings_nets = []
 
         ids_embeddings = None
         if use_ids_emb:
             ids_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors, dropout_rate)
-            # embeddings_nets.append(ids_embeddings)
 
         cat_features_embeddings = None
         if use_cat_features_embs:
@@ -314,12 +285,10 @@ class ConstructedItemNetBlock(ItemNetBase):
                 cat_features_embeddings = CatFeaturesEmebbedingsItemBlock.from_dataset(
                     dataset, n_factors=n_factors, dropout_rate=dropout_rate
                 )
-                # embeddings_nets.append(cat_features_embeddings)
             else:
-                explanation = f"""dataset doesn't have item features."""
+                explanation = """dataset doesn't have item features."""
                 warnings.warn(explanation)
 
-        # if not embeddings_nets:
         if ids_embeddings is None and cat_features_embeddings is None:
             explanation = "Either ids_embeddings or category_features_embeddings must be provided"
             raise ValueError(explanation)

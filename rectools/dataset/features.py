@@ -450,7 +450,7 @@ class SparseFeatures:
         """Return number of objects."""
         return self.values.shape[0]
 
-    def get_sparse_cat_features(self) -> "SparseFeatures":  # TODO rename get_cat_features
+    def get_cat_features(self) -> "SparseFeatures":
         """Return `SparseFeatures` only with categorical features.""" ""
         cat_features_names_list: tp.List[SparseFeatureName] = []
         ids_cat_features_names = []
