@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import typing as tp
 import warnings
@@ -61,15 +63,29 @@ class SessionEncoderDataPreparatorBase:
         session_maxlen: int,
         batch_size: int,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
-        shuffle_train: bool = True,
+        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
         train_min_user_interactions: int = 2,
     ) -> None:
-        """TODO"""
-        raise NotImplementedError()
+        self.session_maxlen = session_maxlen
+        self.batch_size = batch_size
+        self.item_extra_tokens = item_extra_tokens
+        self.shuffle_train = shuffle_train
+        self.train_min_user_interactions = train_min_user_interactions
+        self.item_id_map: IdMap
+        # TODO: add SequenceDatasetType for fit and recommend
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """TODO"""
-        raise NotImplementedError()
+        return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
+
+    def get_known_item_ids(self) -> np.ndarray:
+        """TODO"""
+        return self.item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
+
+    @property
+    def n_item_extra_tokens(self) -> int:
+        """TODO"""
+        return len(self.item_extra_tokens)
 
     def process_dataset_train(self, dataset: Dataset) -> Dataset:
         """TODO"""
@@ -95,19 +111,32 @@ class SessionEncoderDataPreparatorBase:
 class SessionEncoderLightningModuleBase(LightningModule):
     """Base class for lightning module. Used only for type hinting."""
 
-    def forward(self, sessions: torch.Tensor) -> torch.Tensor:
-        """TODO"""
-        raise NotImplementedError()
-
-    def on_train_start(self) -> None:
-        """TODO"""
-        raise NotImplementedError()
-
-    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
-        """TODO"""
-        raise NotImplementedError()
+    def __init__(
+        self,
+        torch_model: TransformerBasedSessionEncoder,
+        lr: float,
+        loss: str = "softmax",
+        adam_betas: Tuple[float, float] = (0.9, 0.98),
+    ):
+        super().__init__()
+        self.lr = lr
+        self.loss = loss
+        self.torch_model = torch_model
+        self.adam_betas = adam_betas
 
     def configure_optimizers(self) -> torch.optim.Adam:
+        """TODO"""
+        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
+        return optimizer
+
+    def forward(
+        self,
+        batch: torch.Tensor,
+    ) -> torch.Tensor:
+        """TODO"""
+        return self.torch_model(batch)
+
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
         raise NotImplementedError()
 
@@ -397,35 +426,6 @@ class SequenceDataset(TorchDataset):
 class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
     """TODO"""
 
-    def __init__(
-        self,
-        session_maxlen: int,
-        batch_size: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
-        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
-        train_min_user_interactions: int = 2,
-    ) -> None:
-        self.session_maxlen = session_maxlen
-        self.batch_size = batch_size
-        self.item_extra_tokens = item_extra_tokens
-        self.shuffle_train = shuffle_train
-        self.train_min_user_interactions = train_min_user_interactions
-        self.item_id_map: IdMap
-        # TODO: add SequenceDatasetType for fit and recommend
-
-    @property
-    def n_item_extra_tokens(self) -> int:
-        """TODO"""
-        return len(self.item_extra_tokens)
-
-    def get_known_item_ids(self) -> np.ndarray:
-        """TODO"""
-        return self.item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
-
-    def get_known_items_sorted_internal_ids(self) -> np.ndarray:
-        """TODO"""
-        return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
-
     def process_dataset_train(self, dataset: Dataset) -> Dataset:
         """TODO"""
         interactions = dataset.get_raw_interactions()
@@ -546,26 +546,6 @@ class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
 class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     """TODO"""
 
-    def __init__(
-        self,
-        torch_model: TransformerBasedSessionEncoder,
-        lr: float,
-        loss: str = "softmax",  # TODO: move loss func to `SasRec` class
-        adam_betas: Tuple[float, float] = (0.9, 0.98),
-    ):
-        super().__init__()
-        self.lr = lr
-        self.loss_func = self._init_loss_func(loss)
-        self.torch_model = torch_model
-        self.adam_betas = adam_betas
-
-    def forward(
-        self,
-        sessions: torch.Tensor,  # [batch_size, session_maxlen]
-    ) -> torch.Tensor:
-        """TODO"""
-        return self.torch_model(sessions)
-
     def on_train_start(self) -> None:
         """TODO"""
         self._xavier_normal_init()
@@ -584,29 +564,20 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
         # Loss output will have a shape of [batch_size, session_maxlen]
         # and will have zeros for every `0` target label
-        loss = self.loss_func(logits.transpose(1, 2), y)  # [batch_size, session_maxlen]
-        loss = loss * w
-        n = (loss > 0).to(loss.dtype)
-        loss = torch.sum(loss) / torch.sum(n)
-        return loss
-
-    def configure_optimizers(self) -> torch.optim.Adam:
-        """TODO"""
-        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        return optimizer
-
-    # ce_criterion = torch.nn.CrossEntropyLoss()
-    # https://github.com/NVIDIA/pix2pixHD/issues/9 how could an old bug appear again...
-
-    def _init_loss_func(self, loss: str) -> nn.CrossEntropyLoss:
-        """TODO"""
-        if loss == "softmax":
-            return nn.CrossEntropyLoss(ignore_index=0, reduction="none")
+        if self.loss == "softmax":
+            # ce_criterion = torch.nn.CrossEntropyLoss()
+            # https://github.com/NVIDIA/pix2pixHD/issues/9 how could an old bug appear again...
+            loss_func = nn.CrossEntropyLoss(ignore_index=0, reduction="none")
+            loss = loss_func(logits.transpose(1, 2), y)  # [batch_size, session_maxlen]
+            loss = loss * w
+            n = (loss > 0).to(loss.dtype)
+            loss = torch.sum(loss) / torch.sum(n)
+            return loss
         raise ValueError(f"loss {loss} is not supported")
 
     def _xavier_normal_init(self) -> None:
         """TODO"""
-        for _, param in self.named_parameters():
+        for _, param in self.torch_model.named_parameters():
             try:
                 torch.nn.init.xavier_normal_(param.data)
             except ValueError:
@@ -645,8 +616,8 @@ class SasRecModel(ModelBase):
         super().__init__(verbose=verbose)
         self.device = torch.device(device)
         self.n_threads = cpu_n_threads
-        self.model: TransformerBasedSessionEncoder
-        self._model = TransformerBasedSessionEncoder(
+        self.torch_model: TransformerBasedSessionEncoder
+        self._torch_model = TransformerBasedSessionEncoder(
             n_blocks=n_blocks,
             n_factors=n_factors,
             n_heads=n_heads,
@@ -684,10 +655,10 @@ class SasRecModel(ModelBase):
         processed_dataset = self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
 
-        self.model = deepcopy(self._model)  # TODO: check that it works
-        self.model.construct_item_net(processed_dataset)
+        self.torch_model = deepcopy(self._torch_model)  # TODO: check that it works
+        self.torch_model.construct_item_net(processed_dataset)
 
-        lightning_model = self.lightning_module_type(self.model, self.lr, self.loss)
+        lightning_model = self.lightning_module_type(self.torch_model, self.lr, self.loss)
         self.trainer = deepcopy(self._trainer)
         self.trainer.fit(lightning_model, train_dataloader)
 
@@ -712,18 +683,18 @@ class SasRecModel(ModelBase):
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        self.model = self.model.eval()
-        self.model.to(self.device)
+        self.torch_model = self.torch_model.eval()
+        self.torch_model.to(self.device)
 
         # Dataset has already been filtered and adapted to known item_id_map
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
 
         session_embs = []
-        item_embs = self.model.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
+        item_embs = self.torch_model.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
         with torch.no_grad():
             for x_batch in tqdm.tqdm(recommend_dataloader):  # TODO: from tqdm.auto import tqdm. Also check `verbose``
                 x_batch = x_batch.to(self.device)  # [batch_size, session_maxlen]
-                encoded = self.model.encode_sessions(x_batch, item_embs)[:, -1, :]  # [batch_size, n_factors]
+                encoded = self.torch_model.encode_sessions(x_batch, item_embs)[:, -1, :]  # [batch_size, n_factors]
                 encoded = encoded.detach().cpu().numpy()
                 session_embs.append(encoded)
 
@@ -765,8 +736,8 @@ class SasRecModel(ModelBase):
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        self.model = self.model.eval()
-        item_embs = self.model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
+        self.torch_model = self.torch_model.eval()
+        item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
 
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
         # Should we use torch dot and topk? Should be faster
@@ -785,6 +756,6 @@ class SasRecModel(ModelBase):
         )
 
     @property
-    def torch_model(self) -> TransformerBasedSessionEncoder:
+    def lightning_model(self) -> SessionEncoderLightningModule:
         """TODO"""
-        return self.model
+        return self.trainer.lightning_module
