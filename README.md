@@ -133,7 +133,9 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 ## Visuals: `MetricsApp` for metrics trade-off analysis
 
-![metrics_app](https://recsysart.ru/images/metrics_app.gif)
+
+<img src="https://recsysart.ru/images/metrics_app.gif" width=400>
+
 - Interactive Jupyter widget
 - Works with pandas dataframes
 - Allows colouring by models metadata
