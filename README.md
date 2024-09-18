@@ -139,7 +139,7 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 ### `MetricsApp` for metrics trade-off analysis
 
 
-<img src="https://recsysart.ru/images/metrics_app.gif">
+<img src="https://recsysart.ru/images/metrics_app.gif" width=600>
 
 [Example](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb) |
 [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.visuals.metrics_app.MetricsApp.html)
