@@ -121,26 +121,28 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 - For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
 - For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.**
 
-## Visuals: `VisualApp` for model recommendations comparison
+## Extended validation tools
+
+### Debiased metrics calculation
+
+[User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/8_debiased_metrics.ipynb) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.metrics.debias.DebiasConfig.html)
+
+### `VisualApp` for model recommendations comparison
 
 <img src="https://recsysart.ru/images/visual_app.gif" width=400>
 
-- Interactive Jupyter widget
-- Works with pandas dataframes
-- [Detailed example here](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/7_visualization.ipynb)
-- [Demo here](https://recsysart.ru/voila/)
+
+[Example](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/7_visualization.ipynb) | [Demo](https://recsysart.ru/voila/) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.visuals.visual_app.VisualApp.html)
 
 
 
-## Visuals: `MetricsApp` for metrics trade-off analysis
+### `MetricsApp` for metrics trade-off analysis
 
 
-<img src="https://recsysart.ru/images/metrics_app.gif" width=500>
+<img src="https://recsysart.ru/images/metrics_app.gif">
 
-- Interactive Jupyter widget
-- Works with pandas dataframes
-- Allows colouring by models metadata
-- [Detailed example here](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb)
+[Example](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb) |
+[Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.visuals.metrics_app.MetricsApp.html)
 
 
 ## Contribution
