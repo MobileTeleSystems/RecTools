@@ -123,7 +123,8 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 ## Visuals: `VisualApp` for model recommendations comparison
 
-![visual_app](https://recsysart.ru/images/visual_app.gif)
+<img src="https://recsysart.ru/images/visual_app.gif" width=400>
+
 - Interactive Jupyter widget
 - Works with pandas dataframes
 - [Detailed example here](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/7_visualization.ipynb)
@@ -134,7 +135,7 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 ## Visuals: `MetricsApp` for metrics trade-off analysis
 
 
-<img src="https://recsysart.ru/images/metrics_app.gif" width=400>
+<img src="https://recsysart.ru/images/metrics_app.gif" width=500>
 
 - Interactive Jupyter widget
 - Works with pandas dataframes
