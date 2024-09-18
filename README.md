@@ -123,7 +123,7 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 ## Extended validation tools
 
-### Debiased metrics calculation
+### `DebiasConfig` for debiased metrics calculation
 
 [User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/8_debiased_metrics.ipynb) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.metrics.debias.DebiasConfig.html)
 
