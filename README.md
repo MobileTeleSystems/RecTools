@@ -129,7 +129,7 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 ### `VisualApp` for model recommendations comparison
 
-<img src="https://recsysart.ru/images/visual_app.gif" width=400>
+<img src="https://recsysart.ru/images/visual_app.gif" width=500>
 
 
 [Example](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/7_visualization.ipynb) | [Demo](https://recsysart.ru/voila/) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.visuals.visual_app.VisualApp.html)
