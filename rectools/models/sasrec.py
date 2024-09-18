@@ -46,6 +46,11 @@ class ItemNetBase(nn.Module):
         """TODO"""
         raise NotImplementedError()
 
+    @classmethod
+    def construct_nets_from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """TODO"""
+        raise NotImplementedError()
+
 
 class TransformerLayersBase(nn.Module):
     """Base class for transformer layers. Used only for type hinting."""
@@ -55,7 +60,7 @@ class TransformerLayersBase(nn.Module):
         raise NotImplementedError()
 
 
-class CatFeatureEmebbedingsItem(ItemNetBase):
+class CatFeatureEmebbedingsItem(nn.Module):
     """Base class for single category feature embeddings. TODO."""
 
     def __init__(self, n_factors: int, n_values: int, dropout_rate: float):
@@ -154,7 +159,9 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
-        item_cat_features = dataset.item_features.get_sparse_cat_features()
+        # TODO: solved issue with type of the item features from Dataset
+        item_features: SparseFeatures = dataset.item_features  # type: ignore
+        item_cat_features = item_features.get_cat_features()
 
         common_name_features_ids_map: tp.Dict[str, tp.List[int]] = defaultdict(list)
         for feature_name, feature_value in item_cat_features.names:
@@ -226,7 +233,7 @@ class ConstructedItemNetBlock(ItemNetBase):
 
         self.n_items = n_items
 
-        item_nets = {}
+        item_nets: tp.Dict[str, ItemNetBase] = {}
         if ids_embeddings is not None:
             item_nets["ids_embeddings"] = ids_embeddings
 
@@ -440,11 +447,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         use_cat_item_features_emb: bool = False,
         use_causal_attn: bool = True,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,
-        item_net_type: tp.Type[ItemNetBase] = ConstructedItemNetBlock,
+        item_net_type: tp.Type[ItemNetBase] = ConstructedItemNetBlock,  # TODO: mypy error
     ) -> None:
         super().__init__()
 
-        self.item_model: ConstructedItemNetBlock
+        self.item_model: ItemNetBase
         self.pos_encoding = LearnableInversePositionalEncoding(use_pos_emb, session_maxlen, n_factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers_type(
@@ -675,29 +682,35 @@ class SasRecDataPreparator:
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
 
         # get item features
-        item_features = None
         if dataset.item_features is not None:
+            item_features = dataset.item_features
+            if not isinstance(item_features, SparseFeatures):
+                raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
+
+            item_features_names = item_features.names
+
             internal_ids = dataset.item_id_map.convert_to_internal(interactions[Columns.Item].unique())
-            item_features_by_sorted_interactions = dataset.item_features.take(internal_ids)
+            item_features_by_sorted_interactions = item_features.take(internal_ids)
 
             dtype = item_features_by_sorted_interactions.values.dtype
             num_features = item_features_by_sorted_interactions.values.shape[1]
             pad_item_features = sp.csr_matrix((1, num_features), dtype=dtype)
 
-            item_features_values = sp.bmat(
+            item_features_values: sp.scr_matrix = sp.bmat(
                 [[pad_item_features.toarray()], [item_features_by_sorted_interactions.values]], format="csr"
             )
 
-            item_features = SparseFeatures.from_iterables(
-                values=item_features_values, names=dataset.item_features.names
+            prepared_item_features = SparseFeatures.from_iterables(
+                values=item_features_values, names=item_features_names
             )
+
+            self.item_features = prepared_item_features
 
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
 
-        dataset = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
+        dataset = Dataset(user_id_map, item_id_map, interactions, item_features=prepared_item_features)
 
         self.item_id_map = dataset.item_id_map
-        self.item_features = item_features
         return dataset
 
     def _collate_fn_train(
