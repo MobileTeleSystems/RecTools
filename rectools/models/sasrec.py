@@ -61,7 +61,7 @@ class TransformerLayersBase(nn.Module):
 
 
 class CatFeatureEmebbedingsItem(nn.Module):
-    """Base class for single category feature embeddings. TODO."""
+    """Сlass for single category feature embeddings. TODO"""
 
     def __init__(self, n_factors: int, n_values: int, dropout_rate: float):
         super().__init__()
@@ -84,7 +84,7 @@ class CatFeatureEmebbedingsItem(nn.Module):
     @property
     def catalogue_values(self) -> torch.Tensor:
         """TODO"""
-        return torch.arange(0, self.n_values, device=self.value_emb.weight.device)
+        return torch.arange(0, self.n_values, device=self.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """TODO"""
@@ -98,7 +98,7 @@ class CatFeatureEmebbedingsItem(nn.Module):
 
 
 class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
-    """Base class for all category features embeddings. TODO."""
+    """Сlass for all category features embeddings. TODO"""
 
     def __init__(
         self,
@@ -136,7 +136,7 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
     @property
     def device(self) -> torch.device:
         """TODO"""
-        return self.category_embeddings[list(self.category_embeddings.keys())[0]].value_emb.weight.device
+        return self.category_embeddings[list(self.category_embeddings.keys())[0]].device
 
     def get_item_features_by_certain_feature(self, feature_name: str) -> torch.Tensor:
         """TODO"""
@@ -159,20 +159,22 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
-        # TODO: solved issue with type of the item features from Dataset
-        item_features: SparseFeatures = dataset.item_features  # type: ignore
+        item_features = dataset.item_features
+        if not isinstance(item_features, SparseFeatures):
+            raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
+
         item_cat_features = item_features.get_cat_features()
 
-        common_name_features_ids_map: tp.Dict[str, tp.List[int]] = defaultdict(list)
+        common_name_features: tp.Dict[str, tp.List[int]] = defaultdict(list)
         for feature_name, feature_value in item_cat_features.names:
-            common_name_features_ids_map[feature_name].append(feature_value)
+            common_name_features[feature_name].append(feature_value)
 
-        common_name_features_ids_map_with_idmap: tp.Dict[str, IdMap] = {
+        common_name_features_ids_map = {
             feature_name: IdMap.from_values(feature_values)
-            for feature_name, feature_values in common_name_features_ids_map.items()
+            for feature_name, feature_values in common_name_features.items()
         }
 
-        return cls(item_cat_features, common_name_features_ids_map_with_idmap, n_factors, dropout_rate)
+        return cls(item_cat_features, common_name_features_ids_map, n_factors, dropout_rate)
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
@@ -244,22 +246,22 @@ class ConstructedItemNetBlock(ItemNetBase):
             explanation = "Either ids_embeddings or category_features_embeddings must be provided"
             raise ValueError(explanation)
 
-        self.item_embeddings = nn.ModuleDict(item_nets)
+        self.item_nets = nn.ModuleDict(item_nets)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         item_embs = []
-        for embedding_layer_name in self.item_embeddings:
-            item_embs.append(self.item_embeddings[embedding_layer_name](items))
+        for embedding_layer_name in self.item_nets:
+            item_embs.append(self.item_nets[embedding_layer_name](items))
         return torch.sum(torch.stack(item_embs, dim=0), dim=0)
 
     @property
     def device(self) -> torch.device:
         """TODO"""
-        if "ids_embeddings" in self.item_embeddings:
-            device = self.item_embeddings.ids_embeddings.device
+        if "ids_embeddings" in self.item_nets:
+            device = self.item_nets.ids_embeddings.device
         else:
-            device = self.item_embeddings.cat_features_embeddings.device
+            device = self.item_nets.cat_features_embeddings.device
         return device
 
     @property
@@ -275,11 +277,7 @@ class ConstructedItemNetBlock(ItemNetBase):
     def construct_nets_from_dataset(
         cls, dataset: Dataset, n_factors: int, dropout_rate: float, use_ids_emb: bool, use_cat_features_embs: bool
     ) -> tpe.Self:
-        """TODO
-        Вместо классметод `from_dataset` он имеет метод `construct_nets_from_dataset`, который последовательно будет
-        вызывать методы `from_dataset` всего списка своих блоков сети.
-        Не забыть сохранить n_items для метода `get_all_embeddings`.
-        """
+        """TODO"""
         n_items = dataset.item_id_map.size
 
         ids_embeddings = None
@@ -293,11 +291,11 @@ class ConstructedItemNetBlock(ItemNetBase):
                     dataset, n_factors=n_factors, dropout_rate=dropout_rate
                 )
             else:
-                explanation = """dataset doesn't have item features."""
+                explanation = """When `use_cat_features_embs` is True, the dataset must have item features."""
                 warnings.warn(explanation)
 
         if ids_embeddings is None and cat_features_embeddings is None:
-            explanation = "Either ids_embeddings or category_features_embeddings must be provided"
+            explanation = "Either `use_ids_emb` or `use_cat_features_embs`, or both at once as True must be provided."
             raise ValueError(explanation)
 
         return cls(n_items, ids_embeddings, cat_features_embeddings)
@@ -649,7 +647,7 @@ class SasRecDataPreparator:
         self.shuffle_train = shuffle_train
         self.train_min_user_interactions = train_min_user_interactions
         self.item_id_map: IdMap
-        self.item_features: SparseFeatures
+        self.item_features: tp.Optional[SparseFeatures]
         # TODO: add SequenceDatasetType for fit and recommend
 
     @property
@@ -682,6 +680,7 @@ class SasRecDataPreparator:
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
 
         # get item features
+        prepared_item_features = None
         if dataset.item_features is not None:
             item_features = dataset.item_features
             if not isinstance(item_features, SparseFeatures):
@@ -704,13 +703,12 @@ class SasRecDataPreparator:
                 values=item_features_values, names=item_features_names
             )
 
-            self.item_features = prepared_item_features
-
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
 
         dataset = Dataset(user_id_map, item_id_map, interactions, item_features=prepared_item_features)
 
         self.item_id_map = dataset.item_id_map
+        self.item_features = prepared_item_features
         return dataset
 
     def _collate_fn_train(
