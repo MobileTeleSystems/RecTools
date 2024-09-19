@@ -123,7 +123,7 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        feature_dense = self.get_item_features_dense(items)
+        feature_dense = self.get_dense_item_features(items)
 
         feature_embeddings = torch.concatenate(
             [self.category_embeddings[feature_name].get_all_embeddings() for feature_name in self.category_embeddings],
@@ -138,11 +138,7 @@ class CatFeaturesEmebbedingsItemBlock(ItemNetBase):
         """TODO"""
         return self.category_embeddings[list(self.category_embeddings.keys())[0]].device
 
-    def get_item_features_by_certain_feature(self, feature_name: str) -> torch.Tensor:
-        """TODO"""
-        return self.category_embeddings[feature_name].get_all_embeddings()
-
-    def get_item_features_dense(self, items: torch.Tensor) -> torch.Tensor:
+    def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
         return torch.from_numpy(feature_dense).to(self.device)
@@ -227,8 +223,8 @@ class ConstructedItemNetBlock(ItemNetBase):
     def __init__(
         self,
         n_items: int,
-        ids_embeddings: tp.Optional[IdEmbeddingsItemNet] = None,
-        cat_features_embeddings: tp.Optional[CatFeaturesEmebbedingsItemBlock] = None,
+        ids_embeddings: tp.Optional[IdEmbeddingsItemNet],
+        cat_features_embeddings: tp.Optional[CatFeaturesEmebbedingsItemBlock],
     ) -> None:
         """TODO"""
         super().__init__()
@@ -243,7 +239,7 @@ class ConstructedItemNetBlock(ItemNetBase):
             item_nets["cat_features_embeddings"] = cat_features_embeddings
 
         if ids_embeddings is None and cat_features_embeddings is None:
-            explanation = "Either ids_embeddings or category_features_embeddings must be provided"
+            explanation = "Either `ids_embeddings` or `cat_features_embeddings`, or both at once must be provided."
             raise ValueError(explanation)
 
         self.item_nets = nn.ModuleDict(item_nets)
