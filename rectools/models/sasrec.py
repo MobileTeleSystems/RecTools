@@ -27,7 +27,7 @@ PADDING_VALUE = "PAD"
 
 
 class ItemNetBase(nn.Module):
-    """Base class ItemNet. Used only for type hinting."""
+    """TODO: use Protocol"""
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
@@ -44,7 +44,7 @@ class ItemNetBase(nn.Module):
 
 
 class TransformerLayersBase(nn.Module):
-    """Base class for transformer layers. Used only for type hinting."""
+    """TODO: use Protocol"""
 
     def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         """Forward"""
@@ -52,7 +52,7 @@ class TransformerLayersBase(nn.Module):
 
 
 class PositionalEncodingBase(torch.nn.Module):
-    """Base class for positional encoding. Used only for type hinting."""
+    """TODO: use Protocol"""
 
     def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
         """TODO"""
