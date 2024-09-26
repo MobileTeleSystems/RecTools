@@ -117,7 +117,7 @@ class PointWiseFeedForward(nn.Module):
         return fin
 
 
-class SasRecTransformerLayers(TransformerLayersBase):
+class SASRecTransformerLayers(TransformerLayersBase):
     """Exactly SASRec authors architecture but with torch MHA realisation"""
 
     def __init__(
@@ -201,25 +201,25 @@ class PreLNTransformerLayers(TransformerLayersBase):
 class LearnableInversePositionalEncoding(PositionalEncodingBase):
     """TODO"""
 
-    def __init__(self, use_pos_emb: bool, session_maxlen: int, n_factors: int):
+    def __init__(self, use_pos_emb: bool, session_max_len: int, n_factors: int):
         super().__init__()
-        self.pos_emb = torch.nn.Embedding(session_maxlen, n_factors) if use_pos_emb else None
+        self.pos_emb = torch.nn.Embedding(session_max_len, n_factors) if use_pos_emb else None
 
     def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        batch_size, session_maxlen, _ = sessions.shape
+        batch_size, session_max_len, _ = sessions.shape
 
         if self.pos_emb is not None:
             # Inverse positions are appropriate for variable length sequences across different batches
             # They are equal to absolute positions for fixed sequence length across different batches
             positions = torch.tile(
-                torch.arange(session_maxlen - 1, -1, -1), (batch_size, 1)
-            )  # [batch_size, session_maxlen]
+                torch.arange(session_max_len - 1, -1, -1), (batch_size, 1)
+            )  # [batch_size, session_max_len]
             sessions += self.pos_emb(positions.to(sessions.device))
 
         # TODO: do we need to fill padding embeds in sessions to all zeros
         # or should we use the learnt padding embedding? Should we make it an option for user to decide?
-        sessions *= timeline_mask  # [batch_size, session_maxlen, n_factors]
+        sessions *= timeline_mask  # [batch_size, session_max_len, n_factors]
 
         return sessions
 
@@ -235,18 +235,18 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         n_blocks: int,
         n_factors: int,
         n_heads: int,
-        session_maxlen: int,
+        session_max_len: int,
         dropout_rate: float,
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ) -> None:
         super().__init__()
 
         self.item_model: ItemNetBase
-        self.pos_encoding = pos_encoding_type(use_pos_emb, session_maxlen, n_factors)
+        self.pos_encoding = pos_encoding_type(use_pos_emb, session_max_len, n_factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers_type(
             n_blocks=n_blocks,
@@ -269,17 +269,17 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
         Returns
         -------
-            torch.Tensor. [batch_size, session_maxlen, n_factors]
+            torch.Tensor. [batch_size, session_max_len, n_factors]
 
         """
-        session_maxlen = sessions.shape[1]
+        session_max_len = sessions.shape[1]
         attn_mask = None
         if self.use_causal_attn:
             attn_mask = ~torch.tril(
-                torch.ones((session_maxlen, session_maxlen), dtype=torch.bool, device=sessions.device)
+                torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
             )
-        timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_maxlen, 1]
-        seqs = item_embs[sessions]  # [batch_size, session_maxlen, n_factors]
+        timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
+        seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
         seqs = self.pos_encoding(seqs, timeline_mask)
         seqs = self.emb_dropout(seqs)
         seqs = self.transformer_layers(seqs, timeline_mask, attn_mask)
@@ -287,12 +287,12 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
     def forward(
         self,
-        sessions: torch.Tensor,  # [batch_size, session_maxlen]
+        sessions: torch.Tensor,  # [batch_size, session_max_len]
     ) -> torch.Tensor:
         """TODO"""
         item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
-        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_maxlen, n_factors]
-        logits = session_embs @ item_embs.T  # [batch_size, session_maxlen, n_items + 1]
+        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
+        logits = session_embs @ item_embs.T  # [batch_size, session_max_len, n_items + 1]
         return logits
 
 
@@ -338,14 +338,14 @@ class SessionEncoderDataPreparatorBase:
 
     def __init__(
         self,
-        session_maxlen: int,
+        session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
         train_min_user_interactions: int = 2,
     ) -> None:
-        self.session_maxlen = session_maxlen
+        self.session_max_len = session_max_len
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
         self.item_extra_tokens = item_extra_tokens
@@ -388,7 +388,7 @@ class SessionEncoderDataPreparatorBase:
         raise NotImplementedError()
 
 
-class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
+class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     """TODO"""
 
     def process_dataset_train(self, dataset: Dataset) -> Dataset:
@@ -399,7 +399,7 @@ class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
         user_stats = interactions[Columns.User].value_counts()
         users = user_stats[user_stats >= self.train_min_user_interactions].index
         interactions = interactions[(interactions[Columns.User].isin(users))]
-        interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_maxlen + 1)
+        interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_max_len + 1)
 
         # Construct dataset
         # TODO: user features and item features are dropped for now
@@ -417,18 +417,18 @@ class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
         batch: List[Tuple[List[int], List[float]]],
     ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
         """
-        Truncate each session from right to keep (session_maxlen+1) last items.
-        Do left padding until  (session_maxlen+1) is reached.
+        Truncate each session from right to keep (session_max_len+1) last items.
+        Do left padding until  (session_max_len+1) is reached.
         Split to `x`, `y`, and `yw`.
         """
         batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_maxlen))
-        y = np.zeros((batch_size, self.session_maxlen))
-        yw = np.zeros((batch_size, self.session_maxlen))
+        x = np.zeros((batch_size, self.session_max_len))
+        y = np.zeros((batch_size, self.session_max_len))
+        yw = np.zeros((batch_size, self.session_max_len))
         for i, (ses, ses_weights) in enumerate(batch):
-            x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_maxlen]
-            y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_maxlen]
-            yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_maxlen]
+            x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+            y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
+            yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
         return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
@@ -493,10 +493,10 @@ class SasRecDataPreparator(SessionEncoderDataPreparatorBase):
         return filtered_dataset
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
-        """Right truncation, left padding to session_maxlen"""
-        x = np.zeros((len(batch), self.session_maxlen))
+        """Right truncation, left padding to session_max_len"""
+        x = np.zeros((len(batch), self.session_max_len))
         for i, (ses, _) in enumerate(batch):
-            x[i, -len(ses) :] = ses[-self.session_maxlen :]
+            x[i, -len(ses) :] = ses[-self.session_max_len :]
         return torch.LongTensor(x)
 
     def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
@@ -558,22 +558,22 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
         x, y, w = batch
-        logits = self.forward(x)  # [batch_size, session_maxlen, n_items + 1]
+        logits = self.forward(x)  # [batch_size, session_max_len, n_items + 1]
         if self.loss == "softmax":
             # We are using CrossEntropyLoss with a multi-dimensional case
 
-            # Logits must be passed in form of [batch_size, n_items + 1, session_maxlen],
+            # Logits must be passed in form of [batch_size, n_items + 1, session_max_len],
             #  where n_items + 1 is number of classes
 
-            # Target label indexes must be passed in a form of [batch_size, session_maxlen]
+            # Target label indexes must be passed in a form of [batch_size, session_max_len]
             # (`0` index for "PAD" ix excluded from loss)
 
-            # Loss output will have a shape of [batch_size, session_maxlen]
+            # Loss output will have a shape of [batch_size, session_max_len]
             # and will have zeros for every `0` target label
 
             loss = torch.nn.functional.cross_entropy(
                 logits.transpose(1, 2), y, ignore_index=0, reduction="none"
-            )  # [batch_size, session_maxlen]
+            )  # [batch_size, session_max_len]
             loss = loss * w
             n = (loss > 0).to(loss.dtype)
             loss = torch.sum(loss) / torch.sum(n)
@@ -592,7 +592,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 # ####  --------------  SASRec Model  --------------  #### #
 
 
-class SasRecModel(ModelBase):
+class SASRecModel(ModelBase):
     """TODO"""
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -600,9 +600,9 @@ class SasRecModel(ModelBase):
         n_blocks: int = 1,
         n_heads: int = 1,
         n_factors: int = 128,
-        use_pos_emb: bool = False,
+        use_pos_emb: bool = True,
         dropout_rate: float = 0.2,
-        session_maxlen: int = 32,
+        session_max_len: int = 32,
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
@@ -615,8 +615,8 @@ class SasRecModel(ModelBase):
         trainer: tp.Optional[Trainer] = None,
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = SasRecTransformerLayers,  # SASRec authors net
-        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SasRecDataPreparator,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(verbose=verbose)
@@ -627,7 +627,7 @@ class SasRecModel(ModelBase):
             n_blocks=n_blocks,
             n_factors=n_factors,
             n_heads=n_heads,
-            session_maxlen=session_maxlen,
+            session_max_len=session_max_len,
             dropout_rate=dropout_rate,
             use_pos_emb=use_pos_emb,
             use_causal_attn=True,
@@ -648,7 +648,7 @@ class SasRecModel(ModelBase):
             )
         else:
             self._trainer = trainer
-        self.data_preparator = data_preparator_type(session_maxlen, batch_size, dataloader_num_workers)
+        self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers)
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
         self.lr = lr
@@ -699,7 +699,7 @@ class SasRecModel(ModelBase):
         item_embs = self.torch_model.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
         with torch.no_grad():
             for x_batch in tqdm.tqdm(recommend_dataloader):  # TODO: from tqdm.auto import tqdm. Also check `verbose``
-                x_batch = x_batch.to(self.device)  # [batch_size, session_maxlen]
+                x_batch = x_batch.to(self.device)  # [batch_size, session_max_len]
                 encoded = self.torch_model.encode_sessions(x_batch, item_embs)[:, -1, :]  # [batch_size, n_factors]
                 encoded = encoded.detach().cpu().numpy()
                 session_embs.append(encoded)
