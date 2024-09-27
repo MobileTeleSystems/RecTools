@@ -44,11 +44,6 @@ class ItemNetBase(nn.Module):
         """TODO"""
         raise NotImplementedError()
 
-    @classmethod
-    def construct_nets_from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
-        """TODO"""
-        raise NotImplementedError()
-
     @property
     def device(self) -> torch.device:
         """TODO"""
@@ -216,7 +211,7 @@ class ItemNetConstructor(ItemNetBase):
         return self.forward(self.catalogue)
 
     @classmethod
-    def construct_nets_from_dataset(
+    def from_dataset(
         cls,
         dataset: Dataset,
         n_factors: int,
@@ -398,7 +393,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
     def construct_item_net(self, dataset: Dataset) -> None:
         """TODO"""
-        self.item_model = ItemNetConstructor.construct_nets_from_dataset(
+        self.item_model = ItemNetConstructor.from_dataset(
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
@@ -550,6 +545,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         item_features = None
         if dataset.item_features is not None:
             item_features = dataset.item_features
+            # TODO: remove assumption on SparseFeatures and add Dense Features support
             if not isinstance(item_features, SparseFeatures):
                 raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
 
@@ -560,13 +556,13 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
 
             dtype = sorted_item_features.values.dtype
             n_features = sorted_item_features.values.shape[1]
-            pad_item_features = sparse.csr_matrix((self.n_item_extra_tokens, n_features), dtype=dtype)
+            extra_token_feature_values = sparse.csr_matrix((self.n_item_extra_tokens, n_features), dtype=dtype)
 
-            extra_tokens_feature_values: sparse.scr_matrix = sparse.vstack(
-                [pad_item_features.toarray(), sorted_item_features.values], format="csr"
+            full_feature_values: sparse.scr_matrix = sparse.vstack(
+                [extra_token_feature_values, sorted_item_features.values], format="csr"
             )
 
-            item_features = SparseFeatures.from_iterables(values=extra_tokens_feature_values, names=item_features.names)
+            item_features = SparseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
 
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
 
