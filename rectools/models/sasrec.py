@@ -114,7 +114,7 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        # TODO: optomize save in memory and to gpu for inference.
+        # TODO: Add the whole `feature_dense` to the right gpu device at once?
         feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
         return torch.from_numpy(feature_dense).to(self.device)
 
@@ -125,7 +125,6 @@ class CatFeaturesItemNet(ItemNetBase):
 
         if item_features is None:
             explanation = """When `use_cat_features_embs` is True, the dataset must have item features."""
-            # warnings.warn(explanation)  TODO
             raise ValueError(explanation)
 
         if not isinstance(item_features, SparseFeatures):
@@ -186,7 +185,7 @@ class ItemNetConstructor(ItemNetBase):
         super().__init__()
 
         if len(item_net_blocks) == 0:
-            raise ValueError("At least one type of net for processing items should be provided.")
+            raise ValueError("At least one type of net to calculate item embeddings should be provided.")
 
         self.n_items = n_items
         self.n_item_blocks = len(item_net_blocks)
@@ -195,7 +194,7 @@ class ItemNetConstructor(ItemNetBase):
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
         item_embs = []
-        # TODO: parallel
+        # TODO: Add functionality for parallel computing.
         for idx_block in range(self.n_item_blocks):
             item_emb = self.item_net_blocks[idx_block](items)
             item_embs.append(item_emb)
@@ -229,7 +228,8 @@ class ItemNetConstructor(ItemNetBase):
 
         item_net_blocks = []
         for item_net in item_net_block_types:
-            item_net_blocks.append(item_net.from_dataset(dataset, n_factors, dropout_rate))
+            item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
+            item_net_blocks.append(item_net_block)
 
         return cls(n_items, item_net_blocks)
 
