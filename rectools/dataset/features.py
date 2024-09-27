@@ -451,19 +451,15 @@ class SparseFeatures:
         return self.values.shape[0]
 
     def get_cat_features(self) -> "SparseFeatures":
-        """Return `SparseFeatures` only with categorical features.""" ""
-        cat_features_names_list: tp.List[SparseFeatureName] = []
-        ids_cat_features_names = []
-        for idx, (name, value) in enumerate(self.names):
+        """Return `SparseFeatures` only with categorical features."""
+        cat_feature_ids: tp.List[int] = []
+        for idx, (_, value) in enumerate(self.names):
             if value != DIRECT_FEATURE_VALUE:
-                feature_name: SparseFeatureName = (name, value)
-                cat_features_names_list.append(feature_name)
-                ids_cat_features_names.append(idx)
+                cat_feature_ids.append(idx)
 
-        cat_features_names_tuple: tp.Tuple[SparseFeatureName, ...] = tuple(cat_features_names_list)
         return SparseFeatures(
-            values=self.values[:, ids_cat_features_names],
-            names=cat_features_names_tuple,
+            values=self.values[:, cat_feature_ids],
+            names=tuple(map(self.names.__getitem__, cat_feature_ids)),
         )
 
 
