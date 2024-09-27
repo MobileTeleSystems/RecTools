@@ -72,7 +72,10 @@ class PositionalEncodingBase(torch.nn.Module):
 
 
 class CatFeaturesItemNet(ItemNetBase):
-    """Сlass for all category features embeddings. TODO"""
+    """
+    Base class for all category item features embeddings. To use more complicated logic then just id embeddings inherit
+    from this class and pass your custom ItemNet to your model params.
+    """
 
     def __init__(
         self,
@@ -135,7 +138,7 @@ class CatFeaturesItemNet(ItemNetBase):
 class IdEmbeddingsItemNet(ItemNetBase):
     """
     Base class for item embeddings. To use more complicated logic then just id embeddings inherit
-    from this class and pass your custom ItemNet to your model params
+    from this class and pass your custom ItemNet to your model params.
     """
 
     def __init__(self, n_factors: int, n_items: int, dropout_rate: float):
@@ -168,7 +171,11 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
 
 class ItemNetConstructor(ItemNetBase):
-    """TODO"""
+    """
+    Base class constructor for ItemNet, taking as input a sequence of ItemNetBase nets,
+    including custom ItemNetBase nets.
+    Constructs item's embedding based on aggregation of its embeddings from the passed networks.
+    """
 
     def __init__(
         self,
