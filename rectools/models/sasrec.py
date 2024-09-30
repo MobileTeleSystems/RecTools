@@ -89,6 +89,7 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
+        # TODO: Should we use torch.nn.EmbeddingBag.html?
         feature_dense = self.get_dense_item_features(items)
 
         feature_embs = self.category_embeddings(self.feature_catalogue)
