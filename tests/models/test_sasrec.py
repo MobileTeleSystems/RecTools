@@ -61,7 +61,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -71,7 +71,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
+                        Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -85,6 +85,7 @@ class TestSASRecModel:
             session_max_len=3,
             lr=0.001,
             batch_size=4,
+            epochs=2,
             deterministic=True,
         )
         model.fit(dataset=dataset)
@@ -115,7 +116,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 17, 13, 11, 17, 17, 13, 11],
+                        Columns.Item: [13, 17, 11, 11, 13, 17, 17, 11, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -129,6 +130,7 @@ class TestSASRecModel:
             session_max_len=3,
             lr=0.001,
             batch_size=4,
+            epochs=2,
             deterministic=True,
         )
         model.fit(dataset=dataset)
@@ -157,7 +159,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 14, 17, 14, 12, 15, 17, 12, 15],
+                        Columns.Item: [12, 17, 11, 14, 11, 13, 17, 12, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -168,7 +170,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 17, 15, 12, 15, 17, 12, 15, 14],
+                        Columns.Item: [17, 11, 14, 11, 13, 17, 12, 14, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -179,7 +181,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 15, 13, 15, 13, 15, 14, 13],
+                        Columns.Item: [14, 13, 15, 13, 15, 14, 15, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -195,6 +197,7 @@ class TestSASRecModel:
             session_max_len=3,
             lr=0.001,
             batch_size=4,
+            epochs=2,
             deterministic=True,
         )
         model.fit(dataset=dataset)
@@ -233,7 +236,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [14, 15, 12],
+                        Columns.Item: [14, 12, 17],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -243,7 +246,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 14, 15],
+                        Columns.Item: [13, 14, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -259,6 +262,7 @@ class TestSASRecModel:
             session_max_len=3,
             lr=0.001,
             batch_size=4,
+            epochs=2,
             deterministic=True,
         )
         model.fit(dataset=dataset)
@@ -284,7 +288,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20, 20],
-                        Columns.Item: [15, 17, 14, 15, 12],
+                        Columns.Item: [17, 15, 14, 12, 17],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -294,7 +298,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 20, 20, 20],
-                        Columns.Item: [13, 14, 15, 13, 14, 15],
+                        Columns.Item: [13, 12, 14, 13, 14, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -310,6 +314,7 @@ class TestSASRecModel:
             session_max_len=3,
             lr=0.001,
             batch_size=4,
+            epochs=2,
             deterministic=True,
         )
         model.fit(dataset=dataset)

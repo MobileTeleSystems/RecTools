@@ -610,7 +610,6 @@ class SASRecModel(ModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        device: str = "cuda:1",
         cpu_n_threads: int = 0,
         trainer: tp.Optional[Trainer] = None,
         item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
@@ -620,7 +619,7 @@ class SASRecModel(ModelBase):
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(verbose=verbose)
-        self.device = torch.device(device)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.n_threads = cpu_n_threads
         self.torch_model: TransformerBasedSessionEncoder
         self._torch_model = TransformerBasedSessionEncoder(
