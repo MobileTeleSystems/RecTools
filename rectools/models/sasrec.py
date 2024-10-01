@@ -9,12 +9,14 @@ import torch
 import tqdm
 import typing_extensions as tpe
 from pytorch_lightning import LightningModule, Trainer
+from scipy import sparse
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
+from rectools.dataset.features import SparseFeatures
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
@@ -42,6 +44,11 @@ class ItemNetBase(nn.Module):
         """TODO"""
         raise NotImplementedError()
 
+    @property
+    def device(self) -> torch.device:
+        """TODO"""
+        raise NotImplementedError()
+
 
 class TransformerLayersBase(nn.Module):
     """TODO: use Protocol"""
@@ -59,17 +66,81 @@ class PositionalEncodingBase(torch.nn.Module):
         raise NotImplementedError()
 
 
+class CatFeaturesItemNet(ItemNetBase):
+    """
+    Base class for all category item features embeddings. To use more complicated logic then just id embeddings inherit
+    from this class and pass your custom ItemNet to your model params.
+    """
+
+    def __init__(
+        self,
+        item_features: SparseFeatures,
+        n_factors: int,
+        dropout_rate: float,
+    ):
+        super().__init__()
+
+        self.item_features = item_features
+        self.n_items = len(item_features)
+        self.n_cat_features = len(item_features.names)
+
+        self.category_embeddings = nn.Embedding(num_embeddings=self.n_cat_features, embedding_dim=n_factors)
+        self.drop_layer = nn.Dropout(dropout_rate)
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        # TODO: Should we use torch.nn.EmbeddingBag.html?
+        feature_dense = self.get_dense_item_features(items)
+
+        feature_embs = self.category_embeddings(self.feature_catalogue)
+        feature_embs = self.drop_layer(feature_embs)
+
+        feature_embeddings_per_items = feature_dense @ feature_embs
+        return feature_embeddings_per_items
+
+    @property
+    def device(self) -> torch.device:
+        """TODO"""
+        return self.category_embeddings.weight.device
+
+    @property
+    def feature_catalogue(self) -> torch.Tensor:
+        """TODO"""
+        return torch.arange(0, self.n_cat_features, device=self.device)
+
+    def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        # TODO: Add the whole `feature_dense` to the right gpu device at once?
+        feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
+        return torch.from_numpy(feature_dense).to(self.device)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
+        """TODO"""
+        item_features = dataset.item_features
+
+        if item_features is None:
+            explanation = """When `use_cat_features_embs` is True, the dataset must have item features."""
+            raise ValueError(explanation)
+
+        if not isinstance(item_features, SparseFeatures):
+            raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
+
+        item_cat_features = item_features.get_cat_features()
+        return cls(item_cat_features, n_factors, dropout_rate)
+
+
 class IdEmbeddingsItemNet(ItemNetBase):
     """
     Base class for item embeddings. To use more complicated logic then just id embeddings inherit
-    from this class and pass your custom ItemNet to your model params
+    from this class and pass your custom ItemNet to your model params.
     """
 
     def __init__(self, n_factors: int, n_items: int, dropout_rate: float):
         super().__init__()
 
         self.n_items = n_items
-        self.item_emb = nn.Embedding(
+        self.ids_emb = nn.Embedding(
             num_embeddings=n_items,
             embedding_dim=n_factors,
             padding_idx=0,
@@ -78,24 +149,85 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """TODO"""
-        item_embs = self.item_emb(items)
+        item_embs = self.ids_emb(items)
         item_embs = self.drop_layer(item_embs)
         return item_embs
 
     @property
-    def catalogue(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         """TODO"""
-        return torch.arange(0, self.n_items, device=self.item_emb.weight.device)
-
-    def get_all_embeddings(self) -> torch.Tensor:
-        """TODO"""
-        return self.forward(self.catalogue)
+        return self.ids_emb.weight.device
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
         n_items = dataset.item_id_map.size
         return cls(n_factors, n_items, dropout_rate)
+
+
+class ItemNetConstructor(ItemNetBase):
+    """
+    Base class constructor for ItemNet, taking as input a sequence of ItemNetBase nets,
+    including custom ItemNetBase nets.
+    Constructs item's embedding based on aggregation of its embeddings from the passed networks.
+    """
+
+    def __init__(
+        self,
+        n_items: int,
+        item_net_blocks: tp.Sequence[ItemNetBase],
+    ) -> None:
+        """TODO"""
+        super().__init__()
+
+        if len(item_net_blocks) == 0:
+            raise ValueError("At least one type of net to calculate item embeddings should be provided.")
+
+        self.n_items = n_items
+        self.n_item_blocks = len(item_net_blocks)
+        self.item_net_blocks = nn.ModuleList(item_net_blocks)
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """TODO"""
+        item_embs = []
+        # TODO: Add functionality for parallel computing.
+        for idx_block in range(self.n_item_blocks):
+            item_emb = self.item_net_blocks[idx_block](items)
+            item_embs.append(item_emb)
+        return torch.sum(torch.stack(item_embs, dim=0), dim=0)
+
+    @property
+    def device(self) -> torch.device:
+        """TODO"""
+        device = self.item_net_blocks[0].device
+        return device
+
+    @property
+    def catalogue(self) -> torch.Tensor:
+        """TODO"""
+        return torch.arange(0, self.n_items, device=self.device)
+
+    def get_all_embeddings(self) -> torch.Tensor:
+        """TODO"""
+        return self.forward(self.catalogue)
+
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        n_factors: int,
+        dropout_rate: float,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+    ) -> tpe.Self:
+        """TODO"""
+        n_items = dataset.item_id_map.size
+
+        item_net_blocks = []
+        for item_net in item_net_block_types:
+            item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
+            item_net_blocks.append(item_net_block)
+
+        return cls(n_items, item_net_blocks)
 
 
 class PointWiseFeedForward(nn.Module):
@@ -240,12 +372,12 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,
-        item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ) -> None:
         super().__init__()
 
-        self.item_model: ItemNetBase
+        self.item_model: ItemNetConstructor
         self.pos_encoding = pos_encoding_type(use_pos_emb, session_max_len, n_factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers_type(
@@ -255,13 +387,16 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             dropout_rate=dropout_rate,
         )
         self.use_causal_attn = use_causal_attn
-        self.item_net_type = item_net_type
         self.n_factors = n_factors
         self.dropout_rate = dropout_rate
 
+        self.item_net_block_types = item_net_block_types
+
     def construct_item_net(self, dataset: Dataset) -> None:
         """TODO"""
-        self.item_model = self.item_net_type.from_dataset(dataset, self.n_factors, self.dropout_rate)
+        self.item_model = ItemNetConstructor.from_dataset(
+            dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
 
     def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
@@ -402,12 +537,37 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_max_len + 1)
 
         # Construct dataset
-        # TODO: user features and item features are dropped for now
+        # TODO: user features are dropped for now
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
+
+        # get item features
+        item_features = None
+        if dataset.item_features is not None:
+            item_features = dataset.item_features
+            # TODO: remove assumption on SparseFeatures and add Dense Features support
+            if not isinstance(item_features, SparseFeatures):
+                raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
+
+            internal_ids = dataset.item_id_map.convert_to_internal(
+                item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
+            )
+            sorted_item_features = item_features.take(internal_ids)
+
+            dtype = sorted_item_features.values.dtype
+            n_features = sorted_item_features.values.shape[1]
+            extra_token_feature_values = sparse.csr_matrix((self.n_item_extra_tokens, n_features), dtype=dtype)
+
+            full_feature_values: sparse.scr_matrix = sparse.vstack(
+                [extra_token_feature_values, sorted_item_features.values], format="csr"
+            )
+
+            item_features = SparseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
+
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
-        dataset = Dataset(user_id_map, item_id_map, interactions)
+
+        dataset = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
 
         self.item_id_map = dataset.item_id_map
         return dataset
@@ -613,7 +773,7 @@ class SASRecModel(ModelBase):
         device: str = "cuda:1",
         cpu_n_threads: int = 0,
         trainer: tp.Optional[Trainer] = None,
-        item_net_type: tp.Type[ItemNetBase] = IdEmbeddingsItemNet,  # item embeddings on ids
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
@@ -632,7 +792,7 @@ class SASRecModel(ModelBase):
             use_pos_emb=use_pos_emb,
             use_causal_attn=True,
             transformer_layers_type=transformer_layers_type,
-            item_net_type=item_net_type,
+            item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
         )
         self.lightning_module_type = lightning_module_type
