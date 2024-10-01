@@ -537,7 +537,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_max_len + 1)
 
         # Construct dataset
-        # TODO: user features and item features are dropped for now
+        # TODO: user features are dropped for now
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
