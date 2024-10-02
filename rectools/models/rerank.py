@@ -67,7 +67,7 @@ class RerankerBase:
         return reco
 
 
-class CatBoostRerankerWrapper(RerankerBase):
+class CatBoostReranker(RerankerBase):
     def __init__(self, model: tp.Union[ClassifierBase, RankerBase] = CatBoostRanker()):
         super().__init__(model)
         self.is_classifier = isinstance(model, ClassifierBase)
