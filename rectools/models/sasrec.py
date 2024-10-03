@@ -423,11 +423,14 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
     def forward(
         self,
         sessions: torch.Tensor,  # [batch_size, session_max_len]
+        item_inds: tp.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """TODO"""
         item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
-        logits = session_embs @ item_embs.T  # [batch_size, session_max_len, n_items + 1]
+        if item_inds is not None:
+            item_embs = item_embs[item_inds]
+        logits = (session_embs.unsqueeze(2) @ item_embs.transpose(-2, -1)).squeeze(2)
         return logits
 
 
@@ -476,12 +479,14 @@ class SessionEncoderDataPreparatorBase:
         session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
+        n_negative: int,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
         train_min_user_interactions: int = 2,
     ) -> None:
         self.session_max_len = session_max_len
         self.batch_size = batch_size
+        self.n_negative = n_negative
         self.dataloader_num_workers = dataloader_num_workers
         self.item_extra_tokens = item_extra_tokens
         self.shuffle_train = shuffle_train
@@ -575,7 +580,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor, torch.LongTensor]:
         """
         Truncate each session from right to keep (session_max_len+1) last items.
         Do left padding until  (session_max_len+1) is reached.
@@ -589,7 +594,11 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
+
+        negatives = torch.randint(
+            low=1, high=self.item_id_map.size, size=(batch_size, self.session_max_len, self.n_negative)
+        )
+        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw), torch.LongTensor(negatives)
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """TODO"""
@@ -682,6 +691,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self,
         torch_model: TransformerBasedSessionEncoder,
         lr: float,
+        t: float,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
     ):
@@ -690,6 +700,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.loss = loss
         self.torch_model = torch_model
         self.adam_betas = adam_betas
+        self.t = t
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """TODO"""
@@ -699,9 +710,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
     def forward(
         self,
         batch: torch.Tensor,
+        item_inds: tp.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """TODO"""
-        return self.torch_model(batch)
+        return self.torch_model(batch, item_inds)
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
@@ -717,9 +729,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
-        x, y, w = batch
-        logits = self.forward(x)  # [batch_size, session_max_len, n_items + 1]
+        x, y, w, n = batch
         if self.loss == "softmax":
+            logits = self.forward(x)
             # We are using CrossEntropyLoss with a multi-dimensional case
 
             # Logits must be passed in form of [batch_size, n_items + 1, session_max_len],
@@ -738,7 +750,49 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             n = (loss > 0).to(loss.dtype)
             loss = torch.sum(loss) / torch.sum(n)
             return loss
-        raise ValueError(f"loss {loss} is not supported")
+        if self.loss == "BCE":
+            pos_neg = torch.cat([y.unsqueeze(-1), n], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            logits = self.forward(x, pos_neg)  # [batch_size, session_max_len, n_negatives + 1]
+            loss = self._bce_loss(logits, y, w)
+            return loss
+        if self.loss == "gBCE": 
+            # https://arxiv.org/pdf/2308.07192.pdf
+            pos_neg = torch.cat([y.unsqueeze(-1), n], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            n_items = self.torch_model.item_model.n_items
+            alpha = n.size()[2] / (n_items - 2)
+            beta = alpha * (self.t * (1 - 1 / alpha) + 1 / alpha)
+            logits = self.forward(x, pos_neg)  # [batch_size, session_max_len, n_negatives + 1]
+            logits = self._get_modified_logits(logits, beta)
+            loss = self._bce_loss(logits, y, w)
+            return loss
+
+        raise ValueError(f"loss {self.loss} is not supported")
+
+    def _bce_loss(self, logits: torch.Tensor, y: torch.LongTensor, w: torch.FloatTensor) -> torch.Tensor:
+        mask = y != 0
+        target = torch.zeros_like(logits)
+        target[:, :, 0] = 1
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            logits, target, reduction="none"
+        )  # [batch_size, session_max_len, n_negatives + 1]
+        loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
+        loss = torch.sum(loss) / torch.sum(mask)
+        return loss
+
+    def _get_modified_logits(self, logits: torch.Tensor, beta: float) -> torch.Tensor:
+        pos_logits = logits[:, :, 0:1].to(torch.float64)
+        neg_logits = logits[:, :, 1:].to(torch.float64)
+
+        epsilon = 1e-10
+        pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
+        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(torch.float64).max)
+        pos_probs_adjusted = torch.clamp(
+            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(torch.float64).max
+        )
+        pos_logits_transformed = torch.log(pos_probs_adjusted)
+        logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
+        return logits
 
     def _xavier_normal_init(self) -> None:
         """TODO"""
@@ -752,10 +806,10 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 # ####  --------------  SASRec Model  --------------  #### #
 
 
-class SASRecModel(ModelBase):
+class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
     """TODO"""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         n_blocks: int = 1,
         n_heads: int = 1,
@@ -766,6 +820,8 @@ class SASRecModel(ModelBase):
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
+        n_negative: int = 1,
+        gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
         verbose: int = 0,
@@ -808,11 +864,12 @@ class SASRecModel(ModelBase):
             )
         else:
             self._trainer = trainer
-        self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers)
+        self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers, n_negative)
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
         self.lr = lr
         self.loss = loss
+        self.gbce_t = gbce_t
 
     def _fit(
         self,
@@ -824,7 +881,9 @@ class SASRecModel(ModelBase):
         self.torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         self.torch_model.construct_item_net(processed_dataset)
 
-        lightning_model = self.lightning_module_type(self.torch_model, self.lr, self.loss)
+        lightning_model = self.lightning_module_type(
+            torch_model=self.torch_model, lr=self.lr, loss=self.loss, t=self.gbce_t
+        )
         self.trainer = deepcopy(self._trainer)
         self.trainer.fit(lightning_model, train_dataloader)
 
