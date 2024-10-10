@@ -474,24 +474,9 @@ class SequenceDataset(TorchDataset):
 class SessionEncoderDataPreparatorBase:
     """Base class for data preparator. Used only for type hinting."""
 
-    def __init__(
-        self,
-        session_max_len: int,
-        batch_size: int,
-        dataloader_num_workers: int,
-        n_negative: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
-        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
-        train_min_user_interactions: int = 2,
-    ) -> None:
-        self.session_max_len = session_max_len
-        self.batch_size = batch_size
-        self.n_negative = n_negative
-        self.dataloader_num_workers = dataloader_num_workers
-        self.item_extra_tokens = item_extra_tokens
-        self.shuffle_train = shuffle_train
-        self.train_min_user_interactions = train_min_user_interactions
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
         self.item_id_map: IdMap
+        self.item_extra_tokens: tp.Sequence[tp.Hashable]
         # TODO: add SequenceDatasetType for fit and recommend
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
@@ -530,6 +515,25 @@ class SessionEncoderDataPreparatorBase:
 
 class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     """TODO"""
+
+    def __init__(
+        self,
+        session_max_len: int,
+        batch_size: int,
+        dataloader_num_workers: int,
+        n_negative: int,
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
+        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
+        train_min_user_interactions: int = 2,
+    ) -> None:
+        super().__init__()
+        self.session_max_len = session_max_len
+        self.batch_size = batch_size
+        self.dataloader_num_workers = dataloader_num_workers
+        self.n_negative = n_negative
+        self.item_extra_tokens = item_extra_tokens
+        self.shuffle_train = shuffle_train
+        self.train_min_user_interactions = train_min_user_interactions
 
     def process_dataset_train(self, dataset: Dataset) -> Dataset:
         """TODO"""
@@ -755,7 +759,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             logits = self.forward(x, pos_neg)  # [batch_size, session_max_len, n_negatives + 1]
             loss = self._bce_loss(logits, y, w)
             return loss
-        if self.loss == "gBCE": 
+        if self.loss == "gBCE":
             # https://arxiv.org/pdf/2308.07192.pdf
             pos_neg = torch.cat([y.unsqueeze(-1), n], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
             n_items = self.torch_model.item_model.n_items
