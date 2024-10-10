@@ -430,7 +430,9 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
         if item_inds is not None:
             item_embs = item_embs[item_inds]
-        logits = (session_embs.unsqueeze(2) @ item_embs.transpose(-2, -1)).squeeze(2)
+            logits = (session_embs.unsqueeze(2) @ item_embs.transpose(-2, -1)).squeeze(2)
+        else:
+            logits = session_embs @ item_embs.T
         return logits
 
 
@@ -601,7 +603,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
 
         negatives = torch.randint(
             low=1, high=self.item_id_map.size, size=(batch_size, self.session_max_len, self.n_negative)
-        )
+        )  # [batch_size, session_max_len, n_negative]
         return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw), torch.LongTensor(negatives)
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
