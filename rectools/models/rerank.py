@@ -37,28 +37,18 @@ class RankerBase(tp.Protocol):
 
 
 class RerankerBase:
-    def __init__(
-        self, model: tp.Union[ClassifierBase, RankerBase], fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None
-    ):
+    def __init__(self, model: tp.Union[ClassifierBase, RankerBase]):
         self.model = model
-        self.fit_kwargs = fit_kwargs
 
-    def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
+    def prerare_data_for_fit(self, candidates_with_target: pd.DataFrame) -> pd.DataFrame:
         candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
+        return candidates_with_target
 
-        fit_kwargs = {
-            "X": candidates_with_target.drop(columns=Columns.Target),
-            "y": candidates_with_target[Columns.Target],
-        }
-
-        if self.fit_kwargs is not None:
-            fit_kwargs.update(self.fit_kwargs)
-
-        return fit_kwargs
-
-    def fit(self, candidates_with_target: pd.DataFrame) -> None:
-        fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
-        self.model.fit(**fit_kwargs)
+    def fit(self, candidates_with_target: pd.DataFrame, **kwargs: tp.Any) -> None:
+        candidates_with_target = self.prerare_data_for_fit(candidates_with_target)
+        self.model.fit(
+            candidates_with_target.drop(columns=Columns.Target), candidates_with_target[Columns.Target], **kwargs
+        )
 
     def rerank(self, candidates: pd.DataFrame) -> pd.DataFrame:
         reco = candidates[Columns.UserItem].copy()
@@ -78,42 +68,34 @@ class RerankerBase:
 
 
 class CatBoostReranker(RerankerBase):
-    def __init__(
-        self,
-        model: tp.Union[ClassifierBase, RankerBase] = CatBoostRanker(),
-        fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
-    ):
+    def __init__(self, model: tp.Union[ClassifierBase, RankerBase] = CatBoostRanker()):
         super().__init__(model)
         self.is_classifier = isinstance(model, ClassifierBase)
-        self.fit_kwargs = fit_kwargs
 
-    def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
-        candidates_with_target = candidates_with_target.sort_values(by=[Columns.User])
-        group_ids = candidates_with_target[Columns.User].values
+    def prerare_data_for_fit(self, candidates_with_target: pd.DataFrame, **kwargs: tp.Any) -> Pool:
+        group_ids = candidates_with_target.sort_values(by=Columns.User)[Columns.User].values
         candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
 
         if self.is_classifier:
-            fit_kwargs = {
-                "data": candidates_with_target.drop(columns=Columns.Target),
-                "label": candidates_with_target[Columns.Target],
-            }
+            train = Pool(
+                data=candidates_with_target.drop(columns=Columns.Target),
+                label=candidates_with_target[Columns.Target],
+                **kwargs,
+            )
         elif isinstance(self.model, RankerBase):
-            fit_kwargs = {
-                "data": candidates_with_target.drop(columns=Columns.Target),
-                "label": candidates_with_target[Columns.Target],
-                "group_id": group_ids,
-            }
+            train = Pool(
+                data=candidates_with_target.drop(columns=Columns.Target),
+                label=candidates_with_target[Columns.Target],
+                group_id=group_ids,
+                **kwargs,
+            )
         else:
             raise ValueError("Got unexpected model_type")
+        return train
 
-        if self.fit_kwargs is not None:
-            fit_kwargs.update(self.fit_kwargs)
-
-        return fit_kwargs
-
-    def fit(self, candidates_with_target: pd.DataFrame) -> None:
-        fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
-        self.model.fit(Pool(**fit_kwargs))
+    def fit(self, candidates_with_target: pd.DataFrame, **kwargs: tp.Any) -> None:
+        train = self.prerare_data_for_fit(candidates_with_target, **kwargs)
+        self.model.fit(train)
 
 
 class CandidatesFeatureCollectorBase:
