@@ -127,6 +127,11 @@ class CatFeaturesItemNet(ItemNetBase):
             raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
 
         item_cat_features = item_features.get_cat_features()
+
+        if item_cat_features.values.size == 0:
+            explanation = """When `use_cat_features_embs` is True, the dataset must have item category features."""
+            raise ValueError(explanation)
+        
         return cls(item_cat_features, n_factors, dropout_rate)
 
 
