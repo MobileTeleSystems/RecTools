@@ -13,9 +13,6 @@
 #  limitations under the License.
 
 
-import typing as tp
-
-import numpy as np
 import pandas as pd
 import pytest
 import torch
@@ -23,11 +20,11 @@ from lightning_fabric import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.exceptions import NotFittedError
-from rectools.models.sasrec import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetConstructor, SASRecModel
-from tests.models.utils import assert_second_fit_refits_model
+from rectools.dataset.features import SparseFeatures
+from rectools.models.sasrec import CatFeaturesItemNet, IdEmbeddingsItemNet
+from tests.testing_utils import assert_feature_set_equal
 
-from .data import INTERACTIONS
+from .data import DATASET, INTERACTIONS
 
 
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
@@ -40,24 +37,19 @@ class TestIdEmbeddingsItemNet:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
 
-    @pytest.fixture
-    def dataset(self) -> Dataset:
-        ds = Dataset.construct(INTERACTIONS)
-        return ds
+    def test_device(self) -> None:
+        id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=5, dropout_rate=0.5)
+        assert id_embeddings.device == torch.device("cpu")
 
     @pytest.mark.parametrize("n_factors", (10, 100))
-    def test_create_from_dataset(self, dataset: Dataset, n_factors: int) -> None:
-        id_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors=n_factors, dropout_rate=0.5)
+    def test_create_from_dataset(self, n_factors: int) -> None:
+        id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=n_factors, dropout_rate=0.5)
 
         actual_n_items = id_embeddings.n_items
         actual_embedding_dim = id_embeddings.ids_emb.embedding_dim
 
-        assert actual_n_items == INTERACTIONS[Columns.Item].nunique()
+        assert actual_n_items == DATASET.item_id_map.size
         assert actual_embedding_dim == n_factors
-
-    def test_device(self, dataset: Dataset) -> None:
-        id_embeddings = IdEmbeddingsItemNet.from_dataset(dataset, n_factors=5, dropout_rate=0.5)
-        assert id_embeddings.device == torch.device("cpu")
 
 
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
@@ -69,6 +61,133 @@ class TestCatFeaturesItemNet:
     def _seed_everything(self) -> None:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
+
+    @pytest.fixture
+    def dataset_item_features(self) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [11, "f1", "f1val1"],
+                [11, "f2", "f2val1"],
+                [12, "f1", "f1val1"],
+                [12, "f2", "f2val2"],
+                [13, "f1", "f1val1"],
+                [13, "f2", "f2val3"],
+                [14, "f1", "f1val2"],
+                [14, "f2", "f2val1"],
+                [15, "f1", "f1val2"],
+                [15, "f2", "f2val2"],
+                [17, "f1", "f1val2"],
+                [17, "f2", "f2val3"],
+                [16, "f1", "f1val2"],
+                [16, "f2", "f2val3"],
+                [11, "f3", 0],
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [14, "f3", 3],
+                [15, "f3", 4],
+                [17, "f3", 5],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            cat_item_features=["f1", "f2"],
+        )
+        return ds
+
+    def test_device(self, dataset_item_features: Dataset) -> None:
+        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+        assert cat_embeddings.device == torch.device("cpu")
+
+    def test_feature_catalogue(self, dataset_item_features: Dataset) -> None:
+        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+        expected_feature_catalogue = torch.arange(0, cat_embeddings.n_cat_features, device=cat_embeddings.device)
+        assert torch.equal(cat_embeddings.feature_catalogue, expected_feature_catalogue)
+
+    def test_get_dense_item_features(self, dataset_item_features: Dataset) -> None:
+        items = torch.from_numpy(
+            dataset_item_features.item_id_map.convert_to_internal(INTERACTIONS[Columns.Item].unique())
+        )
+        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+
+        actual_feature_dense = cat_embeddings.get_dense_item_features(items)
+        expected_feature_dense = torch.tensor(
+            [
+                [1.0, 0.0, 1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0, 1.0, 0.0],
+                [0.0, 1.0, 1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0, 0.0, 1.0],
+                [0.0, 1.0, 0.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0, 1.0],
+            ],
+            device=cat_embeddings.device,
+        )
+
+        assert torch.equal(actual_feature_dense, expected_feature_dense)
+
+    @pytest.mark.parametrize("n_factors", (10, 100))
+    def test_create_from_dataset(self, n_factors: int, dataset_item_features: Dataset) -> None:
+        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=n_factors, dropout_rate=0.5)
+
+        actual_item_features = cat_embeddings.item_features
+        actual_n_items = cat_embeddings.n_items
+        actual_n_cat_features = cat_embeddings.n_cat_features
+        actual_embedding_dim = cat_embeddings.category_embeddings.embedding_dim
+
+        expected_item_features = dataset_item_features.item_features
+        # TODO: remove after adding Dense Features support
+        if isinstance(expected_item_features, SparseFeatures):
+            expected_cat_item_features = expected_item_features.get_cat_features()
+
+            assert_feature_set_equal(actual_item_features, expected_cat_item_features)
+            assert actual_n_items == dataset_item_features.item_id_map.size
+            assert actual_n_cat_features == len(expected_cat_item_features.names)
+            assert actual_embedding_dim == n_factors
+
+    def test_raises_when_dataset_no_features(self) -> None:
+        with pytest.raises(ValueError):
+            CatFeaturesItemNet.from_dataset(DATASET, n_factors=10, dropout_rate=0.5)
+
+    # TODO: remove after adding Dense Features support
+    def test_raises_when_item_features_dense(self) -> None:
+        item_features = pd.DataFrame(
+            [
+                [11, 1, 1],
+                [12, 1, 2],
+                [13, 1, 3],
+                [14, 2, 1],
+                [15, 2, 2],
+                [17, 2, 3],
+            ],
+            columns=[Columns.Item, "f1", "f2"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS, item_features_df=item_features, cat_item_features=["f1", "f2"], make_dense_item_features=True
+        )
+        with pytest.raises(ValueError):
+            CatFeaturesItemNet.from_dataset(ds, n_factors=10, dropout_rate=0.5)
+
+    def test_raises_when_item_features_numeric(self) -> None:
+        item_features = pd.DataFrame(
+            [
+                [11, "f3", 0],
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [14, "f3", 3],
+                [15, "f3", 4],
+                [17, "f3", 5],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+        )
+        with pytest.raises(ValueError):
+            CatFeaturesItemNet.from_dataset(ds, n_factors=10, dropout_rate=0.5)
 
 
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
