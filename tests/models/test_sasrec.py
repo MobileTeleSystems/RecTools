@@ -13,6 +13,9 @@
 #  limitations under the License.
 
 
+import typing as tp
+
+import numpy as np
 import pandas as pd
 import pytest
 import torch
@@ -21,7 +24,7 @@ from lightning_fabric import seed_everything
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.features import SparseFeatures
-from rectools.models.sasrec import CatFeaturesItemNet, IdEmbeddingsItemNet
+from rectools.models.sasrec import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
 from tests.testing_utils import assert_feature_set_equal
 
 from .data import DATASET, INTERACTIONS
@@ -199,3 +202,131 @@ class TestItemNetConstructor:
     def _seed_everything(self) -> None:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
+
+    @pytest.fixture
+    def dataset_item_features(self) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [11, "f1", "f1val1"],
+                [11, "f2", "f2val1"],
+                [12, "f1", "f1val1"],
+                [12, "f2", "f2val2"],
+                [13, "f1", "f1val1"],
+                [13, "f2", "f2val3"],
+                [14, "f1", "f1val2"],
+                [14, "f2", "f2val1"],
+                [15, "f1", "f1val2"],
+                [15, "f2", "f2val2"],
+                [17, "f1", "f1val2"],
+                [17, "f2", "f2val3"],
+                [16, "f1", "f1val2"],
+                [16, "f2", "f2val3"],
+                [11, "f3", 0],
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [14, "f3", 3],
+                [15, "f3", 4],
+                [17, "f3", 5],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            cat_item_features=["f1", "f2"],
+        )
+        return ds
+
+    def test_device(self) -> None:
+        item_net = ItemNetConstructor.from_dataset(
+            DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=(IdEmbeddingsItemNet,)
+        )
+        assert item_net.device == torch.device("cpu")
+
+    def test_catalogue(self) -> None:
+        item_net = ItemNetConstructor.from_dataset(
+            DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=(IdEmbeddingsItemNet,)
+        )
+        expected_feature_catalogue = torch.arange(0, item_net.n_items, device=item_net.device)
+        assert torch.equal(item_net.catalogue, expected_feature_catalogue)
+
+    @pytest.mark.parametrize(
+        "item_net_block_types,n_factors",
+        (
+            (
+                (IdEmbeddingsItemNet,),
+                8,
+            ),
+            (
+                (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                16,
+            ),
+        ),
+    )
+    def test_get_all_embeddings(
+        self, dataset_item_features: Dataset, item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]], n_factors: int
+    ) -> None:
+        item_net = ItemNetConstructor.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5, item_net_block_types=item_net_block_types
+        )
+        assert item_net.get_all_embeddings().shape == (item_net.n_items, n_factors)
+
+    @pytest.mark.parametrize(
+        "item_net_block_types",
+        (
+            (IdEmbeddingsItemNet,),
+            (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        ),
+    )
+    def test_create_from_dataset(
+        self, dataset_item_features: Dataset, item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]]
+    ) -> None:
+        item_net = ItemNetConstructor.from_dataset(
+            dataset_item_features, n_factors=10, dropout_rate=0.5, item_net_block_types=item_net_block_types
+        )
+
+        actual_n_items = item_net.n_items
+        actual_item_net_blocks = len(item_net.item_net_blocks)
+
+        assert actual_n_items == dataset_item_features.item_id_map.size
+        assert actual_item_net_blocks == len(item_net_block_types)
+
+    @pytest.mark.parametrize(
+        "item_net_block_types,n_items,n_factors",
+        (
+            (
+                (IdEmbeddingsItemNet,),
+                2,
+                16,
+            ),
+            (
+                (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                4,
+                8,
+            ),
+        ),
+    )
+    def test_embedding_shape_after_model_pass(
+        self,
+        dataset_item_features: Dataset,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+        n_items: int,
+        n_factors: int,
+    ) -> None:
+        items = torch.from_numpy(
+            dataset_item_features.item_id_map.convert_to_internal(
+                np.random.choice(INTERACTIONS[Columns.Item].unique(), size=n_items, replace=False)
+            )
+        )
+        item_net = ItemNetConstructor.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5, item_net_block_types=item_net_block_types
+        )
+
+        expected_embeddings = item_net(items)
+
+        assert expected_embeddings.shape == (n_items, n_factors)
+
+    def test_raise_when_no_item_net_blocks(self) -> None:
+        with pytest.raises(ValueError):
+            ItemNetConstructor.from_dataset(DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=[])
