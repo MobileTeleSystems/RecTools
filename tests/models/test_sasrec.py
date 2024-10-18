@@ -46,13 +46,33 @@ class TestIdEmbeddingsItemNet:
 
     @pytest.mark.parametrize("n_factors", (10, 100))
     def test_create_from_dataset(self, n_factors: int) -> None:
-        id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=n_factors, dropout_rate=0.5)
+        item_id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=n_factors, dropout_rate=0.5)
 
-        actual_n_items = id_embeddings.n_items
-        actual_embedding_dim = id_embeddings.ids_emb.embedding_dim
+        actual_n_items = item_id_embeddings.n_items
+        actual_embedding_dim = item_id_embeddings.ids_emb.embedding_dim
 
         assert actual_n_items == DATASET.item_id_map.size
         assert actual_embedding_dim == n_factors
+
+    @pytest.mark.parametrize(
+        "n_items,n_factors",
+        (
+            (
+                2,
+                10,
+            ),
+            (
+                4,
+                100,
+            ),
+        ),
+    )
+    def test_embedding_shape_after_model_pass(self, n_items: int, n_factors: int) -> None:
+        items = torch.from_numpy(np.random.choice(DATASET.item_id_map.internal_ids, size=n_items, replace=False))
+        item_id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=n_factors, dropout_rate=0.5)
+
+        expected_item_ids = item_id_embeddings(items)
+        assert expected_item_ids.shape == (n_items, n_factors)
 
 
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
@@ -101,21 +121,23 @@ class TestCatFeaturesItemNet:
         return ds
 
     def test_device(self, dataset_item_features: Dataset) -> None:
-        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
-        assert cat_embeddings.device == torch.device("cpu")
+        cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+        assert cat_item_embeddings.device == torch.device("cpu")
 
     def test_feature_catalogue(self, dataset_item_features: Dataset) -> None:
-        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
-        expected_feature_catalogue = torch.arange(0, cat_embeddings.n_cat_features, device=cat_embeddings.device)
-        assert torch.equal(cat_embeddings.feature_catalogue, expected_feature_catalogue)
+        cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+        expected_feature_catalogue = torch.arange(
+            0, cat_item_embeddings.n_cat_features, device=cat_item_embeddings.device
+        )
+        assert torch.equal(cat_item_embeddings.feature_catalogue, expected_feature_catalogue)
 
     def test_get_dense_item_features(self, dataset_item_features: Dataset) -> None:
         items = torch.from_numpy(
             dataset_item_features.item_id_map.convert_to_internal(INTERACTIONS[Columns.Item].unique())
         )
-        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+        cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
 
-        actual_feature_dense = cat_embeddings.get_dense_item_features(items)
+        actual_feature_dense = cat_item_embeddings.get_dense_item_features(items)
         expected_feature_dense = torch.tensor(
             [
                 [1.0, 0.0, 1.0, 0.0, 0.0],
@@ -125,19 +147,21 @@ class TestCatFeaturesItemNet:
                 [0.0, 1.0, 0.0, 1.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0, 1.0],
             ],
-            device=cat_embeddings.device,
+            device=cat_item_embeddings.device,
         )
 
         assert torch.equal(actual_feature_dense, expected_feature_dense)
 
     @pytest.mark.parametrize("n_factors", (10, 100))
     def test_create_from_dataset(self, n_factors: int, dataset_item_features: Dataset) -> None:
-        cat_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=n_factors, dropout_rate=0.5)
+        cat_item_embeddings = CatFeaturesItemNet.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5
+        )
 
-        actual_item_features = cat_embeddings.item_features
-        actual_n_items = cat_embeddings.n_items
-        actual_n_cat_features = cat_embeddings.n_cat_features
-        actual_embedding_dim = cat_embeddings.category_embeddings.embedding_dim
+        actual_item_features = cat_item_embeddings.item_features
+        actual_n_items = cat_item_embeddings.n_items
+        actual_n_cat_features = cat_item_embeddings.n_cat_features
+        actual_embedding_dim = cat_item_embeddings.category_embeddings.embedding_dim
 
         expected_item_features = dataset_item_features.item_features
         # TODO: remove after adding Dense Features support
@@ -148,6 +172,32 @@ class TestCatFeaturesItemNet:
             assert actual_n_items == dataset_item_features.item_id_map.size
             assert actual_n_cat_features == len(expected_cat_item_features.names)
             assert actual_embedding_dim == n_factors
+
+    @pytest.mark.parametrize(
+        "n_items,n_factors",
+        (
+            (
+                2,
+                10,
+            ),
+            (
+                4,
+                100,
+            ),
+        ),
+    )
+    def test_embedding_shape_after_model_pass(
+        self, dataset_item_features: Dataset, n_items: int, n_factors: int
+    ) -> None:
+        items = torch.from_numpy(
+            np.random.choice(dataset_item_features.item_id_map.internal_ids, size=n_items, replace=False)
+        )
+        cat_item_embeddings = IdEmbeddingsItemNet.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5
+        )
+
+        expected_item_ids = cat_item_embeddings(items)
+        assert expected_item_ids.shape == (n_items, n_factors)
 
     def test_raises_when_dataset_no_features(self) -> None:
         with pytest.raises(ValueError):
@@ -315,9 +365,7 @@ class TestItemNetConstructor:
         n_factors: int,
     ) -> None:
         items = torch.from_numpy(
-            dataset_item_features.item_id_map.convert_to_internal(
-                np.random.choice(INTERACTIONS[Columns.Item].unique(), size=n_items, replace=False)
-            )
+            np.random.choice(dataset_item_features.item_id_map.internal_ids, size=n_items, replace=False)
         )
         item_net = ItemNetConstructor.from_dataset(
             dataset_item_features, n_factors=n_factors, dropout_rate=0.5, item_net_block_types=item_net_block_types
