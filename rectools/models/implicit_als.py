@@ -35,7 +35,7 @@ AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternating
 
 class ImplicitALSWrapperModel(VectorModel):
     """
-    Wrapper for `implicit.als.AlternatingLeastSquares`
+    Wrapper for :py:func:`implicit.als.AlternatingLeastSquares`
     with possibility to use explicit features and GPU support.
 
     See https://implicit.readthedocs.io/en/latest/als.html for details of base model.

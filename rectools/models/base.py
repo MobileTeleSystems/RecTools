@@ -44,6 +44,13 @@ class ModelBase:
 
     Warning: This class should not be used directly.
     Use derived classes instead.
+
+    Attributes
+    ----------
+    recommends_for_warm : bool
+        Whether model supports recommendations for warm users.
+    is_fitted : bool
+        Whether model is fitted.
     """
 
     recommends_for_warm: bool = False

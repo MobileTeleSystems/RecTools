@@ -31,7 +31,7 @@ from .vector import Factors, VectorModel
 
 class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
     """
-    Wrapper for `lightfm.LightFM`.
+    Wrapper for :py:class:`lightfm.LightFM`.
 
     See https://making.lyst.com/lightfm/docs/home.html for details of base model.
 
