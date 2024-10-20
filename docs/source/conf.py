@@ -55,7 +55,7 @@ author = "MTS Big Data"
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.napoleon",
+    "sphinx.ext.napoleon",  # support for numpy and google docstrings
     "sphinx.ext.autosummary",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
@@ -68,6 +68,12 @@ autodoc_typehints_description_target = "all"
 # add_module_names = False
 
 # PACKAGES = [rectools.__name__]
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "lightfm": ("https://making.lyst.com/lightfm/docs/", None),
+    "implicit": ("https://benfred.github.io/implicit/", None),
+}
 
 
 # setup configuration
@@ -91,12 +97,13 @@ def get_by_name(string: str):
     Returns:
         imported object
     """
-    class_name = string.split(".")[-1]
-    module_name = ".".join(string.split(".")[:-1])
-
-    if module_name == "":
+    parts = string.rsplit(".", maxsplit=1)
+    
+    if len(parts) == 1:
+        class_name = parts[0]
         return getattr(sys.modules[__name__], class_name)
-
+        
+    module_name, class_name = parts
     mod = __import__(module_name, fromlist=[class_name])
     return getattr(mod, class_name)
 
@@ -125,6 +132,15 @@ def setup(app: Sphinx):
 
 
 autosummary_generate = True
+
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "inherited-members": False,
+    "show-inheritance": True,
+}
+
+autodoc_typehints = "description"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -169,3 +185,7 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
+suppress_warnings = [
+    "ref.python",  # https://github.com/sphinx-doc/sphinx/issues/4961
+    "autosummary.import_cycle",  # https://github.com/sphinx-doc/sphinx/issues/12589
+]
