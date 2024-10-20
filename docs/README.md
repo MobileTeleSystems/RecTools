@@ -1,0 +1,2 @@
+- Use single backticks `` ` `` for inline code snippets or to refer to functions, methods, and variables.
+- Use double backticks ``` `` ``` when you want to render something exactly as-is without any formatting, especially for longer code snippets or filenames.
