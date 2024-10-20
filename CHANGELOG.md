@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configs for Popular, PopularInCategory models ([#188](https://github.com/MobileTeleSystems/RecTools/pull/188))
 - Configs for EASE, Random, PureSVD models ([#178](https://github.com/MobileTeleSystems/RecTools/pull/178))
 - Configs for implicit models ([#167](https://github.com/MobileTeleSystems/RecTools/pull/167))
+- Config for LightFM model ([#194](https://github.com/MobileTeleSystems/RecTools/pull/194))
 
 
 ## [0.7.0] - 29.07.2024

@@ -40,9 +40,9 @@ AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternating
 
 
 def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
-    if not isinstance(spec, str):  # including None
-        return spec
-    return import_object(spec)
+    if isinstance(spec, str):
+        return import_object(spec)
+    return spec  # including None
 
 
 def _serialize_alternating_least_squares_class(
