@@ -19,8 +19,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tests.models.data import DATASET
-
 try:
     from lightfm import LightFM
 except ImportError:
@@ -32,6 +30,7 @@ from rectools.exceptions import NotFittedError
 from rectools.models import LightFMWrapperModel
 from rectools.models.utils import recommend_from_scores
 from rectools.models.vector import Factors
+from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_get_config_and_from_config_compatibility,
