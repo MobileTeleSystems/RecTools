@@ -30,8 +30,6 @@ from tests.testing_utils import assert_feature_set_equal
 from .data import DATASET, INTERACTIONS
 
 
-@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
-@pytest.mark.filterwarnings("ignore::UserWarning")
 class TestIdEmbeddingsItemNet:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -75,8 +73,7 @@ class TestIdEmbeddingsItemNet:
         assert expected_item_ids.shape == (n_items, n_factors)
 
 
-@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
-@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestCatFeaturesItemNet:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -243,8 +240,7 @@ class TestCatFeaturesItemNet:
             CatFeaturesItemNet.from_dataset(ds, n_factors=10, dropout_rate=0.5)
 
 
-@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
-@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestItemNetConstructor:
     def setup_method(self) -> None:
         self._seed_everything()

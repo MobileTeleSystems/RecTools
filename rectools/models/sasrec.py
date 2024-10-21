@@ -46,7 +46,7 @@ class ItemNetBase(nn.Module):
 
     @property
     def device(self) -> torch.device:
-        """TODO"""
+        """Return device the item net is located."""
         raise NotImplementedError()
 
 
@@ -68,8 +68,16 @@ class PositionalEncodingBase(torch.nn.Module):
 
 class CatFeaturesItemNet(ItemNetBase):
     """
-    Base class for all category item features embeddings. To use more complicated logic then just id embeddings inherit
-    from this class and pass your custom ItemNet to your model params.
+    Network for item embeddings based only on categorical item features.
+
+    Parameters
+    ----------
+    item_features: SparseFeatures
+        Storage for sparse features.
+    n_factors: int
+        Latent embedding size of item embeddings.
+    dropout_rate: float
+        Probability of a hidden unit to be zeroed.
     """
 
     def __init__(
@@ -88,7 +96,19 @@ class CatFeaturesItemNet(ItemNetBase):
         self.drop_layer = nn.Dropout(dropout_rate)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
-        """TODO"""
+        """
+        Forward pass to get item embeddings from categorical item features.
+
+        Parameters
+        ----------
+        items: torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            Item embeddings.
+        """
         # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
 
@@ -100,23 +120,46 @@ class CatFeaturesItemNet(ItemNetBase):
 
     @property
     def device(self) -> torch.device:
-        """TODO"""
+        """Return device the item net is located."""
         return self.category_embeddings.weight.device
 
     @property
     def feature_catalogue(self) -> torch.Tensor:
-        """TODO"""
+        """Return tensor with elements in range [0, n_cat_features)."""
         return torch.arange(0, self.n_cat_features, device=self.device)
 
     def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
-        """TODO"""
+        """
+        Get categorical item values by certain item ids in dense format.
+
+        Parameters
+        ----------
+        items: torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            categorical item values in dense format.
+        """
         # TODO: Add the whole `feature_dense` to the right gpu device at once?
         feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
         return torch.from_numpy(feature_dense).to(self.device)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
-        """TODO"""
+        """
+        Create CatFeaturesItemNet from RecTools dataset.
+
+        Parameters
+        ----------
+        dataset: Dataset
+            RecTools dataset.
+        n_factors: int
+            Latent embedding size of item embeddings.
+        dropout_rate: float
+            Probability of a hidden unit of item embedding to be zeroed.
+        """
         item_features = dataset.item_features
 
         if item_features is None:
@@ -160,7 +203,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     @property
     def device(self) -> torch.device:
-        """TODO"""
+        """Return device the item net is located."""
         return self.ids_emb.weight.device
 
     @classmethod
@@ -172,9 +215,14 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
 class ItemNetConstructor(ItemNetBase):
     """
-    Base class constructor for ItemNet, taking as input a sequence of ItemNetBase nets,
-    including custom ItemNetBase nets.
-    Constructs item's embedding based on aggregation of its embeddings from the passed networks.
+    Constructed network for item embeddings based on aggregation of embeddings from transferred item network types.
+
+    Parameters
+    ----------
+    n_items: int
+        Number of items in the dataset.
+    item_net_blocks: Sequence(ItemNetBase)
+        Latent embedding size of item embeddings.
     """
 
     def __init__(
@@ -193,7 +241,19 @@ class ItemNetConstructor(ItemNetBase):
         self.item_net_blocks = nn.ModuleList(item_net_blocks)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
-        """TODO"""
+        """
+        Forward pass to get item embeddings from item network blocks.
+
+        Parameters
+        ----------
+        items: torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            Item embeddings.
+        """
         item_embs = []
         # TODO: Add functionality for parallel computing.
         for idx_block in range(self.n_item_blocks):
@@ -203,17 +263,17 @@ class ItemNetConstructor(ItemNetBase):
 
     @property
     def device(self) -> torch.device:
-        """TODO"""
+        """Return device the item net is located."""
         device = self.item_net_blocks[0].device
         return device
 
     @property
     def catalogue(self) -> torch.Tensor:
-        """TODO"""
+        """Return tensor with elements in range [0, n_items)."""
         return torch.arange(0, self.n_items, device=self.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
-        """TODO"""
+        """Get all item embeddings."""
         return self.forward(self.catalogue)
 
     @classmethod
@@ -224,7 +284,20 @@ class ItemNetConstructor(ItemNetBase):
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
     ) -> tpe.Self:
-        """TODO"""
+        """
+        Construct ItemNet from RecTools dataset and from various blocks of item networks.
+
+        Parameters
+        ----------
+        dataset: Dataset
+            RecTools dataset.
+        n_factors: int
+            Latent embedding size of item embeddings.
+        dropout_rate: float
+            Probability of a hidden unit of item embedding to be zeroed.
+        item_net_block_types: Sequence(Type(ItemNetBase))
+            Sequence item network block types.
+        """
         n_items = dataset.item_id_map.size
 
         item_net_blocks = []
