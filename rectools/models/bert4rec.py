@@ -6,8 +6,8 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import tqdm
-from scipy import sparse
 from pytorch_lightning import Trainer
+from scipy import sparse
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -21,12 +21,12 @@ from rectools.models.sasrec import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
     ItemNetBase,
+    ItemNetConstructor,
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
     SequenceDataset,
     SessionEncoderDataPreparatorBase,
     SessionEncoderLightningModuleBase,
-    TransformerBasedSessionEncoder,
     TransformerLayersBase,
 )
 from rectools.types import InternalIdsArray
@@ -46,7 +46,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         train_min_user_interactions: int,
         mask_prob: float,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE, MASKING_VALUE),
-        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
+        shuffle_train: bool = True,
     ) -> None:
         super().__init__()
         self.session_max_len = session_max_len
@@ -103,22 +103,21 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 
         self.item_id_map = dataset.item_id_map
         return dataset
-    
-    def _mask_session(self, ses: List[int]) -> Tuple[torch.Tensor, torch.Tensor]:
-        session = torch.tensor(ses.copy())
-        target = torch.tensor(ses.copy())
-        probabilities = torch.full((len(ses),), self.mask_prob)
-        mask_indexes = torch.bernoulli(probabilities).bool()
-        target[~mask_indexes] = 0 # padding
 
-        replace_indexes = torch.bernoulli(torch.full((len(ses),), 0.8)).bool() & mask_indexes
-        session[replace_indexes] = 1 # mask
-
-        # TODO: there was 0.5 in transformers library
-        random_indexes = torch.bernoulli(torch.full((len(ses),), 0.5)).bool() & mask_indexes & ~replace_indexes
-        random_items = torch.tensor(np.random.randint(low=2, high=self.item_id_map.size, size=sum(random_indexes).item()))
-        session[random_indexes] = random_items
-        return session, target
+    def _mask_session(self, ses: List[List[int]]) -> Tuple[torch.Tensor, torch.Tensor]:
+        masked_session = ses.copy()
+        target = ses.copy()
+        random_probs = np.random.rand(len(ses))
+        for j in range(len(ses)):
+            if random_probs[j] < self.mask_prob:
+                random_probs[j] /= self.mask_prob
+                if random_probs[j] < 0.8:
+                    masked_session[j] = 1
+                elif random_probs[j] < 0.9:
+                    masked_session[j] = np.random.randint(low=2, high=self.item_id_map.size, size=1)[0]
+            else:
+                target[j] = 0
+        return masked_session, target
 
     def _collate_fn_train(
         self,
@@ -126,16 +125,16 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
         """TODO"""
         batch_size = len(batch)
-        x = torch.zeros((batch_size, self.session_max_len))
-        y = torch.zeros((batch_size, self.session_max_len))
-        yw = torch.zeros((batch_size, self.session_max_len))
-
+        x = np.zeros((batch_size, self.session_max_len))
+        y = np.zeros((batch_size, self.session_max_len))
+        yw = np.zeros((batch_size, self.session_max_len))
         for i, (ses, ses_weights) in enumerate(batch):
-            session, target = self._mask_session(ses)
-            x[i, -len(ses):] = session  # ses: [session_len] -> x[i]: [session_max_len]
-            y[i, -len(ses):] = target  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses):] = torch.tensor(ses_weights)  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        return x.long(), y.long(), yw.long()
+            masked_session, target = self._mask_session(ses)
+            x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len]
+            y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len]
+            yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len]
+
+        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """TODO"""
@@ -196,7 +195,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
-    
+
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
@@ -251,27 +250,110 @@ class BERT4RecTransformerLayers(TransformerLayersBase):
         self.n_blocks = n_blocks
         self.multi_head_attn = nn.ModuleList(
             [nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
-        ) 
+        )
         self.layer_norm1 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.dropout1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.layer_norm2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors, dropout_rate) for _ in range(n_blocks)]
+            [PointWiseFeedForward(n_factors, n_factors * 4, dropout_rate) for _ in range(n_blocks)]
         )
         self.dropout2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
+        # self.dropout3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
 
     def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         """TODO"""
         for i in range(self.n_blocks):
             mha_input = self.layer_norm1[i](seqs)
+            # mha_output, _ =
+            # self.multi_head_attn[i](mha_input, mha_input, mha_input, attn_mask=attn_mask, need_weights=False)
             mha_output, _ = self.multi_head_attn[i](mha_input, mha_input, mha_input, need_weights=False)
             seqs = seqs + self.dropout1[i](mha_output)
             ff_input = self.layer_norm2[i](seqs)
             ff_output = self.feed_forward[i](ff_input)
             seqs = seqs + self.dropout2[i](ff_output)
-            seqs =  seqs * timeline_mask
+            seqs = seqs * timeline_mask
+            # seqs = self.dropout3[i](seqs)
 
         return seqs
+
+
+# ####  --------------  Session Encoder  --------------  #### #
+
+
+class TransformerBasedSessionEncoder(torch.nn.Module):
+    """TODO"""
+
+    def __init__(
+        self,
+        n_blocks: int,
+        n_factors: int,
+        n_heads: int,
+        session_max_len: int,
+        dropout_rate: float,
+        use_pos_emb: bool = True,
+        use_causal_attn: bool = True,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = BERT4RecTransformerLayers,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+    ) -> None:
+        super().__init__()
+
+        self.item_model: ItemNetConstructor
+        self.pos_encoding = pos_encoding_type(use_pos_emb, session_max_len, n_factors)
+        self.emb_dropout = torch.nn.Dropout(dropout_rate)
+        self.transformer_layers = transformer_layers_type(
+            n_blocks=n_blocks,
+            n_factors=n_factors,
+            n_heads=n_heads,
+            dropout_rate=dropout_rate,
+        )
+        self.use_causal_attn = use_causal_attn
+        self.n_factors = n_factors
+        self.dropout_rate = dropout_rate
+        self.n_heads = n_heads
+
+        self.item_net_block_types = item_net_block_types
+
+    def construct_item_net(self, dataset: Dataset) -> None:
+        """TODO"""
+        self.item_model = ItemNetConstructor.from_dataset(
+            dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
+
+    def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+        """
+        Pass user history through item embeddings and transformer blocks.
+
+        Returns
+        -------
+            torch.Tensor. [batch_size, session_max_len, n_factors]
+
+        """
+        session_max_len = sessions.shape[1]
+        attn_mask = None
+        if self.use_causal_attn:
+            attn_mask = ~torch.tril(
+                torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
+            )
+        timeline_mask = sessions != 0
+        attn_mask = ~timeline_mask.unsqueeze(1).repeat(self.n_heads, timeline_mask.squeeze(-1).shape[1], 1)
+        timeline_mask = timeline_mask.unsqueeze(-1)
+        seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
+        seqs = self.pos_encoding(seqs, timeline_mask)
+        seqs = self.emb_dropout(seqs)
+        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask)
+        return seqs
+
+    def forward(
+        self,
+        sessions: torch.Tensor,  # [batch_size, session_max_len]
+    ) -> torch.Tensor:
+        """TODO"""
+        item_embs = self.item_model.get_all_embeddings()  # [n_items + 2, n_factors]
+        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
+        logits = session_embs @ item_embs.T  # [batch_size, session_max_len, n_items + 2]
+        return logits
+
 
 class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     """TODO"""
@@ -279,6 +361,11 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def on_train_start(self) -> None:
         """TODO"""
         self._truncated_normal_init()
+
+    def configure_optimizers(self) -> torch.optim.Adam:
+        """TODO"""
+        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
+        return optimizer
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
@@ -304,7 +391,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             loss = torch.sum(loss) / torch.sum(n)
             return loss
         raise ValueError(f"loss {loss} is not supported")
-    
+
     def _truncated_normal_init(self) -> None:
         """TODO"""
         for _, param in self.torch_model.named_parameters():
@@ -312,6 +399,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
                 torch.nn.init.trunc_normal_(param.data)
             except ValueError:
                 pass
+
 
 class BERT4RecModel(ModelBase):
     """TODO"""
