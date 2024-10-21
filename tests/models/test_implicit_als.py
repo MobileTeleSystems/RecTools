@@ -476,3 +476,24 @@ class TestImplicitALSWrapperModelConfiguration:
         model_from_config = ImplicitALSWrapperModel.from_config({"model": {}})
         model_from_params = ImplicitALSWrapperModel(model=AlternatingLeastSquares())
         assert model_from_config.get_config() == model_from_params.get_config()
+
+
+
+class TestImplicitALSWrapperModelSerialization:
+    def test_dumps_loads(self):
+        def make_model() -> ImplicitALSWrapperModel:
+            model = ImplicitALSWrapperModel(model=AlternatingLeastSquares(random_state=42))
+            model.fit(DATASET)
+            return model
+
+        def get_reco(model: ImplicitALSWrapperModel) -> pd.DataFrame:
+            return model.fit(DATASET).recommend(users=[10, 20], dataset=DATASET, k=2, filter_viewed=False)
+        
+        model = make_model()
+        original_model_reco = get_reco(model)
+
+        dumped = make_model().dumps()
+        recovered_model = ImplicitALSWrapperModel.loads(dumped)
+        recovered_model_reco = get_reco(recovered_model)
+
+        pd.testing.assert_frame_equal(recovered_model_reco, original_model_reco)
