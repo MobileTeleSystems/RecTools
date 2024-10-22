@@ -22,7 +22,7 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import PopularModel
-from tests.models.utils import assert_second_fit_refits_model
+from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 
 class TestPopularModel:
@@ -212,3 +212,8 @@ class TestPopularModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = PopularModel()
         assert_second_fit_refits_model(model, dataset)
+
+    def test_dumps_loads(self, dataset: Dataset):
+        model = PopularModel()
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)

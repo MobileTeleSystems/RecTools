@@ -24,7 +24,7 @@ from rectools.models import RandomModel
 from rectools.models.random import _RandomGen, _RandomSampler
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 
 class TestRandomSampler:
@@ -178,3 +178,8 @@ class TestRandomModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = RandomModel(random_state=1)
         assert_second_fit_refits_model(model, dataset)
+
+    def test_dumps_loads(self, dataset: Dataset):
+        model = RandomModel()
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)

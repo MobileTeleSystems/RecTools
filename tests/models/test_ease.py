@@ -23,7 +23,7 @@ from rectools.dataset import Dataset
 from rectools.models import EASEModel
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 
 class TestEASEModel:
@@ -220,3 +220,8 @@ class TestEASEModel:
                 dataset=dataset,
                 k=2,
             )
+
+    def test_dumps_loads(self, dataset: Dataset):
+        model = EASEModel()
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)

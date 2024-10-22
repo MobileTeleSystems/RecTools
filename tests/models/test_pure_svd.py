@@ -25,7 +25,7 @@ from rectools.models.pure_svd import PureSVDModel
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 
 class TestPureSVDModel:
@@ -252,3 +252,8 @@ class TestPureSVDModel:
                 dataset=dataset,
                 k=2,
             )
+
+    def test_dumps_loads(self, dataset: Dataset):
+        model = PureSVDModel(factors=2)
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)

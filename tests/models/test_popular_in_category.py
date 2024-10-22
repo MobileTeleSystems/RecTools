@@ -22,7 +22,7 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import PopularInCategoryModel
-from tests.models.utils import assert_second_fit_refits_model
+from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 
 @pytest.mark.filterwarnings("ignore")
@@ -444,3 +444,8 @@ class TestPopularInCategoryModel:
             n_categories=n_categories,
         )
         assert_second_fit_refits_model(model, dataset)
+
+    def test_dumps_loads(self, dataset: Dataset):
+        model = PopularInCategoryModel(category_feature="f1")
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)

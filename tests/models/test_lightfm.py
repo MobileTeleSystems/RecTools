@@ -30,7 +30,7 @@ from rectools.exceptions import NotFittedError
 from rectools.models import LightFMWrapperModel
 from rectools.models.utils import recommend_from_scores
 from rectools.models.vector import Factors
-from tests.models.utils import assert_second_fit_refits_model
+from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
 
@@ -324,3 +324,8 @@ class TestLightFMWrapperModel:
                 k=2,
                 filter_viewed=False,
             )
+
+    def test_dumps_loads(self, dataset: Dataset):
+        model = LightFMWrapperModel(LightFM())
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)
