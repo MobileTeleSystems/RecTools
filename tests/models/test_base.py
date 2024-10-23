@@ -14,6 +14,7 @@
 
 # pylint: disable=attribute-defined-outside-init
 
+from tempfile import TemporaryFile
 import typing as tp
 from datetime import timedelta
 
@@ -573,6 +574,57 @@ class TestConfiguration:
         model = self.model_class(x=10, verbose=1, td=None)
         config = model.get_params(simple_types=simple_types)
         assert config == {"x": 10, "verbose": 1, "sc": None}
+
+
+class TestSavingAndLoading:
+
+    @pytest.fixture()
+    def model(self) -> None:
+        class SomeModel(ModelBase):
+            def dumps(self) -> bytes:
+                return b"model_body"
+            
+            def loads(self, body: bytes) -> None:
+                pass
+
+    def test_save_and_load_to_file(self) -> None:
+        with TemporaryFile() as f:
+            model = ModelBase()
+            model.save(f)
+            f.seek(0)
+            loaded_model = ModelBase.load(f)
+            
+
+    
+    # @pytest.mark.parametrize("use_str", (False, True))
+    # def test_save_and_load_from_path(self, use_str: bool) -> None:
+    #     with NamedTemporaryFile() as f:
+    #         path = Path(f.name)
+    #         model = ModelBase()
+    #         model.save(path, use_str=use_str)
+
+    #         loaded_model = ModelBase.load(path)
+    #         assert isinstance(loaded_model, ModelBase)
+        
+    #     path = tmp_path / "model"
+    #     self.model.save(path)
+
+    #     loaded_model = ModelBase.load(path)
+    #     reco = loaded_model.recommend(
+    #         users=np.array([10, 20]),
+    #         dataset=DATASET,
+    #         k=2,
+    #         filter_viewed=False,
+    #     )
+
+    #     excepted = pd.DataFrame(
+    #         {
+    #             Columns.User: [10, 10, 20, 20],
+    #             Columns.Item: [0, 1, 0, 1],
+    #             Columns.Score: [0.1, 0.2, 0.1, 0.2],
+    #         }
+    #     )
+    #     pd.testing.assert_frame_equal(reco, excepted.astype({Columns.Score: np.float32}))
 
 
 class TestFixedColdRecoModelMixin:
