@@ -1,3 +1,4 @@
+import os
 import typing as tp
 from typing import List
 
@@ -9,18 +10,22 @@ from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-from rectools.models.sasrec import SASRecDataPreparator, SASRecModel, SequenceDataset
+from rectools.models.sasrec import IdEmbeddingsItemNet, SASRecDataPreparator, SASRecModel, SequenceDataset
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
 
+# Ignore pytorch_lightning warnings
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+# Ignore non-empty checkpoint directory warnings, SASRec user warnings
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestSASRecModel:
     def setup_method(self) -> None:
         self._seed_everything()
 
     def _seed_everything(self) -> None:
+        # Enable deterministic behaviour with CUDA >= 10.2
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
 
@@ -61,7 +66,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -71,7 +76,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -87,11 +92,11 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
-        actual[Columns.Item] = actual[Columns.Item].apply(int)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -116,7 +121,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 17, 11, 11, 13, 17, 17, 11, 13],
+                        Columns.Item: [13, 11, 17, 13, 11, 17, 17, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -132,6 +137,7 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -143,7 +149,6 @@ class TestSASRecModel:
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
         )
-        actual[Columns.Item] = actual[Columns.Item].apply(int)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -159,7 +164,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 17, 11, 14, 11, 13, 17, 12, 14],
+                        Columns.Item: [12, 14, 17, 14, 12, 15, 17, 12, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -170,7 +175,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [17, 11, 14, 11, 13, 17, 12, 14, 11],
+                        Columns.Item: [14, 17, 15, 12, 15, 17, 12, 15, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -181,7 +186,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 13, 15, 13, 15, 14, 15, 13],
+                        Columns.Item: [14, 15, 13, 15, 13, 15, 14, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -199,6 +204,7 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -209,8 +215,6 @@ class TestSASRecModel:
             filter_itself=filter_itself,
             items_to_recommend=whitelist,
         )
-        actual[Columns.Item] = actual[Columns.Item].apply(int)
-        actual[Columns.TargetItem] = actual[Columns.TargetItem].apply(int)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -225,6 +229,7 @@ class TestSASRecModel:
             lr=0.001,
             batch_size=4,
             deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -236,7 +241,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [14, 12, 17],
+                        Columns.Item: [14, 15, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -246,7 +251,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 14, 12],
+                        Columns.Item: [13, 14, 15],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -264,6 +269,7 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
         )
         model.fit(dataset=dataset)
         users = np.array([20])
@@ -273,7 +279,6 @@ class TestSASRecModel:
             k=3,
             filter_viewed=filter_viewed,
         )
-        actual[Columns.Item] = actual[Columns.Item].apply(int)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -288,7 +293,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20, 20],
-                        Columns.Item: [17, 15, 14, 12, 17],
+                        Columns.Item: [15, 17, 14, 15, 12],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -298,7 +303,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 20, 20, 20],
-                        Columns.Item: [13, 12, 14, 13, 14, 12],
+                        Columns.Item: [13, 14, 15, 13, 14, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -316,6 +321,7 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
@@ -327,7 +333,6 @@ class TestSASRecModel:
                 filter_viewed=filter_viewed,
                 on_unsupported_targets="warn",
             )
-            actual[Columns.Item] = actual[Columns.Item].apply(int)
             pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
             pd.testing.assert_frame_equal(
                 actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
