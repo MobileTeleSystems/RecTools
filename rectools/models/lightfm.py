@@ -58,7 +58,7 @@ LightFMClass = tpe.Annotated[
 
 
 class LightFMParams(tpe.TypedDict):
-    """Params for implicit `AlternatingLeastSquares` model."""
+    """Params for `LightFM` model."""
 
     no_components: tpe.NotRequired[int]
     k: tpe.NotRequired[int]
