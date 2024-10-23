@@ -132,7 +132,7 @@ class CatFeaturesItemNet(ItemNetBase):
 
 class IdEmbeddingsItemNet(ItemNetBase):
     """
-    Network for item embeddings.
+    Network for item embeddings based only on item ids.
 
     Parameters
     ----------
@@ -294,12 +294,12 @@ class PointWiseFeedForward(nn.Module):
 
 class SASRecTransformerLayers(TransformerLayersBase):
     """
-    Exactly SASRec author's transformer blocks architecture but with torch MHA realisation.
+    Exactly SASRec author's transformer blocks architecture but with pytorch Multi-Head Attention realisation.
 
     Parameters
     ----------
     n_blocks: int
-        Number of self-attention blocks.
+        Number of transformer blocks.
     n_factors: int
         Latent embeddings size.
     n_heads: int
@@ -367,7 +367,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
     Parameters
     ----------
     n_blocks: int
-        Number of self-attention blocks.
+        Number of transformer blocks.
     n_factors: int
         Latent embeddings size.
     n_heads: int
@@ -453,14 +453,14 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         Parameters
         ----------
         sessions: torch.Tensor
-            User sessions consisting of items.
+            User sessions in the form of sequences of items ids.
         timeline_mask: torch.Tensor
             Mask to zero out padding elements.
 
         Returns
         -------
         torch.Tensor
-            User sessions with positional encoding if use_pos_emb is ``True``.
+            Encoded user sessions with added positional encoding if `use_pos_emb` is ``True``.
         """
         batch_size, session_max_len, _ = sessions.shape
 
@@ -489,7 +489,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
     Parameters
     ----------
     n_blocks: int
-        Number of self-attention blocks.
+        Number of transformer blocks.
     n_factors: int
         Latent embeddings size.
     n_heads: int
@@ -503,11 +503,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
     use_causal_attn: bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
     transformer_layers_type: Type(TransformerLayersBase), default `SasRecTransformerLayers`
-        Type of transformer layers used for training.
+        Type of transformer layers architecture.
     item_net_type: Type(ItemNetBase), default IdEmbeddingsItemNet
         Type of network returning item embeddings.
     pos_encoding_type: Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
-        Type of the class returning positional embeddings.
+        Type of positional encoding.
     """
 
     def __init__(
@@ -562,14 +562,14 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         Parameters
         ----------
         sessions:  torch.Tensor
-            User sessions consisting of items.
+            User sessions in the form of sequences of items ids.
         item_embs: torch.Tensor
             Item embeddings.
 
         Returns
         -------
         torch.Tensor. [batch_size, session_max_len, n_factors]
-            Encoded sessions with positional embeddings that passed transformer blocks.
+            Encoded session embeddings.
         """
         session_max_len = sessions.shape[1]
         attn_mask = None
@@ -597,7 +597,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         Parameters
         ----------
         sessions: torch.Tensor
-            User sessions consisting of items.
+            User sessions in the form of sequences of items ids.
 
         Returns
         -------
@@ -1061,7 +1061,7 @@ class SASRecModel(ModelBase):
     SASRec model for i2i and u2i recommendations.
 
     n_blocks: int, default 1
-        Number of self-attention blocks.
+        Number of transformer blocks.
     n_heads: int, default 1
         Number of attention heads.
     n_factors: int, default 128
@@ -1095,9 +1095,9 @@ class SASRecModel(ModelBase):
     item_net_type: Type(ItemNetBase), default `IdEmbeddingsItemNet`
         Type of network returning item enbeddings.
     pos_encoding_type: Type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
-        Type of the class returning positional embeddings.
+        Type of positional encoding.
     transformer_layers_type: Type(TransformerLayersBase), default `SasRecTransformerLayers`
-        Type of transformer layers used for training.
+        Type of transformer layers architecture.
     data_preparator_type: Type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type: Type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
@@ -1237,7 +1237,6 @@ class SASRecModel(ModelBase):
             num_threads=self.n_threads,
         )
         all_target_ids = user_ids[user_ids_indices]
-
         return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
 
     def _recommend_i2i(
