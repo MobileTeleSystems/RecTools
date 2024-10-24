@@ -9,11 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- Configs for Popular, PopularInCategory models ([#188](https://github.com/MobileTeleSystems/RecTools/pull/188))
-- Configs for EASE, Random, PureSVD models ([#178](https://github.com/MobileTeleSystems/RecTools/pull/178))
-- Configs for implicit models ([#167](https://github.com/MobileTeleSystems/RecTools/pull/167))
-- Config for LightFM model ([#194](https://github.com/MobileTeleSystems/RecTools/pull/194))
+- Model configs ([#170](https://github.com/MobileTeleSystems/RecTools/pull/170))
 
+
+## [0.8.0] - 28.08.2024
+
+### Added
+- `Debias` mechanism for classification, ranking and auc metrics. New parameter `is_debiased` to `calc_from_confusion_df`, `calc_per_user_from_confusion_df` methods of classification metrics, `calc_from_fitted`, `calc_per_user_from_fitted` methods of auc and rankning (`MAP`) metrics, `calc_from_merged`, `calc_per_user_from_merged` methods of ranking (`NDCG`, `MRR`) metrics. ([#152](https://github.com/MobileTeleSystems/RecTools/pull/152))
+- `nbformat >= 4.2.0` dependency to `[visuals]` extra ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
+- `filter_interactions` method of `Dataset` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- `on_unsupported_targets` parameter to  `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- Use nmslib-metabrainz for Python 3.11 and upper ([#180](https://github.com/MobielTeleSystems/RecTools/pull/180))
+
+### Fixed
+- `display()` method in `MetricsApp` ([#169](https://github.com/MobileTeleSystems/RecTools/pull/169))
+- `IntraListDiversity` metric computation in `cross_validate` ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+- Allow warp-kos loss for LightFMWrapperModel ([#175](https://github.com/MobileTeleSystems/RecTools/pull/175))
+
+### Removed
+- [Breaking] `assume_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
 
 ## [0.7.0] - 29.07.2024
 
