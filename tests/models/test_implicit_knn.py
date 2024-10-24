@@ -17,14 +17,18 @@ import typing as tp
 import numpy as np
 import pandas as pd
 import pytest
-from implicit.nearest_neighbours import TFIDFRecommender
+from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
 
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import ImplicitItemKNNWrapperModel
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 class TestImplicitItemKNNWrapperModel:
@@ -226,3 +230,101 @@ class TestImplicitItemKNNWrapperModel:
                 dataset=dataset,
                 k=2,
             )
+
+
+class CustomKNN(ItemItemRecommender):
+    pass
+
+
+class TestImplicitItemKNNWrapperModelConfiguration:
+
+    @pytest.mark.parametrize(
+        "model_class",
+        (
+            TFIDFRecommender,  # class object
+            "ItemItemRecommender",  # keyword
+            "TFIDFRecommender",  # keyword
+            "CosineRecommender",  # keyword
+            "BM25Recommender",  # keyword
+            "tests.models.test_implicit_knn.CustomKNN",  # custom class
+        ),
+    )
+    def test_from_config(self, model_class: tp.Union[tp.Type[ItemItemRecommender], str]) -> None:
+        params: tp.Dict[str, tp.Any] = {"K": 5}
+        if model_class == "BM25Recommender":
+            params.update({"K1": 0.33})
+        config = {
+            "model": {
+                "cls": model_class,
+                "params": params,
+            },
+            "verbose": 1,
+        }
+        model = ImplicitItemKNNWrapperModel.from_config(config)
+        assert model.verbose == 1
+        inner_model = model._model  # pylint: disable=protected-access
+        assert inner_model.K == 5
+        assert inner_model.num_threads == 0
+        if model_class == "BM25Recommender":
+            assert inner_model.K1 == 0.33
+        if isinstance(model_class, str):
+            assert inner_model.__class__.__name__ == model_class.split(".")[-1]
+        else:
+            assert inner_model.__class__ is model_class
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    @pytest.mark.parametrize(
+        "model_class, model_class_str",
+        (
+            (ItemItemRecommender, "ItemItemRecommender"),
+            (TFIDFRecommender, "TFIDFRecommender"),
+            (CosineRecommender, "CosineRecommender"),
+            (BM25Recommender, "BM25Recommender"),
+            (CustomKNN, "tests.models.test_implicit_knn.CustomKNN"),
+        ),
+    )
+    def test_to_config(
+        self, simple_types: bool, model_class: tp.Type[ItemItemRecommender], model_class_str: str
+    ) -> None:
+        model = ImplicitItemKNNWrapperModel(
+            model=model_class(K=5),
+            verbose=1,
+        )
+        config = model.get_config(simple_types=simple_types)
+        expected_model_params: tp.Dict[str, tp.Any] = {
+            "K": 5,
+            "num_threads": 0,
+        }
+        if model_class is BM25Recommender:
+            expected_model_params.update(
+                {
+                    "K1": 1.2,
+                    "B": 0.75,
+                }
+            )
+        expected = {
+            "model": {
+                "cls": model_class if not simple_types else model_class_str,
+                "params": expected_model_params,
+            },
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "model": {
+                "cls": TFIDFRecommender,
+                "params": {"K": 3},
+            },
+            "verbose": 1,
+        }
+        assert_get_config_and_from_config_compatibility(
+            ImplicitItemKNNWrapperModel, DATASET, initial_config, simple_types
+        )
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, tp.Any] = {"model": {}}
+        model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

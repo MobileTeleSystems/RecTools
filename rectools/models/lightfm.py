@@ -16,20 +16,82 @@ import typing as tp
 from copy import deepcopy
 
 import numpy as np
+import typing_extensions as tpe
 from lightfm import LightFM
+from pydantic import BeforeValidator, ConfigDict, SerializationInfo, WrapSerializer
 from scipy import sparse
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 from rectools.models.utils import recommend_from_scores
 from rectools.types import InternalIds, InternalIdsArray
+from rectools.utils.config import BaseConfig
+from rectools.utils.misc import get_class_or_function_full_path, import_object
 
-from .base import FixedColdRecoModelMixin, InternalRecoTriplet, Scores
+from .base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelConfig, RandomState, Scores
 from .rank import Distance
 from .vector import Factors, VectorModel
 
 
-class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
+def _get_light_fm_class(spec: tp.Any) -> tp.Any:
+    if isinstance(spec, str):
+        return import_object(spec)
+    return spec
+
+
+def _serialize_light_fm_class(
+    cls: tp.Type[LightFM], handler: tp.Callable, info: SerializationInfo
+) -> tp.Union[None, str, LightFM]:
+    if info.mode == "json":
+        return get_class_or_function_full_path(cls)
+    return cls
+
+
+LightFMClass = tpe.Annotated[
+    tp.Type[LightFM],
+    BeforeValidator(_get_light_fm_class),
+    WrapSerializer(
+        func=_serialize_light_fm_class,
+        when_used="always",
+    ),
+]
+
+
+class LightFMParams(tpe.TypedDict):
+    """Params for `LightFM` model."""
+
+    no_components: tpe.NotRequired[int]
+    k: tpe.NotRequired[int]
+    n: tpe.NotRequired[int]
+    learning_schedule: tpe.NotRequired[str]
+    loss: tpe.NotRequired[str]
+    learning_rate: tpe.NotRequired[float]
+    rho: tpe.NotRequired[float]
+    epsilon: tpe.NotRequired[float]
+    item_alpha: tpe.NotRequired[float]
+    user_alpha: tpe.NotRequired[float]
+    max_sampled: tpe.NotRequired[int]
+    random_state: tpe.NotRequired[RandomState]
+
+
+class LightFMConfig(BaseConfig):
+    """Config for `LightFM` model."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    cls: LightFMClass = LightFM
+    params: LightFMParams = {}
+
+
+class LightFMWrapperModelConfig(ModelConfig):
+    """Config for `LightFMWrapperModel`."""
+
+    model: LightFMConfig
+    epochs: int = 1
+    num_threads: int = 1
+
+
+class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperModelConfig]):
     """
     Wrapper for `lightfm.LightFM`.
 
@@ -57,6 +119,8 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
+    config_class = LightFMWrapperModelConfig
+
     def __init__(
         self,
         model: LightFM,
@@ -70,6 +134,39 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel):
         self._model = model
         self.n_epochs = epochs
         self.n_threads = num_threads
+
+    def _get_config(self) -> LightFMWrapperModelConfig:
+        inner_model = self._model
+        params = {
+            "no_components": inner_model.no_components,
+            "k": inner_model.k,
+            "n": inner_model.n,
+            "learning_schedule": inner_model.learning_schedule,
+            "loss": inner_model.loss,
+            "learning_rate": inner_model.learning_rate,
+            "rho": inner_model.rho,
+            "epsilon": inner_model.epsilon,
+            "item_alpha": inner_model.item_alpha,
+            "user_alpha": inner_model.user_alpha,
+            "max_sampled": inner_model.max_sampled,
+            "random_state": inner_model.initial_random_state,  # random_state is an object and can't be serialized
+        }
+        inner_model_cls = inner_model.__class__
+        return LightFMWrapperModelConfig(
+            model=LightFMConfig(
+                cls=inner_model_cls,
+                params=tp.cast(LightFMParams, params),  # https://github.com/python/mypy/issues/8890
+            ),
+            epochs=self.n_epochs,
+            num_threads=self.n_threads,
+            verbose=self.verbose,
+        )
+
+    @classmethod
+    def _from_config(cls, config: LightFMWrapperModelConfig) -> tpe.Self:
+        model_cls = config.model.cls
+        model = model_cls(**config.model.params)
+        return cls(model=model, epochs=config.epochs, num_threads=config.num_threads, verbose=config.verbose)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)

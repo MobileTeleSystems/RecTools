@@ -17,17 +17,26 @@
 import typing as tp
 
 import numpy as np
+import typing_extensions as tpe
 from scipy import sparse
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
+from rectools.models.base import ModelConfig
 from rectools.types import InternalIdsArray
 
 from .base import ModelBase, Scores
 from .rank import Distance, ImplicitRanker
 
 
-class EASEModel(ModelBase):
+class EASEModelConfig(ModelConfig):
+    """Config for `EASE` model."""
+
+    regularization: float = 500.0
+    num_threads: int = 1
+
+
+class EASEModel(ModelBase[EASEModelConfig]):
     """
     Embarrassingly Shallow Autoencoders for Sparse Data model.
 
@@ -51,16 +60,26 @@ class EASEModel(ModelBase):
     recommends_for_warm = False
     recommends_for_cold = False
 
+    config_class = EASEModelConfig
+
     def __init__(
         self,
         regularization: float = 500.0,
         num_threads: int = 1,
         verbose: int = 0,
     ):
+
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
         self.num_threads = num_threads
+
+    def _get_config(self) -> EASEModelConfig:
+        return EASEModelConfig(regularization=self.regularization, num_threads=self.num_threads, verbose=self.verbose)
+
+    @classmethod
+    def _from_config(cls, config: EASEModelConfig) -> tpe.Self:
+        return cls(regularization=config.regularization, num_threads=config.num_threads, verbose=config.verbose)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)

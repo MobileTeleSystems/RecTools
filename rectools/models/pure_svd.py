@@ -17,15 +17,26 @@
 import typing as tp
 
 import numpy as np
+import typing_extensions as tpe
 from scipy.sparse.linalg import svds
 
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
+from rectools.models.base import ModelConfig
 from rectools.models.rank import Distance
 from rectools.models.vector import Factors, VectorModel
 
 
-class PureSVDModel(VectorModel):
+class PureSVDModelConfig(ModelConfig):
+    """Config for `PureSVD` model."""
+
+    factors: int = 10
+    tol: float = 0
+    maxiter: tp.Optional[int] = None
+    random_state: tp.Optional[int] = None
+
+
+class PureSVDModel(VectorModel[PureSVDModelConfig]):
     """
     PureSVD matrix factorization model.
 
@@ -51,6 +62,8 @@ class PureSVDModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
+    config_class = PureSVDModelConfig
+
     def __init__(
         self,
         factors: int = 10,
@@ -68,6 +81,25 @@ class PureSVDModel(VectorModel):
 
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
+
+    def _get_config(self) -> PureSVDModelConfig:
+        return PureSVDModelConfig(
+            factors=self.factors,
+            tol=self.tol,
+            maxiter=self.maxiter,
+            random_state=self.random_state,
+            verbose=self.verbose,
+        )
+
+    @classmethod
+    def _from_config(cls, config: PureSVDModelConfig) -> tpe.Self:
+        return cls(
+            factors=config.factors,
+            tol=config.tol,
+            maxiter=config.maxiter,
+            random_state=config.random_state,
+            verbose=config.verbose,
+        )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
