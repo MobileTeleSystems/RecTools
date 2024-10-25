@@ -104,7 +104,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         self.item_id_map = dataset.item_id_map
         return dataset
 
-    def _mask_session(self, ses: List[List[int]]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _mask_session(self, ses: List[int]) -> Tuple[List[int], List[int]]:
         masked_session = ses.copy()
         target = ses.copy()
         random_probs = np.random.rand(len(ses))

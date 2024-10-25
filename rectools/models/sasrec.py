@@ -471,22 +471,14 @@ class SequenceDataset(TorchDataset):
 class SessionEncoderDataPreparatorBase:
     """Base class for data preparator. Used only for type hinting."""
 
-    def __init__(
-        self,
-        session_max_len: int,
-        batch_size: int,
-        dataloader_num_workers: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
-        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
-        train_min_user_interactions: int = 2,
-    ) -> None:
-        self.session_max_len = session_max_len
-        self.batch_size = batch_size
-        self.dataloader_num_workers = dataloader_num_workers
-        self.item_extra_tokens = item_extra_tokens
-        self.shuffle_train = shuffle_train
-        self.train_min_user_interactions = train_min_user_interactions
+    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+        self.item_extra_tokens: tp.Sequence[tp.Hashable]
+        self.train_min_user_interactions: int
+        self.session_max_len: int
         self.item_id_map: IdMap
+        self.batch_size: int
+        self.dataloader_num_workers: int
+        self.shuffle_train: bool
         # TODO: add SequenceDatasetType for fit and recommend
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
