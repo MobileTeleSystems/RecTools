@@ -6,7 +6,6 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 import torch
-import tqdm
 import typing_extensions as tpe
 from pytorch_lightning import LightningModule, Trainer
 from scipy import sparse
@@ -980,6 +979,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.loss = loss
         self.torch_model = torch_model
         self.adam_betas = adam_betas
+        self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
@@ -1044,6 +1044,19 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             loss = torch.sum(loss) / torch.sum(n)
             return loss
         raise ValueError(f"loss {loss} is not supported")
+
+    def on_train_end(self) -> None:
+        """Save item embeddings"""
+        self.eval()
+        self.item_embs = self.torch_model.item_model.get_all_embeddings()
+
+    def predict_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
+        """
+        Prediction step.
+        Encode user sessions.
+        """
+        encoded_sessions = self.torch_model.encode_sessions(batch, self.item_embs)[:, -1, :]
+        return encoded_sessions
 
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
@@ -1128,9 +1141,7 @@ class SASRecModel(ModelBase):
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(verbose=verbose)
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.n_threads = cpu_n_threads
-        self.torch_model: TransformerBasedSessionEncoder
         self._torch_model = TransformerBasedSessionEncoder(
             n_blocks=n_blocks,
             n_factors=n_factors,
@@ -1143,6 +1154,7 @@ class SASRecModel(ModelBase):
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
         )
+        self.lightning_model: SessionEncoderLightningModuleBase
         self.lightning_module_type = lightning_module_type
         self.trainer: Trainer
         if trainer is None:
@@ -1169,12 +1181,13 @@ class SASRecModel(ModelBase):
         processed_dataset = self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
 
-        self.torch_model = deepcopy(self._torch_model)  # TODO: check that it works
-        self.torch_model.construct_item_net(processed_dataset)
+        torch_model = deepcopy(self._torch_model)  # TODO: check that it works
+        torch_model.construct_item_net(processed_dataset)
 
-        lightning_model = self.lightning_module_type(self.torch_model, self.lr, self.loss)
+        self.lightning_model = self.lightning_module_type(torch_model, self.lr, self.loss)
+
         self.trainer = deepcopy(self._trainer)
-        self.trainer.fit(lightning_model, train_dataloader)
+        self.trainer.fit(self.lightning_model, train_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -1197,46 +1210,38 @@ class SASRecModel(ModelBase):
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        self.torch_model = self.torch_model.eval()
-        self.torch_model.to(self.device)
-
-        # Dataset has already been filtered and adapted to known item_id_map
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
+        session_embs = self.trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
+        if session_embs is not None:
+            user_embs = np.concatenate(session_embs, axis=0)
+            user_embs = user_embs[user_ids]
+            item_embs = self.lightning_model.item_embs
+            item_embs_np = item_embs.detach().cpu().numpy()
 
-        session_embs = []
-        item_embs = self.torch_model.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
-        with torch.no_grad():
-            for x_batch in tqdm.tqdm(recommend_dataloader):  # TODO: from tqdm.auto import tqdm. Also check `verbose``
-                x_batch = x_batch.to(self.device)  # [batch_size, session_max_len]
-                encoded = self.torch_model.encode_sessions(x_batch, item_embs)[:, -1, :]  # [batch_size, n_factors]
-                encoded = encoded.detach().cpu().numpy()
-                session_embs.append(encoded)
+            ranker = ImplicitRanker(
+                self.u2i_dist,
+                user_embs,  # [n_rec_users, n_factors]
+                item_embs_np,  # [n_items + 1, n_factors]
+            )
+            if filter_viewed:
+                user_items = dataset.get_user_item_matrix(include_weights=False)
+                ui_csr_for_filter = user_items[user_ids]
+            else:
+                ui_csr_for_filter = None
 
-        user_embs = np.concatenate(session_embs, axis=0)
-        user_embs = user_embs[user_ids]
-        item_embs_np = item_embs.detach().cpu().numpy()
+            # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
 
-        ranker = ImplicitRanker(
-            self.u2i_dist,
-            user_embs,  # [n_rec_users, n_factors]
-            item_embs_np,  # [n_items + 1, n_factors]
-        )
-        if filter_viewed:
-            user_items = dataset.get_user_item_matrix(include_weights=False)
-            ui_csr_for_filter = user_items[user_ids]
+            user_ids_indices, all_reco_ids, all_scores = ranker.rank(
+                subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
+                k=k,
+                filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 1]
+                sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
+                num_threads=self.n_threads,
+            )
+            all_target_ids = user_ids[user_ids_indices]
         else:
-            ui_csr_for_filter = None
-
-        # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
-
-        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
-            k=k,
-            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 1]
-            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-            num_threads=self.n_threads,
-        )
-        all_target_ids = user_ids[user_ids_indices]
+            explanation = """Received empty recommendations. Used for type-annotation"""
+            raise ValueError(explanation)
         return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
 
     def _recommend_i2i(
@@ -1249,9 +1254,7 @@ class SASRecModel(ModelBase):
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        self.torch_model = self.torch_model.eval()
-        item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
-
+        item_embs = self.lightning_model.item_embs.detach().cpu().numpy()
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
         # Should we use torch dot and topk? Should be faster
 
@@ -1269,6 +1272,6 @@ class SASRecModel(ModelBase):
         )
 
     @property
-    def lightning_model(self) -> SessionEncoderLightningModule:
-        """TODO"""
-        return self.trainer.lightning_module
+    def torch_model(self) -> TransformerBasedSessionEncoder:
+        """Return torch model."""
+        return self.lightning_model.torch_model

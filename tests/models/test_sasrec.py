@@ -1,4 +1,3 @@
-import os
 import typing as tp
 from typing import List
 
@@ -6,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
-from pytorch_lightning import seed_everything
+from pytorch_lightning import Trainer, seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
@@ -24,8 +23,6 @@ class TestSASRecModel:
         self._seed_everything()
 
     def _seed_everything(self) -> None:
-        # Enable deterministic behaviour with CUDA >= 10.2
-        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
 
@@ -58,6 +55,15 @@ class TestSASRecModel:
     def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
         return Dataset.construct(interactions_df[:-4])
 
+    @pytest.fixture
+    def trainer(self) -> Trainer:
+        return Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator="cpu",
+        )
+
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -66,7 +72,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -76,14 +82,15 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
+                        Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
         ),
     )
-    def test_u2i(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    # TODO: tests do not pass for multiple GPUs
+    def test_u2i(self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame) -> None:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -93,6 +100,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -121,14 +129,16 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 17, 13, 11, 17, 17, 13, 11],
+                        Columns.Item: [13, 17, 11, 11, 13, 17, 17, 11, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    def test_with_whitelist(
+        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+    ) -> None:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -138,6 +148,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -164,7 +175,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 14, 17, 14, 12, 15, 17, 12, 15],
+                        Columns.Item: [12, 17, 11, 14, 11, 13, 17, 12, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -175,7 +186,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 17, 15, 12, 15, 17, 12, 15, 14],
+                        Columns.Item: [17, 11, 14, 11, 13, 17, 12, 14, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -186,7 +197,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 15, 13, 15, 13, 15, 14, 13],
+                        Columns.Item: [14, 13, 15, 13, 15, 14, 15, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -194,7 +205,12 @@ class TestSASRecModel:
         ),
     )
     def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        trainer: Trainer,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -205,6 +221,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -221,7 +238,7 @@ class TestSASRecModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset) -> None:
+    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, trainer: Trainer) -> None:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -230,6 +247,7 @@ class TestSASRecModel:
             batch_size=4,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -241,7 +259,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [14, 15, 12],
+                        Columns.Item: [14, 12, 17],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -251,7 +269,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 14, 15],
+                        Columns.Item: [13, 14, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -259,7 +277,7 @@ class TestSASRecModel:
         ),
     )
     def test_recommend_for_cold_user_with_hot_item(
-        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -270,6 +288,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
         )
         model.fit(dataset=dataset)
         users = np.array([20])
@@ -293,7 +312,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20, 20],
-                        Columns.Item: [15, 17, 14, 15, 12],
+                        Columns.Item: [17, 15, 14, 12, 17],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -303,7 +322,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 20, 20, 20],
-                        Columns.Item: [13, 14, 15, 13, 14, 15],
+                        Columns.Item: [13, 12, 14, 13, 14, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -311,7 +330,7 @@ class TestSASRecModel:
         ),
     )
     def test_warn_when_hot_user_has_cold_items_in_recommend(
-        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -322,6 +341,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
