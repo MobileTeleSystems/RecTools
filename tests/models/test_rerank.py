@@ -9,11 +9,11 @@ from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
 from rectools.models.base import NotFittedError
-from rectools.models.rerank import (
+from rectools.models.candidate_ranking import (
     CandidateGenerator,
+    CandidateRankingModel,
     CandidatesFeatureCollectorBase,
     PerUserNegativeSampler,
-    TwoStageModel,
 )
 
 
@@ -224,7 +224,7 @@ class TestTwoStageModel:
         candidate_generators = [CandidateGenerator(PopularModel(), 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
-        two_stage_model = TwoStageModel(candidate_generators, splitter, reranker=reranker, sampler=sampler)
+        two_stage_model = CandidateRankingModel(candidate_generators, splitter, reranker=reranker, sampler=sampler)
         actual = two_stage_model.get_train_with_targets_for_reranker(dataset)
         expected = pd.DataFrame(
             {
