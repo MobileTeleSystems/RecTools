@@ -1,7 +1,7 @@
 import typing as tp
 import warnings
 from copy import deepcopy
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -423,17 +423,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
     def forward(
         self,
         sessions: torch.Tensor,  # [batch_size, session_max_len]
-        item_inds: tp.Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """TODO"""
         item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
-        if item_inds is not None:
-            item_embs = item_embs[item_inds]
-            logits = (session_embs.unsqueeze(2) @ item_embs.transpose(-2, -1)).squeeze(2)
-        else:
-            logits = session_embs @ item_embs.T
-        return logits
+        return item_embs, session_embs
 
 
 # ####  --------------  Data Processor  --------------  #### #
@@ -586,7 +580,8 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor, torch.LongTensor]:
+        n_negative: int,
+    ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep (session_max_len+1) last items.
         Do left padding until  (session_max_len+1) is reached.
@@ -601,17 +596,20 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
-        negatives = torch.randint(
-            low=1, high=self.item_id_map.size, size=(batch_size, self.session_max_len, self.n_negative)
-        )  # [batch_size, session_max_len, n_negative]
-        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw), torch.LongTensor(negatives)
+        batch_dict = dict({"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)})
+        if n_negative is not None:
+            negatives = torch.randint(
+                low=1, high=self.item_id_map.size, size=(batch_size, self.session_max_len, self.n_negative)
+            )  # [batch_size, session_max_len, n_negative]
+            batch_dict["negatives"] = torch.LongTensor(negatives)
+        return batch_dict
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """TODO"""
         sequence_dataset = SequenceDataset.from_interactions(processed_dataset.interactions.df)
         train_dataloader = DataLoader(
             sequence_dataset,
-            collate_fn=self._collate_fn_train,
+            collate_fn=lambda batch: self._collate_fn_train(batch, self.n_negative),
             batch_size=self.batch_size,
             num_workers=self.dataloader_num_workers,
             shuffle=self.shuffle_train,
@@ -716,10 +714,9 @@ class SessionEncoderLightningModuleBase(LightningModule):
     def forward(
         self,
         batch: torch.Tensor,
-        item_inds: tp.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """TODO"""
-        return self.torch_model(batch, item_inds)
+        return self.torch_model(batch)
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
@@ -735,9 +732,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """TODO"""
-        x, y, w, n = batch
         if self.loss == "softmax":
-            logits = self.forward(x)
+            x, y, w = batch.values()
+            item_embs, session_embs = self.forward(x)
             # We are using CrossEntropyLoss with a multi-dimensional case
 
             # Logits must be passed in form of [batch_size, n_items + 1, session_max_len],
@@ -748,7 +745,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
             # Loss output will have a shape of [batch_size, session_max_len]
             # and will have zeros for every `0` target label
-
+            logits = session_embs @ item_embs.T
             loss = torch.nn.functional.cross_entropy(
                 logits.transpose(1, 2), y, ignore_index=0, reduction="none"
             )  # [batch_size, session_max_len]
@@ -757,17 +754,27 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             loss = torch.sum(loss) / torch.sum(n)
             return loss
         if self.loss == "BCE":
-            pos_neg = torch.cat([y.unsqueeze(-1), n], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-            logits = self.forward(x, pos_neg)  # [batch_size, session_max_len, n_negatives + 1]
+            x, y, w, negatives = batch.values()
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            # [n_items + 1, n_factors], [batch_size, session_max_len, n_factors]
+            item_embs, session_embs = self.forward(x)
+            item_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
+            logits = (session_embs.unsqueeze(2) @ item_embs.transpose(-2, -1)).squeeze(
+                2
+            )  # [batch_size, session_max_len, n_negatives + 1]
             loss = self._bce_loss(logits, y, w)
             return loss
         if self.loss == "gBCE":
+            x, y, w, negatives = batch.values()
             # https://arxiv.org/pdf/2308.07192.pdf
-            pos_neg = torch.cat([y.unsqueeze(-1), n], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
             n_items = self.torch_model.item_model.n_items
-            alpha = n.size()[2] / (n_items - 2)
+            alpha = negatives.size()[2] / (n_items - 2)
             beta = alpha * (self.t * (1 - 1 / alpha) + 1 / alpha)
-            logits = self.forward(x, pos_neg)  # [batch_size, session_max_len, n_negatives + 1]
+            # [n_items + 1, n_factors], [batch_size, session_max_len, n_factors]
+            item_embs, session_embs = self.forward(x)
+            item_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
+            logits = (session_embs.unsqueeze(2) @ item_embs.transpose(-2, -1)).squeeze(2)
             logits = self._get_modified_logits(logits, beta)
             loss = self._bce_loss(logits, y, w)
             return loss
@@ -826,7 +833,7 @@ class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
-        n_negative: int = 1,
+        n_negative: tp.Optional[int] = 1,
         gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
@@ -870,6 +877,8 @@ class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
             )
         else:
             self._trainer = trainer
+        if loss == "softmax":
+            n_negative = None
         self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers, n_negative)
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
@@ -987,6 +996,6 @@ class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         )
 
     @property
-    def lightning_model(self) -> SessionEncoderLightningModule:
+    def lightning_model(self) -> LightningModule:
         """TODO"""
         return self.trainer.lightning_module
