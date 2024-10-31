@@ -154,6 +154,7 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
+        # `dataset.item_id_map.external_dtype` can change
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
@@ -275,6 +276,7 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
+        # `dataset.item_id_map.external_dtype` can change
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 

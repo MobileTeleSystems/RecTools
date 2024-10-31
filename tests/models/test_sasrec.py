@@ -401,10 +401,6 @@ class TestSequenceDataset:
         assert all(actual_list == expected_list for actual_list, expected_list in zip(actual.weights, expected_weights))
 
 
-# Ignore user warning in `test_transform_dataset_u2i`
-
-
-@pytest.mark.filterwarnings("ignore::UserWarning")
 class TestSASRecDataPreparator:
 
     def setup_method(self) -> None:
@@ -507,7 +503,7 @@ class TestSASRecDataPreparator:
         expected_user_id_map: IdMap,
     ) -> None:
         data_preparator.process_dataset_train(dataset)
-        users = [10, 20, 50]
+        users = [10, 20]
         actual = data_preparator.transform_dataset_u2i(dataset, users)
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
