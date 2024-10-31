@@ -24,7 +24,7 @@ from rectools.types import InternalIdsArray
 
 PADDING_VALUE = "PAD"
 
-
+# pylint: disable=too-many-lines
 # ####  --------------  Net blocks  --------------  #### #
 
 
@@ -517,7 +517,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
-        n_negative: int,
+        n_negatives: int,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
         train_min_user_interactions: int = 2,
@@ -526,7 +526,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         self.session_max_len = session_max_len
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
-        self.n_negative = n_negative
+        self.n_negatives = n_negatives
         self.item_extra_tokens = item_extra_tokens
         self.shuffle_train = shuffle_train
         self.train_min_user_interactions = train_min_user_interactions
@@ -580,7 +580,6 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-        n_negative: int,
     ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep (session_max_len+1) last items.
@@ -597,9 +596,12 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = dict({"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)})
-        if n_negative is not None:
+        # TODO: we are sampling negatives for paddings. Let's think about it later
+        if self.n_negatives is not None:
             negatives = torch.randint(
-                low=1, high=self.item_id_map.size, size=(batch_size, self.session_max_len, self.n_negative)
+                low=self.n_item_extra_tokens,
+                high=self.item_id_map.size,
+                size=(batch_size, self.session_max_len, self.n_negatives),
             )  # [batch_size, session_max_len, n_negative]
             batch_dict["negatives"] = torch.LongTensor(negatives)
         return batch_dict
@@ -609,7 +611,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         sequence_dataset = SequenceDataset.from_interactions(processed_dataset.interactions.df)
         train_dataloader = DataLoader(
             sequence_dataset,
-            collate_fn=lambda batch: self._collate_fn_train(batch, self.n_negative),
+            collate_fn=self._collate_fn_train,
             batch_size=self.batch_size,
             num_workers=self.dataloader_num_workers,
             shuffle=self.shuffle_train,
@@ -695,7 +697,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self,
         torch_model: TransformerBasedSessionEncoder,
         lr: float,
-        t: float,
+        gbce_t: float,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
     ):
@@ -704,7 +706,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.loss = loss
         self.torch_model = torch_model
         self.adam_betas = adam_betas
-        self.t = t
+        self.gbce_t = gbce_t
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """TODO"""
@@ -770,7 +772,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
             n_items = self.torch_model.item_model.n_items
             alpha = negatives.size()[2] / (n_items - 2)
-            beta = alpha * (self.t * (1 - 1 / alpha) + 1 / alpha)
+            beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
             # [n_items + 1, n_factors], [batch_size, session_max_len, n_factors]
             item_embs, session_embs = self.forward(x)
             item_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
@@ -833,7 +835,7 @@ class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
-        n_negative: tp.Optional[int] = 1,
+        n_negatives: tp.Optional[int] = 1,
         gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
@@ -878,8 +880,8 @@ class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         else:
             self._trainer = trainer
         if loss == "softmax":
-            n_negative = None
-        self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers, n_negative)
+            n_negatives = None
+        self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers, n_negatives)
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
         self.lr = lr
@@ -897,7 +899,7 @@ class SASRecModel(ModelBase):  # pylint: disable=too-many-instance-attributes
         self.torch_model.construct_item_net(processed_dataset)
 
         lightning_model = self.lightning_module_type(
-            torch_model=self.torch_model, lr=self.lr, loss=self.loss, t=self.gbce_t
+            torch_model=self.torch_model, lr=self.lr, loss=self.loss, gbce_t=self.gbce_t
         )
         self.trainer = deepcopy(self._trainer)
         self.trainer.fit(lightning_model, train_dataloader)
