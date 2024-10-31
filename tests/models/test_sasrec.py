@@ -14,10 +14,6 @@ from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
 
-# Ignore pytorch_lightning warnings
-@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
-# Ignore non-empty checkpoint directory warnings, SASRec user warnings
-@pytest.mark.filterwarnings("ignore::UserWarning")
 class TestSASRecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -345,7 +341,7 @@ class TestSASRecModel:
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
-        with pytest.warns(UserWarning, match="1 target users were considered cold because of missing known items"):
+        with pytest.warns() as record:
             actual = model.recommend(
                 users=users,
                 dataset=dataset,
@@ -358,6 +354,14 @@ class TestSASRecModel:
                 actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
                 actual,
             )
+        assert str(record[0].message) == "1 target users were considered cold because of missing known items"
+        assert (
+            str(record[1].message)
+            == """
+                Model `<class 'rectools.models.sasrec.SASRecModel'>` doesn't support recommendations for cold users,
+                but some of given users are cold: they are not in the `dataset.user_id_map`
+            """
+        )
 
 
 class TestSequenceDataset:
@@ -395,6 +399,9 @@ class TestSequenceDataset:
         )
         assert len(actual.weights) == len(expected_weights)
         assert all(actual_list == expected_list for actual_list, expected_list in zip(actual.weights, expected_weights))
+
+
+# Ignore user warning in `test_transform_dataset_u2i`
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")

@@ -619,7 +619,7 @@ class SequenceDataset(TorchDataset):
     Parameters
     ----------
     sessions: List[List[int]]
-        User interaction sequences.
+        User sessions in the form of sequences of items ids.
     weights: List[List[float]]
         Weight of each interaction from the session.
     """

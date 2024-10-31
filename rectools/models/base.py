@@ -154,7 +154,7 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
-        item_type = dataset.item_id_map.external_dtype
+        original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
@@ -194,9 +194,13 @@ class ModelBase:
         reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
 
-        reco_hot_final = self._adjust_reco_types(reco_hot_final, dataset.user_id_map.external_dtype, item_type)
-        reco_warm_final = self._adjust_reco_types(reco_warm_final, dataset.user_id_map.external_dtype, item_type)
-        reco_cold_final = self._adjust_reco_types(reco_cold_final, dataset.user_id_map.external_dtype, item_type)
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, dataset.user_id_map.external_dtype, original_item_type)
+        reco_warm_final = self._adjust_reco_types(
+            reco_warm_final, dataset.user_id_map.external_dtype, original_item_type
+        )
+        reco_cold_final = self._adjust_reco_types(
+            reco_cold_final, dataset.user_id_map.external_dtype, original_item_type
+        )
 
         del reco_hot, reco_warm, reco_cold
 
@@ -271,7 +275,7 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
-        item_type = dataset.item_id_map.external_dtype
+        original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
@@ -322,9 +326,9 @@ class ModelBase:
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
         del reco_hot, reco_warm, reco_cold
 
-        reco_hot_final = self._adjust_reco_types(reco_hot_final, item_type, item_type)
-        reco_warm_final = self._adjust_reco_types(reco_warm_final, item_type, item_type)
-        reco_cold_final = self._adjust_reco_types(reco_cold_final, item_type, item_type)
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_item_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_item_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_item_type, original_item_type)
 
         reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
         del reco_hot_final, reco_warm_final, reco_cold_final
