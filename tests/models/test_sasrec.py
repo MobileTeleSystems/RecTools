@@ -9,9 +9,20 @@ from pytorch_lightning import Trainer, seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-from rectools.models.sasrec import IdEmbeddingsItemNet, SASRecDataPreparator, SASRecModel, SequenceDataset
+from rectools.dataset.features import SparseFeatures
+from rectools.models.sasrec import (
+    CatFeaturesItemNet,
+    IdEmbeddingsItemNet,
+    ItemNetBase,
+    ItemNetConstructor,
+    SASRecDataPreparator,
+    SASRecModel,
+    SequenceDataset,
+)
 from tests.models.utils import assert_second_fit_refits_model
-from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
+from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
+
+from .data import DATASET, INTERACTIONS
 
 
 class TestSASRecModel:
@@ -582,36 +593,6 @@ class TestSASRecDataPreparator:
         dataloader = data_preparator.get_dataloader_recommend(dataset)
         actual = next(iter(dataloader))
         assert torch.equal(actual, recommend_batch)
-#  Copyright 2024 MTS (Mobile Telesystems)
-#
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
-
-
-import typing as tp
-
-import numpy as np
-import pandas as pd
-import pytest
-import torch
-from lightning_fabric import seed_everything
-
-from rectools.columns import Columns
-from rectools.dataset import Dataset
-from rectools.dataset.features import SparseFeatures
-from rectools.models.sasrec import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
-from tests.testing_utils import assert_feature_set_equal
-
-from .data import DATASET, INTERACTIONS
 
 
 class TestIdEmbeddingsItemNet:
