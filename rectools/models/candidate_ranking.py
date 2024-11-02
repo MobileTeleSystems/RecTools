@@ -33,7 +33,9 @@ class RankerBase(tp.Protocol):
 
 class Reranker:
     def __init__(
-        self, model: tp.Union[ClassifierBase, RankerBase], fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None
+        self,
+        model: tp.Union[ClassifierBase, RankerBase] = CatBoostClassifier(),
+        fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
         self.model = model
         self.fit_kwargs = fit_kwargs
