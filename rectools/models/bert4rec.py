@@ -176,7 +176,6 @@ class BERT4RecModel(TransformerModelBase):
         transformer_layers_type: tp.Type[TransformerLayersBase] = BERT4RecTransformerLayers,
         data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        device: str = "cpu",  # TODO: remove
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -198,7 +197,6 @@ class BERT4RecModel(TransformerModelBase):
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
-            device=device,  # TODO: remove
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
