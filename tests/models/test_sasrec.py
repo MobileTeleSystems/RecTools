@@ -433,7 +433,13 @@ class TestSASRecDataPreparator:
 
     @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
-        return SASRecDataPreparator(session_max_len=3, batch_size=4, dataloader_num_workers=0)
+        return SASRecDataPreparator(
+            session_max_len=3,
+            batch_size=4,
+            dataloader_num_workers=0,
+            item_extra_tokens=("PAD",),
+            train_min_user_interactions=2,
+        )
 
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_interactions",

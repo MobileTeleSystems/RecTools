@@ -1111,8 +1111,6 @@ class TransformerModelBase(ModelBase):
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        self.torch_model = self.torch_model.eval()
-
         item_embs = self.lightning_model.item_embs.detach().cpu().numpy()
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
         # Should we use torch dot and topk? Should be faster
@@ -1131,9 +1129,9 @@ class TransformerModelBase(ModelBase):
         )
 
     @property
-    def lightning_model(self) -> LightningModule:
+    def torch_model(self) -> TransformerBasedSessionEncoder:
         """TODO"""
-        return self.trainer.lightning_module
+        return self.lightning_model.torch_model
 
 
 # ####  --------------  SASRec Model  --------------  #### #
@@ -1161,7 +1159,6 @@ class SASRecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        device: str = "cuda:1",
         cpu_n_threads: int = 0,
         train_min_user_interaction: int = 2,
         trainer: tp.Optional[Trainer] = None,
@@ -1186,7 +1183,6 @@ class SASRecModel(TransformerModelBase):
             epochs,
             verbose,
             deterministic,
-            device,
             cpu_n_threads,
             trainer,
             item_net_block_types,
