@@ -287,49 +287,6 @@ class SASRecTransformerLayers(TransformerLayersBase):
         return seqs
 
 
-class PreLNTransformerLayers(TransformerLayersBase):
-    """
-    Based on https://arxiv.org/pdf/2002.04745
-    On Kion open dataset didn't change metrics, even got a bit worse
-    But let's keep it for now
-    """
-
-    def __init__(
-        self,
-        n_blocks: int,
-        n_factors: int,
-        n_heads: int,
-        dropout_rate: float,
-    ):
-        super().__init__()
-        self.n_blocks = n_blocks
-        self.multi_head_attn = nn.ModuleList(
-            [torch.nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
-        )
-        self.mha_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.mha_dropout = nn.Dropout(dropout_rate)
-        self.ff_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors, dropout_rate) for _ in range(n_blocks)]
-        )
-
-    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
-        """TODO"""
-        for i in range(self.n_blocks):
-            mha_input = self.mha_layer_norm[i](seqs)
-            mha_output, _ = self.multi_head_attn[i](
-                mha_input, mha_input, mha_input, attn_mask=attn_mask, need_weights=False
-            )
-            mha_output = self.mha_dropout(mha_output)
-            seqs = seqs + mha_output
-            ff_input = self.ff_layer_norm[i](seqs)
-            ff_output = self.feed_forward[i](ff_input)
-            seqs = seqs + ff_output
-            seqs *= timeline_mask
-
-        return seqs
-
-
 class LearnableInversePositionalEncoding(PositionalEncodingBase):
     """TODO"""
 
@@ -371,6 +328,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         dropout_rate: float,
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
+        use_mlm_attn: bool = False,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -387,8 +345,10 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             dropout_rate=dropout_rate,
         )
         self.use_causal_attn = use_causal_attn
+        self.use_mlm_attn = use_mlm_attn
         self.n_factors = n_factors
         self.dropout_rate = dropout_rate
+        self.n_heads = n_heads
 
         self.item_net_block_types = item_net_block_types
 
@@ -413,6 +373,10 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             attn_mask = ~torch.tril(
                 torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
             )
+        if self.use_mlm_attn:
+            timeline_mask = sessions != 0
+            attn_mask = ~timeline_mask.unsqueeze(1).repeat(self.n_heads, timeline_mask.squeeze(-1).shape[1], 1)
+            timeline_mask = timeline_mask.unsqueeze(-1)
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
         seqs = self.pos_encoding(seqs, timeline_mask)
@@ -471,10 +435,23 @@ class SequenceDataset(TorchDataset):
 class SessionEncoderDataPreparatorBase:
     """Base class for data preparator. Used only for type hinting."""
 
-    def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
+    def __init__(
+        self,
+        session_max_len: int,
+        batch_size: int,
+        dataloader_num_workers: int,
+        item_extra_tokens: tp.Sequence[tp.Hashable],
+        train_min_user_interactions: int,
+        shuffle_train: bool = True,
+    ) -> None:
         """TODO"""
         self.item_id_map: IdMap
-        self.item_extra_tokens: tp.Sequence[tp.Hashable]
+        self.session_max_len = session_max_len
+        self.batch_size = batch_size
+        self.dataloader_num_workers = dataloader_num_workers
+        self.train_min_user_interactions = train_min_user_interactions
+        self.item_extra_tokens = item_extra_tokens
+        self.shuffle_train = shuffle_train
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """TODO"""
@@ -488,47 +465,6 @@ class SessionEncoderDataPreparatorBase:
     def n_item_extra_tokens(self) -> int:
         """TODO"""
         return len(self.item_extra_tokens)
-
-    def process_dataset_train(self, dataset: Dataset) -> Dataset:
-        """TODO"""
-        raise NotImplementedError()
-
-    def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
-        """TODO"""
-        raise NotImplementedError()
-
-    def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
-        """TODO"""
-        raise NotImplementedError()
-
-    def transform_dataset_u2i(self, dataset: Dataset, users: ExternalIds) -> Dataset:
-        """TODO"""
-        raise NotImplementedError()
-
-    def transform_dataset_i2i(self, dataset: Dataset) -> Dataset:
-        """TODO"""
-        raise NotImplementedError()
-
-
-class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
-    """TODO"""
-
-    def __init__(
-        self,
-        session_max_len: int,
-        batch_size: int,
-        dataloader_num_workers: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
-        shuffle_train: bool = True,  # not shuffling train dataloader hurts performance
-        train_min_user_interactions: int = 2,
-    ) -> None:
-        super().__init__
-        self.session_max_len = session_max_len
-        self.batch_size = batch_size
-        self.dataloader_num_workers = dataloader_num_workers
-        self.item_extra_tokens = item_extra_tokens
-        self.shuffle_train = shuffle_train
-        self.train_min_user_interactions = train_min_user_interactions
 
     def process_dataset_train(self, dataset: Dataset) -> Dataset:
         """TODO"""
@@ -576,25 +512,6 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         self.item_id_map = dataset.item_id_map
         return dataset
 
-    def _collate_fn_train(
-        self,
-        batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
-        """
-        Truncate each session from right to keep (session_max_len+1) last items.
-        Do left padding until  (session_max_len+1) is reached.
-        Split to `x`, `y`, and `yw`.
-        """
-        batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        y = np.zeros((batch_size, self.session_max_len))
-        yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
-            x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
-
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """TODO"""
         sequence_dataset = SequenceDataset.from_interactions(processed_dataset.interactions.df)
@@ -606,6 +523,18 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             shuffle=self.shuffle_train,
         )
         return train_dataloader
+
+    def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
+        """TODO"""
+        sequence_dataset = SequenceDataset.from_interactions(dataset.interactions.df)
+        recommend_dataloader = DataLoader(
+            sequence_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self._collate_fn_recommend,
+            num_workers=self.dataloader_num_workers,
+            shuffle=False,
+        )
+        return recommend_dataloader
 
     def transform_dataset_u2i(self, dataset: Dataset, users: ExternalIds) -> Dataset:
         """
@@ -649,12 +578,48 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         Final item_id_map is model item_id_map constructed during training
         """
         # TODO: optimize by filtering in internal ids
-        # TODO: For now features are dropped because model doesn't support them
         interactions = dataset.get_raw_interactions()
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
         filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
+
+    def _collate_fn_train(
+        self,
+        batch: List[Tuple[List[int], List[float]]],
+    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+        """TODO"""
+        raise NotImplementedError()
+
+    def _collate_fn_recommend(
+        self,
+        batch: List[Tuple[List[int], List[float]]],
+    ) -> torch.LongTensor:
+        """TODO"""
+        raise NotImplementedError()
+
+
+class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
+    """TODO"""
+
+    def _collate_fn_train(
+        self,
+        batch: List[Tuple[List[int], List[float]]],
+    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+        """
+        Truncate each session from right to keep (session_max_len+1) last items.
+        Do left padding until  (session_max_len+1) is reached.
+        Split to `x`, `y`, and `yw`.
+        """
+        batch_size = len(batch)
+        x = np.zeros((batch_size, self.session_max_len))
+        y = np.zeros((batch_size, self.session_max_len))
+        yw = np.zeros((batch_size, self.session_max_len))
+        for i, (ses, ses_weights) in enumerate(batch):
+            x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+            y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
+            yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
+        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
         """Right truncation, left padding to session_max_len"""
@@ -662,18 +627,6 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         for i, (ses, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
         return torch.LongTensor(x)
-
-    def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
-        """TODO"""
-        sequence_dataset = SequenceDataset.from_interactions(dataset.interactions.df)
-        recommend_dataloader = DataLoader(
-            sequence_dataset,
-            batch_size=self.batch_size,
-            collate_fn=self._collate_fn_recommend,
-            num_workers=self.dataloader_num_workers,
-            shuffle=False,
-        )
-        return recommend_dataloader
 
 
 # ####  --------------  Lightning Model  --------------  #### #
@@ -753,22 +706,20 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
                 pass
 
 
-# ####  --------------  SASRec Model  --------------  #### #
-
-
-class SASRecModel(ModelBase):
+class TransformerModelBase(ModelBase):
     """TODO"""
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
+        transformer_layers_type: tp.Type[TransformerLayersBase],
         n_blocks: int = 1,
         n_heads: int = 1,
         n_factors: int = 128,
         use_pos_emb: bool = True,
+        use_causal_attn: bool = True,
+        use_mlm_attn: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
-        dataloader_num_workers: int = 0,
-        batch_size: int = 128,
         loss: str = "softmax",
         lr: float = 0.01,
         epochs: int = 3,
@@ -779,11 +730,9 @@ class SASRecModel(ModelBase):
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
-        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-    ):
-        super().__init__(verbose=verbose)
+    ) -> None:
+        super().__init__(verbose)
         self.device = torch.device(device)
         self.n_threads = cpu_n_threads
         self.torch_model: TransformerBasedSessionEncoder
@@ -794,7 +743,8 @@ class SASRecModel(ModelBase):
             session_max_len=session_max_len,
             dropout_rate=dropout_rate,
             use_pos_emb=use_pos_emb,
-            use_causal_attn=True,
+            use_causal_attn=use_causal_attn,
+            use_mlm_attn=use_mlm_attn,
             transformer_layers_type=transformer_layers_type,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
@@ -812,7 +762,7 @@ class SASRecModel(ModelBase):
             )
         else:
             self._trainer = trainer
-        self.data_preparator = data_preparator_type(session_max_len, batch_size, dataloader_num_workers)
+        self.data_preparator: SessionEncoderDataPreparatorBase
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
         self.lr = lr
@@ -824,7 +774,6 @@ class SASRecModel(ModelBase):
     ) -> None:
         processed_dataset = self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
-
         self.torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         self.torch_model.construct_item_net(processed_dataset)
 
@@ -845,7 +794,7 @@ class SASRecModel(ModelBase):
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
-        dataset: Dataset,  # [n_rec_users x n_items + 1]
+        dataset: Dataset,  # [n_rec_users x n_items + 2]
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
@@ -860,7 +809,7 @@ class SASRecModel(ModelBase):
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
 
         session_embs = []
-        item_embs = self.torch_model.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
+        item_embs = self.torch_model.item_model.get_all_embeddings()  # [n_items + 2, n_factors]
         with torch.no_grad():
             for x_batch in tqdm.tqdm(recommend_dataloader):  # TODO: from tqdm.auto import tqdm. Also check `verbose``
                 x_batch = x_batch.to(self.device)  # [batch_size, session_max_len]
@@ -875,7 +824,7 @@ class SASRecModel(ModelBase):
         ranker = ImplicitRanker(
             self.u2i_dist,
             user_embs,  # [n_rec_users, n_factors]
-            item_embs_np,  # [n_items + 1, n_factors]
+            item_embs_np,  # [n_items + 2, n_factors]
         )
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -888,7 +837,7 @@ class SASRecModel(ModelBase):
         user_ids_indices, all_reco_ids, all_scores = ranker.rank(
             subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
             k=k,
-            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 1]
+            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 2]
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
             num_threads=self.n_threads,
         )
@@ -907,15 +856,15 @@ class SASRecModel(ModelBase):
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
         self.torch_model = self.torch_model.eval()
-        item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 1, n_factors]
+        item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()  # [n_items + 2, n_factors]
 
         # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
         # Should we use torch dot and topk? Should be faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,
-            item_embs,  # [n_items + 1, n_factors]
-            item_embs,  # [n_items + 1, n_factors]
+            item_embs,  # [n_items + 2, n_factors]
+            item_embs,  # [n_items + 2, n_factors]
         )
         return ranker.rank(
             subject_ids=target_ids,  # model internal
@@ -926,6 +875,68 @@ class SASRecModel(ModelBase):
         )
 
     @property
-    def lightning_model(self) -> SessionEncoderLightningModule:
+    def lightning_model(self) -> LightningModule:
         """TODO"""
         return self.trainer.lightning_module
+
+
+# ####  --------------  SASRec Model  --------------  #### #
+
+
+class SASRecModel(TransformerModelBase):
+    """TODO"""
+
+    # pylint: disable=too-many-locals
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        n_blocks: int = 1,
+        n_heads: int = 1,
+        n_factors: int = 128,
+        use_pos_emb: bool = True,
+        use_causal_attn: bool = True,
+        use_mlm_attn: bool = False,
+        dropout_rate: float = 0.2,
+        session_max_len: int = 32,
+        dataloader_num_workers: int = 0,
+        batch_size: int = 128,
+        loss: str = "softmax",
+        lr: float = 0.01,
+        epochs: int = 3,
+        verbose: int = 0,
+        deterministic: bool = False,
+        device: str = "cuda:1",
+        cpu_n_threads: int = 0,
+        train_min_user_interaction: int = 2,
+        trainer: tp.Optional[Trainer] = None,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
+        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+    ):
+        super().__init__(
+            transformer_layers_type,  # SASRec authors net
+            n_blocks,
+            n_heads,
+            n_factors,
+            use_pos_emb,
+            use_causal_attn,
+            use_mlm_attn,
+            dropout_rate,
+            session_max_len,
+            loss,
+            lr,
+            epochs,
+            verbose,
+            deterministic,
+            device,
+            cpu_n_threads,
+            trainer,
+            item_net_block_types,
+            pos_encoding_type,
+            lightning_module_type,
+        )
+        self.data_preparator = data_preparator_type(
+            session_max_len, batch_size, dataloader_num_workers, (PADDING_VALUE,), train_min_user_interaction
+        )
