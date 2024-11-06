@@ -178,6 +178,11 @@ def fit_als_with_features_separately_inplace(
     verbose : int
          Whether to print output.
     """
+    # TODO: add gpu support here
+    if model.user_factors is not None and model.item_factors is not None:
+        model.user_factors = model.user_factors[:, :model.factors]
+        model.item_factors = model.item_factors[:, :model.factors]
+        
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.iterations = iterations
     model.fit(ui_csr, show_progress=verbose > 0)
