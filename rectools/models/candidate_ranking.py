@@ -34,7 +34,7 @@ class RankerBase(tp.Protocol):
 class Reranker:
     def __init__(
         self,
-        model: tp.Union[ClassifierBase, RankerBase] = CatBoostClassifier(),
+        model: tp.Union[ClassifierBase, RankerBase],
         fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
         self.model = model
@@ -77,7 +77,7 @@ class Reranker:
 class CatBoostReranker(Reranker):
     def __init__(
         self,
-        model: tp.Union[CatBoostClassifier, CatBoostRanker] = CatBoostRanker(),
+        model: tp.Union[CatBoostClassifier, CatBoostRanker] = CatBoostRanker(verbose=False),
         fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
         pool_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
@@ -332,7 +332,7 @@ class CandidateRankingModel(ModelBase):
         self,
         candidate_generators: tp.List[CandidateGenerator],
         splitter: Splitter,
-        reranker: Reranker,
+        reranker: Reranker = CatBoostReranker(),
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
         feature_collector: CandidatesFeatureCollectorBase = CandidatesFeatureCollectorBase(),
         process_in_external_ids: bool = True,  # TODO: think about it. probably drop. only process in external
