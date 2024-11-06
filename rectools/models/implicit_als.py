@@ -317,8 +317,8 @@ def fit_als_with_features_together_inplace(
             model, n_users, n_items, user_features, item_features
         )
     else:
-        user_factors = model.user_factors
-        item_factors = model.item_factors
+        user_factors = get_users_vectors(model)
+        item_factors = get_items_vectors(model)
         n_user_explicit_factors = user_features.values.shape[1] if user_features is not None else 0
         n_item_explicit_factors = item_features.values.shape[1] if item_features is not None else 0
 
