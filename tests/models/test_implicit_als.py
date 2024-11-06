@@ -127,7 +127,7 @@ class TestImplicitALSWrapperModel:
         base_model_2 = AlternatingLeastSquares(factors=2, num_threads=2, iterations=iterations, random_state=32)
         model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
         for _ in range(iterations):
-            model_2.fit(dataset, iterations=1)
+            model_2.fit(dataset, epochs=1)
             model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
 
         assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
@@ -263,8 +263,8 @@ class TestImplicitALSWrapperModel:
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
-    
-    # TODO: move this test to `partial_fit` method when implemented    
+
+    # TODO: move this test to `partial_fit` method when implemented
     @pytest.mark.parametrize("fit_features_together", (False, True))
     def test_iterations_with_features(self, fit_features_together: bool, use_gpu: bool) -> None:
         user_id_map = IdMap.from_values(["u1", "u2", "u3"])
@@ -296,12 +296,11 @@ class TestImplicitALSWrapperModel:
         base_model_2 = AlternatingLeastSquares(factors=2, num_threads=2, iterations=iterations, random_state=32)
         model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
         for _ in range(iterations):
-            model_2.fit(dataset, iterations=1)
+            model_2.fit(dataset, epochs=1)
             model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
 
         assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
         assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))
-
 
     def test_get_vectors(self, dataset: Dataset, use_gpu: bool) -> None:
         base_model = AlternatingLeastSquares(use_gpu=use_gpu)

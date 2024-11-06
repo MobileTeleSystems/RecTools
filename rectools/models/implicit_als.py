@@ -69,12 +69,12 @@ class ImplicitALSWrapperModel(VectorModel):
         if not self.use_gpu:
             self.n_threads = model.num_threads
 
-    # TODO: move `iterations` to `epochs` argument of `partial_fit` method when implemented
-    def _fit(self, dataset: Dataset, iterations: tp.Optional[int] = None) -> None:  # type: ignore
+    # TODO: move to `epochs` argument of `partial_fit` method when implemented
+    def _fit(self, dataset: Dataset, epochs: tp.Optional[int] = None) -> None:  # type: ignore
         self.model = deepcopy(self._model)
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
-        if iterations is None:
-            iterations = self.model.iterations
+        if epochs is None:
+            epochs = self.model.iterations
 
         if self.fit_features_together:
             fit_als_with_features_together_inplace(
@@ -82,7 +82,7 @@ class ImplicitALSWrapperModel(VectorModel):
                 ui_csr,
                 dataset.get_hot_user_features(),
                 dataset.get_hot_item_features(),
-                iterations,
+                epochs,
                 self.verbose,
             )
         else:
@@ -91,7 +91,7 @@ class ImplicitALSWrapperModel(VectorModel):
                 ui_csr,
                 dataset.get_hot_user_features(),
                 dataset.get_hot_item_features(),
-                iterations,
+                epochs,
                 self.verbose,
             )
 
@@ -178,11 +178,17 @@ def fit_als_with_features_separately_inplace(
     verbose : int
          Whether to print output.
     """
-    # TODO: add gpu support here
+    # If model was fitted we should drop any learnt embeddings except actual latent factors
     if model.user_factors is not None and model.item_factors is not None:
-        model.user_factors = model.user_factors[:, :model.factors]
-        model.item_factors = model.item_factors[:, :model.factors]
-        
+        if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
+            user_factors = get_users_vectors(model)[:, : model.factors]
+            item_factors = get_items_vectors(model)[:, : model.factors]
+            model.user_factors = implicit.gpu.Matrix(user_factors)
+            model.item_factors = implicit.gpu.Matrix(item_factors)
+        else:
+            model.user_factors = model.user_factors[:, : model.factors]
+            model.item_factors = model.item_factors[:, : model.factors]
+
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.iterations = iterations
     model.fit(ui_csr, show_progress=verbose > 0)
@@ -313,8 +319,8 @@ def fit_als_with_features_together_inplace(
     else:
         user_factors = model.user_factors
         item_factors = model.item_factors
-        n_user_explicit_factors = user_features.get_dense().shape[1] if user_features is not None else 0
-        n_item_explicit_factors = item_features.get_dense().shape[1] if item_features is not None else 0
+        n_user_explicit_factors = user_features.values.shape[1] if user_features is not None else 0
+        n_item_explicit_factors = item_features.values.shape[1] if item_features is not None else 0
 
     # Fix number of factors
     n_latent_factors = model.factors
