@@ -69,9 +69,12 @@ class ImplicitALSWrapperModel(VectorModel):
         if not self.use_gpu:
             self.n_threads = model.num_threads
 
-    def _fit(self, dataset: Dataset) -> None:  # type: ignore
+    # TODO: move `iterations` to `epochs` argument of `partial_fit` method when implemented
+    def _fit(self, dataset: Dataset, iterations: tp.Optional[int] = None) -> None:  # type: ignore
         self.model = deepcopy(self._model)
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
+        if iterations is None:
+            iterations = self.model.iterations
 
         if self.fit_features_together:
             fit_als_with_features_together_inplace(
@@ -79,6 +82,7 @@ class ImplicitALSWrapperModel(VectorModel):
                 ui_csr,
                 dataset.get_hot_user_features(),
                 dataset.get_hot_item_features(),
+                iterations,
                 self.verbose,
             )
         else:
@@ -87,6 +91,7 @@ class ImplicitALSWrapperModel(VectorModel):
                 ui_csr,
                 dataset.get_hot_user_features(),
                 dataset.get_hot_item_features(),
+                iterations,
                 self.verbose,
             )
 
@@ -154,6 +159,7 @@ def fit_als_with_features_separately_inplace(
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
+    iterations: int,
     verbose: int = 0,
 ) -> None:
     """
@@ -173,6 +179,7 @@ def fit_als_with_features_separately_inplace(
          Whether to print output.
     """
     iu_csr = ui_csr.T.tocsr(copy=False)
+    model.iterations = iterations
     model.fit(ui_csr, show_progress=verbose > 0)
 
     user_factors_chunks = [get_users_vectors(model)]
@@ -273,6 +280,7 @@ def fit_als_with_features_together_inplace(
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
+    iterations: int,
     verbose: int = 0,
 ) -> None:
     """
@@ -293,6 +301,58 @@ def fit_als_with_features_together_inplace(
     """
     n_users, n_items = ui_csr.shape
 
+    if model.user_factors is None or model.item_factors is None:
+        user_factors, item_factors, n_user_explicit_factors, n_item_explicit_factors = _init_user_item_factors(
+            model, n_users, n_items, user_features, item_features
+        )
+    else:
+        user_factors = model.user_factors
+        item_factors = model.item_factors
+        n_user_explicit_factors = user_features.get_dense().shape[1] if user_features is not None else 0
+        n_item_explicit_factors = item_features.get_dense().shape[1] if item_features is not None else 0
+
+    # Fix number of factors
+    n_latent_factors = model.factors
+    model.factors = n_latent_factors + n_user_explicit_factors + n_item_explicit_factors
+
+    # Give the positive examples more weight if asked for (implicit library logic copy)
+    ui_csr = model.alpha * ui_csr
+
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
+        _fit_combined_factors_on_gpu_inplace(
+            model,
+            ui_csr,
+            user_factors,
+            item_factors,
+            n_user_explicit_factors,
+            n_item_explicit_factors,
+            verbose,
+            iterations,
+        )
+    else:
+        _fit_combined_factors_on_cpu_inplace(
+            model,
+            ui_csr,
+            user_factors,
+            item_factors,
+            n_user_explicit_factors,
+            n_item_explicit_factors,
+            verbose,
+            iterations,
+        )
+
+    # Fix back model factors
+    model.factors = n_latent_factors  # TODO: did we change it for configs in previous realization?
+
+
+def _init_user_item_factors(
+    model: AnyAlternatingLeastSquares,
+    n_users: int,
+    n_items: int,
+    user_features: tp.Optional[Features],
+    item_features: tp.Optional[Features],
+) -> tp.Tuple[np.ndarray, np.ndarray, int, int]:
+    """Init user and item factors for model that hasn't been initialized yet"""
     # Prepare explicit factors
     user_explicit_factors: np.ndarray
     if user_features is None:
@@ -314,10 +374,6 @@ def fit_als_with_features_together_inplace(
     else:
         user_latent_factors, item_latent_factors = _init_latent_factors_cpu(model, n_users, n_items)
 
-    # Fix number of factors
-    n_latent_factors = model.factors
-    model.factors = n_latent_factors + n_user_explicit_factors + n_item_explicit_factors
-
     # Prepare paired factors
     user_factors_paired_to_items = np.zeros((n_users, n_item_explicit_factors))
     item_factors_paired_to_users = np.zeros((n_items, n_user_explicit_factors))
@@ -338,29 +394,7 @@ def fit_als_with_features_together_inplace(
         )
     ).astype(model.dtype)
 
-    # Give the positive examples more weight if asked for (implicit library logic copy)
-    ui_csr = model.alpha * ui_csr
-
-    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-        _fit_combined_factors_on_gpu_inplace(
-            model,
-            ui_csr,
-            user_factors,
-            item_factors,
-            n_user_explicit_factors,
-            n_item_explicit_factors,
-            verbose,
-        )
-    else:
-        _fit_combined_factors_on_cpu_inplace(
-            model,
-            ui_csr,
-            user_factors,
-            item_factors,
-            n_user_explicit_factors,
-            n_item_explicit_factors,
-            verbose,
-        )
+    return user_factors, item_factors, n_user_explicit_factors, n_item_explicit_factors
 
 
 def _fit_combined_factors_on_cpu_inplace(
@@ -371,6 +405,7 @@ def _fit_combined_factors_on_cpu_inplace(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
+    iterations: int,
 ) -> None:
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
@@ -384,7 +419,7 @@ def _fit_combined_factors_on_cpu_inplace(
 
     solver = model.solver
 
-    for _ in tqdm(range(model.iterations), disable=verbose == 0):
+    for _ in tqdm(range(iterations), disable=verbose == 0):
 
         solver(
             ui_csr,
@@ -416,6 +451,7 @@ def _fit_combined_factors_on_gpu_inplace(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
+    iterations: int,
 ) -> None:  # pragma: no cover
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
@@ -435,7 +471,7 @@ def _fit_combined_factors_on_gpu_inplace(
     _YtY = implicit.gpu.Matrix.zeros(model.factors, model.factors)
     _XtX = implicit.gpu.Matrix.zeros(model.factors, model.factors)
 
-    for _ in tqdm(range(model.iterations), disable=verbose == 0):
+    for _ in tqdm(range(iterations), disable=verbose == 0):
 
         model.solver.calculate_yty(Y, _YtY, model.regularization)
         model.solver.least_squares(ui_csr_cuda, X, _YtY, Y, model.cg_steps)

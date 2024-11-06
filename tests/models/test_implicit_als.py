@@ -26,7 +26,12 @@ from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, IdMap, Interactions, SparseFeatures
 from rectools.exceptions import NotFittedError
 from rectools.models import ImplicitALSWrapperModel
-from rectools.models.implicit_als import AnyAlternatingLeastSquares, GPUAlternatingLeastSquares
+from rectools.models.implicit_als import (
+    AnyAlternatingLeastSquares,
+    GPUAlternatingLeastSquares,
+    get_items_vectors,
+    get_users_vectors,
+)
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET
@@ -104,6 +109,29 @@ class TestImplicitALSWrapperModel:
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    # TODO: move this test to `partial_fit` method when implemented
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    def test_iterations(
+        self,
+        dataset: Dataset,
+        fit_features_together: bool,
+        use_gpu: bool,
+    ) -> None:
+        iterations = 20
+
+        base_model_1 = AlternatingLeastSquares(factors=2, num_threads=2, iterations=iterations, random_state=32)
+        model_1 = ImplicitALSWrapperModel(model=base_model_1, fit_features_together=fit_features_together)
+        model_1.fit(dataset)
+
+        base_model_2 = AlternatingLeastSquares(factors=2, num_threads=2, iterations=iterations, random_state=32)
+        model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
+        for _ in range(iterations):
+            model_2.fit(dataset, iterations=1)
+            model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
+
+        assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
+        assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))
 
     @pytest.mark.parametrize("fit_features_together", (False, True))
     @pytest.mark.parametrize("init_model_before_fit", (False, True))
