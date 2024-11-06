@@ -181,8 +181,9 @@ def fit_als_with_features_separately_inplace(
     # If model was fitted we should drop any learnt embeddings except actual latent factors
     if model.user_factors is not None and model.item_factors is not None:
         if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-            user_factors = get_users_vectors(model)[:, : model.factors]
-            item_factors = get_items_vectors(model)[:, : model.factors]
+            # Without .copy() gpu.Matrix will break correct slicing
+            user_factors = get_users_vectors(model)[:, : model.factors].copy()
+            item_factors = get_items_vectors(model)[:, : model.factors].copy()
             model.user_factors = implicit.gpu.Matrix(user_factors)
             model.item_factors = implicit.gpu.Matrix(item_factors)
         else:
