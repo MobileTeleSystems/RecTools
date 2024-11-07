@@ -256,14 +256,8 @@ def _init_latent_factors_cpu(
 ) -> tp.Tuple[np.ndarray, np.ndarray]:
     """Logic is copied and pasted from original implicit library code"""
     random_state = check_random_state(model.random_state)
-    if model.user_factors is None:
-        user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
-    else:
-        user_latent_factors = model.user_factors
-    if model.item_factors is None:
-        item_latent_factors = random_state.random((n_items, model.factors)) * 0.01
-    else:
-        item_latent_factors = model.item_factors
+    user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
+    item_latent_factors = random_state.random((n_items, model.factors)) * 0.01
     return user_latent_factors, item_latent_factors
 
 
@@ -272,18 +266,12 @@ def _init_latent_factors_gpu(
 ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
     """Logic is copied and pasted from original implicit library code"""
     random_state = check_random_state(model.random_state)
-    if model.user_factors is None:
-        user_latent_factors = random_state.uniform(
-            low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_users, model.factors)
-        )
-    else:
-        user_latent_factors = model.user_factors.to_numpy()
-    if model.item_factors is None:
-        item_latent_factors = random_state.uniform(
-            low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_items, model.factors)
-        )
-    else:
-        item_latent_factors = model.item_factors.to_numpy()
+    user_latent_factors = random_state.uniform(
+        low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_users, model.factors)
+    )
+    item_latent_factors = random_state.uniform(
+        low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_items, model.factors)
+    )
     return user_latent_factors, item_latent_factors
 
 
