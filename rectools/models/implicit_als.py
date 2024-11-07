@@ -342,7 +342,7 @@ def fit_als_with_features_together_inplace(
         )
 
     # Fix back model factors
-    model.factors = n_latent_factors  # TODO: did we change it for configs in previous realization?
+    model.factors = n_latent_factors
 
 
 def _init_user_item_factors(
