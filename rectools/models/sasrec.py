@@ -270,9 +270,8 @@ class PointWiseFeedForward(nn.Module):
         super().__init__()
         self.ff_linear1 = nn.Linear(n_factors, n_factors_ff)
         self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
-        self.ff_relu = torch.nn.ReLU()
+        self.ff_activation = activation
         self.ff_linear2 = nn.Linear(n_factors_ff, n_factors)
-        self.ff_dropout2 = torch.nn.Dropout(dropout_rate)
 
     def forward(self, seqs: torch.Tensor) -> torch.Tensor:
         """
@@ -288,8 +287,8 @@ class PointWiseFeedForward(nn.Module):
         torch.Tensor
             User sequence that passed through all layers.
         """
-        output = self.ff_relu(self.ff_dropout1(self.ff_linear1(seqs)))
-        fin = self.ff_dropout2(self.ff_linear2(output))
+        output = self.ff_activation(self.ff_linear1(seqs))
+        fin = self.ff_linear2(self.ff_dropout1(output))
         return fin
 
 
@@ -360,6 +359,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
             seqs = q + mha_output
             ff_input = self.ff_layer_norm[i](seqs)
             seqs = self.feed_forward[i](ff_input)
+            seqs = self.dropout[i](seqs)
             seqs += ff_input
             seqs *= timeline_mask
 
@@ -632,9 +632,9 @@ class SessionEncoderDataPreparatorBase:
         session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable],
-        train_min_user_interactions: int,
         shuffle_train: bool = True,
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
+        train_min_user_interactions: int = 2,
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap
@@ -1196,5 +1196,8 @@ class SASRecModel(TransformerModelBase):
             lightning_module_type,
         )
         self.data_preparator = data_preparator_type(
-            session_max_len, batch_size, dataloader_num_workers, (PADDING_VALUE,), train_min_user_interaction
+            session_max_len=session_max_len,
+            batch_size=batch_size,
+            dataloader_num_workers=dataloader_num_workers,
+            train_min_user_interactions=train_min_user_interaction,
         )

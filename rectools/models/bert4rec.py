@@ -11,6 +11,7 @@ from rectools.models.sasrec import (
     IdEmbeddingsItemNet,
     ItemNetBase,
     LearnableInversePositionalEncoding,
+    PointWiseFeedForward,
     PositionalEncodingBase,
     SessionEncoderDataPreparatorBase,
     SessionEncoderLightningModule,
@@ -72,9 +73,9 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         yw = np.zeros((batch_size, self.session_max_len))
         for i, (ses, ses_weights) in enumerate(batch):
             masked_session, target = self._mask_session(ses)
-            x[i, -len(ses) + 1:] = masked_session[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            y[i, -len(ses) + 1:] = target[:-1]  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses) + 1:] = ses_weights[:-1]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
+            x[i, -len(ses) + 1 :] = masked_session[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+            y[i, -len(ses) + 1 :] = target[:-1]  # ses: [session_len] -> y[i]: [session_max_len]
+            yw[i, -len(ses) + 1 :] = ses_weights[:-1]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
@@ -84,26 +85,10 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         for i, (ses, _) in enumerate(batch):
             session = ses.copy()
             session = session[1:] + [1]
-            x[i, -len(ses) :] = session[-self.session_max_len:]
+            x[i, -len(ses) :] = session[-self.session_max_len :]
         return torch.LongTensor(x)
 
-class PointWiseFeedForward(nn.Module):
-    """TODO"""
 
-    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float) -> None:
-        """TODO"""
-        super().__init__()
-        self.ff_linear1 = nn.Linear(n_factors, n_factors_ff)
-        self.ff_gelu = torch.nn.GELU()
-        self.ff_dropout = torch.nn.Dropout(dropout_rate)
-        self.ff_linear2 = nn.Linear(n_factors_ff, n_factors)
-
-    def forward(self, seqs: torch.Tensor) -> torch.Tensor:
-        """TODO"""
-        output = self.ff_gelu(self.ff_linear1(seqs))
-        fin = self.ff_linear2(self.ff_dropout(output))
-        return fin
-    
 class BERT4RecTransformerLayers(TransformerLayersBase):
     """TODO"""
 
