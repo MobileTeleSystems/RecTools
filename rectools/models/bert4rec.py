@@ -72,9 +72,9 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         yw = np.zeros((batch_size, self.session_max_len))
         for i, (ses, ses_weights) in enumerate(batch):
             masked_session, target = self._mask_session(ses)
-            x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len]
-            y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len]
+            x[i, -len(ses) + 1:] = masked_session[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+            y[i, -len(ses) + 1:] = target[:-1]  # ses: [session_len] -> y[i]: [session_max_len]
+            yw[i, -len(ses) + 1:] = ses_weights[:-1]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
@@ -83,10 +83,9 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         x = np.zeros((len(batch), self.session_max_len))
         for i, (ses, _) in enumerate(batch):
             session = ses.copy()
-            session = session + [1]
-            x[i, -len(ses) :] = ses[-self.session_max_len :]
+            session = session[1:] + [1]
+            x[i, -len(ses) :] = session[-self.session_max_len:]
         return torch.LongTensor(x)
-
 
 class PointWiseFeedForward(nn.Module):
     """TODO"""
@@ -104,8 +103,7 @@ class PointWiseFeedForward(nn.Module):
         output = self.ff_gelu(self.ff_linear1(seqs))
         fin = self.ff_linear2(self.ff_dropout(output))
         return fin
-
-
+    
 class BERT4RecTransformerLayers(TransformerLayersBase):
     """TODO"""
 
@@ -125,24 +123,30 @@ class BERT4RecTransformerLayers(TransformerLayersBase):
         self.dropout1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.layer_norm2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors * 4, dropout_rate) for _ in range(n_blocks)]
+            [PointWiseFeedForward(n_factors, n_factors * 4, dropout_rate, torch.nn.GELU()) for _ in range(n_blocks)]
         )
         self.dropout2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        # self.dropout3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
+        self.dropout3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
 
-    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
+    ) -> torch.Tensor:
         """TODO"""
         for i in range(self.n_blocks):
             mha_input = self.layer_norm1[i](seqs)
-            # mha_output, _ =
-            # self.multi_head_attn[i](mha_input, mha_input, mha_input, attn_mask=attn_mask, need_weights=False)
-            mha_output, _ = self.multi_head_attn[i](mha_input, mha_input, mha_input, need_weights=False)
+            mha_output, _ = self.multi_head_attn[i](
+                mha_input,
+                mha_input,
+                mha_input,
+                attn_mask=attn_mask,
+                key_padding_mask=key_padding_mask,
+                need_weights=False,
+            )
             seqs = seqs + self.dropout1[i](mha_output)
             ff_input = self.layer_norm2[i](seqs)
             ff_output = self.feed_forward[i](ff_input)
             seqs = seqs + self.dropout2[i](ff_output)
-            seqs = seqs * timeline_mask
-            # seqs = self.dropout3[i](seqs)
+            seqs = self.dropout3[i](seqs)
 
         return seqs
 

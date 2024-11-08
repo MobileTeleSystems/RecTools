@@ -52,7 +52,9 @@ class ItemNetBase(nn.Module):
 class TransformerLayersBase(nn.Module):
     """TODO: use Protocol"""
 
-    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
+    ) -> torch.Tensor:
         """Forward pass."""
         raise NotImplementedError()
 
@@ -60,7 +62,7 @@ class TransformerLayersBase(nn.Module):
 class PositionalEncodingBase(torch.nn.Module):
     """TODO: use Protocol"""
 
-    def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """Forward pass."""
         raise NotImplementedError()
 
@@ -264,7 +266,7 @@ class PointWiseFeedForward(nn.Module):
         Probability of a hidden unit to be zeroed.
     """
 
-    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float) -> None:
+    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module) -> None:
         super().__init__()
         self.ff_linear1 = nn.Linear(n_factors, n_factors_ff)
         self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
@@ -322,11 +324,14 @@ class SASRecTransformerLayers(TransformerLayersBase):
         self.q_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.ff_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors, dropout_rate) for _ in range(n_blocks)]
+            [PointWiseFeedForward(n_factors, n_factors, dropout_rate, torch.nn.ReLU()) for _ in range(n_blocks)]
         )
+        self.dropout = nn.ModuleList([torch.nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.last_layernorm = torch.nn.LayerNorm(n_factors, eps=1e-8)
 
-    def forward(self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
+    ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
 
@@ -344,9 +349,14 @@ class SASRecTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
+        # TODO: do we need to fill padding embeds in sessions to all zeros
+        # or should we use the learnt padding embedding? Should we make it an option for user to decide?
+        seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
         for i in range(self.n_blocks):
             q = self.q_layer_norm[i](seqs)
-            mha_output, _ = self.multi_head_attn[i](q, seqs, seqs, attn_mask=attn_mask, need_weights=False)
+            mha_output, _ = self.multi_head_attn[i](
+                q, seqs, seqs, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False
+            )
             seqs = q + mha_output
             ff_input = self.ff_layer_norm[i](seqs)
             seqs = self.feed_forward[i](ff_input)
@@ -376,7 +386,7 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         super().__init__()
         self.pos_emb = torch.nn.Embedding(session_max_len, n_factors) if use_pos_emb else None
 
-    def forward(self, sessions: torch.Tensor, timeline_mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """
         Forward pass to add learnable positional encoding to sessions and mask padding elements.
 
@@ -401,10 +411,6 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
                 torch.arange(session_max_len - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_max_len]
             sessions += self.pos_emb(positions.to(sessions.device))
-
-        # TODO: do we need to fill padding embeds in sessions to all zeros
-        # or should we use the learnt padding embedding? Should we make it an option for user to decide?
-        sessions *= timeline_mask  # [batch_size, session_max_len, n_factors]
 
         return sessions
 
@@ -506,19 +512,18 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         """
         session_max_len = sessions.shape[1]
         attn_mask = None
+        key_padding_mask = None
         if self.use_causal_attn:
             attn_mask = ~torch.tril(
                 torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
             )
         if self.use_mlm_attn:
-            timeline_mask = sessions != 0
-            attn_mask = ~timeline_mask.unsqueeze(1).repeat(self.n_heads, timeline_mask.squeeze(-1).shape[1], 1)
-            timeline_mask = timeline_mask.unsqueeze(-1)
+            key_padding_mask = sessions == 0
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
-        seqs = self.pos_encoding(seqs, timeline_mask)
+        seqs = self.pos_encoding(seqs)
         seqs = self.emb_dropout(seqs)
-        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask)
+        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
     def forward(
@@ -908,6 +913,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
+        # TODO: init padding embedding with zeros
         self._xavier_normal_init()
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
@@ -1169,7 +1175,7 @@ class SASRecModel(TransformerModelBase):
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(
-            transformer_layers_type,  # SASRec authors net
+            transformer_layers_type,
             n_blocks,
             n_heads,
             n_factors,
