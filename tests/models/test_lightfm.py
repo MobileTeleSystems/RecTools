@@ -349,7 +349,7 @@ class TestLightFMWrapperModelConfiguration:
 
     @pytest.mark.parametrize("add_cls", (False, True))
     def test_from_config(self, add_cls: bool) -> None:
-        config = {
+        config: tp.Dict = {
             "model": {
                 "params": {
                     "no_components": 16,

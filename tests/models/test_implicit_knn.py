@@ -345,6 +345,6 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         )
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
-        default_config: tp.Dict[str, tp.Any] = {"model": {}}
+        default_config: tp.Dict[str, tp.Any] = {"model": {"cls": ItemItemRecommender, "params": {}}}
         model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
         assert_default_config_and_default_model_params_are_the_same(model, default_config)

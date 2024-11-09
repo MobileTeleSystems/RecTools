@@ -43,15 +43,17 @@ AlternatingLeastSquaresType = tp.Union[tp.Type[AnyAlternatingLeastSquares], tp.L
 
 
 def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
-    if spec == ALS_STRING or not isinstance(spec, str):
-        return spec
-    return import_object(spec)
+    if spec in (ALS_STRING, get_class_or_function_full_path(AlternatingLeastSquares)):
+        return "AlternatingLeastSquares"
+    if isinstance(spec, str):
+        return import_object(spec)
+    return spec
 
 
 def _serialize_alternating_least_squares_class(
     cls: AlternatingLeastSquaresType, handler: tp.Callable, info: SerializationInfo
 ) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
-    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls == ALS_STRING:
+    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls == "AlternatingLeastSquares":
         return ALS_STRING
     if info.mode == "json":
         return get_class_or_function_full_path(cls)
@@ -93,7 +95,7 @@ class AlternatingLeastSquaresConfig(BaseConfig):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    cls: AlternatingLeastSquaresClass = ALS_STRING
+    cls: AlternatingLeastSquaresClass = "AlternatingLeastSquares"
     params: AlternatingLeastSquaresParams = {}
 
 
@@ -175,7 +177,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
                 cls=(
                     model_cls
                     if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
-                    else ALS_STRING
+                    else "AlternatingLeastSquares"
                 ),
                 params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
             ),

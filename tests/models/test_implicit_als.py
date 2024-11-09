@@ -366,9 +366,9 @@ class TestImplicitALSWrapperModelConfiguration:
         implicit.gpu.HAS_CUDA = True  # To avoid errors when test without cuda
 
     @pytest.mark.parametrize("use_gpu", (False, True))
-    @pytest.mark.parametrize("add_cls", (False, True))
-    def test_from_config(self, use_gpu: bool, add_cls: bool) -> None:
-        config = {
+    @pytest.mark.parametrize("cls", (None, "AlternatingLeastSquares", "implicit.als.AlternatingLeastSquares"))
+    def test_from_config(self, use_gpu: bool, cls: tp.Any) -> None:
+        config: tp.Dict = {
             "model": {
                 "params": {
                     "factors": 16,
@@ -380,8 +380,8 @@ class TestImplicitALSWrapperModelConfiguration:
             "fit_features_together": True,
             "verbose": 1,
         }
-        if add_cls:
-            config["model"]["cls"] = "AlternatingLeastSquares"
+        if cls is not None:
+            config["model"]["cls"] = cls
         model = ImplicitALSWrapperModel.from_config(config)
         assert model.fit_features_together is True
         assert model.verbose == 1
