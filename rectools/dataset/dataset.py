@@ -200,7 +200,7 @@ class Dataset:
         include_weights: bool = True,
         include_warm_users: bool = False,
         include_warm_items: bool = False,
-        dtype: np.dtype = np.float32,
+        dtype: tp.Type = np.float32,
     ) -> sparse.csr_matrix:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
