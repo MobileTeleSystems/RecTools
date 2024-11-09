@@ -180,15 +180,10 @@ def fit_als_with_features_separately_inplace(
     """
     # If model was fitted we should drop any learnt embeddings except actual latent factors
     if model.user_factors is not None and model.item_factors is not None:
-        if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-            # Without .copy() gpu.Matrix will break correct slicing
-            user_factors = get_users_vectors(model)[:, : model.factors].copy()
-            item_factors = get_items_vectors(model)[:, : model.factors].copy()
-            model.user_factors = implicit.gpu.Matrix(user_factors)
-            model.item_factors = implicit.gpu.Matrix(item_factors)
-        else:
-            model.user_factors = get_users_vectors(model)[:, : model.factors]
-            model.item_factors = get_items_vectors(model)[:, : model.factors]
+        # Without .copy() gpu.Matrix will break correct slicing
+        user_factors = get_users_vectors(model)[:, : model.factors].copy()
+        item_factors = get_items_vectors(model)[:, : model.factors].copy()
+        _set_factors(model, user_factors, item_factors)
 
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.iterations = iterations
@@ -212,10 +207,13 @@ def fit_als_with_features_separately_inplace(
     user_factors = np.hstack(user_factors_chunks)
     item_factors = np.hstack(item_factors_chunks)
 
+    _set_factors(model, user_factors, item_factors)
+
+
+def _set_factors(model: AnyAlternatingLeastSquares, user_factors: np.ndarray, item_factors: np.ndarray) -> None:
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         user_factors = implicit.gpu.Matrix(user_factors)
         item_factors = implicit.gpu.Matrix(item_factors)
-
     model.user_factors = user_factors
     model.item_factors = item_factors
 
@@ -254,7 +252,10 @@ def _fit_paired_factors(
 def _init_latent_factors_cpu(
     model: CPUAlternatingLeastSquares, n_users: int, n_items: int
 ) -> tp.Tuple[np.ndarray, np.ndarray]:
-    """Logic is copied and pasted from original implicit library code"""
+    """
+    Logic is copied and pasted from original implicit library code.
+    This method is used only for model that hasn't been fitted yet.
+    """
     random_state = check_random_state(model.random_state)
     user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
     item_latent_factors = random_state.random((n_items, model.factors)) * 0.01
@@ -264,7 +265,10 @@ def _init_latent_factors_cpu(
 def _init_latent_factors_gpu(
     model: GPUAlternatingLeastSquares, n_users: int, n_items: int
 ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
-    """Logic is copied and pasted from original implicit library code"""
+    """
+    Logic is copied and pasted from original implicit library code.
+    This method is used only for model that hasn't been fitted yet.
+    """
     random_state = check_random_state(model.random_state)
     user_latent_factors = random_state.uniform(
         low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_users, model.factors)
