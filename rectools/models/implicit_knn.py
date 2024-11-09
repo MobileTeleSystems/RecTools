@@ -130,7 +130,7 @@ class ImplicitItemKNNWrapperModel(ModelBase[ImplicitItemKNNWrapperModelConfig]):
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
-        
+
         # There is implicit conversion from float32 to float 64 in implicit library
         # in `normalize` function on the line `X.data = X.data / sqrt(bincount(X.row, X.data**2))[X.row]`.
         # But this function is not used in the base `ItemItemRecommender` class.

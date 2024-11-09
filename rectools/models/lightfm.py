@@ -34,6 +34,7 @@ from .vector import Factors, VectorModel
 
 LIGHT_FM_CLS_STRING = "LightFM"
 
+
 def _get_light_fm_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):
         return spec
@@ -46,7 +47,6 @@ def _serialize_light_fm_class(cls: tp.Type[LightFM]) -> str:
     if cls is LightFM:
         return LIGHT_FM_CLS_STRING
     return get_class_or_function_full_path(cls)
-
 
 
 LightFMClass = tpe.Annotated[

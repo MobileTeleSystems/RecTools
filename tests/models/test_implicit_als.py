@@ -381,7 +381,7 @@ class TestImplicitALSWrapperModelConfiguration:
             "verbose": 1,
         }
         if add_cls:
-            config["model"]["cls"] ="AlternatingLeastSquares"
+            config["model"]["cls"] = "AlternatingLeastSquares"
         model = ImplicitALSWrapperModel.from_config(config)
         assert model.fit_features_together is True
         assert model.verbose == 1

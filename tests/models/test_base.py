@@ -525,8 +525,7 @@ class TestConfiguration:
             pass
 
         with pytest.raises(
-            NotImplementedError, 
-            match="`from_config` method is not implemented for `MyModelWithoutConfig` model."
+            NotImplementedError, match="`from_config` method is not implemented for `MyModelWithoutConfig` model."
         ):
             MyModelWithoutConfig.from_config({})
 
@@ -535,8 +534,7 @@ class TestConfiguration:
             pass
 
         with pytest.raises(
-            NotImplementedError, 
-            match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
+            NotImplementedError, match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
         ):
             MyModelWithoutConfig().get_config()
 

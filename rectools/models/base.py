@@ -179,10 +179,8 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         try:
             config_cls = cls.config_class
         except AttributeError:
-            raise NotImplementedError(
-                f"`from_config` method is not implemented for `{cls.__name__}` model."
-            ) from None
-        
+            raise NotImplementedError(f"`from_config` method is not implemented for `{cls.__name__}` model.") from None
+
         if not isinstance(config, config_cls):
             config_obj = cls.config_class.model_validate(config)
         else:
