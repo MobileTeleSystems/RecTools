@@ -520,6 +520,26 @@ class TestConfiguration:
         config = model.get_params(simple_types=simple_types)
         assert config == {"x": 10, "verbose": 1, "sc": None}
 
+    def test_model_without_implemented_config_from_config(self) -> None:
+        class MyModelWithoutConfig(ModelBase):
+            pass
+
+        with pytest.raises(
+            NotImplementedError, 
+            match="`from_config` method is not implemented for `MyModelWithoutConfig` model."
+        ):
+            MyModelWithoutConfig.from_config({})
+
+    def test_model_without_implemented_config_get_config(self) -> None:
+        class MyModelWithoutConfig(ModelBase):
+            pass
+
+        with pytest.raises(
+            NotImplementedError, 
+            match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
+        ):
+            MyModelWithoutConfig().get_config()
+
 
 class TestFixedColdRecoModelMixin:
     def test_cold_reco_works(self) -> None:

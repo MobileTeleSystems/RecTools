@@ -139,7 +139,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         raise ValueError(f"Unknown mode: {mode}")
 
     def _get_config(self) -> ModelConfig_T:
-        raise NotImplementedError()
+        raise NotImplementedError(f"`get_config` method is not implemented for `{self.__class__.__name__}` model")
 
     def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
         """
@@ -176,7 +176,14 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         -------
         Model instance.
         """
-        if not isinstance(config, cls.config_class):
+        try:
+            config_cls = cls.config_class
+        except AttributeError:
+            raise NotImplementedError(
+                f"`from_config` method is not implemented for `{cls.__name__}` model."
+            ) from None
+        
+        if not isinstance(config, config_cls):
             config_obj = cls.config_class.model_validate(config)
         else:
             config_obj = config
