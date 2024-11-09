@@ -18,7 +18,7 @@ from copy import deepcopy
 import numpy as np
 import typing_extensions as tpe
 from lightfm import LightFM
-from pydantic import BeforeValidator, ConfigDict, SerializationInfo, WrapSerializer
+from pydantic import BeforeValidator, ConfigDict, PlainSerializer
 from scipy import sparse
 
 from rectools.dataset import Dataset, Features
@@ -32,27 +32,30 @@ from .base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelConfig, Ran
 from .rank import Distance
 from .vector import Factors, VectorModel
 
+LIGHT_FM_CLS_STRING = "LightFM"
 
 def _get_light_fm_class(spec: tp.Any) -> tp.Any:
-    if isinstance(spec, str):
-        return import_object(spec)
-    return spec
+    if not isinstance(spec, str):
+        return spec
+    if spec == LIGHT_FM_CLS_STRING:
+        return LightFM
+    return import_object(spec)
 
 
-def _serialize_light_fm_class(
-    cls: tp.Type[LightFM], handler: tp.Callable, info: SerializationInfo
-) -> tp.Union[None, str, LightFM]:
-    if info.mode == "json":
-        return get_class_or_function_full_path(cls)
-    return cls
+def _serialize_light_fm_class(cls: tp.Type[LightFM]) -> str:
+    if cls is LightFM:
+        return LIGHT_FM_CLS_STRING
+    return get_class_or_function_full_path(cls)
+
 
 
 LightFMClass = tpe.Annotated[
     tp.Type[LightFM],
     BeforeValidator(_get_light_fm_class),
-    WrapSerializer(
+    PlainSerializer(
         func=_serialize_light_fm_class,
-        when_used="always",
+        return_type=str,
+        when_used="json",
     ),
 ]
 

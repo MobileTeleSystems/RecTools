@@ -347,7 +347,8 @@ class CustomLightFM(LightFM):
 
 class TestLightFMWrapperModelConfiguration:
 
-    def test_from_config(self) -> None:
+    @pytest.mark.parametrize("add_cls", (False, True))
+    def test_from_config(self, add_cls: bool) -> None:
         config = {
             "model": {
                 "params": {
@@ -359,6 +360,8 @@ class TestLightFMWrapperModelConfiguration:
             "num_threads": 3,
             "verbose": 1,
         }
+        if add_cls:
+            config["model"]["cls"] = "LightFM"
         model = LightFMWrapperModel.from_config(config)
         assert model.n_epochs == 2
         assert model.n_threads == 3
@@ -393,7 +396,7 @@ class TestLightFMWrapperModelConfiguration:
         }
         expected = {
             "model": {
-                "cls": "lightfm.lightfm.LightFM" if simple_types else LightFM,
+                "cls": "LightFM" if simple_types else LightFM,
                 "params": expected_model_params,
             },
             "epochs": 2,

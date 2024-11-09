@@ -76,7 +76,7 @@ class ItemItemRecommenderConfig(BaseConfig):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    cls: ItemItemRecommenderClass = ItemItemRecommender
+    cls: ItemItemRecommenderClass
     params: tp.Dict[str, tp.Any] = {}
 
 

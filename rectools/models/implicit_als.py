@@ -36,27 +36,30 @@ from .base import RandomState
 from .rank import Distance
 from .vector import Factors, VectorModel
 
-AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+ALS_STRING = "AlternatingLeastSquares"
 
+AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+AlternatingLeastSquaresType = tp.Union[tp.Type[AnyAlternatingLeastSquares], tp.Literal["AlternatingLeastSquares"]]
 
 def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
-    if isinstance(spec, str):
-        return import_object(spec)
-    return spec  # including None
+    if spec == ALS_STRING or not isinstance(spec, str):
+        return spec
+    return import_object(spec)
 
 
 def _serialize_alternating_least_squares_class(
-    cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: tp.Callable, info: SerializationInfo
-) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
-    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls is None:
-        return None
-    if info.mode == "json":
+    cls: AlternatingLeastSquaresType, 
+    handler: tp.Callable, info: SerializationInfo
+) -> tp.Union[None, str, AnyAlternatingLeastSquares]:    
+    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls == ALS_STRING:
+        return ALS_STRING
+    if info.mode == "json":    
         return get_class_or_function_full_path(cls)
     return cls
 
 
 AlternatingLeastSquaresClass = tpe.Annotated[
-    tp.Optional[tp.Type[AnyAlternatingLeastSquares]],
+    AlternatingLeastSquaresType,
     BeforeValidator(_get_alternating_least_squares_class),
     WrapSerializer(
         func=_serialize_alternating_least_squares_class,
@@ -90,7 +93,7 @@ class AlternatingLeastSquaresConfig(BaseConfig):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    cls: AlternatingLeastSquaresClass = None
+    cls: AlternatingLeastSquaresClass = ALS_STRING
     params: AlternatingLeastSquaresParams = {}
 
 
@@ -169,7 +172,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         model_cls = model.__class__
         return ImplicitALSWrapperModelConfig(
             model=AlternatingLeastSquaresConfig(
-                cls=model_cls if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) else None,
+                cls=model_cls if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) else ALS_STRING,
                 params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
             ),
             verbose=verbose,
@@ -181,7 +184,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
     @classmethod
     def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
-        if config.model.cls is None:
+        if config.model.cls == ALS_STRING:
             model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
         else:
             model_cls = config.model.cls
