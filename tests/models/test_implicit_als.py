@@ -26,11 +26,19 @@ from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, IdMap, Interactions, SparseFeatures
 from rectools.exceptions import NotFittedError
 from rectools.models import ImplicitALSWrapperModel
-from rectools.models.implicit_als import AnyAlternatingLeastSquares, GPUAlternatingLeastSquares
+from rectools.models.implicit_als import (
+    AnyAlternatingLeastSquares,
+    CPUAlternatingLeastSquares,
+    GPUAlternatingLeastSquares,
+)
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 @pytest.mark.filterwarnings("ignore:Converting sparse features to dense")
@@ -346,3 +354,119 @@ class TestImplicitALSWrapperModel:
                 dataset=dataset,
                 k=2,
             )
+
+
+class CustomALS(CPUAlternatingLeastSquares):
+    pass
+
+
+class TestImplicitALSWrapperModelConfiguration:
+
+    def setup_method(self) -> None:
+        implicit.gpu.HAS_CUDA = True  # To avoid errors when test without cuda
+
+    @pytest.mark.parametrize("use_gpu", (False, True))
+    @pytest.mark.parametrize("cls", (None, "AlternatingLeastSquares", "implicit.als.AlternatingLeastSquares"))
+    def test_from_config(self, use_gpu: bool, cls: tp.Any) -> None:
+        config: tp.Dict = {
+            "model": {
+                "params": {
+                    "factors": 16,
+                    "num_threads": 2,
+                    "iterations": 100,
+                    "use_gpu": use_gpu,
+                },
+            },
+            "fit_features_together": True,
+            "verbose": 1,
+        }
+        if cls is not None:
+            config["model"]["cls"] = cls
+        model = ImplicitALSWrapperModel.from_config(config)
+        assert model.fit_features_together is True
+        assert model.verbose == 1
+        inner_model = model._model  # pylint: disable=protected-access
+        assert inner_model.factors == 16
+        assert inner_model.iterations == 100
+        if not use_gpu:
+            assert inner_model.num_threads == 2
+        expected_model_class = GPUAlternatingLeastSquares if use_gpu else CPUAlternatingLeastSquares
+        assert isinstance(inner_model, expected_model_class)
+
+    @pytest.mark.parametrize("use_gpu", (False, True))
+    @pytest.mark.parametrize("random_state", (None, 42))
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_to_config(self, use_gpu: bool, random_state: tp.Optional[int], simple_types: bool) -> None:
+        model = ImplicitALSWrapperModel(
+            model=AlternatingLeastSquares(factors=16, num_threads=2, use_gpu=use_gpu, random_state=random_state),
+            fit_features_together=True,
+            verbose=1,
+        )
+        config = model.get_config(simple_types=simple_types)
+        expected_model_params = {
+            "factors": 16,
+            "regularization": 0.01,
+            "alpha": 1.0,
+            "dtype": np.float32 if not simple_types else "float32",
+            "iterations": 15,
+            "calculate_training_loss": False,
+            "random_state": random_state,
+            "use_gpu": use_gpu,
+        }
+        if not use_gpu:
+            expected_model_params.update(
+                {
+                    "use_native": True,
+                    "use_cg": True,
+                    "num_threads": 2,
+                }
+            )
+        expected = {
+            "model": {
+                "cls": "AlternatingLeastSquares",
+                "params": expected_model_params,
+            },
+            "fit_features_together": True,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    def test_to_config_fails_when_random_state_is_object(self) -> None:
+        model = ImplicitALSWrapperModel(model=AlternatingLeastSquares(random_state=np.random.RandomState()))
+        with pytest.raises(
+            TypeError,
+            match="`random_state` must be ``None`` or have ``int`` type to convert it to simple type",
+        ):
+            model.get_config(simple_types=True)
+
+    def test_custom_model_class(self) -> None:
+        cls_path = "tests.models.test_implicit_als.CustomALS"
+
+        config = {
+            "model": {
+                "cls": cls_path,
+            }
+        }
+        model = ImplicitALSWrapperModel.from_config(config)
+
+        assert isinstance(model._model, CustomALS)  # pylint: disable=protected-access
+
+        returned_config = model.get_config(simple_types=True)
+        assert returned_config["model"]["cls"] == cls_path  # pylint: disable=unsubscriptable-object
+
+        assert model.get_config()["model"]["cls"] == CustomALS  # pylint: disable=unsubscriptable-object
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "model": {
+                "params": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
+            },
+            "verbose": 1,
+        }
+        assert_get_config_and_from_config_compatibility(ImplicitALSWrapperModel, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, tp.Any] = {"model": {}}
+        model = ImplicitALSWrapperModel(model=AlternatingLeastSquares())
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

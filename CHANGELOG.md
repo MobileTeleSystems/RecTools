@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## Unreleased
+
+### Added
+- `from_config`, `get_config` and `get_params` methods to all models except neural-net-based([#170](https://github.com/MobileTeleSystems/RecTools/pull/170))
+
+
 ## [0.8.0] - 28.08.2024
 
 ### Added

@@ -17,23 +17,96 @@ from copy import deepcopy
 
 import implicit.gpu
 import numpy as np
+import typing_extensions as tpe
+from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
+from pydantic import BeforeValidator, ConfigDict, PlainSerializer, SerializationInfo, WrapSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
+from rectools.models.base import ModelConfig
+from rectools.utils.config import BaseConfig
+from rectools.utils.misc import get_class_or_function_full_path, import_object
 
+from .base import RandomState
 from .rank import Distance
 from .vector import Factors, VectorModel
 
-AVAILABLE_RECOMMEND_METHODS = ("loop",)
+ALS_STRING = "AlternatingLeastSquares"
+
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+AlternatingLeastSquaresType = tp.Union[tp.Type[AnyAlternatingLeastSquares], tp.Literal["AlternatingLeastSquares"]]
 
 
-class ImplicitALSWrapperModel(VectorModel):
+def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
+    if spec in (ALS_STRING, get_class_or_function_full_path(AlternatingLeastSquares)):
+        return "AlternatingLeastSquares"
+    if isinstance(spec, str):
+        return import_object(spec)
+    return spec
+
+
+def _serialize_alternating_least_squares_class(
+    cls: AlternatingLeastSquaresType, handler: tp.Callable, info: SerializationInfo
+) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
+    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls == "AlternatingLeastSquares":
+        return ALS_STRING
+    if info.mode == "json":
+        return get_class_or_function_full_path(cls)
+    return cls
+
+
+AlternatingLeastSquaresClass = tpe.Annotated[
+    AlternatingLeastSquaresType,
+    BeforeValidator(_get_alternating_least_squares_class),
+    WrapSerializer(
+        func=_serialize_alternating_least_squares_class,
+        when_used="always",
+    ),
+]
+
+DType = tpe.Annotated[
+    np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
+]
+
+
+class AlternatingLeastSquaresParams(tpe.TypedDict):
+    """Params for implicit `AlternatingLeastSquares` model."""
+
+    factors: tpe.NotRequired[int]
+    regularization: tpe.NotRequired[float]
+    alpha: tpe.NotRequired[float]
+    dtype: tpe.NotRequired[DType]
+    use_native: tpe.NotRequired[bool]
+    use_cg: tpe.NotRequired[bool]
+    use_gpu: tpe.NotRequired[bool]
+    iterations: tpe.NotRequired[int]
+    calculate_training_loss: tpe.NotRequired[bool]
+    num_threads: tpe.NotRequired[int]
+    random_state: tpe.NotRequired[RandomState]
+
+
+class AlternatingLeastSquaresConfig(BaseConfig):
+    """Config for implicit `AlternatingLeastSquares` model."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    cls: AlternatingLeastSquaresClass = "AlternatingLeastSquares"
+    params: AlternatingLeastSquaresParams = {}
+
+
+class ImplicitALSWrapperModelConfig(ModelConfig):
+    """Config for `ImplicitALSWrapperModel`."""
+
+    model: AlternatingLeastSquaresConfig
+    fit_features_together: bool = False
+
+
+class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     """
     Wrapper for `implicit.als.AlternatingLeastSquares`
     with possibility to use explicit features and GPU support.
@@ -58,16 +131,71 @@ class ImplicitALSWrapperModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
+    config_class = ImplicitALSWrapperModelConfig
+
     def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
+        self._config = self._make_config(model, verbose, fit_features_together)
+
         super().__init__(verbose=verbose)
 
         self.model: AnyAlternatingLeastSquares
-        self._model = model  # for refit; TODO: try to do it better
+        self._model = model  # for refit
 
         self.fit_features_together = fit_features_together
         self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
         if not self.use_gpu:
             self.n_threads = model.num_threads
+
+    @classmethod
+    def _make_config(
+        cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
+    ) -> ImplicitALSWrapperModelConfig:
+        params = {
+            "factors": model.factors,
+            "regularization": model.regularization,
+            "alpha": model.alpha,
+            "dtype": model.dtype,
+            "iterations": model.iterations,
+            "calculate_training_loss": model.calculate_training_loss,
+            "random_state": model.random_state,
+        }
+        if isinstance(model, GPUAlternatingLeastSquares):
+            params.update({"use_gpu": True})
+        else:
+            params.update(
+                {
+                    "use_gpu": False,
+                    "use_native": model.use_native,
+                    "use_cg": model.use_cg,
+                    "num_threads": model.num_threads,
+                }
+            )
+
+        model_cls = model.__class__
+        return ImplicitALSWrapperModelConfig(
+            model=AlternatingLeastSquaresConfig(
+                cls=(
+                    model_cls
+                    if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
+                    else "AlternatingLeastSquares"
+                ),
+                params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
+            ),
+            verbose=verbose,
+            fit_features_together=fit_features_together,
+        )
+
+    def _get_config(self) -> ImplicitALSWrapperModelConfig:
+        return self._config
+
+    @classmethod
+    def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
+        if config.model.cls == ALS_STRING:
+            model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
+        else:
+            model_cls = config.model.cls
+        model = model_cls(**config.model.params)
+        return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
