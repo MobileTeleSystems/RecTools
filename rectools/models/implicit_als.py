@@ -187,8 +187,8 @@ def fit_als_with_features_separately_inplace(
             model.user_factors = implicit.gpu.Matrix(user_factors)
             model.item_factors = implicit.gpu.Matrix(item_factors)
         else:
-            model.user_factors = model.user_factors[:, : model.factors]
-            model.item_factors = model.item_factors[:, : model.factors]
+            model.user_factors = get_users_vectors(model)[:, : model.factors]
+            model.item_factors = get_items_vectors(model)[:, : model.factors]
 
     iu_csr = ui_csr.T.tocsr(copy=False)
     model.iterations = iterations
@@ -302,8 +302,10 @@ def fit_als_with_features_together_inplace(
     n_users, n_items = ui_csr.shape
 
     if model.user_factors is None or model.item_factors is None:
-        user_factors, item_factors, n_user_explicit_factors, n_item_explicit_factors = _init_user_item_factors(
-            model, n_users, n_items, user_features, item_features
+        user_factors, item_factors, n_user_explicit_factors, n_item_explicit_factors = (
+            _init_user_item_factors_for_combined_training_with_features(
+                model, n_users, n_items, user_features, item_features
+            )
         )
     else:
         user_factors = get_users_vectors(model)
@@ -345,14 +347,19 @@ def fit_als_with_features_together_inplace(
     model.factors = n_latent_factors
 
 
-def _init_user_item_factors(
+def _init_user_item_factors_for_combined_training_with_features(
     model: AnyAlternatingLeastSquares,
     n_users: int,
     n_items: int,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
 ) -> tp.Tuple[np.ndarray, np.ndarray, int, int]:
-    """Init user and item factors for model that hasn't been initialized yet"""
+    """
+    Init user and item factors for model that hasn't been initialized yet.
+    Final factors will include latent factors, explicit factors from
+    user/item features and their paired item/user factors.
+    This method is only used when `fit_features_together` is set to ``True``
+    """
     # Prepare explicit factors
     user_explicit_factors: np.ndarray
     if user_features is None:

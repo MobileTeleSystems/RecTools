@@ -362,7 +362,7 @@ class TestImplicitALSWrapperModel:
     # TODO: move this test to `partial_fit` method when implemented
     @pytest.mark.parametrize("fit_features_together", (False, True))
     @pytest.mark.parametrize("use_features_in_dataset", (False, True))
-    def test_epochs(
+    def test_per_epoch_fitting_consistent_with_regular_fitting(
         self,
         dataset: Dataset,
         dataset_w_features: Dataset,
