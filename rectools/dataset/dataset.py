@@ -200,6 +200,7 @@ class Dataset:
         include_weights: bool = True,
         include_warm_users: bool = False,
         include_warm_items: bool = False,
+        dtype: np.dtype = np.float32,
     ) -> sparse.csr_matrix:
         """
         Construct user-item CSR matrix based on `interactions` attribute.
@@ -224,7 +225,7 @@ class Dataset:
         csr_matrix
             Resized user-item CSR matrix
         """
-        matrix = self.interactions.get_user_item_matrix(include_weights)
+        matrix = self.interactions.get_user_item_matrix(include_weights, dtype)
         n_rows = self.user_id_map.size if include_warm_users else matrix.shape[0]
         n_columns = self.item_id_map.size if include_warm_items else matrix.shape[1]
         matrix.resize(n_rows, n_columns)

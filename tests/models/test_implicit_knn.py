@@ -231,6 +231,26 @@ class TestImplicitItemKNNWrapperModel:
                 k=2,
             )
 
+    def test_base_class(self, dataset: Dataset) -> None:
+        # Base class ItemItemRecommender didn't work due to implicit dtype conversion to np.float64
+        base_model = ItemItemRecommender(K=5, num_threads=2)
+        model = ImplicitItemKNNWrapperModel(model=base_model).fit(dataset)
+        actual = model.recommend(
+            users=np.array([10, 20]),
+            dataset=dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10, 20, 20],
+                Columns.Item: [11, 12, 11, 12],
+                Columns.Score: [9.0, 8.0, 8.0, 7.0],
+                Columns.Rank: [1, 2, 1, 2],
+            }
+        ).astype({Columns.Score: np.float32})
+        pd.testing.assert_frame_equal(actual, expected, atol=0.001)
+
 
 class CustomKNN(ItemItemRecommender):
     pass

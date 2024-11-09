@@ -121,7 +121,7 @@ class Interactions:
 
         return cls(df)
 
-    def get_user_item_matrix(self, include_weights: bool = True) -> sparse.csr_matrix:
+    def get_user_item_matrix(self, include_weights: bool = True, dtype: np.dtype = np.float32) -> sparse.csr_matrix:
         """
         Form a user-item CSR matrix based on interactions data.
 
@@ -142,7 +142,7 @@ class Interactions:
 
         csr = sparse.csr_matrix(
             (
-                values.astype(np.float32),
+                values.astype(dtype),
                 (
                     self.df[Columns.User].values,
                     self.df[Columns.Item].values,

@@ -130,7 +130,13 @@ class ImplicitItemKNNWrapperModel(ModelBase[ImplicitItemKNNWrapperModelConfig]):
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.model = deepcopy(self._model)
-        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        
+        # There is implicit conversion from float32 to float 64 in implicit library
+        # in `normalize` function on the line `X.data = X.data / sqrt(bincount(X.row, X.data**2))[X.row]`.
+        # But this function is not used in the base `ItemItemRecommender` class.
+        # So we convert it here to make every class including the base on work.
+        ui_csr = dataset.get_user_item_matrix(include_weights=True, dtype=np.float64)
+
         # implicit library processes weights in coo_matrix format and then warns about converting it to csr
         with warnings.catch_warnings():
             warnings.filterwarnings(action="ignore", category=ParameterWarning, message="Method expects CSR input")
