@@ -47,10 +47,13 @@ Tools
 `metrics.PairwiseDistanceCalculator`
 `metrics.PairwiseHammingDistanceCalculator`
 `metrics.SparsePairwiseHammingDistanceCalculator`
+`metrics.DebiasConfig`
+`metrics.debias_interactions`
 """
 
 from .auc import PAP, PartialAUC
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
+from .debias import DebiasConfig, debias_interactions
 from .distances import (
     PairwiseDistanceCalculator,
     PairwiseHammingDistanceCalculator,
@@ -89,4 +92,6 @@ __all__ = (
     "SufficientReco",
     "UnrepeatedReco",
     "CoveredUsers",
+    "DebiasConfig",
+    "debias_interactions",
 )

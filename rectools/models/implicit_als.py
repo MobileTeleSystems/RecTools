@@ -32,30 +32,36 @@ from rectools.models.base import ModelConfig
 from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
+from .base import RandomState
 from .rank import Distance
 from .vector import Factors, VectorModel
 
+ALS_STRING = "AlternatingLeastSquares"
+
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+AlternatingLeastSquaresType = tp.Union[tp.Type[AnyAlternatingLeastSquares], tp.Literal["AlternatingLeastSquares"]]
 
 
 def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
-    if not isinstance(spec, str):  # including None
-        return spec
-    return import_object(spec)
+    if spec in (ALS_STRING, get_class_or_function_full_path(AlternatingLeastSquares)):
+        return "AlternatingLeastSquares"
+    if isinstance(spec, str):
+        return import_object(spec)
+    return spec
 
 
 def _serialize_alternating_least_squares_class(
-    cls: tp.Optional[tp.Type[AnyAlternatingLeastSquares]], handler: tp.Callable, info: SerializationInfo
+    cls: AlternatingLeastSquaresType, handler: tp.Callable, info: SerializationInfo
 ) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
-    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls is None:
-        return None
+    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls == "AlternatingLeastSquares":
+        return ALS_STRING
     if info.mode == "json":
         return get_class_or_function_full_path(cls)
     return cls
 
 
 AlternatingLeastSquaresClass = tpe.Annotated[
-    tp.Optional[tp.Type[AnyAlternatingLeastSquares]],
+    AlternatingLeastSquaresType,
     BeforeValidator(_get_alternating_least_squares_class),
     WrapSerializer(
         func=_serialize_alternating_least_squares_class,
@@ -65,20 +71,6 @@ AlternatingLeastSquaresClass = tpe.Annotated[
 
 DType = tpe.Annotated[
     np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
-]
-
-
-def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.RandomState]]) -> tp.Union[None, int]:
-    if rs is None or isinstance(rs, int):
-        return rs
-
-    # NOBUG: We can add serialization using get/set_state, but it's not human readable
-    raise TypeError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
-
-
-RandomState = tpe.Annotated[
-    tp.Union[None, int, np.random.RandomState],
-    PlainSerializer(func=_serialize_random_state, when_used="json"),
 ]
 
 
@@ -103,7 +95,7 @@ class AlternatingLeastSquaresConfig(BaseConfig):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    cls: AlternatingLeastSquaresClass = None
+    cls: AlternatingLeastSquaresClass = "AlternatingLeastSquares"
     params: AlternatingLeastSquaresParams = {}
 
 
@@ -182,7 +174,11 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         model_cls = model.__class__
         return ImplicitALSWrapperModelConfig(
             model=AlternatingLeastSquaresConfig(
-                cls=model_cls if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) else None,
+                cls=(
+                    model_cls
+                    if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
+                    else "AlternatingLeastSquares"
+                ),
                 params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
             ),
             verbose=verbose,
@@ -194,7 +190,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
     @classmethod
     def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
-        if config.model.cls is None:
+        if config.model.cls == ALS_STRING:
             model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
         else:
             model_cls = config.model.cls

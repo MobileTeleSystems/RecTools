@@ -24,7 +24,12 @@ from rectools.dataset import Dataset
 from rectools.models import ImplicitItemKNNWrapperModel
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+    assert_dumps_loads_do_not_change_model
+)
 
 
 class TestImplicitItemKNNWrapperModel:
@@ -227,6 +232,26 @@ class TestImplicitItemKNNWrapperModel:
                 k=2,
             )
 
+    def test_base_class(self, dataset: Dataset) -> None:
+        # Base class ItemItemRecommender didn't work due to implicit dtype conversion to np.float64
+        base_model = ItemItemRecommender(K=5, num_threads=2)
+        model = ImplicitItemKNNWrapperModel(model=base_model).fit(dataset)
+        actual = model.recommend(
+            users=np.array([10, 20]),
+            dataset=dataset,
+            k=2,
+            filter_viewed=False,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10, 20, 20],
+                Columns.Item: [11, 12, 11, 12],
+                Columns.Score: [9.0, 8.0, 8.0, 7.0],
+                Columns.Rank: [1, 2, 1, 2],
+            }
+        ).astype({Columns.Score: np.float32})
+        pd.testing.assert_frame_equal(actual, expected, atol=0.001)
+
     def test_dumps_loads(self, dataset: Dataset):
         model = ImplicitItemKNNWrapperModel(model=TFIDFRecommender())
         model.fit(dataset)
@@ -314,9 +339,6 @@ class TestImplicitItemKNNWrapperModelConfiguration:
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        def get_reco(model: ImplicitItemKNNWrapperModel) -> pd.DataFrame:
-            return model.fit(DATASET).recommend(users=np.array([10, 20]), dataset=DATASET, k=2, filter_viewed=False)
-
         initial_config = {
             "model": {
                 "cls": TFIDFRecommender,
@@ -324,19 +346,11 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             },
             "verbose": 1,
         }
-
-        model_1 = ImplicitItemKNNWrapperModel.from_config(initial_config)
-        reco_1 = get_reco(model_1)
-        config_1 = model_1.get_config(simple_types=simple_types)
-
-        model_2 = ImplicitItemKNNWrapperModel.from_config(config_1)
-        reco_2 = get_reco(model_2)
-        config_2 = model_2.get_config(simple_types=simple_types)
-
-        assert config_1 == config_2
-        pd.testing.assert_frame_equal(reco_1, reco_2)
+        assert_get_config_and_from_config_compatibility(
+            ImplicitItemKNNWrapperModel, DATASET, initial_config, simple_types
+        )
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
-        model_from_config = ImplicitItemKNNWrapperModel.from_config({"model": {}})
-        model_from_params = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
-        assert model_from_config.get_config() == model_from_params.get_config()
+        default_config: tp.Dict[str, tp.Any] = {"model": {"cls": ItemItemRecommender, "params": {}}}
+        model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

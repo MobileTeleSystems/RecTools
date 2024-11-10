@@ -138,7 +138,7 @@ def is_instance(obj: tp.Any, types: tp.Union[AnyType, tp.Tuple[AnyType, ...]]) -
 
 
 def select_by_type(
-    objects: tp.Dict[tp.Any, tp.Any],
+    objects: tp.Mapping[tp.Any, tp.Any],
     types: tp.Union[AnyType, tp.Tuple[AnyType, ...]],
 ) -> tp.Dict[tp.Any, tp.Any]:
     """

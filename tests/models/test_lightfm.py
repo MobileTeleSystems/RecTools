@@ -30,7 +30,13 @@ from rectools.exceptions import NotFittedError
 from rectools.models import LightFMWrapperModel
 from rectools.models.utils import recommend_from_scores
 from rectools.models.vector import Factors
-from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
+from tests.models.data import DATASET
+from tests.models.utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+    assert_dumps_loads_do_not_change_model
+)
 
 pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
 
@@ -222,6 +228,16 @@ class TestLightFMWrapperModel:
             actual,
         )
 
+    def test_with_warp_kos(self, dataset: Dataset) -> None:
+        base_model = DeterministicLightFM(no_components=2, loss="warp-kos")
+        try:
+            LightFMWrapperModel(model=base_model, epochs=10).fit(dataset)
+        except NotImplementedError:
+            pytest.fail("Should not raise NotImplementedError")
+        except ValueError:
+            # LightFM raises ValueError with the dataset
+            pass
+
     def test_get_vectors(self, dataset_with_features: Dataset) -> None:
         base_model = LightFM(no_components=2, loss="logistic")
         model = LightFMWrapperModel(model=base_model).fit(dataset_with_features)
@@ -329,3 +345,108 @@ class TestLightFMWrapperModel:
         model = LightFMWrapperModel(LightFM())
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
+
+
+class CustomLightFM(LightFM):
+    pass
+
+
+class TestLightFMWrapperModelConfiguration:
+
+    @pytest.mark.parametrize("add_cls", (False, True))
+    def test_from_config(self, add_cls: bool) -> None:
+        config: tp.Dict = {
+            "model": {
+                "params": {
+                    "no_components": 16,
+                    "learning_rate": 0.03,
+                },
+            },
+            "epochs": 2,
+            "num_threads": 3,
+            "verbose": 1,
+        }
+        if add_cls:
+            config["model"]["cls"] = "LightFM"
+        model = LightFMWrapperModel.from_config(config)
+        assert model.n_epochs == 2
+        assert model.n_threads == 3
+        assert model.verbose == 1
+        inner_model = model._model  # pylint: disable=protected-access
+        assert inner_model.no_components == 16
+        assert inner_model.learning_rate == 0.03
+
+    @pytest.mark.parametrize("random_state", (None, 42))
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_to_config(self, random_state: tp.Optional[int], simple_types: bool) -> None:
+        model = LightFMWrapperModel(
+            model=LightFM(no_components=16, learning_rate=0.03, random_state=random_state),
+            epochs=2,
+            num_threads=3,
+            verbose=1,
+        )
+        config = model.get_config(simple_types=simple_types)
+        expected_model_params = {
+            "no_components": 16,
+            "k": 5,
+            "n": 10,
+            "learning_schedule": "adagrad",
+            "loss": "logistic",
+            "learning_rate": 0.03,
+            "rho": 0.95,
+            "epsilon": 1e-6,
+            "item_alpha": 0.0,
+            "user_alpha": 0.0,
+            "max_sampled": 10,
+            "random_state": random_state,
+        }
+        expected = {
+            "model": {
+                "cls": "LightFM" if simple_types else LightFM,
+                "params": expected_model_params,
+            },
+            "epochs": 2,
+            "num_threads": 3,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    def test_to_config_fails_when_random_state_is_object(self) -> None:
+        model = LightFMWrapperModel(model=LightFM(random_state=np.random.RandomState()))
+        with pytest.raises(
+            TypeError,
+            match="`random_state` must be ``None`` or have ``int`` type to convert it to simple type",
+        ):
+            model.get_config(simple_types=True)
+
+    def test_custom_model_class(self) -> None:
+        cls_path = "tests.models.test_lightfm.CustomLightFM"
+
+        config = {
+            "model": {
+                "cls": cls_path,
+            }
+        }
+        model = LightFMWrapperModel.from_config(config)
+
+        assert isinstance(model._model, CustomLightFM)  # pylint: disable=protected-access
+
+        returned_config = model.get_config(simple_types=True)
+        assert returned_config["model"]["cls"] == cls_path  # pylint: disable=unsubscriptable-object
+
+        assert model.get_config()["model"]["cls"] == CustomLightFM  # pylint: disable=unsubscriptable-object
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "model": {
+                "params": {"no_components": 16, "learning_rate": 0.03, "random_state": 42},
+            },
+            "verbose": 1,
+        }
+        assert_get_config_and_from_config_compatibility(LightFMWrapperModel, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, tp.Any] = {"model": {}}
+        model = LightFMWrapperModel(model=LightFM())
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

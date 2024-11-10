@@ -34,7 +34,12 @@ from rectools.models.implicit_als import (
 from rectools.models.utils import recommend_from_scores
 
 from .data import DATASET
-from .utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+    assert_dumps_loads_do_not_change_model,
+)
 
 
 @pytest.mark.filterwarnings("ignore:Converting sparse features to dense")
@@ -367,8 +372,9 @@ class TestImplicitALSWrapperModelConfiguration:
         implicit.gpu.HAS_CUDA = True  # To avoid errors when test without cuda
 
     @pytest.mark.parametrize("use_gpu", (False, True))
-    def test_from_config(self, use_gpu: bool) -> None:
-        config = {
+    @pytest.mark.parametrize("cls", (None, "AlternatingLeastSquares", "implicit.als.AlternatingLeastSquares"))
+    def test_from_config(self, use_gpu: bool, cls: tp.Any) -> None:
+        config: tp.Dict = {
             "model": {
                 "params": {
                     "factors": 16,
@@ -380,6 +386,8 @@ class TestImplicitALSWrapperModelConfiguration:
             "fit_features_together": True,
             "verbose": 1,
         }
+        if cls is not None:
+            config["model"]["cls"] = cls
         model = ImplicitALSWrapperModel.from_config(config)
         assert model.fit_features_together is True
         assert model.verbose == 1
@@ -421,7 +429,7 @@ class TestImplicitALSWrapperModelConfiguration:
             )
         expected = {
             "model": {
-                "cls": None,
+                "cls": "AlternatingLeastSquares",
                 "params": expected_model_params,
             },
             "fit_features_together": True,
@@ -456,29 +464,15 @@ class TestImplicitALSWrapperModelConfiguration:
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        def get_reco(model: ImplicitALSWrapperModel) -> pd.DataFrame:
-            return model.fit(DATASET).recommend(users=[10, 20], dataset=DATASET, k=2, filter_viewed=False)
-
         initial_config = {
             "model": {
                 "params": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
             },
             "verbose": 1,
         }
-
-        model_1 = ImplicitALSWrapperModel.from_config(initial_config)
-        reco_1 = get_reco(model_1)
-        config_1 = model_1.get_config(simple_types=simple_types)
-
-        model_2 = ImplicitALSWrapperModel.from_config(config_1)
-        reco_2 = get_reco(model_2)
-        config_2 = model_2.get_config(simple_types=simple_types)
-
-        assert config_1 == config_2
-        pd.testing.assert_frame_equal(reco_1, reco_2)
+        assert_get_config_and_from_config_compatibility(ImplicitALSWrapperModel, DATASET, initial_config, simple_types)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
-        model_from_config = ImplicitALSWrapperModel.from_config({"model": {}})
-        model_from_params = ImplicitALSWrapperModel(model=AlternatingLeastSquares())
-        assert model_from_config.get_config() == model_from_params.get_config()
-
+        default_config: tp.Dict[str, tp.Any] = {"model": {}}
+        model = ImplicitALSWrapperModel(model=AlternatingLeastSquares())
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
