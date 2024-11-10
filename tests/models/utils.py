@@ -53,7 +53,7 @@ def assert_second_fit_refits_model(
 def assert_dumps_loads_do_not_change_model(
     model: ModelBase,
     dataset: Dataset,
-    check_configs: bool = False,  # FIXME: change to True
+    check_configs: bool = True,
 ) -> None:
     def get_reco(model: ModelBase) -> pd.DataFrame:
         users = dataset.user_id_map.external_ids[:2]
