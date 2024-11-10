@@ -33,9 +33,9 @@ from rectools.models.vector import Factors
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
-    assert_dumps_loads_do_not_change_model
 )
 
 pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")

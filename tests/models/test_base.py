@@ -14,10 +14,10 @@
 
 # pylint: disable=attribute-defined-outside-init
 
-from tempfile import TemporaryFile
 import typing as tp
 import warnings
 from datetime import timedelta
+from tempfile import TemporaryFile
 
 import numpy as np
 import pandas as pd
@@ -547,7 +547,7 @@ class TestSavingAndLoading:
         class SomeModel(ModelBase):
             def dumps(self) -> bytes:
                 return b"model_body"
-            
+
             def loads(self, body: bytes) -> None:
                 pass
 
@@ -557,9 +557,7 @@ class TestSavingAndLoading:
             model.save(f)
             f.seek(0)
             loaded_model = ModelBase.load(f)
-            
 
-    
     # @pytest.mark.parametrize("use_str", (False, True))
     # def test_save_and_load_from_path(self, use_str: bool) -> None:
     #     with NamedTemporaryFile() as f:
@@ -569,7 +567,7 @@ class TestSavingAndLoading:
 
     #         loaded_model = ModelBase.load(path)
     #         assert isinstance(loaded_model, ModelBase)
-        
+
     #     path = tmp_path / "model"
     #     self.model.save(path)
 

@@ -51,12 +51,14 @@ def assert_second_fit_refits_model(
 
 
 def assert_dumps_loads_do_not_change_model(
-    model: tp.Type[ModelBase], dataset: Dataset, check_configs: bool = False,  # FIXME: change to True
+    model: tp.Type[ModelBase],
+    dataset: Dataset,
+    check_configs: bool = False,  # FIXME: change to True
 ) -> None:
     def get_reco(model: ModelBase) -> pd.DataFrame:
         users = dataset.user_id_map.external_ids[:2]
         return model.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
-        
+
     dumped = model.dumps()
     recovered_model = model.__class__.loads(dumped)
 
@@ -65,10 +67,11 @@ def assert_dumps_loads_do_not_change_model(
     pd.testing.assert_frame_equal(recovered_model_reco, original_model_reco)
 
     if check_configs:
-        original_model_config = model.get_config() 
+        original_model_config = model.get_config()
         recovered_model_config = recovered_model.get_config()
         assert recovered_model_config == original_model_config
-   
+
+
 def assert_default_config_and_default_model_params_are_the_same(
     model: ModelBase, default_config: tp.Dict[str, tp.Any]
 ) -> None:

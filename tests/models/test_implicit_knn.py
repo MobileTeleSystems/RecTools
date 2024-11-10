@@ -26,9 +26,9 @@ from rectools.models import ImplicitItemKNNWrapperModel
 from .data import DATASET, INTERACTIONS
 from .utils import (
     assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
-    assert_dumps_loads_do_not_change_model
 )
 
 

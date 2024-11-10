@@ -26,9 +26,9 @@ from rectools.models.popular import Popularity
 from rectools.models.popular_in_category import MixingStrategy, RatioStrategy
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
-    assert_dumps_loads_do_not_change_model
 )
 
 
@@ -459,6 +459,7 @@ class TestPopularInCategoryModel:
         model = PopularInCategoryModel(category_feature="f1")
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
+
 
 class TestPopularInCategoryModelConfiguration:
     @pytest.mark.parametrize(

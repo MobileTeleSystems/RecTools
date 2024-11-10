@@ -15,10 +15,10 @@
 """Base model."""
 
 import os
-from pathlib import Path
 import pickle
 import typing as tp
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -197,27 +197,27 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     @classmethod
     def _from_config(cls, config: ModelConfig_T) -> tpe.Self:
         raise NotImplementedError()
-    
+
     def save(self, f: FileLike) -> int:
         data = self.dumps()
 
         if isinstance(f, (str, Path)):
             return Path(f).write_bytes(data)
-        
+
         return f.write(data)
 
     def dumps(self) -> bytes:
         return pickle.dumps(self, protocol=PICKLE_PROTOCOL)
-    
+
     @classmethod
     def load(cls, f: FileLike) -> tpe.Self:
         if isinstance(f, (str, Path)):
             data = Path(f).read_bytes()
         else:
             data = f.read()
-    
+
         return cls.loads(data)
-    
+
     @classmethod
     def loads(cls, data: bytes) -> tpe.Self:
         return pickle.loads(data)  # FIXME: may actually return any object
