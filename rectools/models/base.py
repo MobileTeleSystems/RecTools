@@ -199,6 +199,19 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         raise NotImplementedError()
 
     def save(self, f: FileLike) -> int:
+        """
+        Save model to file.
+
+        Parameters
+        ----------
+        f : str or Path or file-like object
+            Path to file or file-like object.
+
+        Returns
+        -------
+        int
+            Number of bytes written.
+        """
         data = self.dumps()
 
         if isinstance(f, (str, Path)):
@@ -207,10 +220,31 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         return f.write(data)
 
     def dumps(self) -> bytes:
+        """
+        Serialize model to bytes.
+
+        Returns
+        -------
+        bytes
+            Serialized model.
+        """
         return pickle.dumps(self, protocol=PICKLE_PROTOCOL)
 
     @classmethod
     def load(cls, f: FileLike) -> tpe.Self:
+        """
+        Load model from file.
+
+        Parameters
+        ----------
+        f : str or Path or file-like object
+            Path to file or file-like object.
+
+        Returns
+        -------
+        model
+            Model instance.
+        """
         if isinstance(f, (str, Path)):
             data = Path(f).read_bytes()
         else:
@@ -220,7 +254,28 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
     @classmethod
     def loads(cls, data: bytes) -> tpe.Self:
-        return pickle.loads(data)  # FIXME: may actually return any object
+        """
+        Load model from bytes.
+
+        Parameters
+        ----------
+        data : bytes
+            Serialized model.
+
+        Returns
+        -------
+        model
+            Model instance.
+
+        Raises
+        ------
+        TypeError
+            If loaded object is not a direct instance of model class.
+        """
+        loaded = pickle.loads(data)
+        if loaded.__class__ is not cls:
+            raise TypeError(f"Loaded object is not a direct instance of `{cls.__name__}`")
+        return loaded
 
     def fit(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
         """
