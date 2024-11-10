@@ -356,7 +356,7 @@ class TestImplicitALSWrapperModel:
                 k=2,
             )
 
-    def test_dumps_loads(self, use_gpu: bool, dataset: Dataset):
+    def test_dumps_loads(self, use_gpu: bool, dataset: Dataset) -> None:
         model = ImplicitALSWrapperModel(model=AlternatingLeastSquares(use_gpu=use_gpu))
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)

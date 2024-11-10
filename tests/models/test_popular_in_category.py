@@ -455,7 +455,7 @@ class TestPopularInCategoryModel:
         )
         assert_second_fit_refits_model(model, dataset)
 
-    def test_dumps_loads(self, dataset: Dataset):
+    def test_dumps_loads(self, dataset: Dataset) -> None:
         model = PopularInCategoryModel(category_feature="f1")
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)

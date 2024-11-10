@@ -221,7 +221,7 @@ class TestPopularModel:
         model = PopularModel()
         assert_second_fit_refits_model(model, dataset)
 
-    def test_dumps_loads(self, dataset: Dataset):
+    def test_dumps_loads(self, dataset: Dataset) -> None:
         model = PopularModel()
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)

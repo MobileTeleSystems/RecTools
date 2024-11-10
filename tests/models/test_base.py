@@ -541,7 +541,7 @@ class TestConfiguration:
             MyModelWithoutConfig().get_config()
 
 
-class SomeModel(ModelBase):
+class MyModel(ModelBase):
     def __init__(self, x: int = 10, verbose: int = 0):
         super().__init__(verbose=verbose)
         self.x = x
@@ -550,27 +550,27 @@ class SomeModel(ModelBase):
 class TestSavingAndLoading:
 
     @pytest.fixture()
-    def model(self) -> None:
-        return SomeModel()
+    def model(self) -> MyModel:
+        return MyModel()
 
-    def test_save_and_load_to_file(self, model: SomeModel) -> None:
+    def test_save_and_load_to_file(self, model: MyModel) -> None:
         with TemporaryFile() as f:
             model.save(f)
             f.seek(0)
-            loaded_model = model.__class__.load(f)
-        assert isinstance(loaded_model, model.__class__)
+            loaded_model = MyModel.load(f)
+        assert isinstance(loaded_model, MyModel)
         assert loaded_model.__dict__ == model.__dict__
 
     @pytest.mark.parametrize("use_str", (False, True))
-    def test_save_and_load_from_path(self, model: SomeModel, use_str: bool) -> None:
+    def test_save_and_load_from_path(self, model: MyModel, use_str: bool) -> None:
         with NamedTemporaryFile() as f:
-            path = Path(f.name) if not use_str else f.name
+            path: tp.Union[Path, str] = Path(f.name) if not use_str else f.name
             model.save(path)
-            loaded_model = ModelBase.load(path)
-        assert isinstance(loaded_model, model.__class__)
+            loaded_model = MyModel.load(path)
+        assert isinstance(loaded_model, MyModel)
         assert loaded_model.__dict__ == model.__dict__
 
-    def test_load_fails_on_incorrect_model_type(self, model: SomeModel) -> None:
+    def test_load_fails_on_incorrect_model_type(self, model: MyModel) -> None:
         with NamedTemporaryFile() as f:
             model.save(f.name)
             with pytest.raises(TypeError, match="Loaded object is not a direct instance of `ModelBase`"):

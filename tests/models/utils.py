@@ -51,7 +51,7 @@ def assert_second_fit_refits_model(
 
 
 def assert_dumps_loads_do_not_change_model(
-    model: tp.Type[ModelBase],
+    model: ModelBase,
     dataset: Dataset,
     check_configs: bool = False,  # FIXME: change to True
 ) -> None:

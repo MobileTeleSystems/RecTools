@@ -341,7 +341,7 @@ class TestLightFMWrapperModel:
                 filter_viewed=False,
             )
 
-    def test_dumps_loads(self, dataset: Dataset):
+    def test_dumps_loads(self, dataset: Dataset) -> None:
         model = LightFMWrapperModel(LightFM())
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)

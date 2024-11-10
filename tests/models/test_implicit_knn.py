@@ -252,7 +252,7 @@ class TestImplicitItemKNNWrapperModel:
         ).astype({Columns.Score: np.float32})
         pd.testing.assert_frame_equal(actual, expected, atol=0.001)
 
-    def test_dumps_loads(self, dataset: Dataset):
+    def test_dumps_loads(self, dataset: Dataset) -> None:
         model = ImplicitItemKNNWrapperModel(model=TFIDFRecommender())
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)

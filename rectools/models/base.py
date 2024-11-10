@@ -14,7 +14,6 @@
 
 """Base model."""
 
-import os
 import pickle
 import typing as tp
 import warnings
@@ -45,7 +44,7 @@ ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
 
-FileLike = tp.Union[str, os.PathLike, tp.IO[bytes]]
+FileLike = tp.Union[str, Path, tp.IO[bytes]]
 
 PICKLE_PROTOCOL = 5
 
