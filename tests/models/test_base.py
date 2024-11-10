@@ -17,7 +17,8 @@
 import typing as tp
 import warnings
 from datetime import timedelta
-from tempfile import TemporaryFile
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryFile
 
 import numpy as np
 import pandas as pd
@@ -540,53 +541,40 @@ class TestConfiguration:
             MyModelWithoutConfig().get_config()
 
 
+class SomeModel(ModelBase):
+    def __init__(self, x: int = 10, verbose: int = 0):
+        super().__init__(verbose=verbose)
+        self.x = x
+
+
 class TestSavingAndLoading:
 
     @pytest.fixture()
     def model(self) -> None:
-        class SomeModel(ModelBase):
-            def dumps(self) -> bytes:
-                return b"model_body"
+        return SomeModel()
 
-            def loads(self, body: bytes) -> None:
-                pass
-
-    def test_save_and_load_to_file(self) -> None:
+    def test_save_and_load_to_file(self, model: SomeModel) -> None:
         with TemporaryFile() as f:
-            model = ModelBase()
             model.save(f)
             f.seek(0)
-            loaded_model = ModelBase.load(f)
+            loaded_model = model.__class__.load(f)
+        assert isinstance(loaded_model, model.__class__)
+        assert loaded_model.__dict__ == model.__dict__
 
-    # @pytest.mark.parametrize("use_str", (False, True))
-    # def test_save_and_load_from_path(self, use_str: bool) -> None:
-    #     with NamedTemporaryFile() as f:
-    #         path = Path(f.name)
-    #         model = ModelBase()
-    #         model.save(path, use_str=use_str)
+    @pytest.mark.parametrize("use_str", (False, True))
+    def test_save_and_load_from_path(self, model: SomeModel, use_str: bool) -> None:
+        with NamedTemporaryFile() as f:
+            path = Path(f.name) if not use_str else f.name
+            model.save(path)
+            loaded_model = ModelBase.load(path)
+        assert isinstance(loaded_model, model.__class__)
+        assert loaded_model.__dict__ == model.__dict__
 
-    #         loaded_model = ModelBase.load(path)
-    #         assert isinstance(loaded_model, ModelBase)
-
-    #     path = tmp_path / "model"
-    #     self.model.save(path)
-
-    #     loaded_model = ModelBase.load(path)
-    #     reco = loaded_model.recommend(
-    #         users=np.array([10, 20]),
-    #         dataset=DATASET,
-    #         k=2,
-    #         filter_viewed=False,
-    #     )
-
-    #     excepted = pd.DataFrame(
-    #         {
-    #             Columns.User: [10, 10, 20, 20],
-    #             Columns.Item: [0, 1, 0, 1],
-    #             Columns.Score: [0.1, 0.2, 0.1, 0.2],
-    #         }
-    #     )
-    #     pd.testing.assert_frame_equal(reco, excepted.astype({Columns.Score: np.float32}))
+    def test_load_fails_on_incorrect_model_type(self, model: SomeModel) -> None:
+        with NamedTemporaryFile() as f:
+            model.save(f.name)
+            with pytest.raises(TypeError, match="Loaded object is not a direct instance of `ModelBase`"):
+                ModelBase.load(f.name)
 
 
 class TestFixedColdRecoModelMixin:
