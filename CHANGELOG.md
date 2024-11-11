@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- `from_config`, `get_config` and `get_params` methods to all models except neural-net-based([#170](https://github.com/MobileTeleSystems/RecTools/pull/170))
 - Optional `epochs` argument to `ImplicitALSWrapperModel.fit` method ([#203](https://github.com/MobileTeleSystems/RecTools/pull/203))
 
 

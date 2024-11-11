@@ -24,10 +24,15 @@ from rectools.models import RandomModel
 from rectools.models.random import _RandomGen, _RandomSampler
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 class TestRandomSampler:
+
     def test_sample_small_n(self) -> None:
         gen = _RandomGen(42)
         sampler = _RandomSampler(np.arange(10), gen)
@@ -178,3 +183,40 @@ class TestRandomModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = RandomModel(random_state=1)
         assert_second_fit_refits_model(model, dataset)
+
+
+class TestRandomModelConfiguration:
+    def test_from_config(self) -> None:
+        config = {
+            "random_state": 32,
+            "verbose": 0,
+        }
+        model = RandomModel.from_config(config)
+        assert model.random_state == 32
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize("random_state", (None, 42))
+    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+        model = RandomModel(
+            random_state=random_state,
+            verbose=1,
+        )
+        config = model.get_config()
+        expected = {
+            "random_state": random_state,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "random_state": 32,
+            "verbose": 0,
+        }
+        assert_get_config_and_from_config_compatibility(RandomModel, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = RandomModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
