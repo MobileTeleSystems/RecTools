@@ -30,6 +30,8 @@ from rectools.models.implicit_als import (
     AnyAlternatingLeastSquares,
     CPUAlternatingLeastSquares,
     GPUAlternatingLeastSquares,
+    get_items_vectors,
+    get_users_vectors,
 )
 from rectools.models.utils import recommend_from_scores
 
@@ -63,6 +65,29 @@ class TestImplicitALSWrapperModel:
     @pytest.fixture
     def dataset(self) -> Dataset:
         return DATASET
+
+    @pytest.fixture
+    def dataset_w_features(self) -> Dataset:
+        user_id_map = IdMap.from_values(["u1", "u2", "u3"])
+        item_id_map = IdMap.from_values(["i1", "i2", "i3"])
+        interactions_df = pd.DataFrame(
+            [
+                ["u1", "i1", 0.1, "2021-09-09"],
+                ["u2", "i1", 0.1, "2021-09-09"],
+                ["u2", "i2", 0.5, "2021-09-05"],
+                ["u2", "i3", 0.2, "2021-09-05"],
+                ["u1", "i3", 0.2, "2021-09-05"],
+                ["u3", "i1", 0.2, "2021-09-05"],
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        )
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        user_features_df = pd.DataFrame({"id": ["u1", "u2", "u3"], "f1": [0.3, 0.4, 0.5]})
+        user_features = DenseFeatures.from_dataframe(user_features_df, user_id_map)
+        item_features_df = pd.DataFrame({"id": ["i1", "i1"], "feature": ["f1", "f2"], "value": [2.1, 100]})
+        item_features = SparseFeatures.from_flatten(item_features_df, item_id_map)
+        dataset = Dataset(user_id_map, item_id_map, interactions, user_features, item_features)
+        return dataset
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -206,26 +231,10 @@ class TestImplicitALSWrapperModel:
             ),
         ),
     )
-    def test_happy_path_with_features(self, fit_features_together: bool, expected: pd.DataFrame, use_gpu: bool) -> None:
-        user_id_map = IdMap.from_values(["u1", "u2", "u3"])
-        item_id_map = IdMap.from_values(["i1", "i2", "i3"])
-        interactions_df = pd.DataFrame(
-            [
-                ["u1", "i1", 0.1, "2021-09-09"],
-                ["u2", "i1", 0.1, "2021-09-09"],
-                ["u2", "i2", 0.5, "2021-09-05"],
-                ["u2", "i3", 0.2, "2021-09-05"],
-                ["u1", "i3", 0.2, "2021-09-05"],
-                ["u3", "i1", 0.2, "2021-09-05"],
-            ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-        )
-        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
-        user_features_df = pd.DataFrame({"id": ["u1", "u2", "u3"], "f1": [0.3, 0.4, 0.5]})
-        user_features = DenseFeatures.from_dataframe(user_features_df, user_id_map)
-        item_features_df = pd.DataFrame({"id": ["i1", "i1"], "feature": ["f1", "f2"], "value": [2.1, 100]})
-        item_features = SparseFeatures.from_flatten(item_features_df, item_id_map)
-        dataset = Dataset(user_id_map, item_id_map, interactions, user_features, item_features)
+    def test_happy_path_with_features(
+        self, fit_features_together: bool, expected: pd.DataFrame, use_gpu: bool, dataset_w_features: Dataset
+    ) -> None:
+        dataset = dataset_w_features
 
         # In case of big number of iterations there are differences between CPU and GPU results
         base_model = AlternatingLeastSquares(factors=32, num_threads=2, use_gpu=use_gpu)
@@ -354,6 +363,39 @@ class TestImplicitALSWrapperModel:
                 dataset=dataset,
                 k=2,
             )
+
+    # TODO: move this test to `partial_fit` method when implemented
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    @pytest.mark.parametrize("use_features_in_dataset", (False, True))
+    def test_per_epoch_fitting_consistent_with_regular_fitting(
+        self,
+        dataset: Dataset,
+        dataset_w_features: Dataset,
+        fit_features_together: bool,
+        use_features_in_dataset: bool,
+        use_gpu: bool,
+    ) -> None:
+        if use_features_in_dataset:
+            dataset = dataset_w_features
+
+        iterations = 20
+
+        base_model_1 = AlternatingLeastSquares(
+            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
+        )
+        model_1 = ImplicitALSWrapperModel(model=base_model_1, fit_features_together=fit_features_together)
+        model_1.fit(dataset)
+
+        base_model_2 = AlternatingLeastSquares(
+            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
+        )
+        model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
+        for _ in range(iterations):
+            model_2.fit(dataset, epochs=1)
+            model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
+
+        assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
+        assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))
 
 
 class CustomALS(CPUAlternatingLeastSquares):
