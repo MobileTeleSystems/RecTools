@@ -17,6 +17,8 @@
 import typing as tp
 import warnings
 from datetime import timedelta
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryFile
 
 import numpy as np
 import pandas as pd
@@ -537,6 +539,42 @@ class TestConfiguration:
             NotImplementedError, match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
         ):
             MyModelWithoutConfig().get_config()
+
+
+class MyModel(ModelBase):
+    def __init__(self, x: int = 10, verbose: int = 0):
+        super().__init__(verbose=verbose)
+        self.x = x
+
+
+class TestSavingAndLoading:
+
+    @pytest.fixture()
+    def model(self) -> MyModel:
+        return MyModel()
+
+    def test_save_and_load_to_file(self, model: MyModel) -> None:
+        with TemporaryFile() as f:
+            model.save(f)
+            f.seek(0)
+            loaded_model = MyModel.load(f)
+        assert isinstance(loaded_model, MyModel)
+        assert loaded_model.__dict__ == model.__dict__
+
+    @pytest.mark.parametrize("use_str", (False, True))
+    def test_save_and_load_from_path(self, model: MyModel, use_str: bool) -> None:
+        with NamedTemporaryFile() as f:
+            path: tp.Union[Path, str] = Path(f.name) if not use_str else f.name
+            model.save(path)
+            loaded_model = MyModel.load(path)
+        assert isinstance(loaded_model, MyModel)
+        assert loaded_model.__dict__ == model.__dict__
+
+    def test_load_fails_on_incorrect_model_type(self, model: MyModel) -> None:
+        with NamedTemporaryFile() as f:
+            model.save(f.name)
+            with pytest.raises(TypeError, match="Loaded object is not a direct instance of `ModelBase`"):
+                ModelBase.load(f.name)
 
 
 class TestFixedColdRecoModelMixin:

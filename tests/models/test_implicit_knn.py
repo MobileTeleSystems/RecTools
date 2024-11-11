@@ -26,6 +26,7 @@ from rectools.models import ImplicitItemKNNWrapperModel
 from .data import DATASET, INTERACTIONS
 from .utils import (
     assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
@@ -250,6 +251,11 @@ class TestImplicitItemKNNWrapperModel:
             }
         ).astype({Columns.Score: np.float32})
         pd.testing.assert_frame_equal(actual, expected, atol=0.001)
+
+    def test_dumps_loads(self, dataset: Dataset) -> None:
+        model = ImplicitItemKNNWrapperModel(model=TFIDFRecommender())
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)
 
 
 class CustomKNN(ItemItemRecommender):

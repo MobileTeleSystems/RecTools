@@ -25,6 +25,7 @@ from rectools.models import PopularModel
 from rectools.models.popular import Popularity
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
@@ -219,6 +220,11 @@ class TestPopularModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = PopularModel()
         assert_second_fit_refits_model(model, dataset)
+
+    def test_dumps_loads(self, dataset: Dataset) -> None:
+        model = PopularModel()
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)
 
 
 class TestPopularModelConfiguration:
