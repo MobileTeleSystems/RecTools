@@ -28,6 +28,7 @@ from rectools.exceptions import NotFittedError
 from rectools.models import ImplicitALSWrapperModel
 from rectools.models.implicit_als import (
     AnyAlternatingLeastSquares,
+    CPUAlternatingLeastSquares,
     GPUAlternatingLeastSquares,
     get_items_vectors,
     get_users_vectors,
@@ -363,6 +364,39 @@ class TestImplicitALSWrapperModel:
                 k=2,
             )
 
+    # TODO: move this test to `partial_fit` method when implemented
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    @pytest.mark.parametrize("use_features_in_dataset", (False, True))
+    def test_per_epoch_fitting_consistent_with_regular_fitting(
+        self,
+        dataset: Dataset,
+        dataset_w_features: Dataset,
+        fit_features_together: bool,
+        use_features_in_dataset: bool,
+        use_gpu: bool,
+    ) -> None:
+        if use_features_in_dataset:
+            dataset = dataset_w_features
+
+        iterations = 20
+
+        base_model_1 = AlternatingLeastSquares(
+            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
+        )
+        model_1 = ImplicitALSWrapperModel(model=base_model_1, fit_features_together=fit_features_together)
+        model_1.fit(dataset)
+
+        base_model_2 = AlternatingLeastSquares(
+            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
+        )
+        model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
+        for _ in range(iterations):
+            model_2.fit(dataset, epochs=1)
+            model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
+
+        assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
+        assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))
+
 
 class CustomALS(CPUAlternatingLeastSquares):
     pass
@@ -478,36 +512,3 @@ class TestImplicitALSWrapperModelConfiguration:
         default_config: tp.Dict[str, tp.Any] = {"model": {}}
         model = ImplicitALSWrapperModel(model=AlternatingLeastSquares())
         assert_default_config_and_default_model_params_are_the_same(model, default_config)
-
-    # TODO: move this test to `partial_fit` method when implemented
-    @pytest.mark.parametrize("fit_features_together", (False, True))
-    @pytest.mark.parametrize("use_features_in_dataset", (False, True))
-    def test_per_epoch_fitting_consistent_with_regular_fitting(
-        self,
-        dataset: Dataset,
-        dataset_w_features: Dataset,
-        fit_features_together: bool,
-        use_features_in_dataset: bool,
-        use_gpu: bool,
-    ) -> None:
-        if use_features_in_dataset:
-            dataset = dataset_w_features
-
-        iterations = 20
-
-        base_model_1 = AlternatingLeastSquares(
-            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
-        )
-        model_1 = ImplicitALSWrapperModel(model=base_model_1, fit_features_together=fit_features_together)
-        model_1.fit(dataset)
-
-        base_model_2 = AlternatingLeastSquares(
-            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
-        )
-        model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
-        for _ in range(iterations):
-            model_2.fit(dataset, epochs=1)
-            model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
-
-        assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
-        assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))
