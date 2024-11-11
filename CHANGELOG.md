@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `from_config`, `get_config` and `get_params` methods to all models except neural-net-based ([#170](https://github.com/MobileTeleSystems/RecTools/pull/170))
-- Models saving and loading ([#206](https://github.com/MobileTeleSystems/RecTools/pull/206))
+- `save` and `load` methods to all of the models ([#206](https://github.com/MobileTeleSystems/RecTools/pull/206))
 
 
 ## [0.8.0] - 28.08.2024
