@@ -403,6 +403,7 @@ class TestImplicitALSWrapperModel:
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
 
+
 class CustomALS(CPUAlternatingLeastSquares):
     pass
 
