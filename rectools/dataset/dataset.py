@@ -102,6 +102,7 @@ class Dataset:
         item_features_df: tp.Optional[pd.DataFrame] = None,
         cat_item_features: tp.Iterable[str] = (),
         make_dense_item_features: bool = False,
+        keep_extra_cols: bool = False,
     ) -> "Dataset":
         """Class method for convenient `Dataset` creation.
 
@@ -133,6 +134,8 @@ class Dataset:
             Used only if `user_features_df` (`item_features_df`) is not ``None``.
             - if ``False``, `SparseFeatures.from_flatten` method will be used;
             - if ``True``,  `DenseFeatures.from_dataframe` method will be used.
+        keep_extra_cols: bool, default ``False``
+            Flag to keep all columns from interactions besides the default ones.
 
         Returns
         -------
@@ -144,7 +147,7 @@ class Dataset:
                 raise KeyError(f"Column '{col}' must be present in `interactions_df`")
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
-        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map, keep_extra_cols)
 
         user_features, user_id_map = cls._make_features(
             user_features_df,

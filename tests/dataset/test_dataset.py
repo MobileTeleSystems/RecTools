@@ -36,14 +36,14 @@ class TestDataset:
     def setup_method(self) -> None:
         self.interactions_df = pd.DataFrame(
             [
-                ["u1", "i1", 2, "2021-09-09"],
-                ["u1", "i2", 2, "2021-09-05"],
-                ["u1", "i1", 6, "2021-08-09"],
-                ["u2", "i1", 7, "2020-09-09"],
-                ["u2", "i5", 9, "2021-09-03"],
-                ["u3", "i1", 2, "2021-09-09"],
+                ["u1", "i1", 2, "2021-09-09", 5],
+                ["u1", "i2", 2, "2021-09-05", 6],
+                ["u1", "i1", 6, "2021-08-09", 7],
+                ["u2", "i1", 7, "2020-09-09", 8],
+                ["u2", "i5", 9, "2021-09-03", 9],
+                ["u3", "i1", 2, "2021-09-09", 10],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra_col"],
         )
         self.expected_user_id_map = IdMap.from_values(["u1", "u2", "u3"])
         self.expected_item_id_map = IdMap.from_values(["i1", "i2", "i5"])
@@ -77,6 +77,14 @@ class TestDataset:
         assert_interactions_set_equal(actual.interactions, self.expected_interactions)
         assert_feature_set_equal(actual.user_features, expected_user_features)
         assert_feature_set_equal(actual.item_features, expected_item_features)
+
+    def test_construct_with_extra_cols(self) -> None:
+
+        dataset = Dataset.construct(self.interactions_df, keep_extra_cols=True)
+        actual = dataset.interactions
+        expected = self.expected_interactions
+        expected.df["extra_col"] = self.interactions_df["extra_col"]
+        assert_interactions_set_equal(actual, expected)
 
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
@@ -276,14 +284,17 @@ class TestDataset:
 
     @pytest.mark.parametrize("include_weight", (True, False))
     @pytest.mark.parametrize("include_datetime", (True, False))
-    def test_get_raw_interactions(self, include_weight: bool, include_datetime: bool) -> None:
-        dataset = Dataset.construct(self.interactions_df)
+    @pytest.mark.parametrize("keep_extra_cols", (True, False))
+    def test_get_raw_interactions(self, include_weight: bool, include_datetime: bool, keep_extra_cols: bool) -> None:
+        dataset = Dataset.construct(self.interactions_df, keep_extra_cols=keep_extra_cols)
         actual = dataset.get_raw_interactions(include_weight, include_datetime)
         expected = self.interactions_df.astype({Columns.Weight: "float64", Columns.Datetime: "datetime64[ns]"})
         if not include_weight:
             expected.drop(columns=Columns.Weight, inplace=True)
         if not include_datetime:
             expected.drop(columns=Columns.Datetime, inplace=True)
+        if not keep_extra_cols:
+            expected.drop(columns="extra_col", inplace=True)
         pd.testing.assert_frame_equal(actual, expected)
 
     @pytest.fixture
