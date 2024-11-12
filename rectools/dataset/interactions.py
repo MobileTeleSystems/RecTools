@@ -201,6 +201,7 @@ class Interactions:
         if include_datetime:
             res[Columns.Datetime] = self.df[Columns.Datetime]
         if include_extra_cols:
-            self._add_extra_cols(res, self.df.drop(columns=[Columns.Weight, Columns.Datetime]))
+            target_cols = [col for col in self.df if col not in [Columns.Weight, Columns.Datetime]]
+            self._add_extra_cols(res, self.df[target_cols])
 
         return res
