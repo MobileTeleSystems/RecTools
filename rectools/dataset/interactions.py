@@ -195,13 +195,17 @@ class Interactions:
                 Columns.Item: item_id_map.convert_to_external(self.df[Columns.Item].values),
             }
         )
+        cols_to_add = []
 
         if include_weight:
-            res[Columns.Weight] = self.df[Columns.Weight]
+            cols_to_add.append(Columns.Weight)
         if include_datetime:
-            res[Columns.Datetime] = self.df[Columns.Datetime]
+            cols_to_add.append(Columns.Datetime)
         if include_extra_cols:
-            target_cols = [col for col in self.df if col not in [Columns.Weight, Columns.Datetime]]
-            self._add_extra_cols(res, self.df[target_cols])
+            cols_not_to_add = [Columns.User, Columns.Item, Columns.Weight, Columns.Datetime]
+            extra_cols = [col for col in self.df if col not in cols_not_to_add]
+            cols_to_add.extend(extra_cols)
 
+        for col in cols_to_add:
+            res[col] = self.df[col]
         return res
