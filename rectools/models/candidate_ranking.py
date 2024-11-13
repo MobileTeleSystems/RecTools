@@ -412,7 +412,7 @@ class CandidateRankingModel(ModelBase):
 
         train_ids, test_ids, fold_info = next(iter(split_iterator))  # splitter has only one fold
 
-        history_dataset = splitter.get_train_dataset(dataset, train_ids)
+        history_dataset = dataset.filter_interactions(train_ids)
         interactions = dataset.get_raw_interactions()
         train_targets = interactions.iloc[test_ids]
 

@@ -11,9 +11,9 @@ from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
 from rectools.models.base import NotFittedError
 from rectools.models.candidate_ranking import (
+    CandidateFeatureCollector,
     CandidateGenerator,
     CandidateRankingModel,
-    CandidatesFeatureCollectorBase,
     PerUserNegativeSampler,
 )
 
@@ -169,9 +169,9 @@ class TestCandidateGenerator:
             assert Columns.Rank not in columns
 
 
-class TestCandidatesFeatureCollectorBase:
+class TestCandidateFeatureCollector:
     def test_happy_path(self) -> None:
-        feature_collector = CandidatesFeatureCollectorBase()
+        feature_collector = CandidateFeatureCollector()
         candidates = pd.DataFrame(
             {
                 Columns.User: [1, 1, 2, 2, 3, 3],
