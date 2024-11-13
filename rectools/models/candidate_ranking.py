@@ -1,4 +1,6 @@
 # flake8: noqa
+# TODO: docstrings
+
 import typing as tp
 from functools import reduce
 
@@ -11,7 +13,7 @@ from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import ExternalIds
 from rectools.model_selection import Splitter
-from rectools.models.base import AnyIds, ModelBase, NotFittedError
+from rectools.models.base import ErrorBehaviour, ModelBase, NotFittedError
 
 
 @tp.runtime_checkable
@@ -26,9 +28,6 @@ class RankerBase(tp.Protocol):
     def fit(self, *args: tp.Any, **kwargs: tp.Any) -> None: ...
 
     def predict(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray: ...
-
-
-# TODO: add tests with sklearn classifier (and ranker if there is any). we have sklearn in dependencies
 
 
 class Reranker:
@@ -116,7 +115,7 @@ class CatBoostReranker(Reranker):
         return fit_kwargs
 
 
-class CandidatesFeatureCollectorBase:
+class CandidateFeatureCollector:
     """
     Base class for collecting features for candidates user-item pairs. Useful for creating train with features for
     CandidateRankingModel.
@@ -128,22 +127,22 @@ class CandidatesFeatureCollectorBase:
     # TODO: create an inherited class that will get all features from dataset?
 
     def _get_user_features(
-        self, users: AnyIds, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
+        self, users: ExternalIds, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]]
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=[Columns.User])
 
     def _get_item_features(
-        self, items: AnyIds, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
+        self, items: ExternalIds, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]]
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=[Columns.Item])
 
     def _get_user_item_features(
-        self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
+        self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]]
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=Columns.UserItem)
 
     def collect_features(
-        self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]], external_ids: bool
+        self, useritem: pd.DataFrame, dataset: Dataset, fold_info: tp.Optional[tp.Dict[str, tp.Any]]
     ) -> pd.DataFrame:
         """
         Collect features for users-item pairs from any desired sources.
@@ -156,9 +155,6 @@ class CandidatesFeatureCollectorBase:
             Dataset will have either external -> 2x internal id maps to internal -> 2x internal
         fold_info : tp.Optional[tp.Dict[str, tp.Any]]
             Fold inofo from splitter can be used for adding time-based features
-        external_ids : bool
-            Whether `useritem` and `dataset` ids are external or 1x internal.
-            It comes from `CandidateRankingModel.process_in_external_ids`
 
         Returns
         -------
@@ -166,9 +162,9 @@ class CandidatesFeatureCollectorBase:
             `useritem` dataframe enriched with features for users, items and useritem pairs
         """
 
-        user_features = self._get_user_features(useritem[Columns.User].unique(), dataset, fold_info, external_ids)
-        item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info, external_ids)
-        useritem_features = self._get_user_item_features(useritem, dataset, fold_info, external_ids)
+        user_features = self._get_user_features(useritem[Columns.User].unique(), dataset, fold_info)
+        item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info)
+        useritem_features = self._get_user_item_features(useritem, dataset, fold_info)
 
         res = useritem
         res = res.merge(user_features, on=Columns.User, how="left")
@@ -296,12 +292,12 @@ class CandidateGenerator:
 
     def generate_candidates(
         self,
-        users: AnyIds,
+        users: ExternalIds,
         dataset: Dataset,
         filter_viewed: bool,
         for_train: bool,
-        items_to_recommend: tp.Optional[AnyIds] = None,
-        assume_external_ids: bool = True,
+        items_to_recommend: tp.Optional[ExternalIds] = None,
+        on_unsupported_targets: ErrorBehaviour = "raise",
     ) -> pd.DataFrame:
 
         if for_train and not self.is_fitted_for_train:
@@ -316,7 +312,7 @@ class CandidateGenerator:
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
             add_rank_col=self.keep_ranks,
-            assume_external_ids=assume_external_ids,
+            on_unsupported_targets=on_unsupported_targets,
         )
         if not self.keep_scores:
             candidates.drop(columns=Columns.Score, inplace=True)
@@ -334,8 +330,7 @@ class CandidateRankingModel(ModelBase):
         splitter: Splitter,
         reranker: Reranker = CatBoostReranker(),
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
-        feature_collector: CandidatesFeatureCollectorBase = CandidatesFeatureCollectorBase(),
-        process_in_external_ids: bool = True,  # TODO: think about it. probably drop. only process in external
+        feature_collector: CandidateFeatureCollector = CandidateFeatureCollector(),
         verbose: int = 0,
     ) -> None:
         """
@@ -352,10 +347,8 @@ class CandidateRankingModel(ModelBase):
             Reranker for reranking candidates.
         sampler : NegativeSamplerBase, optional
             Sampler for negative sampling. Default is PerUserNegativeSampler().
-        feature_collector : CandidatesFeatureCollector, optional
-            Collector for user-item features. Default is CandidatesFeatureCollector().
-        process_in_external_ids: bool
-            Whether to process candidates in external or internal ids. It is important for feature_collector
+        feature_collector : CandidateFeatureCollector, optional
+            Collector for user-item features. Default is CandidateFeatureCollector().
         verbose : int, optional
             Verbosity level. Default is 0.
         """
@@ -369,7 +362,6 @@ class CandidateRankingModel(ModelBase):
         self.reranker = reranker
         self.cand_gen_dict = self._create_cand_gen_dict(candidate_generators)
         self.feature_collector = feature_collector
-        self.process_in_external_ids = process_in_external_ids
 
     def _create_cand_gen_dict(
         self, candidate_generators: tp.List[CandidateGenerator]
@@ -420,14 +412,9 @@ class CandidateRankingModel(ModelBase):
 
         train_ids, test_ids, fold_info = next(iter(split_iterator))  # splitter has only one fold
 
-        # We should prepare dataset and train targets with external ids
-        # This wat user can easily join features for candidates
-        # But for now let's test that we keep this for user to decide
-        history_dataset = splitter.get_train_dataset(
-            dataset, train_ids, keep_external_ids=self.process_in_external_ids
-        )  # external / internal
-        interactions = dataset.get_raw_interactions() if self.process_in_external_ids else dataset.interactions.df
-        train_targets = interactions.iloc[test_ids]  # external / internal
+        history_dataset = splitter.get_train_dataset(dataset, train_ids)
+        interactions = dataset.get_raw_interactions()
+        train_targets = interactions.iloc[test_ids]
 
         return history_dataset, train_targets, fold_info
 
@@ -441,7 +428,7 @@ class CandidateRankingModel(ModelBase):
         Trains reranker on prepared train
         Fits all first-stage models on full dataset
         """
-        train_with_target = self.get_train_with_targets_for_reranker(dataset)  # external / internal ids
+        train_with_target = self.get_train_with_targets_for_reranker(dataset)
         self.reranker.fit(train_with_target, **kwargs)  # TODO: add a flag to keep user/item id features somewhere
         self._fit_candidate_generators(dataset, for_train=False)
 
@@ -465,18 +452,16 @@ class CandidateRankingModel(ModelBase):
 
         self._fit_candidate_generators(history_dataset, for_train=True)
 
-        candidates = self._get_candidates_from_first_stage(  # external / internal
-            users=train_targets[Columns.User].unique(),  # external / internal
-            dataset=history_dataset,  # external / internal
+        candidates = self._get_candidates_from_first_stage(
+            users=train_targets[Columns.User].unique(),
+            dataset=history_dataset,
             filter_viewed=self.splitter.filter_already_seen,  # TODO: think about it
             for_train=True,
         )
-        candidates = self._set_targets_to_candidates(candidates, train_targets)  # external / internal
+        candidates = self._set_targets_to_candidates(candidates, train_targets)
         candidates = self.sampler.sample_negatives(candidates)
 
-        train_with_target = self.feature_collector.collect_features(
-            candidates, history_dataset, fold_info, self.process_in_external_ids
-        )  # external / internal
+        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
 
         return train_with_target
 
@@ -529,7 +514,8 @@ class CandidateRankingModel(ModelBase):
         dataset: Dataset,
         filter_viewed: bool,
         for_train: bool,
-        items_to_recommend: tp.Optional[AnyIds] = None,
+        items_to_recommend: tp.Optional[ExternalIds] = None,
+        on_unsupported_targets: ErrorBehaviour = "raise",
     ) -> pd.DataFrame:
         """
         Get candidates from the first-stage models.
@@ -544,7 +530,7 @@ class CandidateRankingModel(ModelBase):
             Whether to filter already viewed items.
         for_train : bool
             Whether the candidates are for training or not.
-        items_to_recommend : tp.Optional[AnyIds], optional
+        items_to_recommend : tp.Optional[ExternalIds], optional
             List of items to recommend. Default is None.
 
         Returns
@@ -561,7 +547,7 @@ class CandidateRankingModel(ModelBase):
                 filter_viewed=filter_viewed,
                 for_train=for_train,
                 items_to_recommend=items_to_recommend,
-                assume_external_ids=self.process_in_external_ids,
+                on_unsupported_targets=on_unsupported_targets,
             )
 
             # Process ranks and scores as features
@@ -609,25 +595,17 @@ class CandidateRankingModel(ModelBase):
 
     def recommend(
         self,
-        users: AnyIds,
+        users: ExternalIds,
         dataset: Dataset,
         k: int,
         filter_viewed: bool,
-        items_to_recommend: tp.Optional[AnyIds] = None,
+        items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
-        assume_external_ids: bool = True,
+        on_unsupported_targets: ErrorBehaviour = "raise",
     ) -> pd.DataFrame:
         self._check_is_fitted()
         self._check_k(k)
-
-        if self.process_in_external_ids and not assume_external_ids:
-            users = dataset.user_id_map.convert_to_external(np.asarray(users), strict=False)
-            items_to_recommend = dataset.item_id_map.convert_to_external(np.asarray(items_to_recommend), strict=False)
-
-        if not self.process_in_external_ids and assume_external_ids:
-            users = dataset.user_id_map.convert_to_internal(np.asarray(users), strict=False)
-            items_to_recommend = dataset.item_id_map.convert_to_internal(np.asarray(items_to_recommend), strict=False)
-
+        # TODO: we should probably add an argument to force fitting again on new dataset
         try:
             candidates = self._get_candidates_from_first_stage(
                 users=users,
@@ -635,6 +613,7 @@ class CandidateRankingModel(ModelBase):
                 filter_viewed=filter_viewed,
                 items_to_recommend=items_to_recommend,
                 for_train=False,
+                on_unsupported_targets=on_unsupported_targets,
             )
         except NotFittedError:
             self._fit_candidate_generators(dataset, for_train=False)
@@ -644,11 +623,10 @@ class CandidateRankingModel(ModelBase):
                 filter_viewed=filter_viewed,
                 items_to_recommend=items_to_recommend,
                 for_train=False,
+                on_unsupported_targets=on_unsupported_targets,
             )
 
-        train = self.feature_collector.collect_features(
-            candidates, dataset, fold_info=None, external_ids=self.process_in_external_ids
-        )
+        train = self.feature_collector.collect_features(candidates, dataset, fold_info=None)
 
         reco = self.reranker.rerank(train)
         reco = reco.groupby(Columns.User).head(k)
@@ -656,5 +634,4 @@ class CandidateRankingModel(ModelBase):
         if add_rank_col:
             reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
 
-        # TODO: convert back to required ids
-        return reco
+        return reco.reset_index(drop=True)

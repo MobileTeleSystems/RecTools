@@ -1,6 +1,7 @@
 import typing as tp
 from unittest.mock import MagicMock
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -180,12 +181,11 @@ class TestCandidatesFeatureCollectorBase:
         )
         dataset = MagicMock()
         fold_info = MagicMock()
-        external_ids = True
-        actual = feature_collector.collect_features(candidates, dataset, fold_info, external_ids)
+        actual = feature_collector.collect_features(candidates, dataset, fold_info)
         pd.testing.assert_frame_equal(candidates, actual)
 
 
-class TestTwoStageModel:
+class TestCandidateRankingModel:
     @pytest.fixture
     def dataset(self) -> Dataset:
         interactions_df = pd.DataFrame(
@@ -220,18 +220,40 @@ class TestTwoStageModel:
         return PopularModel()
 
     def test_get_train_with_targets_for_reranker_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
-        reranker = MagicMock()
         candidate_generators = [CandidateGenerator(PopularModel(), 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
-        two_stage_model = CandidateRankingModel(candidate_generators, splitter, reranker=reranker, sampler=sampler)
+        two_stage_model = CandidateRankingModel(candidate_generators, splitter, sampler=sampler)
         actual = two_stage_model.get_train_with_targets_for_reranker(dataset)
         expected = pd.DataFrame(
             {
                 Columns.User: [10, 10],
                 Columns.Item: [14, 11],
-                Columns.Target: [0, 1],
+                Columns.Target: np.array([0, 1], dtype="int32"),
             }
         )
-        expected[Columns.Target] = expected[Columns.Target].astype("int32")
+        expected[Columns.Target] = expected[Columns.Target]
         pd.testing.assert_frame_equal(actual, expected)
+
+    def test_recommend_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
+        candidate_generators = [CandidateGenerator(model, 2, True, True)]
+        splitter = TimeRangeSplitter("1D", n_splits=1)
+        sampler = PerUserNegativeSampler(1, 32)
+        two_stage_model = CandidateRankingModel(candidate_generators, splitter, sampler=sampler)
+        two_stage_model.fit(dataset)
+
+        actual = two_stage_model.recommend(
+            [10, 20, 30],
+            dataset,
+            k=3,
+            filter_viewed=True,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [30, 20, 20, 10, 10],
+                Columns.Item: [13, 12, 13, 14, 15],
+                Columns.Score: [0.54222922, 23.39688833, -23.39688833, 0.54222922, -23.39688833],
+                Columns.Rank: [1, 1, 2, 1, 2],
+            }
+        )
+        pd.testing.assert_frame_equal(actual, expected, atol=0.001)
