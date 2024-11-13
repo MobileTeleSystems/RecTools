@@ -145,6 +145,7 @@ def cross_validate(  # pylint: disable=too-many-locals
             else:
                 model.fit(fold_dataset)
                 reco = model.recommend(
+                reco = model.recommend(
                     users=test_users,
                     dataset=fold_dataset,
                     k=k,
