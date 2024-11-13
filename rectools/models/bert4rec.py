@@ -57,7 +57,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
                 if random_probs[j] < 0.8:
                     masked_session[j] = 1
                 elif random_probs[j] < 0.9:
-                    masked_session[j] = np.random.randint(low=2, high=self.item_id_map.size, size=1)[0]
+                    masked_session[j] = np.random.randint(low=self.n_item_extra_tokens, high=self.item_id_map.size)
             else:
                 target[j] = 0
         return masked_session, target
@@ -68,24 +68,24 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
         """TODO"""
         batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        y = np.zeros((batch_size, self.session_max_len))
-        yw = np.zeros((batch_size, self.session_max_len))
+        x = np.zeros((batch_size, self.session_max_len + 1))
+        y = np.zeros((batch_size, self.session_max_len + 1))
+        yw = np.zeros((batch_size, self.session_max_len + 1))
         for i, (ses, ses_weights) in enumerate(batch):
             masked_session, target = self._mask_session(ses)
-            x[i, -len(ses) + 1 :] = masked_session[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            y[i, -len(ses) + 1 :] = target[:-1]  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses) + 1 :] = ses_weights[:-1]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
+            x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len + 1]
+            y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len + 1]
+            yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len + 1]
 
         return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
         """Right truncation, left padding to session_max_len"""
-        x = np.zeros((len(batch), self.session_max_len))
+        x = np.zeros((len(batch), self.session_max_len + 1))
         for i, (ses, _) in enumerate(batch):
             session = ses.copy()
-            session = session[1:] + [1]
-            x[i, -len(ses) :] = session[-self.session_max_len :]
+            session = session + [1]
+            x[i, -len(ses) - 1 :] = session[-self.session_max_len - 1 :]
         return torch.LongTensor(x)
 
 
@@ -132,7 +132,8 @@ class BERT4RecTransformerLayers(TransformerLayersBase):
             ff_output = self.feed_forward[i](ff_input)
             seqs = seqs + self.dropout2[i](ff_output)
             seqs = self.dropout3[i](seqs)
-
+        # TODO: test with torch.nn.Linear and cross-entropy loss as in
+        # https://github.com/jaywonchung/BERT4Rec-VAE-Pytorch/blob/f66f2534ebfd937778c7174b5f9f216efdebe5de/models/bert.py#L11C1-L11C67
         return seqs
 
 
@@ -146,7 +147,7 @@ class BERT4RecModel(TransformerModelBase):
         n_factors: int = 128,
         use_pos_emb: bool = True,
         use_causal_attn: bool = False,
-        use_mlm_attn: bool = True,
+        use_key_padding_mask: bool = True,
         dropout_rate: float = 0.2,
         epochs: int = 3,
         verbose: int = 0,
@@ -168,12 +169,13 @@ class BERT4RecModel(TransformerModelBase):
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
+            data_preparator_type=data_preparator_type,
             n_blocks=n_blocks,
             n_heads=n_heads,
             n_factors=n_factors,
             use_pos_emb=use_pos_emb,
             use_causal_attn=use_causal_attn,
-            use_mlm_attn=use_mlm_attn,
+            use_key_padding_mask=use_key_padding_mask,
             dropout_rate=dropout_rate,
             epochs=epochs,
             verbose=verbose,
@@ -181,7 +183,7 @@ class BERT4RecModel(TransformerModelBase):
             cpu_n_threads=cpu_n_threads,
             loss=loss,
             lr=lr,
-            session_max_len=session_max_len,
+            session_max_len=session_max_len + 1,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,

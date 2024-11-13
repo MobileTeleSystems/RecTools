@@ -455,7 +455,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         dropout_rate: float,
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
-        use_mlm_attn: bool = False,
+        use_key_padding_mask: bool = False,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -472,7 +472,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             dropout_rate=dropout_rate,
         )
         self.use_causal_attn = use_causal_attn
-        self.use_mlm_attn = use_mlm_attn
+        self.use_key_padding_mask = use_key_padding_mask
         self.n_factors = n_factors
         self.dropout_rate = dropout_rate
         self.n_heads = n_heads
@@ -513,11 +513,12 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         session_max_len = sessions.shape[1]
         attn_mask = None
         key_padding_mask = None
+        # TODO: att_mask and key_padding_mask together result into NaN scores
         if self.use_causal_attn:
             attn_mask = ~torch.tril(
                 torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
             )
-        if self.use_mlm_attn:
+        if self.use_key_padding_mask:
             key_padding_mask = sessions == 0
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
@@ -546,9 +547,9 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         torch.Tensor
             Logits.
         """
-        item_embs = self.item_model.get_all_embeddings()  # [n_items + 1, n_factors]
+        item_embs = self.item_model.get_all_embeddings()  # [n_items + n_special_tokens, n_factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
-        logits = session_embs @ item_embs.T  # [batch_size, session_max_len, n_items + 1]
+        logits = session_embs @ item_embs.T  # [batch_size, session_max_len, n_items + n_special_tokens]
         return logits
 
 
@@ -934,12 +935,12 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             Loss.
         """
         x, y, w = batch
-        logits = self.forward(x)  # [batch_size, session_max_len, n_items + 1]
+        logits = self.forward(x)  # [batch_size, session_max_len, n_items + n_special_tokens]
         if self.loss == "softmax":
             # We are using CrossEntropyLoss with a multi-dimensional case
 
-            # Logits must be passed in form of [batch_size, n_items + 1, session_max_len],
-            #  where n_items + 1 is number of classes
+            # Logits must be passed in form of [batch_size, n_items + n_special_tokens, session_max_len],
+            #  where n_items + n_special_tokens is number of classes
 
             # Target label indexes must be passed in a form of [batch_size, session_max_len]
             # (`0` index for "PAD" ix excluded from loss)
@@ -978,17 +979,22 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
 
 class TransformerModelBase(ModelBase):
-    """TODO"""
+    """
+    Base model for all recommender algorithms that work on transformer architecture (e.g. SASRec, Bert4Rec).
+    To create a custom transformer model it is necessary to inherit from this class
+    and write self.data_preparator initialization logic.
+    """
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
         transformer_layers_type: tp.Type[TransformerLayersBase],
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase],
         n_blocks: int = 1,
         n_heads: int = 1,
         n_factors: int = 128,
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
-        use_mlm_attn: bool = False,
+        use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
         loss: str = "softmax",
@@ -1012,7 +1018,7 @@ class TransformerModelBase(ModelBase):
             dropout_rate=dropout_rate,
             use_pos_emb=use_pos_emb,
             use_causal_attn=use_causal_attn,
-            use_mlm_attn=use_mlm_attn,
+            use_key_padding_mask=use_key_padding_mask,
             transformer_layers_type=transformer_layers_type,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
@@ -1065,7 +1071,7 @@ class TransformerModelBase(ModelBase):
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
-        dataset: Dataset,  # [n_rec_users x n_items + 2]
+        dataset: Dataset,  # [n_rec_users x n_items + n_special_tokens]
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
@@ -1084,7 +1090,7 @@ class TransformerModelBase(ModelBase):
             ranker = ImplicitRanker(
                 self.u2i_dist,
                 user_embs,  # [n_rec_users, n_factors]
-                item_embs_np,  # [n_items + 1, n_factors]
+                item_embs_np,  # [n_items + n_special_tokens, n_factors]
             )
             if filter_viewed:
                 user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -1123,8 +1129,8 @@ class TransformerModelBase(ModelBase):
 
         ranker = ImplicitRanker(
             self.i2i_dist,
-            item_embs,  # [n_items + 2, n_factors]
-            item_embs,  # [n_items + 2, n_factors]
+            item_embs,  # [n_items + n_special_tokens, n_factors]
+            item_embs,  # [n_items + n_special_tokens, n_factors]
         )
         return ranker.rank(
             subject_ids=target_ids,  # model internal
@@ -1146,16 +1152,14 @@ class TransformerModelBase(ModelBase):
 class SASRecModel(TransformerModelBase):
     """TODO"""
 
-    # pylint: disable=too-many-locals
-
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         n_blocks: int = 1,
         n_heads: int = 1,
         n_factors: int = 128,
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
-        use_mlm_attn: bool = False,
+        use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
         dataloader_num_workers: int = 0,
@@ -1176,12 +1180,13 @@ class SASRecModel(TransformerModelBase):
     ):
         super().__init__(
             transformer_layers_type,
+            data_preparator_type,
             n_blocks,
             n_heads,
             n_factors,
             use_pos_emb,
             use_causal_attn,
-            use_mlm_attn,
+            use_key_padding_mask,
             dropout_rate,
             session_max_len,
             loss,
