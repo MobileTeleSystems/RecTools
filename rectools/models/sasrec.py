@@ -524,6 +524,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
         seqs = self.pos_encoding(seqs)
         seqs = self.emb_dropout(seqs)
+        # TODO: stop passing timeline_mask together with key_padding_mask because they have same information
         seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
@@ -639,6 +640,7 @@ class SessionEncoderDataPreparatorBase:
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap
+        self.extra_token_ids: tp.Dict
         self.session_max_len = session_max_len
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
@@ -703,6 +705,9 @@ class SessionEncoderDataPreparatorBase:
         dataset = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
 
         self.item_id_map = dataset.item_id_map
+
+        extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
+        self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
         return dataset
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:

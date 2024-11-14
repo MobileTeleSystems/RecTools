@@ -55,7 +55,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             if random_probs[j] < self.mask_prob:
                 random_probs[j] /= self.mask_prob
                 if random_probs[j] < 0.8:
-                    masked_session[j] = 1
+                    masked_session[j] = self.extra_token_ids[MASKING_VALUE]
                 elif random_probs[j] < 0.9:
                     masked_session[j] = np.random.randint(low=self.n_item_extra_tokens, high=self.item_id_map.size)
             else:
@@ -84,7 +84,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         x = np.zeros((len(batch), self.session_max_len + 1))
         for i, (ses, _) in enumerate(batch):
             session = ses.copy()
-            session = session + [1]
+            session = session + [self.extra_token_ids[MASKING_VALUE]]
             x[i, -len(ses) - 1 :] = session[-self.session_max_len - 1 :]
         return torch.LongTensor(x)
 
