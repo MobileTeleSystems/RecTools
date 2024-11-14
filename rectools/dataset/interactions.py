@@ -202,8 +202,7 @@ class Interactions:
         if include_datetime:
             cols_to_add.append(Columns.Datetime)
         if include_extra_cols:
-            cols_not_to_add = [Columns.User, Columns.Item, Columns.Weight, Columns.Datetime]
-            extra_cols = [col for col in self.df if col not in cols_not_to_add]
+            extra_cols = [col for col in self.df if col not in Columns.Interactions]
             cols_to_add.extend(extra_cols)
 
         for col in cols_to_add:
