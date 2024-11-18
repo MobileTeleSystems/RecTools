@@ -285,15 +285,18 @@ class TestDataset:
     @pytest.mark.parametrize("include_weight", (True, False))
     @pytest.mark.parametrize("include_datetime", (True, False))
     @pytest.mark.parametrize("keep_extra_cols", (True, False))
-    def test_get_raw_interactions(self, include_weight: bool, include_datetime: bool, keep_extra_cols: bool) -> None:
+    @pytest.mark.parametrize("include_extra_cols", (True, False))
+    def test_get_raw_interactions(
+        self, include_weight: bool, include_datetime: bool, keep_extra_cols: bool, include_extra_cols: bool
+    ) -> None:
         dataset = Dataset.construct(self.interactions_df, keep_extra_cols=keep_extra_cols)
-        actual = dataset.get_raw_interactions(include_weight, include_datetime)
+        actual = dataset.get_raw_interactions(include_weight, include_datetime, include_extra_cols)
         expected = self.interactions_df.astype({Columns.Weight: "float64", Columns.Datetime: "datetime64[ns]"})
         if not include_weight:
             expected.drop(columns=Columns.Weight, inplace=True)
         if not include_datetime:
             expected.drop(columns=Columns.Datetime, inplace=True)
-        if not keep_extra_cols:
+        if not keep_extra_cols or not include_extra_cols:
             expected.drop(columns="extra_col", inplace=True)
         pd.testing.assert_frame_equal(actual, expected)
 

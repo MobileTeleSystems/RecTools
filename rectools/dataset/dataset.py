@@ -234,7 +234,9 @@ class Dataset:
         matrix.resize(n_rows, n_columns)
         return matrix
 
-    def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:
+    def get_raw_interactions(
+        self, include_weight: bool = True, include_datetime: bool = True, include_extra_cols: bool = True
+    ) -> pd.DataFrame:
         """
         Return interactions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.
 
@@ -244,12 +246,16 @@ class Dataset:
             Whether to include weight column into resulting table or not.
         include_datetime : bool, default ``True``
             Whether to include datetime column into resulting table or not.
+        include_extra_cols: bool, default ``True``
+            Whether to include extra columns into resulting table or not.
 
         Returns
         -------
         pd.DataFrame
         """
-        return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
+        return self.interactions.to_external(
+            self.user_id_map, self.item_id_map, include_weight, include_datetime, include_extra_cols
+        )
 
     def filter_interactions(
         self,
