@@ -33,7 +33,7 @@ class TestPerUserNegativeSampler:
 
     @pytest.mark.parametrize("num_neg_samples", (1, 2))
     def test_sample_negatives(self, sample_data: pd.DataFrame, num_neg_samples: int) -> None:
-        sampler = PerUserNegativeSampler(num_neg_samples=num_neg_samples, random_state=42)
+        sampler = PerUserNegativeSampler(n_negatives=num_neg_samples, random_state=42)
         sampled_df = sampler.sample_negatives(sample_data)
 
         # Check if the resulting DataFrame has the correct columns
@@ -55,7 +55,7 @@ class TestPerUserNegativeSampler:
         # Modify sample_data to have insufficient negatives for user 1
         sample_data.loc[sample_data[Columns.User] == 1, Columns.Target] = [1, 0, 1, 0]
 
-        sampler = PerUserNegativeSampler(num_neg_samples=3, random_state=42)
+        sampler = PerUserNegativeSampler(n_negatives=3, random_state=42)
         sampled_df = sampler.sample_negatives(sample_data)
 
         # Check if the resulting DataFrame has the correct columns

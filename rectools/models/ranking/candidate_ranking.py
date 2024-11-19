@@ -138,7 +138,7 @@ class NegativeSamplerBase:
 
 @attr.s(auto_attribs=True)
 class PerUserNegativeSampler(NegativeSamplerBase):
-    num_neg_samples: int = 3
+    n_negatives: int = 3
     random_state: tp.Optional[int] = None
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
@@ -150,12 +150,12 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
         # Some users might not have enough negatives for sampling
         num_negatives = neg.groupby([Columns.User])[Columns.Item].count()
-        sampling_mask = train[Columns.User].isin(num_negatives[num_negatives > self.num_neg_samples].index)
+        sampling_mask = train[Columns.User].isin(num_negatives[num_negatives > self.n_negatives].index)
 
         neg_for_sample = train[sampling_mask & negative_mask]
         neg = neg_for_sample.groupby([Columns.User], sort=False).apply(
             pd.DataFrame.sample,
-            n=self.num_neg_samples,
+            n=self.n_negatives,
             replace=False,
             random_state=self.random_state,
         )
