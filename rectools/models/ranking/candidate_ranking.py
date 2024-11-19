@@ -320,7 +320,7 @@ class CandidateRankingModel(ModelBase):
 
         return history_dataset, train_targets, fold_info
 
-    def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
+    def _fit(self, dataset: Dataset, *args: tp.Any, refit_candidate_generators: bool = True, **kwargs: tp.Any) -> None:
         """
         Fits all first-stage models on history dataset
         Generates candidates
@@ -332,7 +332,8 @@ class CandidateRankingModel(ModelBase):
         """
         train_with_target = self.get_train_with_targets_for_reranker(dataset)
         self.reranker.fit(train_with_target, **kwargs)  # TODO: add a flag to keep user/item id features somewhere
-        self._fit_candidate_generators(dataset, for_train=False)
+        if refit_candidate_generators:
+            self._fit_candidate_generators(dataset, for_train=False)
 
     def get_train_with_targets_for_reranker(self, dataset: Dataset) -> pd.DataFrame:
         """
@@ -458,7 +459,6 @@ class CandidateRankingModel(ModelBase):
             candidates.rename(
                 columns={Columns.Rank: rank_col_name, Columns.Score: score_col_name},
                 inplace=True,
-                errors="ignore",
             )
             candidates_dfs.append(candidates)
 
@@ -504,29 +504,24 @@ class CandidateRankingModel(ModelBase):
         items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
         on_unsupported_targets: ErrorBehaviour = "raise",
+        force_fit_candidate_generators: bool = False,
     ) -> pd.DataFrame:
         self._check_is_fitted()
         self._check_k(k)
-        # TODO: we should probably add an argument to force fitting again on new dataset
-        try:
-            candidates = self._get_candidates_from_first_stage(
-                users=users,
-                dataset=dataset,
-                filter_viewed=filter_viewed,
-                items_to_recommend=items_to_recommend,
-                for_train=False,
-                on_unsupported_targets=on_unsupported_targets,
-            )
-        except NotFittedError:
+
+        if force_fit_candidate_generators or not all(
+            generator.is_fitted_for_recommend for generator in self.cand_gen_dict.values()
+        ):
             self._fit_candidate_generators(dataset, for_train=False)
-            candidates = self._get_candidates_from_first_stage(
-                users=users,
-                dataset=dataset,
-                filter_viewed=filter_viewed,
-                items_to_recommend=items_to_recommend,
-                for_train=False,
-                on_unsupported_targets=on_unsupported_targets,
-            )
+
+        candidates = self._get_candidates_from_first_stage(
+            users=users,
+            dataset=dataset,
+            filter_viewed=filter_viewed,
+            items_to_recommend=items_to_recommend,
+            for_train=False,
+            on_unsupported_targets=on_unsupported_targets,
+        )
 
         train = self.feature_collector.collect_features(candidates, dataset, fold_info=None)
 
