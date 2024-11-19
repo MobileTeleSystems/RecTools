@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 import pytest
+from catboost import CatBoostRanker
 
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
@@ -31,9 +32,9 @@ class TestPerUserNegativeSampler:
         }
         return pd.DataFrame(data)
 
-    @pytest.mark.parametrize("num_neg_samples", (1, 2))
-    def test_sample_negatives(self, sample_data: pd.DataFrame, num_neg_samples: int) -> None:
-        sampler = PerUserNegativeSampler(n_negatives=num_neg_samples, random_state=42)
+    @pytest.mark.parametrize("n_negatives", (1, 2))
+    def test_sample_negatives(self, sample_data: pd.DataFrame, n_negatives: int) -> None:
+        sampler = PerUserNegativeSampler(n_negatives=n_negatives, random_state=42)
         sampled_df = sampler.sample_negatives(sample_data)
 
         # Check if the resulting DataFrame has the correct columns
@@ -43,7 +44,7 @@ class TestPerUserNegativeSampler:
         for user_id in sampled_df[Columns.User].unique():
             user_data = sampled_df[sampled_df[Columns.User] == user_id]
             num_negatives = len(user_data[user_data[Columns.Target] == 0])
-            assert num_negatives == num_neg_samples
+            assert num_negatives == n_negatives
 
         # Check if positives were not changed
         pd.testing.assert_frame_equal(
@@ -225,7 +226,10 @@ class TestCandidateRankingModel:
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
         two_stage_model = CandidateRankingModel(
-            candidate_generators, splitter, sampler=sampler, reranker=CatBoostReranker()
+            candidate_generators,
+            splitter,
+            sampler=sampler,
+            reranker=CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
         )
         actual = two_stage_model.get_train_with_targets_for_reranker(dataset)
         expected = pd.DataFrame(
@@ -243,7 +247,10 @@ class TestCandidateRankingModel:
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
         two_stage_model = CandidateRankingModel(
-            candidate_generators, splitter, sampler=sampler, reranker=CatBoostReranker()
+            candidate_generators,
+            splitter,
+            sampler=sampler,
+            reranker=CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
         )
         two_stage_model.fit(dataset)
 
@@ -257,7 +264,13 @@ class TestCandidateRankingModel:
             {
                 Columns.User: [30, 20, 20, 10, 10],
                 Columns.Item: [13, 12, 13, 14, 15],
-                Columns.Score: [0.54222922, 23.39688833, -23.39688833, 0.54222922, -23.39688833],
+                Columns.Score: [
+                    -0.1924785067861987,
+                    23.396888326641466,
+                    -23.396888326641466,
+                    -0.1924785067861987,
+                    -23.396888326641466,
+                ],
                 Columns.Rank: [1, 1, 2, 1, 2],
             }
         )
