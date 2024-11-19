@@ -41,10 +41,8 @@ class TestPerUserNegativeSampler:
         assert set(sampled_df.columns) == set(sample_data.columns)
 
         # Check if the number of negatives per user is correct
-        for user_id in sampled_df[Columns.User].unique():
-            user_data = sampled_df[sampled_df[Columns.User] == user_id]
-            num_negatives = len(user_data[user_data[Columns.Target] == 0])
-            assert num_negatives == n_negatives
+        n_negatives_per_user = sampled_df.groupby(Columns.User)[Columns.Target].agg(lambda target: (target == 0).sum())
+        assert (n_negatives_per_user == n_negatives).all()
 
         # Check if positives were not changed
         pd.testing.assert_frame_equal(
@@ -63,13 +61,8 @@ class TestPerUserNegativeSampler:
         assert set(sampled_df.columns) == set(sample_data.columns)
 
         # Check if the number of negatives per user is correct
-        for user_id in sampled_df[Columns.User].unique():
-            user_data = sampled_df[sampled_df[Columns.User] == user_id]
-            num_negatives = len(user_data[user_data[Columns.Target] == 0])
-            if user_id == 1:
-                assert num_negatives == 2  # Only 2 negatives are available
-            else:
-                assert num_negatives == 3
+        n_negatives_per_user = sampled_df.groupby(Columns.User)[Columns.Target].agg(lambda target: (target == 0).sum())
+        assert n_negatives_per_user.to_list() == [2, 3, 3]
 
         # Check if positives were not changed
         pd.testing.assert_frame_equal(
