@@ -7,6 +7,7 @@ from functools import reduce
 import attr
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -17,14 +18,14 @@ from rectools.models.base import ErrorBehaviour, ModelBase, NotFittedError
 
 @tp.runtime_checkable
 class ClassifierBase(tp.Protocol):
-    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> None: ...
+    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self: ...
 
     def predict_proba(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray: ...
 
 
 @tp.runtime_checkable
 class RankerBase(tp.Protocol):
-    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> None: ...
+    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self: ...
 
     def predict(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray: ...
 
@@ -56,11 +57,8 @@ class Reranker:
         self.model.fit(**fit_kwargs)
 
     def rerank(self, candidates: pd.DataFrame) -> pd.DataFrame:
-        reco = candidates[Columns.UserItem].copy()
+        reco = candidates.reindex(columns=Columns.UserItem)
         x_full = candidates.drop(columns=Columns.UserItem)
-
-        # TODO: think about it
-        # x_full = x_full[self.model.feature_names_]
 
         if isinstance(self.model, ClassifierBase):
             reco[Columns.Score] = self.model.predict_proba(x_full)[:, 1]

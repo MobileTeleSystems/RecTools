@@ -17,6 +17,7 @@ import typing as tp
 import pytest
 
 from rectools.compat import (
+    CatBoostReranker,
     DSSMModel,
     ItemToItemAnnRecommender,
     ItemToItemVisualApp,
@@ -24,7 +25,6 @@ from rectools.compat import (
     MetricsApp,
     UserToItemAnnRecommender,
     VisualApp,
-    CatBoostReranker
 )
 
 
@@ -38,7 +38,7 @@ from rectools.compat import (
         VisualApp,
         ItemToItemVisualApp,
         MetricsApp,
-        CatBoostReranker
+        CatBoostReranker,
     ),
 )
 def test_raise_when_model_not_available(

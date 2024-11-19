@@ -5,7 +5,7 @@ from catboost import CatBoostClassifier, CatBoostRanker, Pool
 
 from rectools import Columns
 
-from .candidate_ranking import RankerBase, Reranker
+from .candidate_ranking import Reranker
 
 
 class CatBoostReranker(Reranker):
@@ -25,22 +25,17 @@ class CatBoostReranker(Reranker):
     def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
         """TODO: add description"""
         if self.is_classifier:
-            candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
             pool_kwargs = {
-                "data": candidates_with_target.drop(columns=Columns.Target),
+                "data": candidates_with_target.drop(columns=Columns.UserItem + [Columns.Target]),
                 "label": candidates_with_target[Columns.Target],
-            }
-        elif isinstance(self.model, RankerBase):
-            candidates_with_target = candidates_with_target.sort_values(by=[Columns.User])
-            group_ids = candidates_with_target[Columns.User].values
-            candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
-            pool_kwargs = {
-                "data": candidates_with_target.drop(columns=Columns.Target),
-                "label": candidates_with_target[Columns.Target],
-                "group_id": group_ids,
             }
         else:
-            raise ValueError("Got unexpected model_type")
+            candidates_with_target = candidates_with_target.sort_values(by=[Columns.User])
+            pool_kwargs = {
+                "data": candidates_with_target.drop(columns=Columns.UserItem + [Columns.Target]),
+                "label": candidates_with_target[Columns.Target],
+                "group_id": candidates_with_target[Columns.User].values,
+            }
 
         if self.pool_kwargs is not None:
             pool_kwargs.update(self.pool_kwargs)
