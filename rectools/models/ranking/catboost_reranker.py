@@ -13,7 +13,7 @@ class CatBoostReranker(Reranker):
 
     def __init__(
         self,
-        model: tp.Union[CatBoostClassifier, CatBoostRanker] = CatBoostRanker(verbose=False),
+        model: tp.Union[CatBoostClassifier, CatBoostRanker],
         fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
         pool_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):

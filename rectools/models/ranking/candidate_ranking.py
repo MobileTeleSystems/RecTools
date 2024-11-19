@@ -122,8 +122,7 @@ class CandidateFeatureCollector:
         useritem_features = self._get_user_item_features(useritem, dataset, fold_info)
 
         res = (
-            useritem
-            .merge(user_features, on=Columns.User, how="left")
+            useritem.merge(user_features, on=Columns.User, how="left")
             .merge(item_features, on=Columns.Item, how="left")
             .merge(useritem_features, on=Columns.UserItem, how="left")
         )
