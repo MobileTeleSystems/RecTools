@@ -7,7 +7,6 @@ from functools import reduce
 import attr
 import numpy as np
 import pandas as pd
-from catboost import CatBoostClassifier, CatBoostRanker, Pool
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -71,48 +70,6 @@ class Reranker:
             raise ValueError("Got unexpected model_type")
         reco.sort_values(by=[Columns.User, Columns.Score], ascending=False, inplace=True)
         return reco
-
-
-class CatBoostReranker(Reranker):
-    def __init__(
-        self,
-        model: tp.Union[CatBoostClassifier, CatBoostRanker] = CatBoostRanker(verbose=False),
-        fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
-        pool_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
-    ):
-        super().__init__(model)
-        self.is_classifier = isinstance(model, CatBoostClassifier)
-        self.fit_kwargs = fit_kwargs
-        self.pool_kwargs = pool_kwargs
-
-    def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
-        if self.is_classifier:
-            candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
-            pool_kwargs = {
-                "data": candidates_with_target.drop(columns=Columns.Target),
-                "label": candidates_with_target[Columns.Target],
-            }
-        elif isinstance(self.model, RankerBase):
-            candidates_with_target = candidates_with_target.sort_values(by=[Columns.User])
-            group_ids = candidates_with_target[Columns.User].values
-            candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
-            pool_kwargs = {
-                "data": candidates_with_target.drop(columns=Columns.Target),
-                "label": candidates_with_target[Columns.Target],
-                "group_id": group_ids,
-            }
-        else:
-            raise ValueError("Got unexpected model_type")
-
-        if self.pool_kwargs is not None:
-            pool_kwargs.update(self.pool_kwargs)
-
-        fit_kwargs = {"X": Pool(**pool_kwargs)}
-
-        if self.fit_kwargs is not None:
-            fit_kwargs.update(self.fit_kwargs)
-
-        return fit_kwargs
 
 
 class CandidateFeatureCollector:
@@ -208,60 +165,6 @@ class PerUserNegativeSampler(NegativeSamplerBase):
         return sampled_train
 
 
-# class PerPosNegativeSampler(NegativeSamplerBase):
-#     num_neg_samples: int = 3
-#     user_max_neg_samples: int = 25
-#     random_state: tp.Optional[int] = None
-
-#     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
-#         # train: user_id, item_id, scores, ranks, target(1/0)
-
-#         negative_mask = train["target"] == 0
-#         pos = train[~negative_mask]
-#         neg = train[negative_mask]
-#         train["id"] = train.index
-
-#         num_positives = pos.groupby("user_id")["item_id"].count()
-#         num_positives.name = "num_positives"
-
-#         num_negatives = neg.groupby("user_id")["item_id"].count()
-#         num_negatives.name = "num_negatives"
-
-#         neg_sampling = pd.DataFrame(neg.groupby("user_id")["id"].apply(list)).join(
-#             num_positives, on="user_id", how="left"
-#         )
-#         neg_sampling = neg_sampling.join(num_negatives, on="user_id", how="left")
-#         neg_sampling["num_negatives"] = (
-#             neg_sampling["num_negatives"].fillna(0).astype("int32")
-#         )
-#         neg_sampling["num_positives"] = (
-#             neg_sampling["num_positives"].fillna(0).astype("int32")
-#         )
-#         neg_sampling["num_choices"] = np.clip(
-#             neg_sampling["num_positives"] * self.num_neg_samples,
-#             a_min=0,
-#             a_max=self.user_max_neg_samples,
-#         )
-
-#         rng = default_rng(self.random_state)
-#         neg_sampling["sampled_idx"] = neg_sampling.apply(
-#             lambda row: rng.choice(
-#                 row["id"],
-#                 size=min(row["num_choices"], row["num_negatives"]),
-#                 replace=False,
-#             ),
-#             axis=1,
-#         )
-#         idx_chosen = neg_sampling["sampled_idx"].explode().values
-#         neg = neg[neg["id"].isin(idx_chosen)].drop(columns="id")
-
-#         sampled_train = pd.concat([neg, pos], ignore_index=True).sample(
-#             frac=1, random_state=self.random_state
-#         ).drop(columns="id")
-
-#         return sampled_train
-
-
 class CandidateGenerator:
     def __init__(
         self,
@@ -328,7 +231,7 @@ class CandidateRankingModel(ModelBase):
         self,
         candidate_generators: tp.List[CandidateGenerator],
         splitter: Splitter,
-        reranker: Reranker = CatBoostReranker(),
+        reranker: Reranker,
         sampler: NegativeSamplerBase = PerUserNegativeSampler(),
         feature_collector: CandidateFeatureCollector = CandidateFeatureCollector(),
         verbose: int = 0,

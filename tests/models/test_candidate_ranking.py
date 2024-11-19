@@ -10,7 +10,7 @@ from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
 from rectools.models.base import NotFittedError
-from rectools.models.candidate_ranking import (
+from rectools.models.ranking.candidate_ranking import (
     CandidateFeatureCollector,
     CandidateGenerator,
     CandidateRankingModel,
