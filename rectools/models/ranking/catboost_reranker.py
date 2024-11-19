@@ -1,11 +1,16 @@
-from catboost import CatBoostClassifier, CatBoostRanker, Pool
-from rectools import Columns
-import pandas as pd
 import typing as tp
-from .candidate_ranking import Reranker, RankerBase
+
+import pandas as pd
+from catboost import CatBoostClassifier, CatBoostRanker, Pool
+
+from rectools import Columns
+
+from .candidate_ranking import RankerBase, Reranker
 
 
 class CatBoostReranker(Reranker):
+    """TODO: add description"""
+
     def __init__(
         self,
         model: tp.Union[CatBoostClassifier, CatBoostRanker] = CatBoostRanker(verbose=False),
@@ -18,6 +23,7 @@ class CatBoostReranker(Reranker):
         self.pool_kwargs = pool_kwargs
 
     def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
+        """TODO: add description"""
         if self.is_classifier:
             candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
             pool_kwargs = {

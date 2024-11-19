@@ -28,9 +28,16 @@ Models
 `models.ranking.CandidateFeatureCollector`
 `models.ranking.Reranker`
 `models.ranking.CatBoostReranker`
+`models.ranking.PerUserNegativeSampler`
 """
 
-from .candidate_ranking import CandidateRankingModel, CandidateGenerator, CandidateFeatureCollector, Reranker
+from .candidate_ranking import (
+    CandidateFeatureCollector,
+    CandidateGenerator,
+    CandidateRankingModel,
+    PerUserNegativeSampler,
+    Reranker,
+)
 
 try:
     from .catboost_reranker import CatBoostReranker
@@ -44,7 +51,5 @@ __all__ = (
     "CandidateRankingModel",
     "CandidateGenerator",
     "CandidateFeatureCollector",
-    "Reranker"
+    "PerUserNegativeSampler",
 )
-
-    

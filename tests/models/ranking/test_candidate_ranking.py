@@ -10,10 +10,11 @@ from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
 from rectools.models.base import NotFittedError
-from rectools.models.ranking.candidate_ranking import (
+from rectools.models.ranking import (
     CandidateFeatureCollector,
     CandidateGenerator,
     CandidateRankingModel,
+    CatBoostReranker,
     PerUserNegativeSampler,
 )
 
@@ -223,7 +224,9 @@ class TestCandidateRankingModel:
         candidate_generators = [CandidateGenerator(PopularModel(), 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
-        two_stage_model = CandidateRankingModel(candidate_generators, splitter, sampler=sampler)
+        two_stage_model = CandidateRankingModel(
+            candidate_generators, splitter, sampler=sampler, reranker=CatBoostReranker()
+        )
         actual = two_stage_model.get_train_with_targets_for_reranker(dataset)
         expected = pd.DataFrame(
             {
@@ -239,7 +242,9 @@ class TestCandidateRankingModel:
         candidate_generators = [CandidateGenerator(model, 2, True, True)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
-        two_stage_model = CandidateRankingModel(candidate_generators, splitter, sampler=sampler)
+        two_stage_model = CandidateRankingModel(
+            candidate_generators, splitter, sampler=sampler, reranker=CatBoostReranker()
+        )
         two_stage_model.fit(dataset)
 
         actual = two_stage_model.recommend(
