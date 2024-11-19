@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `epochs` argument to `ImplicitALSWrapperModel.fit` method ([#203](https://github.com/MobileTeleSystems/RecTools/pull/203))
 - `save` and `load` methods to all of the models ([#206](https://github.com/MobileTeleSystems/RecTools/pull/206))
 - Model configs example ([#207](https://github.com/MobileTeleSystems/RecTools/pull/207))
-- `keep_extra_cols` argument to `Dataset.construct` and `Interactions.from_raw` methods ([#208](https://github.com/MobileTeleSystems/RecTools/pull/208))
+- `keep_extra_cols` argument to `Dataset.construct` and `Interactions.from_raw` methods. `include_extra_cols` argument to `Dataset.get_raw_interactions` and `Interactions.to_external` methods ([#208](https://github.com/MobileTeleSystems/RecTools/pull/208))
 
 
 ## [0.8.0] - 28.08.2024
