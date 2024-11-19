@@ -85,6 +85,7 @@ The default version doesn't contain all the dependencies, because some of them a
 - `torch`: adds models based on neural nets,
 - `visuals`: adds visualization tools,
 - `nmslib`: adds fast ANN recommenders.
+- `catboost`: adds Catboost as a reranker for `CandidateRankingModel`
 
 Install extension:
 ```
