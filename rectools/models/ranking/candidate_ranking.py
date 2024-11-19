@@ -121,10 +121,12 @@ class CandidateFeatureCollector:
         item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info)
         useritem_features = self._get_user_item_features(useritem, dataset, fold_info)
 
-        res = useritem
-        res = res.merge(user_features, on=Columns.User, how="left")
-        res = res.merge(item_features, on=Columns.Item, how="left")
-        res = res.merge(useritem_features, on=Columns.UserItem, how="left")
+        res = (
+            useritem
+            .merge(user_features, on=Columns.User, how="left")
+            .merge(item_features, on=Columns.Item, how="left")
+            .merge(useritem_features, on=Columns.UserItem, how="left")
+        )
         return res
 
 
@@ -142,7 +144,7 @@ class PerUserNegativeSampler(NegativeSamplerBase):
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
         # train: user_id, item_id, scores, ranks, target(1/0)
 
-        negative_mask = train["target"] == 0
+        negative_mask = train[Columns.Target] == 0
         pos = train[~negative_mask]
         neg = train[negative_mask]
 
@@ -382,17 +384,17 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame
             DataFrame with target values set.
         """
-        train_targets["target"] = 1
+        train_targets[Columns.Target] = 1
 
         # Remember that this way we exclude positives that weren't present in candidates
         train = pd.merge(
             candidates,
-            train_targets[[Columns.User, Columns.Item, "target"]],
+            train_targets[[Columns.User, Columns.Item, Columns.Target]],
             how="left",
             on=Columns.UserItem,
         )
 
-        train["target"] = train["target"].fillna(0).astype("int32")
+        train[Columns.Target] = train[Columns.Target].fillna(0).astype("int32")
         return train
 
     def _fit_candidate_generators(self, dataset: Dataset, for_train: bool) -> None:
