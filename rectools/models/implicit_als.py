@@ -204,7 +204,12 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
         if not self.is_fitted:
             self.model = deepcopy(self._model)
+            prev_epochs = 0
+        else:
+            prev_epochs = self.model.iterations
+
         self._fit_model_for_epochs(dataset, epochs)
+        self.model.iterations = epochs + prev_epochs
 
     def _fit_model_for_epochs(self, dataset: Dataset, epochs: int) -> None:
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
