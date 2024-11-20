@@ -162,6 +162,8 @@ class PerUserNegativeSampler(NegativeSamplerBase):
         """TODO: Documentation""" ""
         # train: user_id, item_id, scores, ranks, target(1/0)
 
+        # TODO: refactor for faster computations: avoid shuffle and apply
+
         negative_mask = train[Columns.Target] == 0
         pos = train[~negative_mask]
         neg = train[negative_mask]
