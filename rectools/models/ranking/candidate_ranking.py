@@ -62,10 +62,8 @@ class Reranker:
 
         if isinstance(self.model, ClassifierBase):
             reco[Columns.Score] = self.model.predict_proba(x_full)[:, 1]
-        elif isinstance(self.model, RankerBase):
-            reco[Columns.Score] = self.model.predict(x_full)
         else:
-            raise ValueError("Got unexpected model_type")
+            reco[Columns.Score] = self.model.predict(x_full)
         reco = (
             reco.groupby([Columns.User])
             .apply(lambda x: x.sort_values([Columns.Score], ascending=False))
