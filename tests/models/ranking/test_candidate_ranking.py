@@ -8,6 +8,7 @@ from catboost import CatBoostRanker
 
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
+from rectools.exceptions import NotFittedForStageError
 from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
 from rectools.models.ranking import (
@@ -17,7 +18,6 @@ from rectools.models.ranking import (
     CatBoostReranker,
     PerUserNegativeSampler,
 )
-from rectools.exceptions import NotFittedForStageError
 
 
 class TestPerUserNegativeSampler:
@@ -105,26 +105,26 @@ class TestCandidateGenerator:
     def model(self) -> PopularModel:
         return PopularModel()
 
-    def test_not_fitted_errors(self, dataset: Dataset, model: PopularModel, users: tp.List[int]) -> None:
-        generator = CandidateGenerator(model, 2, False, False)
+    @pytest.fixture
+    def generator(self, model: PopularModel) -> CandidateGenerator:
+        return CandidateGenerator(model, 2, False, False)
 
+    @pytest.mark.parametrize("for_train", (True, False))
+    def test_not_fitted_errors(
+        self, for_train: bool, dataset: Dataset, generator: CandidateGenerator, users: tp.List[int]
+    ) -> None:
         with pytest.raises(NotFittedForStageError):
-            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
+            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=for_train)
+
+    @pytest.mark.parametrize("for_train", (True, False))
+    def test_not_fitted_errors_when_fitted_to_opposite_case(
+        self, for_train: bool, dataset: Dataset, generator: CandidateGenerator, users: tp.List[int]
+    ) -> None:
+        generator.fit(dataset, for_train=not for_train)
         with pytest.raises(NotFittedForStageError):
-            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
+            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=for_train)
 
-        generator.fit(dataset, for_train=True)
-
-        generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
-        with pytest.raises(NotFittedForStageError):
-            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
-
-        generator.fit(dataset, for_train=False)
-
-        generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
-        with pytest.raises(NotFittedForStageError):
-            generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
-
+    @pytest.mark.parametrize("for_train", (True, False))
     @pytest.mark.parametrize(
         ("filter_viewed", "expected"),
         (
@@ -133,11 +133,16 @@ class TestCandidateGenerator:
         ),
     )
     def test_happy_path(
-        self, dataset: Dataset, model: PopularModel, users: tp.List[int], filter_viewed: bool, expected: pd.DataFrame
+        self,
+        for_train: bool,
+        dataset: Dataset,
+        generator: CandidateGenerator,
+        users: tp.List[int],
+        filter_viewed: bool,
+        expected: pd.DataFrame,
     ) -> None:
-        generator = CandidateGenerator(model, 2, False, False)
-        generator.fit(dataset, for_train=True)
-        actual = generator.generate_candidates(users, dataset, filter_viewed=filter_viewed, for_train=True)
+        generator.fit(dataset, for_train=for_train)
+        actual = generator.generate_candidates(users, dataset, filter_viewed=filter_viewed, for_train=for_train)
         pd.testing.assert_frame_equal(actual, expected)
 
     @pytest.mark.parametrize("keep_scores", (True, False))
@@ -215,7 +220,7 @@ class TestCandidateRankingModel:
         return PopularModel()
 
     def test_get_train_with_targets_for_reranker_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
-        candidate_generators = [CandidateGenerator(PopularModel(), 2, False, False)]
+        candidate_generators = [CandidateGenerator(model, 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
         two_stage_model = CandidateRankingModel(
@@ -232,7 +237,6 @@ class TestCandidateRankingModel:
                 Columns.Target: np.array([0, 1], dtype="int32"),
             }
         )
-        expected[Columns.Target] = expected[Columns.Target]
         pd.testing.assert_frame_equal(actual, expected)
 
     def test_recommend_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
