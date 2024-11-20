@@ -12,8 +12,9 @@ import typing_extensions as tpe
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import ExternalIds
+from rectools.exceptions import NotFittedForStageError
 from rectools.model_selection import Splitter
-from rectools.models.base import ErrorBehaviour, ModelBase, NotFittedError
+from rectools.models.base import ErrorBehaviour, ModelBase
 
 
 @tp.runtime_checkable
@@ -205,9 +206,9 @@ class CandidateGenerator:
     ) -> pd.DataFrame:
 
         if for_train and not self.is_fitted_for_train:
-            raise NotFittedError(self.model.__class__.__name__)
+            raise NotFittedForStageError(self.model.__class__.__name__, "train")
         if not for_train and not self.is_fitted_for_recommend:
-            raise NotFittedError(self.model.__class__.__name__)
+            raise NotFittedForStageError(self.model.__class__.__name__, "recommend")
 
         candidates = self.model.recommend(
             users=users,

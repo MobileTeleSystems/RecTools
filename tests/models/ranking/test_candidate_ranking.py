@@ -10,7 +10,6 @@ from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.model_selection import TimeRangeSplitter
 from rectools.models import PopularModel
-from rectools.models.base import NotFittedError
 from rectools.models.ranking import (
     CandidateFeatureCollector,
     CandidateGenerator,
@@ -18,6 +17,7 @@ from rectools.models.ranking import (
     CatBoostReranker,
     PerUserNegativeSampler,
 )
+from rectools.exceptions import NotFittedForStageError
 
 
 class TestPerUserNegativeSampler:
@@ -108,21 +108,21 @@ class TestCandidateGenerator:
     def test_not_fitted_errors(self, dataset: Dataset, model: PopularModel, users: tp.List[int]) -> None:
         generator = CandidateGenerator(model, 2, False, False)
 
-        with pytest.raises(NotFittedError):
+        with pytest.raises(NotFittedForStageError):
             generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
-        with pytest.raises(NotFittedError):
+        with pytest.raises(NotFittedForStageError):
             generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
 
         generator.fit(dataset, for_train=True)
 
         generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
-        with pytest.raises(NotFittedError):
+        with pytest.raises(NotFittedForStageError):
             generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
 
         generator.fit(dataset, for_train=False)
 
         generator.generate_candidates(users, dataset, filter_viewed=True, for_train=False)
-        with pytest.raises(NotFittedError):
+        with pytest.raises(NotFittedForStageError):
             generator.generate_candidates(users, dataset, filter_viewed=True, for_train=True)
 
     @pytest.mark.parametrize(
