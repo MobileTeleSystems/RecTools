@@ -1,6 +1,3 @@
-# flake8: noqa
-# TODO: docstrings
-
 import typing as tp
 from collections import defaultdict
 from functools import reduce
@@ -20,19 +17,29 @@ from rectools.models.base import ErrorBehaviour, ModelBase
 
 @tp.runtime_checkable
 class ClassifierBase(tp.Protocol):
-    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self: ...
+    """TODO: Documentation"""
 
-    def predict_proba(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray: ...
+    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """TODO: Documentation"""
+
+    def predict_proba(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray:
+        """TODO: Documentation"""
 
 
 @tp.runtime_checkable
 class RankerBase(tp.Protocol):
-    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self: ...
+    """TODO: Documentation"""
 
-    def predict(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray: ...
+    def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """TODO: Documentation"""
+
+    def predict(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray:
+        """TODO: Documentation"""
 
 
 class Reranker:
+    """TODO: Documentation"""
+
     def __init__(
         self,
         model: tp.Union[ClassifierBase, RankerBase],
@@ -42,6 +49,7 @@ class Reranker:
         self.fit_kwargs = fit_kwargs
 
     def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
+        """TODO: Documentation""" ""
         candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
 
         fit_kwargs = {
@@ -55,10 +63,12 @@ class Reranker:
         return fit_kwargs
 
     def fit(self, candidates_with_target: pd.DataFrame) -> None:
+        """TODO: Documentation""" ""
         fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
         self.model.fit(**fit_kwargs)
 
     def rerank(self, candidates: pd.DataFrame) -> pd.DataFrame:
+        """TODO: Documentation""" ""
         reco = candidates.reindex(columns=Columns.UserItem)
         x_full = candidates.drop(columns=Columns.UserItem)
 
@@ -120,7 +130,6 @@ class CandidateFeatureCollector:
         pd.DataFrame
             `useritem` dataframe enriched with features for users, items and useritem pairs
         """
-
         user_features = self._get_user_features(useritem[Columns.User].unique(), dataset, fold_info)
         item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info)
         useritem_features = self._get_user_item_features(useritem, dataset, fold_info)
@@ -135,16 +144,22 @@ class CandidateFeatureCollector:
 
 @attr.s(auto_attribs=True)
 class NegativeSamplerBase:
+    """TODO: Documentation""" ""
+
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
+        """TODO: Documentation""" ""
         raise NotImplementedError()
 
 
 @attr.s(auto_attribs=True)
 class PerUserNegativeSampler(NegativeSamplerBase):
+    """TODO: Documentation""" ""
+
     n_negatives: int = 3
     random_state: tp.Optional[int] = None
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
+        """TODO: Documentation""" ""
         # train: user_id, item_id, scores, ranks, target(1/0)
 
         negative_mask = train[Columns.Target] == 0
@@ -169,6 +184,8 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
 
 class CandidateGenerator:
+    """TODO: Documentation""" ""
+
     def __init__(
         self,
         model: ModelBase,
@@ -188,6 +205,7 @@ class CandidateGenerator:
         self.is_fitted_for_recommend = False
 
     def fit(self, dataset: Dataset, for_train: bool) -> None:
+        """TODO: Documentation""" ""
         self.model.fit(dataset)
         if for_train:
             self.is_fitted_for_train = True  # TODO: keep multiple fitted instances?
@@ -205,7 +223,7 @@ class CandidateGenerator:
         items_to_recommend: tp.Optional[ExternalIds] = None,
         on_unsupported_targets: ErrorBehaviour = "raise",
     ) -> pd.DataFrame:
-
+        """TODO: Documentation""" ""
         if for_train and not self.is_fitted_for_train:
             raise NotFittedForStageError(self.model.__class__.__name__, "train")
         if not for_train and not self.is_fitted_for_recommend:
@@ -226,9 +244,7 @@ class CandidateGenerator:
 
 
 class CandidateRankingModel(ModelBase):
-    """
-    Candidate Ranking Model for recommendation systems.
-    """
+    """Candidate Ranking Model for recommendation systems."""
 
     def __init__(
         self,
@@ -258,7 +274,6 @@ class CandidateRankingModel(ModelBase):
         verbose : int, optional
             Verbosity level. Default is 0.
         """
-
         super().__init__(verbose=verbose)
 
         if hasattr(splitter, "n_splits"):
@@ -487,7 +502,6 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame
             DataFrame with processed ranks and scores.
         """
-
         for identifier, candgen in self.cand_gen_dict.items():
             rank_col_name, score_col_name = f"{identifier}_rank", f"{identifier}_score"
             if candgen.keep_ranks and candgen.ranks_fillna_value is not None:
@@ -508,6 +522,7 @@ class CandidateRankingModel(ModelBase):
         on_unsupported_targets: ErrorBehaviour = "raise",
         force_fit_candidate_generators: bool = False,
     ) -> pd.DataFrame:
+        """TODO: Documentation""" ""
         self._check_is_fitted()
         self._check_k(k)
 
