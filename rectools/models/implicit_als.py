@@ -197,12 +197,17 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         model = model_cls(**config.model.params)
         return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
 
-    # TODO: move to `epochs` argument of `partial_fit` method when implemented
-    def _fit(self, dataset: Dataset, epochs: tp.Optional[int] = None) -> None:  # type: ignore
+    def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
+        self._fit_model_for_epochs(dataset, self.model.iterations)
+
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
+        self._fit_model_for_epochs(dataset, epochs)
+
+    def _fit_model_for_epochs(self, dataset: Dataset, epochs: int) -> None:
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
-        if epochs is None:
-            epochs = self.model.iterations
 
         if self.fit_features_together:
             fit_als_with_features_together_inplace(

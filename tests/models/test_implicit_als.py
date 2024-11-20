@@ -368,7 +368,7 @@ class TestImplicitALSWrapperModel:
     # TODO: move this test to `partial_fit` method when implemented
     @pytest.mark.parametrize("fit_features_together", (False, True))
     @pytest.mark.parametrize("use_features_in_dataset", (False, True))
-    def test_per_epoch_fitting_consistent_with_regular_fitting(
+    def test_per_epoch_partial_fit_consistent_with_regular_fit(
         self,
         dataset: Dataset,
         dataset_w_features: Dataset,
@@ -392,8 +392,7 @@ class TestImplicitALSWrapperModel:
         )
         model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
         for _ in range(iterations):
-            model_2.fit(dataset, epochs=1)
-            model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
+            model_2.fit_partial(dataset, epochs=1)
 
         assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
         assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))

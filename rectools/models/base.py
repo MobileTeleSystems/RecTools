@@ -296,6 +296,26 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
         raise NotImplementedError()
 
+    def fit_partial(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
+        """
+        Partial fit model. Continue fitting where it left off.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Dataset with input data.
+
+        Returns
+        -------
+        self
+        """
+        self._fit_partial(dataset, *args, **kwargs)
+        self.is_fitted = True
+        return self
+
+    def _fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError()
+
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
