@@ -66,7 +66,11 @@ class Reranker:
             reco[Columns.Score] = self.model.predict(x_full)
         else:
             raise ValueError("Got unexpected model_type")
-        reco.sort_values(by=[Columns.User, Columns.Score], ascending=False, inplace=True)
+        reco = (
+            reco.groupby([Columns.User])
+            .apply(lambda x: x.sort_values([Columns.Score], ascending=False))
+            .reset_index(drop=True)
+        )
         return reco
 
 

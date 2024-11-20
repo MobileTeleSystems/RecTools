@@ -255,16 +255,16 @@ class TestCandidateRankingModel:
         )
         expected = pd.DataFrame(
             {
-                Columns.User: [30, 20, 20, 10, 10],
-                Columns.Item: [13, 12, 13, 14, 15],
+                Columns.User: [10, 10, 20, 20, 30],
+                Columns.Item: [14, 15, 12, 13, 13],
                 Columns.Score: [
                     -0.1924785067861987,
+                    -23.396888326641466,
                     23.396888326641466,
                     -23.396888326641466,
                     -0.1924785067861987,
-                    -23.396888326641466,
                 ],
-                Columns.Rank: [1, 1, 2, 1, 2],
+                Columns.Rank: [1, 2, 1, 2, 1],
             }
         )
         pd.testing.assert_frame_equal(actual, expected, atol=0.001)
