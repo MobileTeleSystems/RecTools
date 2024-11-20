@@ -2,6 +2,7 @@
 # TODO: docstrings
 
 import typing as tp
+from collections import defaultdict
 from functools import reduce
 
 import attr
@@ -284,12 +285,10 @@ class CandidateRankingModel(ModelBase):
         tp.Dict[str, CandidateGenerator]
             Dictionary with candidate generator identifiers as keys and candidate generators as values.
         """
-        model_count = {}
+        model_count: tp.Dict[str, int] = defaultdict(int)
         cand_gen_dict = {}
         for candgen in candidate_generators:
             model_name = candgen.model.__class__.__name__
-            if model_name not in model_count:
-                model_count[model_name] = 0
             model_count[model_name] += 1
             identifier = f"{model_name}_{model_count[model_name]}"
             cand_gen_dict[identifier] = candgen
