@@ -35,17 +35,12 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+    def from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tp.Optional[tpe.Self]:
         """Construct ItemNet."""
         raise NotImplementedError()
 
     def get_all_embeddings(self) -> torch.Tensor:
         """Return item embeddings."""
-        raise NotImplementedError()
-
-    @property
-    def device(self) -> torch.device:
-        """Return device the item net is located."""
         raise NotImplementedError()
 
 
@@ -110,22 +105,18 @@ class CatFeaturesItemNet(ItemNetBase):
         """
         # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
+        feature_dense.to(items.device)
 
-        feature_embs = self.category_embeddings(self.feature_catalogue)
+        feature_embs = self.category_embeddings(self.feature_catalogue.to(items.device))
         feature_embs = self.drop_layer(feature_embs)
 
         feature_embeddings_per_items = feature_dense @ feature_embs
         return feature_embeddings_per_items
 
     @property
-    def device(self) -> torch.device:
-        """Return device the item net is located."""
-        return self.category_embeddings.weight.device
-
-    @property
     def feature_catalogue(self) -> torch.Tensor:
         """Return tensor with elements in range [0, n_cat_features)."""
-        return torch.arange(0, self.n_cat_features, device=self.device)
+        return torch.arange(0, self.n_cat_features)
 
     def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -143,10 +134,10 @@ class CatFeaturesItemNet(ItemNetBase):
         """
         # TODO: Add the whole `feature_dense` to the right gpu device at once?
         feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
-        return torch.from_numpy(feature_dense).to(self.device)
+        return torch.from_numpy(feature_dense)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
+    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tp.Optional[tpe.Self]:
         """
         Create CatFeaturesItemNet from RecTools dataset.
 
@@ -162,17 +153,23 @@ class CatFeaturesItemNet(ItemNetBase):
         item_features = dataset.item_features
 
         if item_features is None:
-            explanation = """When `use_cat_features_embs` is True, the dataset must have item features."""
-            raise ValueError(explanation)
+            explanation = """When `CatFeaturesItemNet` is used, the dataset must have item features."""
+            warnings.warn(explanation)
+            return None
 
         if not isinstance(item_features, SparseFeatures):
-            raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
+            explanation = (
+                """When `CatFeaturesItemNet` is used, `item_features` in `dataset` must be `SparseFeatures` instance."""
+            )
+            warnings.warn(explanation)
+            return None
 
         item_cat_features = item_features.get_cat_features()
 
         if item_cat_features.values.size == 0:
-            explanation = """When `use_cat_features_embs` is True, the dataset must have item category features."""
-            raise ValueError(explanation)
+            explanation = """When `CatFeaturesItemNet` is used, the dataset must have item category features."""
+            warnings.warn(explanation)
+            return None
 
         return cls(item_cat_features, n_factors, dropout_rate)
 
@@ -219,11 +216,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
         item_embs = self.ids_emb(items)
         item_embs = self.drop_layer(item_embs)
         return item_embs
-
-    @property
-    def device(self) -> torch.device:
-        """Return device the item net is located."""
-        return self.ids_emb.weight.device
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
@@ -281,15 +273,9 @@ class ItemNetConstructor(ItemNetBase):
         return torch.sum(torch.stack(item_embs, dim=0), dim=0)
 
     @property
-    def device(self) -> torch.device:
-        """Return device the item net is located."""
-        device = self.item_net_blocks[0].device
-        return device
-
-    @property
     def catalogue(self) -> torch.Tensor:
         """Return tensor with elements in range [0, n_items)."""
-        return torch.arange(0, self.n_items, device=self.device)
+        return torch.arange(0, self.n_items)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """Return item embeddings."""
@@ -319,10 +305,11 @@ class ItemNetConstructor(ItemNetBase):
         """
         n_items = dataset.item_id_map.size
 
-        item_net_blocks = []
+        item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
             item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
-            item_net_blocks.append(item_net_block)
+            if item_net_block is not None:
+                item_net_blocks.append(item_net_block)
 
         return cls(n_items, item_net_blocks)
 
