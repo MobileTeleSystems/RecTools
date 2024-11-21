@@ -708,14 +708,14 @@ class TestCatFeaturesItemNet:
         actual_embedding_dim = cat_item_embeddings.category_embeddings.embedding_dim
 
         expected_item_features = dataset_item_features.item_features
-        # TODO: remove after adding Dense Features support
-        if isinstance(expected_item_features, SparseFeatures):
-            expected_cat_item_features = expected_item_features.get_cat_features()
 
-            assert_feature_set_equal(actual_item_features, expected_cat_item_features)
-            assert actual_n_items == dataset_item_features.item_id_map.size
-            assert actual_n_cat_features == len(expected_cat_item_features.names)
-            assert actual_embedding_dim == n_factors
+        assert isinstance(expected_item_features, SparseFeatures)
+        expected_cat_item_features = expected_item_features.get_cat_features()
+
+        assert_feature_set_equal(actual_item_features, expected_cat_item_features)
+        assert actual_n_items == dataset_item_features.item_id_map.size
+        assert actual_n_cat_features == len(expected_cat_item_features.names)
+        assert actual_embedding_dim == n_factors
 
     @pytest.mark.parametrize(
         "n_items,n_factors",
