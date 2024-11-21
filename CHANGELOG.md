@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `epochs` argument to `ImplicitALSWrapperModel.fit` method ([#203](https://github.com/MobileTeleSystems/RecTools/pull/203))
 - `save` and `load` methods to all of the models ([#206](https://github.com/MobileTeleSystems/RecTools/pull/206))
 - Model configs example ([#207](https://github.com/MobileTeleSystems/RecTools/pull/207))
+- `use_gpu` argument to `ImplicitRanker.rank` method ([#201](https://github.com/MobileTeleSystems/RecTools/pull/201))
 
 
 ## [0.8.0] - 28.08.2024

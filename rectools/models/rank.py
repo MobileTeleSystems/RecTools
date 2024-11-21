@@ -15,11 +15,14 @@
 """Implicit ranker model."""
 
 import typing as tp
+import warnings
 from enum import Enum
 
 import implicit.cpu
+import implicit.gpu
 import numpy as np
 from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
+from implicit.gpu import HAS_CUDA
 from scipy import sparse
 
 from rectools import InternalIds
@@ -74,8 +77,14 @@ class ImplicitRanker:
             self.subjects_dots = self._calc_dots(self.subjects_factors)
 
     def _get_neginf_score(self) -> float:
-        # Adding 1 to avoid float calculation errors (we're comparing `scores <= neginf_score`)
-        return float(-np.finfo(np.float32).max + 1)
+        # neginf_score computed according to implicit gpu FLT_FILTER_DISTANCE
+        # https://github.com/benfred/implicit/blob/main/implicit/gpu/knn.cu#L36
+        # we're comparing `scores <= neginf_score`
+        return float(
+            np.asarray(
+                np.asarray(-np.finfo(np.float32).max, dtype=np.float32).view(np.uint32) - 1, dtype=np.uint32
+            ).view(np.float32)
+        )
 
     @staticmethod
     def _calc_dots(factors: np.ndarray) -> np.ndarray:
@@ -132,13 +141,50 @@ class ImplicitRanker:
 
         return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
 
-    def rank(
+    def _rank_on_gpu(
+        self,
+        object_factors: np.ndarray,
+        subject_factors: tp.Union[np.ndarray, sparse.csr_matrix],
+        k: int,
+        object_norms: tp.Optional[np.ndarray],
+        filter_query_items: tp.Optional[tp.Union[sparse.csr_matrix, sparse.csr_array]],
+    ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
+        object_factors = implicit.gpu.Matrix(object_factors.astype(np.float32))
+
+        if isinstance(subject_factors, sparse.spmatrix):
+            warnings.warn("Sparse subject factors converted to Dense matrix")
+            subject_factors = subject_factors.todense()
+
+        subject_factors = implicit.gpu.Matrix(subject_factors.astype(np.float32))
+
+        if object_norms is not None:
+            if len(np.shape(object_norms)) == 1:
+                object_norms = np.expand_dims(object_norms, axis=0)
+            object_norms = implicit.gpu.Matrix(object_norms)
+
+        if filter_query_items is not None:
+            filter_query_items = implicit.gpu.COOMatrix(filter_query_items.tocoo())
+
+        ids, scores = implicit.gpu.KnnQuery().topk(  # pylint: disable=c-extension-no-member
+            items=object_factors,
+            m=subject_factors,
+            k=k,
+            item_norms=object_norms,
+            query_filter=filter_query_items,
+            item_filter=None,
+        )
+
+        scores = scores.astype(np.float64)
+        return ids, scores
+
+    def rank(  # pylint: disable=too-many-branches
         self,
         subject_ids: InternalIds,
         k: int,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
         num_threads: int = 0,
+        use_gpu: bool = False,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Rank objects to proceed inference using implicit library topk cpu method.
 
@@ -156,7 +202,9 @@ class ImplicitRanker:
             If given, only these items will be used for recommendations.
             Otherwise all items from dataset will be used.
         num_threads : int, default 0
-            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`.
+            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`. Omitted if use_gpu is True
+        use_gpu : bool, default False
+            If True `implicit.gpu.KnnQuery().topk` will be used instead of classic cpu version.
 
         Returns
         -------
@@ -191,15 +239,28 @@ class ImplicitRanker:
 
         real_k = min(k, object_factors.shape[0])
 
-        ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=object_factors,
-            query=subject_factors,
-            k=real_k,
-            item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
-            filter_query_items=filter_query_items,  # queries x objects csr matrix for getting neginf scores
-            filter_items=None,  # rectools doesn't support blacklist for now
-            num_threads=num_threads,
-        )
+        if use_gpu and not HAS_CUDA:
+            warnings.warn("Forced rank() on CPU")
+            use_gpu = False
+
+        if use_gpu:  # pragma: no cover
+            ids, scores = self._rank_on_gpu(
+                object_factors=object_factors,
+                subject_factors=subject_factors,
+                k=real_k,
+                object_norms=object_norms,
+                filter_query_items=filter_query_items,
+            )
+        else:
+            ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
+                items=object_factors,
+                query=subject_factors,
+                k=real_k,
+                item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
+                filter_query_items=filter_query_items,  # queries x objects csr matrix for getting neginf scores
+                filter_items=None,  # rectools doesn't support blacklist for now
+                num_threads=num_threads,
+            )
 
         if sorted_object_whitelist is not None:
             ids = sorted_object_whitelist[ids]
