@@ -79,16 +79,15 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len + 1]
             yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len + 1]
 
-        # TODO: we are sampling negatives for paddings. Let's think about it later
-        batch_dict = dict({"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)})
-        # TODO: we are sampling negatives for paddings. Let's think about it later
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        # TODO: we are sampling negatives for paddings
         if self.n_negatives is not None:
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
                 high=self.item_id_map.size,
                 size=(batch_size, self.session_max_len, self.n_negatives),
-            ).long()  # [batch_size, session_max_len, n_negatives]
-            batch_dict["negatives"] = torch.LongTensor(negatives)
+            )  # [batch_size, session_max_len, n_negatives]
+            batch_dict["negatives"] = negatives
         return batch_dict
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
@@ -98,7 +97,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             session = ses.copy()
             session = session + [self.extra_token_ids[MASKING_VALUE]]
             x[i, -len(ses) - 1 :] = session[-self.session_max_len - 1 :]
-        return dict({"x": torch.LongTensor(x)})
+        return {"x": torch.LongTensor(x)}
 
 
 class BERT4RecTransformerLayers(TransformerLayersBase):

@@ -552,7 +552,7 @@ class TestSASRecDataPreparator:
     @pytest.mark.parametrize(
         "train_batch",
         (
-            dict(
+            (
                 {
                     "x": torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
                     "y": torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
@@ -572,7 +572,7 @@ class TestSASRecDataPreparator:
 
     @pytest.mark.parametrize(
         "recommend_batch",
-        (dict({"x": torch.tensor([[2, 3, 6], [1, 3, 2], [0, 2, 4], [0, 0, 6]])}),),
+        (({"x": torch.tensor([[2, 3, 6], [1, 3, 2], [0, 2, 4], [0, 0, 6]])}),),
     )
     def test_get_dataloader_recommend(
         self, dataset: Dataset, data_preparator: SASRecDataPreparator, recommend_batch: torch.Tensor
