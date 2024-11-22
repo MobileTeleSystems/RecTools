@@ -93,7 +93,7 @@ class CatFeaturesItemNet(ItemNetBase):
         # TODO: Should we use torch.nn.EmbeddingBag.html?
         feature_dense = self.get_dense_item_features(items)
 
-        feature_embs = self.category_embeddings(self.feature_catalogue)
+        feature_embs = self.category_embeddings(self.feature_catalog)
         feature_embs = self.drop_layer(feature_embs)
 
         feature_embeddings_per_items = feature_dense @ feature_embs
@@ -105,7 +105,7 @@ class CatFeaturesItemNet(ItemNetBase):
         return self.category_embeddings.weight.device
 
     @property
-    def feature_catalogue(self) -> torch.Tensor:
+    def feature_catalog(self) -> torch.Tensor:
         """TODO"""
         return torch.arange(0, self.n_cat_features, device=self.device)
 
@@ -224,13 +224,13 @@ class ItemNetConstructor(ItemNetBase):
         return device
 
     @property
-    def catalogue(self) -> torch.Tensor:
+    def catalog(self) -> torch.Tensor:
         """Return tensor with elements in range [0, n_items)."""
         return torch.arange(0, self.n_items, device=self.device)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """Return item embeddings."""
-        return self.forward(self.catalogue)
+        return self.forward(self.catalog)
 
     @classmethod
     def from_dataset(
@@ -897,6 +897,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         torch_model: TransformerBasedSessionEncoder,
         lr: float,
         gbce_t: float,
+        n_item_extra_tokens: int,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
     ):
@@ -906,6 +907,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.torch_model = torch_model
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
+        self.n_item_extra_tokens = n_item_extra_tokens
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -930,7 +932,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         """TODO"""
         x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
-            logits = self._get_logits(x)
+            logits = self._get_full_catalog_logits(x)
             return self._calc_softmax_loss(logits, y, w)
         if self.loss == "BCE":
             negatives = batch["negatives"]
@@ -943,7 +945,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
         raise ValueError(f"loss {self.loss} is not supported")
 
-    def _get_logits(self, x: torch.Tensor) -> torch.Tensor:
+    def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
         logits = session_embs @ item_embs.T
         return logits
@@ -951,14 +953,15 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
         # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
         item_embs, session_embs = self.torch_model(x)
-        pos_neg_embs = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-        item_embs = item_embs[pos_neg_embs]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        logits = (item_embs @ session_embs.unsqueeze(-1)).squeeze(-1)  # [batch_size, session_max_len, n_negatives + 1]
+        pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+        pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
+        # [batch_size, session_max_len, n_negatives + 1]
+        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
         return logits
 
     def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
         # https://arxiv.org/pdf/2308.07192.pdf
-        alpha = n_negatives / (n_items - 2)
+        alpha = n_negatives / (n_items - self.n_item_extra_tokens - 1)
         beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
 
         pos_logits = logits[:, :, 0:1].to(torch.float64)
@@ -1003,7 +1006,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss = torch.nn.functional.binary_cross_entropy_with_logits(
             logits, target, reduction="none"
         )  # [batch_size, session_max_len, n_negatives + 1]
-        loss = loss.mean(-1) * mask * w  # [batch_size, sessiosn_max_len]
+        loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
 
@@ -1114,8 +1117,13 @@ class TransformerModelBase(ModelBase):
         torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         torch_model.construct_item_net(processed_dataset)
 
+        n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
         self.lightning_model = self.lightning_module_type(
-            torch_model=torch_model, lr=self.lr, loss=self.loss, gbce_t=self.gbce_t
+            torch_model=torch_model,
+            lr=self.lr,
+            loss=self.loss,
+            gbce_t=self.gbce_t,
+            n_item_extra_tokens=n_item_extra_tokens,
         )
 
         self.trainer = deepcopy(self._trainer)
