@@ -852,7 +852,7 @@ class TestItemNetConstructor:
         assert item_net.get_all_embeddings().shape == (item_net.n_items, n_factors)
 
     @pytest.mark.parametrize(
-        "item_net_block_types,make_dense_user_features,expected_n_item_net_blocks",
+        "item_net_block_types,make_dense_item_features,expected_n_item_net_blocks",
         (
             ((IdEmbeddingsItemNet,), False, 1),
             ((IdEmbeddingsItemNet, CatFeaturesItemNet), False, 2),
@@ -864,10 +864,10 @@ class TestItemNetConstructor:
         self,
         dataset_item_features: Dataset,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
-        make_dense_user_features: bool,
+        make_dense_item_features: bool,
         expected_n_item_net_blocks: int,
     ) -> None:
-        if make_dense_user_features:
+        if make_dense_item_features:
             item_features = pd.DataFrame(
                 [
                     [11, "f3", 0],
@@ -883,7 +883,7 @@ class TestItemNetConstructor:
             ds = Dataset.construct(
                 INTERACTIONS,
                 item_features_df=item_features,
-                make_dense_user_features=make_dense_user_features,
+                make_dense_user_features=make_dense_item_features,
             )
         else:
             ds = dataset_item_features
