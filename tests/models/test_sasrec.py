@@ -810,8 +810,6 @@ class TestItemNetConstructor:
                 [14, "f2", "f2val1"],
                 [15, "f1", "f1val2"],
                 [15, "f2", "f2val2"],
-                [17, "f1", "f1val2"],
-                [17, "f2", "f2val3"],
                 [16, "f1", "f1val2"],
                 [16, "f2", "f2val3"],
                 [11, "f3", 0],
@@ -819,7 +817,6 @@ class TestItemNetConstructor:
                 [13, "f3", 2],
                 [14, "f3", 3],
                 [15, "f3", 4],
-                [17, "f3", 5],
                 [16, "f3", 6],
             ],
             columns=["id", "feature", "value"],
@@ -835,7 +832,7 @@ class TestItemNetConstructor:
         item_net = ItemNetConstructor.from_dataset(
             DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=(IdEmbeddingsItemNet,)
         )
-        expected_feature_catalogue = torch.arange(0, item_net.n_items)
+        expected_feature_catalogue = torch.arange(0, DATASET.item_id_map.size)
         assert torch.equal(item_net.catalogue, expected_feature_catalogue)
 
     @pytest.mark.parametrize(
@@ -843,6 +840,7 @@ class TestItemNetConstructor:
         (
             ((IdEmbeddingsItemNet,), 8),
             ((IdEmbeddingsItemNet, CatFeaturesItemNet), 16),
+            ((CatFeaturesItemNet,), 16),
         ),
     )
     def test_get_all_embeddings(
@@ -854,22 +852,22 @@ class TestItemNetConstructor:
         assert item_net.get_all_embeddings().shape == (item_net.n_items, n_factors)
 
     @pytest.mark.parametrize(
-        "item_net_block_types,sparse_features,expected_n_item_net_blocks",
+        "item_net_block_types,make_dense_user_features,expected_n_item_net_blocks",
         (
-            ((IdEmbeddingsItemNet,), True, 1),
-            ((IdEmbeddingsItemNet, CatFeaturesItemNet), True, 2),
             ((IdEmbeddingsItemNet,), False, 1),
-            ((IdEmbeddingsItemNet, CatFeaturesItemNet), False, 1),
+            ((IdEmbeddingsItemNet, CatFeaturesItemNet), False, 2),
+            ((IdEmbeddingsItemNet,), True, 1),
+            ((IdEmbeddingsItemNet, CatFeaturesItemNet), True, 1),
         ),
     )
-    def test_create_from_dataset(
+    def test_correct_number_of_item_net_blocks(
         self,
         dataset_item_features: Dataset,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
-        sparse_features: bool,
+        make_dense_user_features: bool,
         expected_n_item_net_blocks: int,
     ) -> None:
-        if not sparse_features:
+        if make_dense_user_features:
             item_features = pd.DataFrame(
                 [
                     [11, "f3", 0],
@@ -885,6 +883,7 @@ class TestItemNetConstructor:
             ds = Dataset.construct(
                 INTERACTIONS,
                 item_features_df=item_features,
+                make_dense_user_features=make_dense_user_features,
             )
         else:
             ds = dataset_item_features
@@ -894,10 +893,10 @@ class TestItemNetConstructor:
         )
 
         actual_n_items = item_net.n_items
-        actual_item_net_blocks = len(item_net.item_net_blocks)
+        actual_n_item_net_blocks = len(item_net.item_net_blocks)
 
         assert actual_n_items == dataset_item_features.item_id_map.size
-        assert actual_item_net_blocks == expected_n_item_net_blocks
+        assert actual_n_item_net_blocks == expected_n_item_net_blocks
 
     @pytest.mark.parametrize(
         "item_net_block_types,n_items,n_factors",
@@ -924,6 +923,56 @@ class TestItemNetConstructor:
 
         assert expected_embeddings.shape == (n_items, n_factors)
 
-    def test_raise_when_no_item_net_blocks(self) -> None:
+    @pytest.mark.parametrize(
+        "item_net_block_types,item_features,make_dense_item_features",
+        (
+            ([], None, False),
+            ((CatFeaturesItemNet,), None, False),
+            (
+                (CatFeaturesItemNet,),
+                pd.DataFrame(
+                    [
+                        [11, 1, 1],
+                        [12, 1, 2],
+                        [13, 1, 3],
+                        [14, 2, 1],
+                        [15, 2, 2],
+                        [17, 2, 3],
+                    ],
+                    columns=[Columns.Item, "f1", "f2"],
+                ),
+                True,
+            ),
+            (
+                (CatFeaturesItemNet,),
+                pd.DataFrame(
+                    [
+                        [11, "f3", 0],
+                        [12, "f3", 1],
+                        [13, "f3", 2],
+                        [14, "f3", 3],
+                        [15, "f3", 4],
+                        [17, "f3", 5],
+                        [16, "f3", 6],
+                    ],
+                    columns=[Columns.Item, "feature", "value"],
+                ),
+                False,
+            ),
+        ),
+    )
+    def test_raise_when_no_item_net_blocks(
+        self,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+        item_features: tp.Optional[pd.DataFrame],
+        make_dense_item_features: bool,
+    ) -> None:
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            make_dense_item_features=make_dense_item_features,
+        )
         with pytest.raises(ValueError):
-            ItemNetConstructor.from_dataset(DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=[])
+            ItemNetConstructor.from_dataset(
+                ds, n_factors=10, dropout_rate=0.5, item_net_block_types=item_net_block_types
+            )

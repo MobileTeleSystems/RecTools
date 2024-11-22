@@ -153,21 +153,24 @@ class CatFeaturesItemNet(ItemNetBase):
         item_features = dataset.item_features
 
         if item_features is None:
-            explanation = """When `CatFeaturesItemNet` is used, the dataset must have item features."""
+            explanation = """Ignoring `CatFeaturesItemNet` block because dataset doesn't contain item features."""
             warnings.warn(explanation)
             return None
 
         if not isinstance(item_features, SparseFeatures):
-            explanation = (
-                """When `CatFeaturesItemNet` is used, `item_features` in `dataset` must be `SparseFeatures` instance."""
-            )
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because
+            dataset item features are dense and unable to contain categorical features.
+            """
             warnings.warn(explanation)
             return None
 
         item_cat_features = item_features.get_cat_features()
 
         if item_cat_features.values.size == 0:
-            explanation = """When `CatFeaturesItemNet` is used, the dataset must have item category features."""
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
+            """
             warnings.warn(explanation)
             return None
 
