@@ -72,6 +72,7 @@ pydantic = "^2.8.2"
 pydantic-core = "^2.20.1"
 typing-extensions = "^4.12.2"
 polars = {version = "^1.8.2", extras = ["pandas"]}  # last version with support for Python 3.8. 
+pyarrow = "^17.0.0"  # required for polars, but not installed automatically by poetry (bug?)
 
 # The latest released version of lightfm is 1.17 and it's not compatible with PEP-517 installers (like latest poetry versions).
 rectools-lightfm = {version="1.17.2", python = "<3.12", optional = true}
