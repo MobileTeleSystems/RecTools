@@ -556,11 +556,9 @@ class CandidateRankingModel(ModelBase):
         reco = candidates.reindex(columns=Columns.UserItem)
         reco[Columns.Score] = self.reranker.predict_scores(train)
 
-        reco= (
+        reco = (
             pl.from_pandas(reco)
-            .select(
-                pl.all().top_k_by(by=Columns.Score, k=k).over(Columns.User, mapping_strategy="explode")
-            )
+            .select(pl.all().top_k_by(by=Columns.Score, k=k).over(Columns.User, mapping_strategy="explode"))
             .to_pandas()
         )
 
@@ -568,4 +566,3 @@ class CandidateRankingModel(ModelBase):
             reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
 
         return reco.reset_index(drop=True)
-
