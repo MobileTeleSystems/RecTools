@@ -26,6 +26,7 @@ class Columns:
     Rank = "rank"
     Score = "score"
     Model = "model"
+    Target = "target"
     Split = "i_split"
     UserItem = [User, Item]
     Interactions = [User, Item, Weight, Datetime]
