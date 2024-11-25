@@ -19,6 +19,7 @@ from functools import reduce
 import attr
 import numpy as np
 import pandas as pd
+import polars as pl
 import typing_extensions as tpe
 
 from rectools import Columns
@@ -81,21 +82,15 @@ class Reranker:
         fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
         self.model.fit(**fit_kwargs)
 
-    def rerank(self, candidates: pd.DataFrame) -> pd.DataFrame:
+    def predict_scores(self, candidates: pd.DataFrame) -> pd.Series:
         """TODO: Documentation""" ""
-        reco = candidates.reindex(columns=Columns.UserItem)
         x_full = candidates.drop(columns=Columns.UserItem)
 
         if isinstance(self.model, ClassifierBase):
-            reco[Columns.Score] = self.model.predict_proba(x_full)[:, 1]
+            scores = self.model.predict_proba(x_full)[:, 1]
         else:
-            reco[Columns.Score] = self.model.predict(x_full)
-        reco = (
-            reco.groupby([Columns.User])
-            .apply(lambda x: x.sort_values([Columns.Score], ascending=False))
-            .reset_index(drop=True)
-        )
-        return reco
+            scores = self.model.predict(x_full)
+        return scores
 
 
 class CandidateFeatureCollector:
@@ -558,8 +553,16 @@ class CandidateRankingModel(ModelBase):
 
         train = self.feature_collector.collect_features(candidates, dataset, fold_info=None)
 
-        reco = self.reranker.rerank(train)
-        reco = reco.groupby(Columns.User).head(k)
+        reco = candidates.reindex(columns=Columns.UserItem)
+        reco[Columns.Score] = self.reranker.predict_scores(train)
+
+        # order isn't guaranteed by top_k_by, so we sort afterwards
+        reco = (
+            pl.from_pandas(reco)
+            .select(pl.all().top_k_by(by=Columns.Score, k=k).over(Columns.User, mapping_strategy="explode"))
+            .select(pl.all().sort_by(by=Columns.Score, descending=True).over(Columns.User))
+            .to_pandas()
+        )
 
         if add_rank_col:
             reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
