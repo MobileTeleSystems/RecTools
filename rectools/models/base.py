@@ -296,9 +296,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
         raise NotImplementedError()
 
-    def fit_partial(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
+    def fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
         """
-        Partial fit model. Continue fitting where it left off.
+        Fit model. Unlike `fit`, repeated calls to this method will cause training to resume from the current model state.
 
         Parameters
         ----------
@@ -314,7 +314,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         return self
 
     def _fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError("Partial fitting is not supported in {self.__class__.__name__}")
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
