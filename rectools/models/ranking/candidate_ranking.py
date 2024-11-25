@@ -556,9 +556,11 @@ class CandidateRankingModel(ModelBase):
         reco = candidates.reindex(columns=Columns.UserItem)
         reco[Columns.Score] = self.reranker.predict_scores(train)
 
+        # order isn't guaranteed by top_k_by, so we sort afterwards
         reco = (
             pl.from_pandas(reco)
             .select(pl.all().top_k_by(by=Columns.Score, k=k).over(Columns.User, mapping_strategy="explode"))
+            .select(pl.all().sort_by(by=Columns.Score, descending=True).over(Columns.User))
             .to_pandas()
         )
 
