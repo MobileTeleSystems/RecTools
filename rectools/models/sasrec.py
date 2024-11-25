@@ -1,7 +1,7 @@
 import typing as tp
 import warnings
 from copy import deepcopy
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -105,18 +105,18 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
+        device = self.category_embeddings.weight.device
         # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
-        feature_dense.to(items.device)
 
-        feature_embs = self.category_embeddings(self.feature_catalogue.to(items.device))
+        feature_embs = self.category_embeddings(self.feature_catalog.to(device))
         feature_embs = self.drop_layer(feature_embs)
 
-        feature_embeddings_per_items = feature_dense @ feature_embs
+        feature_embeddings_per_items = feature_dense.to(device) @ feature_embs
         return feature_embeddings_per_items
 
     @property
-    def feature_catalogue(self) -> torch.Tensor:
+    def feature_catalog(self) -> torch.Tensor:
         """Return tensor with elements in range [0, n_cat_features)."""
         return torch.arange(0, self.n_cat_features)
 
@@ -218,7 +218,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        item_embs = self.ids_emb(items)
+        item_embs = self.ids_emb(items.to(self.ids_emb.weight.device))
         item_embs = self.drop_layer(item_embs)
         return item_embs
 
@@ -278,13 +278,13 @@ class ItemNetConstructor(ItemNetBase):
         return torch.sum(torch.stack(item_embs, dim=0), dim=0)
 
     @property
-    def catalogue(self) -> torch.Tensor:
+    def catalog(self) -> torch.Tensor:
         """Return tensor with elements in range [0, n_items)."""
         return torch.arange(0, self.n_items)
 
     def get_all_embeddings(self) -> torch.Tensor:
         """Return item embeddings."""
-        return self.forward(self.catalogue)
+        return self.forward(self.catalog)
 
     @classmethod
     def from_dataset(
@@ -599,12 +599,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
     def forward(
         self,
         sessions: torch.Tensor,  # [batch_size, session_max_len]
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Forward pass to get logits.
+        Forward pass to get item and session embeddings.
         Get item embeddings.
         Pass user sessions through transformer blocks.
-        Calculate logits.
 
         Parameters
         ----------
@@ -613,13 +612,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
         Returns
         -------
-        torch.Tensor
-            Logits.
+        (torch.Tensor, torch.Tensor)
         """
-        item_embs = self.item_model.get_all_embeddings()  # [n_items + n_special_tokens, n_factors]
+        item_embs = self.item_model.get_all_embeddings()  # [n_items + n_item_extra_tokens, n_factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
-        logits = session_embs @ item_embs.T  # [batch_size, session_max_len, n_items + n_special_tokens]
-        return logits
+        return item_embs, session_embs
 
 
 # ####  --------------  Data Processor  --------------  #### #
@@ -705,11 +702,13 @@ class SessionEncoderDataPreparatorBase:
         shuffle_train: bool = True,
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         train_min_user_interactions: int = 2,
+        n_negatives: tp.Optional[int] = None,
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap
         self.extra_token_ids: tp.Dict
         self.session_max_len = session_max_len
+        self.n_negatives = n_negatives
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
         self.train_min_user_interactions = train_min_user_interactions
@@ -889,14 +888,14 @@ class SessionEncoderDataPreparatorBase:
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+    ) -> Dict[str, torch.Tensor]:
         """TODO"""
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> torch.LongTensor:
+    ) -> Dict[str, torch.Tensor]:
         """TODO"""
         raise NotImplementedError()
 
@@ -907,7 +906,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+    ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep (session_max_len+1) last items.
         Do left padding until  (session_max_len+1) is reached.
@@ -921,14 +920,24 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        # TODO: we are sampling negatives for paddings
+        if self.n_negatives is not None:
+            negatives = torch.randint(
+                low=self.n_item_extra_tokens,
+                high=self.item_id_map.size,
+                size=(batch_size, self.session_max_len, self.n_negatives),
+            )  # [batch_size, session_max_len, n_negatives]
+            batch_dict["negatives"] = negatives
+        return batch_dict
+
+    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
         for i, (ses, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
-        return torch.LongTensor(x)
+        return {"x": torch.LongTensor(x)}
 
 
 # ####  --------------  Lightning Model  --------------  #### #
@@ -955,6 +964,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self,
         torch_model: TransformerBasedSessionEncoder,
         lr: float,
+        gbce_t: float,
+        n_item_extra_tokens: int,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
     ):
@@ -963,6 +974,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.loss = loss
         self.torch_model = torch_model
         self.adam_betas = adam_betas
+        self.gbce_t = gbce_t
+        self.n_item_extra_tokens = n_item_extra_tokens
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -970,15 +983,12 @@ class SessionEncoderLightningModuleBase(LightningModule):
         optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
         return optimizer
 
-    def forward(
-        self,
-        batch: torch.Tensor,
-    ) -> torch.Tensor:
-        """Forward pass. Propagate the batch through torch_model."""
-        return self.torch_model(batch)
-
-    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
+        raise NotImplementedError()
+
+    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Prediction step."""
         raise NotImplementedError()
 
 
@@ -990,57 +1000,108 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         # TODO: init padding embedding with zeros
         self._xavier_normal_init()
 
-    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
-        """
-        Training step.
-        Compute logits by propagating torch network.
-        Compute loss.
-
-        Parameters
-        ----------
-        batch: torch.Tensor
-            Batch containing user interaction sequences, target interactions, interaction weights.
-        batch_idx: int
-            Index of a batch.
-
-        Returns
-        -------
-            Loss.
-        """
-        x, y, w = batch
-        logits = self.forward(x)  # [batch_size, session_max_len, n_items + n_special_tokens]
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """TODO"""
+        x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
-            # We are using CrossEntropyLoss with a multi-dimensional case
+            logits = self._get_full_catalog_logits(x)
+            return self._calc_softmax_loss(logits, y, w)
+        if self.loss == "BCE":
+            negatives = batch["negatives"]
+            logits = self._get_pos_neg_logits(x, y, negatives)
+            return self._calc_bce_loss(logits, y, w)
+        if self.loss == "gBCE":
+            negatives = batch["negatives"]
+            logits = self._get_pos_neg_logits(x, y, negatives)
+            return self._calc_gbce_loss(logits, y, w, negatives)
 
-            # Logits must be passed in form of [batch_size, n_items + n_special_tokens, session_max_len],
-            #  where n_items + n_special_tokens is number of classes
+        raise ValueError(f"loss {self.loss} is not supported")
 
-            # Target label indexes must be passed in a form of [batch_size, session_max_len]
-            # (`0` index for "PAD" ix excluded from loss)
+    def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
+        item_embs, session_embs = self.torch_model(x)
+        logits = session_embs @ item_embs.T
+        return logits
 
-            # Loss output will have a shape of [batch_size, session_max_len]
-            # and will have zeros for every `0` target label
+    def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
+        # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
+        item_embs, session_embs = self.torch_model(x)
+        pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+        pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
+        # [batch_size, session_max_len, n_negatives + 1]
+        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
+        return logits
 
-            loss = torch.nn.functional.cross_entropy(
-                logits.transpose(1, 2), y, ignore_index=0, reduction="none"
-            )  # [batch_size, session_max_len]
-            loss = loss * w
-            n = (loss > 0).to(loss.dtype)
-            loss = torch.sum(loss) / torch.sum(n)
-            return loss
-        raise ValueError(f"loss {loss} is not supported")
+    def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
+        # https://arxiv.org/pdf/2308.07192.pdf
+        alpha = n_negatives / (n_items - 1)  # sampling rate
+        beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
+
+        pos_logits = logits[:, :, 0:1].to(torch.float64)
+        neg_logits = logits[:, :, 1:].to(torch.float64)
+
+        epsilon = 1e-10
+        pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
+        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(torch.float64).max)
+        pos_probs_adjusted = torch.clamp(
+            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(torch.float64).max
+        )
+        pos_logits_transformed = torch.log(pos_probs_adjusted)
+        logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
+        return logits
+
+    @classmethod
+    def _calc_softmax_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        # We are using CrossEntropyLoss with a multi-dimensional case
+
+        # Logits must be passed in form of [batch_size, n_items + n_item_extra_tokens, session_max_len],
+        #  where n_items + n_item_extra_tokens is number of classes
+
+        # Target label indexes must be passed in a form of [batch_size, session_max_len]
+        # (`0` index for "PAD" ix excluded from loss)
+
+        # Loss output will have a shape of [batch_size, session_max_len]
+        # and will have zeros for every `0` target label
+        loss = torch.nn.functional.cross_entropy(
+            logits.transpose(1, 2), y, ignore_index=0, reduction="none"
+        )  # [batch_size, session_max_len]
+        loss = loss * w
+        n = (loss > 0).to(loss.dtype)
+        loss = torch.sum(loss) / torch.sum(n)
+        return loss
+
+    @classmethod
+    def _calc_bce_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        mask = y != 0
+        target = torch.zeros_like(logits)
+        target[:, :, 0] = 1
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            logits, target, reduction="none"
+        )  # [batch_size, session_max_len, n_negatives + 1]
+        loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
+        loss = torch.sum(loss) / torch.sum(mask)
+        return loss
+
+    def _calc_gbce_loss(
+        self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
+    ) -> torch.Tensor:
+        n_actual_items = self.torch_model.item_model.n_items - self.n_item_extra_tokens
+        n_negatives = negatives.shape[2]
+        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
+        loss = self._calc_bce_loss(logits, y, w)
+        return loss
 
     def on_train_end(self) -> None:
         """Save item embeddings"""
         self.eval()
         self.item_embs = self.torch_model.item_model.get_all_embeddings()
 
-    def predict_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
+    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """
         Prediction step.
         Encode user sessions.
         """
-        encoded_sessions = self.torch_model.encode_sessions(batch, self.item_embs)[:, -1, :]
+        encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs)[:, -1, :]
         return encoded_sessions
 
     def _xavier_normal_init(self) -> None:
@@ -1058,7 +1119,7 @@ class TransformerModelBase(ModelBase):
     and write self.data_preparator initialization logic.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         transformer_layers_type: tp.Type[TransformerLayersBase],
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase],
@@ -1071,6 +1132,7 @@ class TransformerModelBase(ModelBase):
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
         loss: str = "softmax",
+        gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
         verbose: int = 0,
@@ -1115,6 +1177,7 @@ class TransformerModelBase(ModelBase):
         self.i2i_dist = Distance.COSINE
         self.lr = lr
         self.loss = loss
+        self.gbce_t = gbce_t
 
     def _fit(
         self,
@@ -1126,7 +1189,14 @@ class TransformerModelBase(ModelBase):
         torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         torch_model.construct_item_net(processed_dataset)
 
-        self.lightning_model = self.lightning_module_type(torch_model, self.lr, self.loss)
+        n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
+        self.lightning_model = self.lightning_module_type(
+            torch_model=torch_model,
+            lr=self.lr,
+            loss=self.loss,
+            gbce_t=self.gbce_t,
+            n_item_extra_tokens=n_item_extra_tokens,
+        )
 
         self.trainer = deepcopy(self._trainer)
         self.trainer.fit(self.lightning_model, train_dataloader)
@@ -1144,7 +1214,7 @@ class TransformerModelBase(ModelBase):
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
-        dataset: Dataset,  # [n_rec_users x n_items + n_special_tokens]
+        dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
@@ -1163,7 +1233,7 @@ class TransformerModelBase(ModelBase):
             ranker = ImplicitRanker(
                 self.u2i_dist,
                 user_embs,  # [n_rec_users, n_factors]
-                item_embs_np,  # [n_items + n_special_tokens, n_factors]
+                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
             )
             if filter_viewed:
                 user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -1176,7 +1246,7 @@ class TransformerModelBase(ModelBase):
             user_ids_indices, all_reco_ids, all_scores = ranker.rank(
                 subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
                 k=k,
-                filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + 1]
+                filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
                 sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
                 num_threads=self.n_threads,
             )
@@ -1202,8 +1272,8 @@ class TransformerModelBase(ModelBase):
 
         ranker = ImplicitRanker(
             self.i2i_dist,
-            item_embs,  # [n_items + n_special_tokens, n_factors]
-            item_embs,  # [n_items + n_special_tokens, n_factors]
+            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
+            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
         )
         return ranker.rank(
             subject_ids=target_ids,  # model internal
@@ -1238,6 +1308,8 @@ class SASRecModel(TransformerModelBase):
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
+        n_negatives: int = 1,
+        gbce_t: float = 0.2,
         lr: float = 0.01,
         epochs: int = 3,
         verbose: int = 0,
@@ -1252,29 +1324,31 @@ class SASRecModel(TransformerModelBase):
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(
-            transformer_layers_type,
-            data_preparator_type,
-            n_blocks,
-            n_heads,
-            n_factors,
-            use_pos_emb,
-            use_causal_attn,
-            use_key_padding_mask,
-            dropout_rate,
-            session_max_len,
-            loss,
-            lr,
-            epochs,
-            verbose,
-            deterministic,
-            cpu_n_threads,
-            trainer,
-            item_net_block_types,
-            pos_encoding_type,
-            lightning_module_type,
+            transformer_layers_type=transformer_layers_type,
+            data_preparator_type=data_preparator_type,
+            n_blocks=n_blocks,
+            n_heads=n_heads,
+            n_factors=n_factors,
+            use_pos_emb=use_pos_emb,
+            use_causal_attn=use_causal_attn,
+            use_key_padding_mask=use_key_padding_mask,
+            dropout_rate=dropout_rate,
+            session_max_len=session_max_len,
+            loss=loss,
+            gbce_t=gbce_t,
+            lr=lr,
+            epochs=epochs,
+            verbose=verbose,
+            deterministic=deterministic,
+            cpu_n_threads=cpu_n_threads,
+            trainer=trainer,
+            item_net_block_types=item_net_block_types,
+            pos_encoding_type=pos_encoding_type,
+            lightning_module_type=lightning_module_type,
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
+            n_negatives=n_negatives if loss != "softmax" else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interaction,

@@ -564,11 +564,11 @@ class TestSASRecDataPreparator:
         "train_batch",
         (
             (
-                [
-                    torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
-                    torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
-                    torch.tensor([[1.0, 1.0, 1.0], [0.0, 2.0, 1.0], [0.0, 0.0, 1.0]]),
-                ]
+                {
+                    "x": torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
+                    "y": torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
+                    "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 2.0, 1.0], [0.0, 0.0, 1.0]]),
+                }
             ),
         ),
     )
@@ -578,12 +578,12 @@ class TestSASRecDataPreparator:
         dataset = data_preparator.process_dataset_train(dataset)
         dataloader = data_preparator.get_dataloader_train(dataset)
         actual = next(iter(dataloader))
-        for i, value in enumerate(actual):
-            assert torch.equal(value, train_batch[i])
+        for key, value in actual.items():
+            assert torch.equal(value, train_batch[key])
 
     @pytest.mark.parametrize(
         "recommend_batch",
-        ((torch.tensor([[2, 3, 6], [1, 3, 2], [0, 2, 4], [0, 0, 6]])),),
+        (({"x": torch.tensor([[2, 3, 6], [1, 3, 2], [0, 2, 4], [0, 0, 6]])}),),
     )
     def test_get_dataloader_recommend(
         self, dataset: Dataset, data_preparator: SASRecDataPreparator, recommend_batch: torch.Tensor
@@ -592,7 +592,8 @@ class TestSASRecDataPreparator:
         dataset = data_preparator.transform_dataset_i2i(dataset)
         dataloader = data_preparator.get_dataloader_recommend(dataset)
         actual = next(iter(dataloader))
-        assert torch.equal(actual, recommend_batch)
+        for key, value in actual.items():
+            assert torch.equal(value, recommend_batch[key])
 
 
 class TestIdEmbeddingsItemNet:
@@ -666,11 +667,11 @@ class TestCatFeaturesItemNet:
         )
         return ds
 
-    def test_feature_catalogue(self, dataset_item_features: Dataset) -> None:
+    def test_feature_catalog(self, dataset_item_features: Dataset) -> None:
         cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
-        expected_feature_catalogue = torch.arange(0, cat_item_embeddings.n_cat_features)
-        assert torch.equal(cat_item_embeddings.feature_catalogue, expected_feature_catalogue)
+        expected_feature_catalog = torch.arange(0, cat_item_embeddings.n_cat_features)
+        assert torch.equal(cat_item_embeddings.feature_catalog, expected_feature_catalog)
 
     def test_get_dense_item_features(self, dataset_item_features: Dataset) -> None:
         items = torch.from_numpy(
@@ -828,12 +829,12 @@ class TestItemNetConstructor:
         )
         return ds
 
-    def test_catalogue(self) -> None:
+    def test_catalog(self) -> None:
         item_net = ItemNetConstructor.from_dataset(
             DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=(IdEmbeddingsItemNet,)
         )
-        expected_feature_catalogue = torch.arange(0, DATASET.item_id_map.size)
-        assert torch.equal(item_net.catalogue, expected_feature_catalogue)
+        expected_feature_catalog = torch.arange(0, DATASET.item_id_map.size)
+        assert torch.equal(item_net.catalog, expected_feature_catalog)
 
     @pytest.mark.parametrize(
         "item_net_block_types,n_factors",
