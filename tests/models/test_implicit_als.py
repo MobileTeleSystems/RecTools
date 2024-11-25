@@ -365,10 +365,9 @@ class TestImplicitALSWrapperModel:
                 k=2,
             )
 
-    # TODO: move this test to `partial_fit` method when implemented
     @pytest.mark.parametrize("fit_features_together", (False, True))
     @pytest.mark.parametrize("use_features_in_dataset", (False, True))
-    def test_per_epoch_fitting_consistent_with_regular_fitting(
+    def test_per_epoch_partial_fit_consistent_with_regular_fit(
         self,
         dataset: Dataset,
         dataset_w_features: Dataset,
@@ -392,11 +391,32 @@ class TestImplicitALSWrapperModel:
         )
         model_2 = ImplicitALSWrapperModel(model=base_model_2, fit_features_together=fit_features_together)
         for _ in range(iterations):
-            model_2.fit(dataset, epochs=1)
-            model_2._model = deepcopy(model_2.model)  # pylint: disable=protected-access
+            model_2.fit_partial(dataset, epochs=1)
 
         assert np.allclose(get_users_vectors(model_1.model), get_users_vectors(model_2.model))
         assert np.allclose(get_items_vectors(model_1.model), get_items_vectors(model_2.model))
+
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    @pytest.mark.parametrize("use_features_in_dataset", (False, True))
+    def test_per_epoch_model_iterations(
+        self,
+        dataset: Dataset,
+        dataset_w_features: Dataset,
+        fit_features_together: bool,
+        use_features_in_dataset: bool,
+        use_gpu: bool,
+    ) -> None:
+        if use_features_in_dataset:
+            dataset = dataset_w_features
+
+        iterations = 20
+        base_model = AlternatingLeastSquares(
+            factors=2, num_threads=2, iterations=iterations, random_state=32, use_gpu=use_gpu
+        )
+        model = ImplicitALSWrapperModel(model=base_model, fit_features_together=fit_features_together)
+        for n_epoch in range(iterations):
+            model.fit_partial(dataset, epochs=1)
+            assert model.model.iterations == n_epoch + 1
 
     def test_dumps_loads(self, use_gpu: bool, dataset: Dataset) -> None:
         model = ImplicitALSWrapperModel(model=AlternatingLeastSquares(use_gpu=use_gpu))
