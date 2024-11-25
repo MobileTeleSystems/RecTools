@@ -298,7 +298,8 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
     def fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
         """
-        Fit model. Unlike `fit`, repeated calls to this method will cause training to resume from the current model state.
+        Fit model. Unlike `fit`, repeated calls to this method will cause training to resume from
+        the current model state.
 
         Parameters
         ----------
