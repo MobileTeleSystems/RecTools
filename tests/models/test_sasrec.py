@@ -667,11 +667,11 @@ class TestCatFeaturesItemNet:
         )
         return ds
 
-    def test_feature_catalogue(self, dataset_item_features: Dataset) -> None:
+    def test_feature_catalog(self, dataset_item_features: Dataset) -> None:
         cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
-        expected_feature_catalogue = torch.arange(0, cat_item_embeddings.n_cat_features)
-        assert torch.equal(cat_item_embeddings.feature_catalogue, expected_feature_catalogue)
+        expected_feature_catalog = torch.arange(0, cat_item_embeddings.n_cat_features)
+        assert torch.equal(cat_item_embeddings.feature_catalog, expected_feature_catalog)
 
     def test_get_dense_item_features(self, dataset_item_features: Dataset) -> None:
         items = torch.from_numpy(
@@ -829,12 +829,12 @@ class TestItemNetConstructor:
         )
         return ds
 
-    def test_catalogue(self) -> None:
+    def test_catalog(self) -> None:
         item_net = ItemNetConstructor.from_dataset(
             DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=(IdEmbeddingsItemNet,)
         )
-        expected_feature_catalogue = torch.arange(0, DATASET.item_id_map.size)
-        assert torch.equal(item_net.catalogue, expected_feature_catalogue)
+        expected_feature_catalog = torch.arange(0, DATASET.item_id_map.size)
+        assert torch.equal(item_net.catalog, expected_feature_catalog)
 
     @pytest.mark.parametrize(
         "item_net_block_types,n_factors",

@@ -105,14 +105,14 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
+        device = self.category_embeddings.weight.device
         # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
-        feature_dense.to(items.device)
 
-        feature_embs = self.category_embeddings(self.feature_catalog.to(items.device))
+        feature_embs = self.category_embeddings(self.feature_catalog.to(device))
         feature_embs = self.drop_layer(feature_embs)
 
-        feature_embeddings_per_items = feature_dense @ feature_embs
+        feature_embeddings_per_items = feature_dense.to(device) @ feature_embs
         return feature_embeddings_per_items
 
     @property
@@ -218,7 +218,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        item_embs = self.ids_emb(items)
+        item_embs = self.ids_emb(items.to(self.ids_emb.weight.device))
         item_embs = self.drop_layer(item_embs)
         return item_embs
 
@@ -983,8 +983,12 @@ class SessionEncoderLightningModuleBase(LightningModule):
         optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
         return optimizer
 
-    def training_step(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
+        raise NotImplementedError()
+
+    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Prediction step."""
         raise NotImplementedError()
 
 
@@ -996,7 +1000,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         # TODO: init padding embedding with zeros
         self._xavier_normal_init()
 
-    def training_step(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """TODO"""
         x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
@@ -1029,7 +1033,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
         # https://arxiv.org/pdf/2308.07192.pdf
-        alpha = n_negatives / (n_items - self.n_item_extra_tokens - 1)
+        alpha = n_negatives / (n_items - 1)  # sampling rate
         beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
 
         pos_logits = logits[:, :, 0:1].to(torch.float64)
@@ -1081,9 +1085,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def _calc_gbce_loss(
         self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
     ) -> torch.Tensor:
-        n_items = self.torch_model.item_model.n_items
+        n_actual_items = self.torch_model.item_model.n_items - self.n_item_extra_tokens
         n_negatives = negatives.shape[2]
-        logits = self._get_reduced_overconfidence_logits(logits, n_items, n_negatives)
+        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
         loss = self._calc_bce_loss(logits, y, w)
         return loss
 
@@ -1092,7 +1096,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         self.eval()
         self.item_embs = self.torch_model.item_model.get_all_embeddings()
 
-    def predict_step(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """
         Prediction step.
         Encode user sessions.
