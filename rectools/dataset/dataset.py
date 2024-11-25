@@ -102,6 +102,7 @@ class Dataset:
         item_features_df: tp.Optional[pd.DataFrame] = None,
         cat_item_features: tp.Iterable[str] = (),
         make_dense_item_features: bool = False,
+        keep_extra_cols: bool = False,
     ) -> "Dataset":
         """Class method for convenient `Dataset` creation.
 
@@ -133,6 +134,8 @@ class Dataset:
             Used only if `user_features_df` (`item_features_df`) is not ``None``.
             - if ``False``, `SparseFeatures.from_flatten` method will be used;
             - if ``True``,  `DenseFeatures.from_dataframe` method will be used.
+        keep_extra_cols: bool, default ``False``
+            Flag to keep all columns from interactions besides the default ones.
 
         Returns
         -------
@@ -144,7 +147,7 @@ class Dataset:
                 raise KeyError(f"Column '{col}' must be present in `interactions_df`")
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
-        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map, keep_extra_cols)
 
         user_features, user_id_map = cls._make_features(
             user_features_df,
@@ -231,7 +234,9 @@ class Dataset:
         matrix.resize(n_rows, n_columns)
         return matrix
 
-    def get_raw_interactions(self, include_weight: bool = True, include_datetime: bool = True) -> pd.DataFrame:
+    def get_raw_interactions(
+        self, include_weight: bool = True, include_datetime: bool = True, include_extra_cols: bool = True
+    ) -> pd.DataFrame:
         """
         Return interactions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.
 
@@ -241,12 +246,16 @@ class Dataset:
             Whether to include weight column into resulting table or not.
         include_datetime : bool, default ``True``
             Whether to include datetime column into resulting table or not.
+        include_extra_cols: bool, default ``True``
+            Whether to include extra columns into resulting table or not.
 
         Returns
         -------
         pd.DataFrame
         """
-        return self.interactions.to_external(self.user_id_map, self.item_id_map, include_weight, include_datetime)
+        return self.interactions.to_external(
+            self.user_id_map, self.item_id_map, include_weight, include_datetime, include_extra_cols
+        )
 
     def filter_interactions(
         self,
