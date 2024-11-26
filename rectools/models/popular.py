@@ -149,6 +149,7 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+        **kwargs: tp.Any,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         popularity_list = self._get_filtered_popularity_list(sorted_item_ids_to_recommend)
 
@@ -198,6 +199,7 @@ class PopularModel(FixedColdRecoModelMixin, ModelBase):
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
+        **kwargs: tp.Any,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         _, single_reco, single_scores = self._recommend_u2i(
             user_ids=dataset.user_id_map.internal_ids[:1],
