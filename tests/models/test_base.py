@@ -16,10 +16,14 @@
 
 import typing as tp
 import warnings
+from datetime import timedelta
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryFile
 
 import numpy as np
 import pandas as pd
 import pytest
+import typing_extensions as tpe
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -29,16 +33,18 @@ from rectools.models.base import (
     FixedColdRecoModelMixin,
     InternalRecoTriplet,
     ModelBase,
+    ModelConfig,
     Scores,
     SemiInternalRecoTriplet,
 )
 from rectools.types import ExternalIds, InternalIds
+from rectools.utils.config import BaseConfig
 
 from .data import DATASET, INTERACTIONS
 
 
 def test_raise_when_recommend_u2i_from_not_fitted() -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     with pytest.raises(NotFittedError):
         model.recommend(
             users=np.array([]),
@@ -49,7 +55,7 @@ def test_raise_when_recommend_u2i_from_not_fitted() -> None:
 
 
 def test_raise_when_recommend_i2i_from_not_fitted() -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     with pytest.raises(NotFittedError):
         model.recommend_to_items(
             target_items=np.array([]),
@@ -60,7 +66,7 @@ def test_raise_when_recommend_i2i_from_not_fitted() -> None:
 
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     model.is_fitted = True
     with pytest.raises(ValueError):
         model.recommend(
@@ -73,7 +79,7 @@ def test_raise_when_k_is_not_positive_u2i(k: int) -> None:
 
 @pytest.mark.parametrize("k", (-4, 0))
 def test_raise_when_k_is_not_positive_i2i(k: int) -> None:
-    model = ModelBase()
+    model: ModelBase[ModelConfig] = ModelBase()
     model.is_fitted = True
     with pytest.raises(ValueError):
         model.recommend_to_items(
@@ -424,6 +430,151 @@ class TestHotWarmCold:
     def test_raises_on_incorrect_cold_targets_type(self, dataset_key: str, kind: str, model_key: str) -> None:
         with pytest.raises(TypeError):
             self._get_reco(["some_id"], model_key, dataset_key, kind)
+
+
+class TestConfiguration:
+
+    def setup_method(self) -> None:
+        class SomeModelSubConfig(BaseConfig):
+            td: timedelta
+
+        class SomeModelConfig(ModelConfig):
+            x: int
+            sc: tp.Optional[SomeModelSubConfig] = None
+
+        class SomeModel(ModelBase[SomeModelConfig]):
+            config_class = SomeModelConfig
+
+            def __init__(self, x: int, td: tp.Optional[timedelta] = None, verbose: int = 0):
+                super().__init__(verbose=verbose)
+                self.x = x
+                self.td = td
+
+            def _get_config(self) -> SomeModelConfig:
+                sc = None if self.td is None else SomeModelSubConfig(td=self.td)
+                return SomeModelConfig(x=self.x, sc=sc, verbose=self.verbose)
+
+            @classmethod
+            def _from_config(cls, config: SomeModelConfig) -> tpe.Self:
+                td = None if config.sc is None else config.sc.td
+                return cls(x=config.x, td=td, verbose=config.verbose)
+
+        self.config_class = SomeModelConfig
+        self.model_class = SomeModel
+
+    def test_from_pydantic_config(self) -> None:
+        config = self.config_class(x=10, verbose=1)
+        model = self.model_class.from_config(config)
+        assert model.x == 10
+        assert model.td is None
+        assert model.verbose == 1
+
+    @pytest.mark.parametrize("td", (timedelta(days=2, hours=3), "P2DT3H"))
+    def test_from_config_dict(self, td: tp.Union[timedelta, str]) -> None:
+        config = {"x": 10, "verbose": 1, "sc": {"td": td}}
+        model = self.model_class.from_config(config)
+        assert model.x == 10
+        assert model.td == timedelta(days=2, hours=3)
+        assert model.verbose == 1
+
+    def test_from_config_dict_with_missing_keys(self) -> None:
+        config = {"verbose": 1}
+        with pytest.raises(ValueError, match="1 validation error for SomeModelConfig\nx\n  Field required"):
+            self.model_class.from_config(config)
+
+    def test_from_config_dict_with_extra_keys(self) -> None:
+        config = {"x": 10, "extra": "extra"}
+        with pytest.raises(
+            ValueError, match="1 validation error for SomeModelConfig\nextra\n  Extra inputs are not permitted"
+        ):
+            self.model_class.from_config(config)
+
+    def test_get_config_pydantic(self) -> None:
+        model = self.model_class(x=10, verbose=1)
+        config = model.get_config(mode="pydantic")
+        assert config == self.config_class(x=10, verbose=1)
+
+    def test_raises_on_pydantic_with_simple_types(self) -> None:
+        model = self.model_class(x=10, verbose=1)
+        with pytest.raises(ValueError, match="`simple_types` is not compatible with `mode='pydantic'"):
+            model.get_config(mode="pydantic", simple_types=True)
+
+    @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
+    def test_get_config_dict(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
+        model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
+        config = model.get_config(mode="dict", simple_types=simple_types)
+        assert config == {"x": 10, "verbose": 1, "sc": {"td": expected_td}}
+
+    def test_raises_on_incorrect_format(self) -> None:
+        model = self.model_class(x=10, verbose=1)
+        with pytest.raises(ValueError, match="Unknown mode:"):
+            model.get_config(mode="incorrect_mode")  # type: ignore[call-overload]
+
+    @pytest.mark.parametrize("simple_types, expected_td", ((False, timedelta(days=2, hours=3)), (True, "P2DT3H")))
+    def test_get_params(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
+        model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
+        config = model.get_params(simple_types=simple_types)
+        assert config == {"x": 10, "verbose": 1, "sc.td": expected_td}
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_params_with_empty_subconfig(self, simple_types: bool) -> None:
+        model = self.model_class(x=10, verbose=1, td=None)
+        config = model.get_params(simple_types=simple_types)
+        assert config == {"x": 10, "verbose": 1, "sc": None}
+
+    def test_model_without_implemented_config_from_config(self) -> None:
+        class MyModelWithoutConfig(ModelBase):
+            pass
+
+        with pytest.raises(
+            NotImplementedError, match="`from_config` method is not implemented for `MyModelWithoutConfig` model."
+        ):
+            MyModelWithoutConfig.from_config({})
+
+    def test_model_without_implemented_config_get_config(self) -> None:
+        class MyModelWithoutConfig(ModelBase):
+            pass
+
+        with pytest.raises(
+            NotImplementedError, match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
+        ):
+            MyModelWithoutConfig().get_config()
+
+
+class MyModel(ModelBase):
+    def __init__(self, x: int = 10, verbose: int = 0):
+        super().__init__(verbose=verbose)
+        self.x = x
+
+
+class TestSavingAndLoading:
+
+    @pytest.fixture()
+    def model(self) -> MyModel:
+        return MyModel()
+
+    def test_save_and_load_to_file(self, model: MyModel) -> None:
+        with TemporaryFile() as f:
+            model.save(f)
+            f.seek(0)
+            loaded_model = MyModel.load(f)
+        assert isinstance(loaded_model, MyModel)
+        assert loaded_model.__dict__ == model.__dict__
+
+    @pytest.mark.parametrize("use_str", (False, True))
+    def test_save_and_load_from_path(self, model: MyModel, use_str: bool) -> None:
+        with NamedTemporaryFile() as f:
+            path: tp.Union[Path, str] = Path(f.name) if not use_str else f.name
+            model.save(path)
+            loaded_model = MyModel.load(path)
+        assert isinstance(loaded_model, MyModel)
+        assert loaded_model.__dict__ == model.__dict__
+
+    def test_load_fails_on_incorrect_model_type(self, model: MyModel) -> None:
+        with NamedTemporaryFile() as f:
+            model.save(f.name)
+            with pytest.raises(TypeError, match="Loaded object is not a direct instance of `ModelBase`"):
+                ModelBase.load(f.name)
 
 
 class TestFixedColdRecoModelMixin:
