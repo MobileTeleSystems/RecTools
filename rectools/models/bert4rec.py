@@ -1,5 +1,5 @@
 import typing as tp
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -30,6 +30,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     def __init__(
         self,
         session_max_len: int,
+        n_negatives: tp.Optional[int],
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int,
@@ -39,6 +40,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
+            n_negatives=n_negatives,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interactions,
@@ -65,7 +67,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
-    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+    ) -> Dict[str, torch.Tensor]:
         """TODO"""
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len + 1))
@@ -77,16 +79,25 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len + 1]
             yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len + 1]
 
-        return torch.LongTensor(x), torch.LongTensor(y), torch.FloatTensor(yw)
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        # TODO: we are sampling negatives for paddings
+        if self.n_negatives is not None:
+            negatives = torch.randint(
+                low=self.n_item_extra_tokens,
+                high=self.item_id_map.size,
+                size=(batch_size, self.session_max_len, self.n_negatives),
+            )  # [batch_size, session_max_len, n_negatives]
+            batch_dict["negatives"] = negatives
+        return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> torch.LongTensor:
+    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len + 1))
         for i, (ses, _) in enumerate(batch):
             session = ses.copy()
             session = session + [self.extra_token_ids[MASKING_VALUE]]
             x[i, -len(ses) - 1 :] = session[-self.session_max_len - 1 :]
-        return torch.LongTensor(x)
+        return {"x": torch.LongTensor(x)}
 
 
 class BERT4RecTransformerLayers(TransformerLayersBase):
@@ -154,8 +165,10 @@ class BERT4RecModel(TransformerModelBase):
         deterministic: bool = False,
         cpu_n_threads: int = 0,
         session_max_len: int = 32,
+        n_negatives: int = 1,
         batch_size: int = 128,
         loss: str = "softmax",
+        gbce_t: float = 0.2,
         lr: float = 0.01,
         dataloader_num_workers: int = 0,
         train_min_user_interaction: int = 2,
@@ -182,6 +195,7 @@ class BERT4RecModel(TransformerModelBase):
             deterministic=deterministic,
             cpu_n_threads=cpu_n_threads,
             loss=loss,
+            gbce_t=gbce_t,
             lr=lr,
             session_max_len=session_max_len + 1,
             trainer=trainer,
@@ -191,6 +205,7 @@ class BERT4RecModel(TransformerModelBase):
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
+            n_negatives=n_negatives if loss != "softmax" else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interaction,
