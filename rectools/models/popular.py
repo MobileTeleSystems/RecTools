@@ -225,7 +225,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
 
         self.popularity_list = (items, scores)
 
-    def _recommend_u2i(  # type: ignore
+    def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
         dataset: Dataset,
@@ -275,7 +275,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
 
         return reco, scores
 
-    def _recommend_i2i(  # type: ignore
+    def _recommend_i2i(
         self,
         target_ids: InternalIdsArray,
         dataset: Dataset,

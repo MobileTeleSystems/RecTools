@@ -340,7 +340,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
         on_unsupported_targets: ErrorBehaviour = "raise",
-        **kwargs: tp.Any,
     ) -> pd.DataFrame:
         r"""
         Recommend items for users.
@@ -420,19 +419,17 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_cold = self._init_semi_internal_reco_triplet()
 
         if hot_user_ids.size > 0:
-            reco_hot = self._recommend_u2i(
-                hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend, **kwargs
-            )
+            reco_hot = self._recommend_u2i(hot_user_ids, dataset, k, filter_viewed, sorted_item_ids_to_recommend)
         if warm_user_ids.size > 0:
             if self.recommends_for_warm:
-                reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend, **kwargs)
+                reco_warm = self._recommend_u2i_warm(warm_user_ids, dataset, k, sorted_item_ids_to_recommend)
             else:
                 # TODO: use correct types for numpy arrays and stop ignoring
                 reco_warm = self._recommend_cold(
-                    warm_user_ids, dataset, k, sorted_item_ids_to_recommend, **kwargs
+                    warm_user_ids, dataset, k, sorted_item_ids_to_recommend
                 )  # type: ignore
         if cold_user_ids.size > 0:
-            reco_cold = self._recommend_cold(cold_user_ids, dataset, k, sorted_item_ids_to_recommend, **kwargs)
+            reco_cold = self._recommend_cold(cold_user_ids, dataset, k, sorted_item_ids_to_recommend)
 
         reco_hot = self._adjust_reco_types(reco_hot)
         reco_warm = self._adjust_reco_types(reco_warm)
@@ -466,7 +463,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
         on_unsupported_targets: ErrorBehaviour = "raise",
-        **kwargs: tp.Any,
     ) -> pd.DataFrame:
         """
         Recommend items for target items.
@@ -547,20 +543,20 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_cold = self._init_semi_internal_reco_triplet()
 
         if hot_target_ids.size > 0:
-            reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend, **kwargs)
+            reco_hot = self._recommend_i2i(hot_target_ids, dataset, requested_k, sorted_item_ids_to_recommend)
         if warm_target_ids.size > 0:
             if self.recommends_for_warm:
                 reco_warm = self._recommend_i2i_warm(
-                    warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend, **kwargs
+                    warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend
                 )
             else:
                 # TODO: use correct types for numpy arrays and stop ignoring
                 reco_warm = self._recommend_cold(
-                    warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend, **kwargs
+                    warm_target_ids, dataset, requested_k, sorted_item_ids_to_recommend
                 )  # type: ignore
         if cold_target_ids.size > 0:
             # We intentionally request `k` and not `requested_k` here since we're not going to filter cold reco later
-            reco_cold = self._recommend_cold(cold_target_ids, dataset, k, sorted_item_ids_to_recommend, **kwargs)
+            reco_cold = self._recommend_cold(cold_target_ids, dataset, k, sorted_item_ids_to_recommend)
 
         reco_hot = self._adjust_reco_types(reco_hot)
         reco_warm = self._adjust_reco_types(reco_warm)
@@ -736,7 +732,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
-        **kwargs: tp.Any,
     ) -> SemiInternalRecoTriplet:
         raise NotImplementedError()
 
@@ -746,7 +741,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
-        **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
@@ -756,7 +750,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
-        **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
@@ -767,7 +760,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         k: int,
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
-        **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
@@ -777,7 +769,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
-        **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
@@ -795,7 +786,6 @@ class FixedColdRecoModelMixin:
         dataset: Dataset,
         k: int,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
-        **kwargs: tp.Any,
     ) -> SemiInternalRecoTriplet:
         item_ids, scores = self._get_cold_reco(dataset, k, sorted_item_ids_to_recommend)
         reco_target_ids = np.repeat(target_ids, len(item_ids))
