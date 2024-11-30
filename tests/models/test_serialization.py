@@ -4,7 +4,13 @@ from tempfile import NamedTemporaryFile
 import pytest
 from implicit.als import AlternatingLeastSquares
 from implicit.nearest_neighbours import ItemItemRecommender
-from lightfm import LightFM
+
+try:
+    from lightfm import LightFM
+except ImportError:
+    LightFM = object  # it's ok in case we're skipping the tests
+
+import sys
 
 from rectools.models import (
     ImplicitALSWrapperModel,
@@ -17,7 +23,11 @@ from rectools.models.base import ModelBase
 
 from .utils import get_final_successors
 
-MODEL_CLASSES = [cls for cls in get_final_successors(ModelBase) if cls.__module__.startswith("rectools.models")]
+MODEL_CLASSES = [
+    cls
+    for cls in get_final_successors(ModelBase)
+    if cls.__module__.startswith("rectools.models") and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
+]
 
 
 def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
