@@ -22,7 +22,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typing_extensions as tpe
-from pydantic import PlainSerializer
 from pydantic_core import PydanticSerializationError
 
 from rectools import Columns, ExternalIds, InternalIds
@@ -32,6 +31,7 @@ from rectools.exceptions import NotFittedError
 from rectools.types import ExternalIdsArray, InternalIdsArray
 from rectools.utils.config import BaseConfig
 from rectools.utils.misc import make_dict_flat
+from rectools.utils.serialization import PICKLE_PROTOCOL, FileLike, read_bytes
 
 T = tp.TypeVar("T", bound="ModelBase")
 ScoresArray = np.ndarray
@@ -43,24 +43,6 @@ SemiInternalRecoTriplet = tp.Tuple[ExternalIds, InternalIds, Scores]
 ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
-
-FileLike = tp.Union[str, Path, tp.IO[bytes]]
-
-PICKLE_PROTOCOL = 5
-
-
-def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.RandomState]]) -> tp.Union[None, int]:
-    if rs is None or isinstance(rs, int):
-        return rs
-
-    # NOBUG: We can add serialization using get/set_state, but it's not human readable
-    raise TypeError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
-
-
-RandomState = tpe.Annotated[
-    tp.Union[None, int, np.random.RandomState],
-    PlainSerializer(func=_serialize_random_state, when_used="json"),
-]
 
 
 class ModelConfig(BaseConfig):
@@ -244,10 +226,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         model
             Model instance.
         """
-        if isinstance(f, (str, Path)):
-            data = Path(f).read_bytes()
-        else:
-            data = f.read()
+        data = read_bytes(f)
 
         return cls.loads(data)
 
