@@ -398,7 +398,8 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-        # `dataset.item_id_map.external_dtype` can change
+        # `dataset.user_id_map.external_dtype`, `dataset.item_id_map.external_dtype` can change
+        original_user_type = dataset.user_id_map.external_dtype
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
@@ -439,13 +440,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
 
-        reco_hot_final = self._adjust_reco_types(reco_hot_final, dataset.user_id_map.external_dtype, original_item_type)
-        reco_warm_final = self._adjust_reco_types(
-            reco_warm_final, dataset.user_id_map.external_dtype, original_item_type
-        )
-        reco_cold_final = self._adjust_reco_types(
-            reco_cold_final, dataset.user_id_map.external_dtype, original_item_type
-        )
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_user_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_user_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_user_type, original_item_type)
 
         del reco_hot, reco_warm, reco_cold
 
