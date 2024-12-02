@@ -943,111 +943,28 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
 # ####  --------------  Lightning Model  --------------  #### #
 
 
-class SessionEncoderLightningModuleBase(LightningModule):
-    """
-    Base class for lightning module. To change train procedure inherit
-    from this class and pass your custom LightningModule to your model parameters.
+class LossCalculatorBase(nn.Module):
+    """TODO"""
 
-    Parameters
-    ----------
-    torch_model: TransformerBasedSessionEncoder
-        Torch model to make recommendations.
-    lr: float
-        Learning rate.
-    loss: str, default "softmax"
-        Loss function.
-    adam_betas: Tuple[float, float], default (0.9, 0.98)
-        Coefficients for running averages of gradient and its square.
-    """
-
-    def __init__(
-        self,
-        torch_model: TransformerBasedSessionEncoder,
-        lr: float,
-        gbce_t: float,
-        n_item_extra_tokens: int,
-        loss: str = "softmax",
-        adam_betas: Tuple[float, float] = (0.9, 0.98),
-    ):
+    def __init__(self) -> None:
         super().__init__()
-        self.lr = lr
-        self.loss = loss
-        self.torch_model = torch_model
-        self.adam_betas = adam_betas
-        self.gbce_t = gbce_t
-        self.n_item_extra_tokens = n_item_extra_tokens
-        self.item_embs: torch.Tensor
 
-    def configure_optimizers(self) -> torch.optim.Adam:
-        """Choose what optimizers and learning-rate schedulers to use in optimization"""
-        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        return optimizer
-
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        """Training step."""
-        raise NotImplementedError()
-
-    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        """Prediction step."""
-        raise NotImplementedError()
-
-
-class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
-    """Lightning module to train SASRec model."""
-
-    def on_train_start(self) -> None:
-        """Initialize parameters with values from Xavier normal distribution."""
-        # TODO: init padding embedding with zeros
-        self._xavier_normal_init()
-
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def forward(
+        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+    ) -> torch.Tensor:
         """TODO"""
-        x, y, w = batch["x"], batch["y"], batch["yw"]
-        if self.loss == "softmax":
-            logits = self._get_full_catalog_logits(x)
-            return self._calc_softmax_loss(logits, y, w)
-        if self.loss == "BCE":
-            negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
-            return self._calc_bce_loss(logits, y, w)
-        if self.loss == "gBCE":
-            negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
-            return self._calc_gbce_loss(logits, y, w, negatives)
+        raise NotImplementedError()
 
-        raise ValueError(f"loss {self.loss} is not supported")
 
-    def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
-        item_embs, session_embs = self.torch_model(x)
+class SoftmaxLossCalculator(LossCalculatorBase):
+    """TODO"""
+
+    def forward(
+        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+    ) -> torch.Tensor:
+        """TODO"""
         logits = session_embs @ item_embs.T
-        return logits
-
-    def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
-        # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
-        item_embs, session_embs = self.torch_model(x)
-        pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-        pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        # [batch_size, session_max_len, n_negatives + 1]
-        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
-        return logits
-
-    def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
-        # https://arxiv.org/pdf/2308.07192.pdf
-        alpha = n_negatives / (n_items - 1)  # sampling rate
-        beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
-
-        pos_logits = logits[:, :, 0:1].to(torch.float64)
-        neg_logits = logits[:, :, 1:].to(torch.float64)
-
-        epsilon = 1e-10
-        pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
-        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(torch.float64).max)
-        pos_probs_adjusted = torch.clamp(
-            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(torch.float64).max
-        )
-        pos_logits_transformed = torch.log(pos_probs_adjusted)
-        logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
-        return logits
+        return self._calc_softmax_loss(logits, batch["y"], batch["yw"])
 
     @classmethod
     def _calc_softmax_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
@@ -1069,12 +986,35 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss = torch.sum(loss) / torch.sum(n)
         return loss
 
+
+class BCELossCalculator(LossCalculatorBase):
+    """TODO"""
+
+    def forward(
+        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+    ) -> torch.Tensor:
+        """TODO"""
+        logits = self._get_pos_neg_logits(batch, item_embs, session_embs)
+        return self._calc_bce_loss(batch, logits)
+
+    def _get_pos_neg_logits(
+        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+    ) -> torch.Tensor:
+        y, negatives = batch["y"], batch["negatives"]
+        # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
+        pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+        pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
+        # [batch_size, session_max_len, n_negatives + 1]
+        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
+        return logits
+
     @classmethod
-    def _calc_bce_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+    def _calc_bce_loss(cls, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+        y, w = batch["y"], batch["yw"]
+
         mask = y != 0
         target = torch.zeros_like(logits)
         target[:, :, 0] = 1
-
         loss = torch.nn.functional.binary_cross_entropy_with_logits(
             logits, target, reduction="none"
         )  # [batch_size, session_max_len, n_negatives + 1]
@@ -1082,14 +1022,117 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
 
-    def _calc_gbce_loss(
-        self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
+
+class GBCELossCalculator(BCELossCalculator):
+    """TODO"""
+
+    def __init__(self, gbce_t: float, n_actual_items: int) -> None:
+        super().__init__()
+        self.gbce_t = gbce_t
+        self.n_actual_items = n_actual_items
+
+    def forward(
+        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - self.n_item_extra_tokens
-        n_negatives = negatives.shape[2]
-        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
-        loss = self._calc_bce_loss(logits, y, w)
+        """TODO"""
+        logits = self._get_pos_neg_logits(batch, item_embs, session_embs)
+        return self._calc_gbce_loss(batch, logits)
+
+    def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_negatives: int) -> torch.Tensor:
+        # https://arxiv.org/pdf/2308.07192.pdf
+        alpha = n_negatives / (self.n_actual_items - 1)  # negatives sampling rate
+        beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
+
+        pos_logits = logits[:, :, 0:1].to(torch.float64)
+        neg_logits = logits[:, :, 1:].to(torch.float64)
+
+        epsilon = 1e-10
+        pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
+        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(torch.float64).max)
+        pos_probs_adjusted = torch.clamp(
+            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(torch.float64).max
+        )
+        pos_logits_transformed = torch.log(pos_probs_adjusted)
+        logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
+        return logits
+
+    def _calc_gbce_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+        n_negatives = batch["negatives"].shape[2]
+        logits = self._get_reduced_overconfidence_logits(logits, n_negatives)
+        loss = self._calc_bce_loss(batch, logits)
         return loss
+
+
+class SessionEncoderLightningModuleBase(LightningModule):
+    """
+    Base class for lightning module. To change train procedure inherit
+    from this class and pass your custom LightningModule to your model parameters.
+
+    Parameters
+    ----------
+    torch_model: TransformerBasedSessionEncoder
+        Torch model to make recommendations.
+    lr: float
+        Learning rate.
+    loss:  tp.Union[tp.Literal["softmax", "BCE", "gBCE"], LossCalculatorBase], default "softmax"
+        Loss function.
+    adam_betas: Tuple[float, float], default (0.9, 0.98)
+        Coefficients for running averages of gradient and its square.
+    """
+
+    def __init__(
+        self,
+        torch_model: TransformerBasedSessionEncoder,
+        lr: float,
+        gbce_t: float,
+        n_actual_items: int,
+        loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
+        adam_betas: Tuple[float, float] = (0.9, 0.98),
+        **kwargs: tp.Any,
+    ):
+        super().__init__()
+        self.lr = lr
+        self.loss = loss
+        self.torch_model = torch_model
+        self.adam_betas = adam_betas
+        self.gbce_t = gbce_t
+        self.item_embs: torch.Tensor
+        self.loss_calculator = self._init_loss(loss, n_actual_items)
+
+    def _init_loss(
+        self, loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], LossCalculatorBase], n_actual_items: int
+    ) -> LossCalculatorBase:
+        if loss == "softmax":
+            return SoftmaxLossCalculator()
+        if loss == "BCE":
+            return BCELossCalculator()
+        if loss == "gBCE":
+            return GBCELossCalculator(self.gbce_t, n_actual_items)
+        if isinstance(loss, LossCalculatorBase):
+            return loss
+        raise ValueError("Unknown loss")
+
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Training step."""
+        raise NotImplementedError()
+
+    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Prediction step."""
+        raise NotImplementedError()
+
+
+class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
+    """Lightning module to train SASRec model."""
+
+    def on_train_start(self) -> None:
+        """Initialize parameters with values from Xavier normal distribution."""
+        # TODO: init padding embedding with zeros
+        self._xavier_normal_init()
+
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """TODO"""
+        item_embs, session_embs = self.torch_model(batch["x"])
+        return self.loss_calculator(batch, item_embs, session_embs)
 
     def on_train_end(self) -> None:
         """Save item embeddings"""
@@ -1103,6 +1146,11 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         """
         encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs)[:, -1, :]
         return encoded_sessions
+
+    def configure_optimizers(self) -> torch.optim.Adam:
+        """Choose what optimizers and learning-rate schedulers to use in optimization"""
+        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
+        return optimizer
 
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
@@ -1131,7 +1179,7 @@ class TransformerModelBase(ModelBase):
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
-        loss: str = "softmax",
+        loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
         gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
@@ -1189,13 +1237,13 @@ class TransformerModelBase(ModelBase):
         torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         torch_model.construct_item_net(processed_dataset)
 
-        n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
+        n_actual_items = torch_model.item_model.n_items - self.data_preparator.n_item_extra_tokens
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             lr=self.lr,
             loss=self.loss,
             gbce_t=self.gbce_t,
-            n_item_extra_tokens=n_item_extra_tokens,
+            n_actual_items=n_actual_items,
         )
 
         self.trainer = deepcopy(self._trainer)
@@ -1307,7 +1355,7 @@ class SASRecModel(TransformerModelBase):
         session_max_len: int = 32,
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
-        loss: str = "softmax",
+        loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.01,
