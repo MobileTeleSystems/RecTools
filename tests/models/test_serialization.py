@@ -1,3 +1,4 @@
+import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 
@@ -10,7 +11,6 @@ try:
 except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
 
-import sys
 
 from rectools.models import (
     ImplicitALSWrapperModel,
