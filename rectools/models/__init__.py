@@ -43,7 +43,7 @@ from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
 from .pure_svd import PureSVDModel
 from .random import RandomModel
-from .serialization import load_model
+from .serialization import load_model, model_from_config
 
 try:
     from .lightfm import LightFMWrapperModel
@@ -67,4 +67,5 @@ __all__ = (
     "RandomModel",
     "DSSMModel",
     "load_model",
+    "model_from_config",
 )
