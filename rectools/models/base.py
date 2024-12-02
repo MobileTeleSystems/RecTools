@@ -398,7 +398,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-        # `dataset.user_id_map.external_dtype`, `dataset.item_id_map.external_dtype` can change
+        # We are going to lose original dataset object. Save dtype for later
         original_user_type = dataset.user_id_map.external_dtype
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
@@ -517,7 +517,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-        # `dataset.item_id_map.external_dtype` can change
+        # We are going to lose original dataset object. Save dtype for later
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 
