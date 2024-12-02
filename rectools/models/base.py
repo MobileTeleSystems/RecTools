@@ -377,7 +377,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-
+        # We are going to lose original dataset object. Save dtype for later
+        original_user_type = dataset.user_id_map.external_dtype
+        original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
@@ -416,6 +418,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_hot_final = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
         reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_user_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_user_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_user_type, original_item_type)
 
         del reco_hot, reco_warm, reco_cold
 
@@ -490,7 +496,8 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-
+        # We are going to lose original dataset object. Save dtype for later
+        original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
@@ -540,6 +547,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
         del reco_hot, reco_warm, reco_cold
+
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_item_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_item_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_item_type, original_item_type)
 
         reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
         del reco_hot_final, reco_warm_final, reco_cold_final
@@ -633,10 +644,12 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         return hot_targets, warm_targets, cold_targets
 
     @classmethod
-    def _adjust_reco_types(cls, reco: RecoTriplet_T, target_type: tp.Type = np.int64) -> RecoTriplet_T:
+    def _adjust_reco_types(
+        cls, reco: RecoTriplet_T, target_type: tp.Type = np.int64, item_type: tp.Type = np.int64
+    ) -> RecoTriplet_T:
         target_ids, item_ids, scores = reco
         target_ids = np.asarray(target_ids, dtype=target_type)
-        item_ids = np.asarray(item_ids, dtype=np.int64)
+        item_ids = np.asarray(item_ids, dtype=item_type)
         scores = np.asarray(scores, dtype=np.float32)
         return target_ids, item_ids, scores
 
