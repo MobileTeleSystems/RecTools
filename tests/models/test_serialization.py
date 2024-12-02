@@ -18,6 +18,8 @@ from rectools.models import (
     LightFMWrapperModel,
     PopularInCategoryModel,
     load_model,
+    model_from_config,
+    PureSVDModel
 )
 from rectools.models.base import ModelBase
 
@@ -49,3 +51,36 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
         model.save(f.name)
         loaded_model = load_model(f.name)
     assert isinstance(loaded_model, model_cls)
+
+
+class TestModelFromConfig:
+    @pytest.mark.parametrize("model_cls", MODEL_CLASSES)
+    @pytest.mark.parametrize(
+        "mode, simple_types", 
+        (
+            ("pydantic", False),
+            ("dict", False),
+            ("dict", True), 
+        ),
+    )
+    def test_standard_model_creation(self, model_cls: tp.Type[ModelBase], mode: tp.Literal["pydantic", "dict"], simple_types: bool) -> None:
+        model = init_default_model(model_cls)
+        config = model.get_config(mode=mode, simple_types=simple_types)
+
+        new_model = model_from_config(config)
+
+        assert isinstance(new_model, model_cls)
+        assert new_model.get_config(mode=mode, simple_types=simple_types) == config
+
+    def test_custom_model_creation(self) -> None:
+        pass
+
+    def test_fails_on_missing_cls(self) -> None:
+        # check none and missing cls
+        pass
+
+    def test_fails_on_nonexistent_cls(self) -> None:
+        pass
+
+    def test_fails_on_non_model_cls(self) -> None:
+        pass
