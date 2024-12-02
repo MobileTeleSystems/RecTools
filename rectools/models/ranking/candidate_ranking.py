@@ -78,19 +78,35 @@ class Reranker:
         return fit_kwargs
 
     def fit(self, candidates_with_target: pd.DataFrame) -> None:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
         self.model.fit(**fit_kwargs)
 
     def predict_scores(self, candidates: pd.DataFrame) -> pd.Series:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         x_full = candidates.drop(columns=Columns.UserItem)
 
         if isinstance(self.model, ClassifierBase):
-            scores = self.model.predict_proba(x_full)[:, 1]
-        else:
-            scores = self.model.predict(x_full)
-        return scores
+            return self.model.predict_proba(x_full)[:, 1]
+
+        return self.model.predict(x_full)
+
+    @classmethod
+    def recommend(cls, scored_pairs: pd.DataFrame, k: int, add_rank_col: bool = True) -> pd.DataFrame:
+        """TODO: Documentation""" ""
+        # order isn't guaranteed by top_k_by, so we sort afterwards
+        reco = (
+            pl.from_pandas(scored_pairs)
+            .select(pl.all().top_k_by(by=Columns.Score, k=k).over(Columns.User, mapping_strategy="explode"))
+            .select(pl.all().sort_by(by=Columns.Score, descending=True).over(Columns.User))
+            .to_pandas()
+        )
+
+        if add_rank_col:
+            reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
+            
+        # TODO: is reset_index needed?
+        return reco.reset_index(drop=True)
 
 
 class CandidateFeatureCollector:
@@ -553,18 +569,7 @@ class CandidateRankingModel(ModelBase):
 
         train = self.feature_collector.collect_features(candidates, dataset, fold_info=None)
 
-        reco = candidates.reindex(columns=Columns.UserItem)
-        reco[Columns.Score] = self.reranker.predict_scores(train)
+        scored_pairs = candidates.reindex(columns=Columns.UserItem)
+        scored_pairs[Columns.Score] = self.reranker.predict_scores(train)
 
-        # order isn't guaranteed by top_k_by, so we sort afterwards
-        reco = (
-            pl.from_pandas(reco)
-            .select(pl.all().top_k_by(by=Columns.Score, k=k).over(Columns.User, mapping_strategy="explode"))
-            .select(pl.all().sort_by(by=Columns.Score, descending=True).over(Columns.User))
-            .to_pandas()
-        )
-
-        if add_rank_col:
-            reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
-
-        return reco.reset_index(drop=True)
+        return self.reranker.recommend(scored_pairs, k=k, add_rank_col=add_rank_col)
