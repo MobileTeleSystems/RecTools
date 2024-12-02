@@ -1,5 +1,6 @@
 import pickle
 import typing as tp
+
 from rectools.models.base import ModelBase, ModelConfig, deserialize_model_class
 from rectools.utils.serialization import FileLike, read_bytes
 
@@ -37,6 +38,7 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
     model
         Model instance.
     """
+
     def raise_on_none(model_cls: tp.Any) -> None:
         if model_cls is None:
             raise ValueError("`cls` must be provided in the config to load the model")
@@ -49,5 +51,5 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
     else:
         model_cls = config.cls
         raise_on_none(model_cls)
-    
+
     return model_cls.from_config(config)

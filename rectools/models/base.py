@@ -21,8 +21,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from pydantic import BeforeValidator, PlainSerializer
 import typing_extensions as tpe
+from pydantic import BeforeValidator, PlainSerializer
 from pydantic_core import PydanticSerializationError
 
 from rectools import Columns, ExternalIds, InternalIds
@@ -71,6 +71,7 @@ ModelClass = tpe.Annotated[
 
 class ModelConfig(BaseConfig):
     """Base model config."""
+
     cls: tp.Optional[ModelClass] = None
     verbose: int = 0
 
@@ -200,7 +201,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
         if config_obj.cls is not None and config_obj.cls is not cls:
             raise TypeError(f"`{cls.__name__}` is used, but config is for `{config_obj.cls.__name__}`")
-        
+
         return cls._from_config(config_obj)
 
     @classmethod
@@ -763,7 +764,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
 
+
 ModelConfig.model_rebuild()
+
 
 class FixedColdRecoModelMixin:
     """

@@ -17,9 +17,9 @@ from rectools.models import (
     ImplicitItemKNNWrapperModel,
     LightFMWrapperModel,
     PopularInCategoryModel,
+    PureSVDModel,
     load_model,
     model_from_config,
-    PureSVDModel
 )
 from rectools.models.base import ModelBase
 
@@ -56,14 +56,16 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
 class TestModelFromConfig:
     @pytest.mark.parametrize("model_cls", MODEL_CLASSES)
     @pytest.mark.parametrize(
-        "mode, simple_types", 
+        "mode, simple_types",
         (
             ("pydantic", False),
             ("dict", False),
-            ("dict", True), 
+            ("dict", True),
         ),
     )
-    def test_standard_model_creation(self, model_cls: tp.Type[ModelBase], mode: tp.Literal["pydantic", "dict"], simple_types: bool) -> None:
+    def test_standard_model_creation(
+        self, model_cls: tp.Type[ModelBase], mode: tp.Literal["pydantic", "dict"], simple_types: bool
+    ) -> None:
         model = init_default_model(model_cls)
         config = model.get_config(mode=mode, simple_types=simple_types)
 

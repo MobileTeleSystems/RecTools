@@ -75,7 +75,9 @@ class EASEModel(ModelBase[EASEModelConfig]):
         self.num_threads = num_threads
 
     def _get_config(self) -> EASEModelConfig:
-        return EASEModelConfig(cls=self.__class__, regularization=self.regularization, num_threads=self.num_threads, verbose=self.verbose)
+        return EASEModelConfig(
+            cls=self.__class__, regularization=self.regularization, num_threads=self.num_threads, verbose=self.verbose
+        )
 
     @classmethod
     def _from_config(cls, config: EASEModelConfig) -> tpe.Self:
