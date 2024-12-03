@@ -10,6 +10,7 @@ import typing_extensions as tpe
 from pytorch_lightning import LightningModule, Trainer
 from scipy import sparse
 from torch import nn
+from implicit.gpu import HAS_CUDA
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
@@ -1139,14 +1140,16 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         deterministic: bool = False,
         recommend_device: str = "cpu",
         recommend_cpu_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = False,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ) -> None:
         super().__init__(verbose)
-        self.n_recommend_threads = recommend_cpu_n_threads
+        self.recommend_cpu_n_threads = recommend_cpu_n_threads
         self.recommend_device = recommend_device
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
         self._torch_model = TransformerBasedSessionEncoder(
             n_blocks=n_blocks,
             n_factors=n_factors,
@@ -1200,8 +1203,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             n_item_extra_tokens=n_item_extra_tokens,
         )
 
-        trainer = deepcopy(self._trainer)
-        trainer.fit(self.lightning_model, train_dataloader)
+        self.fit_trainer = deepcopy(self._trainer)
+        self.fit_trainer.fit(self.lightning_model, train_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -1224,9 +1227,9 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        trainer = Trainer(devices=1, accelerator=self.recommend_device)
+        recommend_trainer = Trainer(devices=1, accelerator=self.recommend_device)
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
-        session_embs = trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
+        session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
         if session_embs is not None:
             user_embs = np.concatenate(session_embs, axis=0)
             user_embs = user_embs[user_ids]
@@ -1245,13 +1248,14 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
                 ui_csr_for_filter = None
 
             # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
-
+            boooo = True if self.recommend_use_gpu_ranking and HAS_CUDA else False
             user_ids_indices, all_reco_ids, all_scores = ranker.rank(
                 subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
                 k=k,
                 filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
                 sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-                num_threads=self.n_recommend_threads,
+                num_threads=self.recommend_cpu_n_threads,
+                use_gpu=True if self.recommend_use_gpu_ranking and HAS_CUDA else False,
             )
             all_target_ids = user_ids[user_ids_indices]
         else:
@@ -1283,7 +1287,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
-            num_threads=self.n_recommend_threads,
+            num_threads=self.recommend_cpu_n_threads,
+            use_gpu=True if self.recommend_use_gpu_ranking and HAS_CUDA else False,
         )
 
     @property
@@ -1340,6 +1345,8 @@ class SASRecModel(TransformerModelBase):
         Device for recommend. Used at predict_step of lightning module.
     recommend_cpu_n_threads: int, default 0
         Number of threads to use in ranker.
+    recommend_use_gpu_ranking: bool, default ``False``
+        If ``True`` and HAS_CUDA ``True``, sets use_gpu=True in ImplicitRanker.rank.
     trainer: Optional(Trainer), default None
         Which trainer to use for training.
         If trainer is None, default pytorch_lightning Trainer is created.
@@ -1379,6 +1386,7 @@ class SASRecModel(TransformerModelBase):
         deterministic: bool = False,
         recommend_device: str = "cpu",
         recommend_cpu_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = False,
         train_min_user_interaction: int = 2,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
@@ -1406,6 +1414,7 @@ class SASRecModel(TransformerModelBase):
             deterministic=deterministic,
             recommend_device=recommend_device,
             recommend_cpu_n_threads=recommend_cpu_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
