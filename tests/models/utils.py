@@ -15,6 +15,7 @@
 import typing as tp
 from copy import deepcopy
 
+import numpy as np
 import pandas as pd
 
 from rectools.dataset import Dataset
@@ -47,3 +48,63 @@ def assert_second_fit_refits_model(
     reco_i2i_1 = model_1.recommend_to_items(dataset.item_id_map.external_ids, dataset, k, False)
     reco_i2i_2 = model_2.recommend_to_items(dataset.item_id_map.external_ids, dataset, k, False)
     pd.testing.assert_frame_equal(reco_i2i_1, reco_i2i_2, atol=0.001)
+
+
+def assert_dumps_loads_do_not_change_model(
+    model: ModelBase,
+    dataset: Dataset,
+    check_configs: bool = True,
+) -> None:
+    def get_reco(model: ModelBase) -> pd.DataFrame:
+        users = dataset.user_id_map.external_ids[:2]
+        return model.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
+
+    dumped = model.dumps()
+    recovered_model = model.__class__.loads(dumped)
+
+    original_model_reco = get_reco(model)
+    recovered_model_reco = get_reco(recovered_model)
+    pd.testing.assert_frame_equal(recovered_model_reco, original_model_reco)
+
+    if check_configs:
+        original_model_config = model.get_config()
+        recovered_model_config = recovered_model.get_config()
+        assert recovered_model_config == original_model_config
+
+
+def assert_default_config_and_default_model_params_are_the_same(
+    model: ModelBase, default_config: tp.Dict[str, tp.Any]
+) -> None:
+    model_from_config = model.from_config(default_config)
+    assert model_from_config.get_config() == model.get_config()
+
+
+def assert_get_config_and_from_config_compatibility(
+    model: tp.Type[ModelBase], dataset: Dataset, initial_config: tp.Dict[str, tp.Any], simple_types: bool
+) -> None:
+    def get_reco(model: ModelBase) -> pd.DataFrame:
+        return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)
+
+    model_1 = model.from_config(initial_config)
+    reco_1 = get_reco(model_1)
+    config_1 = model_1.get_config(simple_types=simple_types)
+
+    model_2 = model.from_config(config_1)
+    reco_2 = get_reco(model_2)
+    config_2 = model_2.get_config(simple_types=simple_types)
+
+    assert config_1 == config_2
+    pd.testing.assert_frame_equal(reco_1, reco_2)
+
+
+def get_final_successors(cls: tp.Type) -> tp.List[tp.Type]:
+    final_classes = []
+    subclasses = cls.__subclasses__()
+
+    if not subclasses:  # If there are no subclasses, it's a final class
+        final_classes.append(cls)
+    else:
+        for subclass in subclasses:
+            final_classes.extend(get_final_successors(subclass))  # Recursively check subclasses
+
+    return final_classes

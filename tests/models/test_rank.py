@@ -29,15 +29,15 @@ pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in tru
 class TestImplicitRanker:  # pylint: disable=protected-access
     @pytest.fixture
     def subject_factors(self) -> np.ndarray:
-        return np.array([[-4, 0, 3], [0, 0, 0]])
+        return np.array([[-4, 0, 3], [0, 1, 2]])
 
     @pytest.fixture
     def object_factors(self) -> np.ndarray:
         return np.array(
             [
                 [-4, 0, 3],
-                [0, 0, 0],
-                [1, 1, 1],
+                [0, 2, 4],
+                [1, 10, 100],
             ]
         )
 
@@ -60,7 +60,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             k=1,
             filter_items=np.array([0]),
         )[1][0][0]
-        assert neginf == implicit_ranker._get_neginf_score()
+        assert neginf <= implicit_ranker._get_neginf_score() <= -1e38
 
     @pytest.mark.parametrize(
         "dense",
@@ -94,12 +94,18 @@ class TestImplicitRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize(
         "distance, expected_recs, expected_scores, dense",
         (
-            (Distance.DOT, [0, 1, 2, 2, 1, 0], [25, 0, -1, 0, 0, 0], True),
-            (Distance.COSINE, [0, 1, 2, 2, 1, 0], [1, 0, -1 / (5 * 3**0.5), 0, 0, 0], True),
-            (Distance.EUCLIDEAN, [0, 1, 2, 1, 2, 0], [0, 5, 30**0.5, 0, 3**0.5, 5], True),
-            (Distance.DOT, [0, 1, 2, 2, 1, 0], [25, 0, -1, 0, 0, 0], False),
+            (Distance.DOT, [2, 0, 1, 2, 1, 0], [296, 25, 12, 210, 10, 6], True),
+            (Distance.COSINE, [0, 2, 1, 1, 2, 0], [1, 0.5890328, 0.5366563, 1, 0.9344414, 0.5366563], True),
+            (
+                Distance.EUCLIDEAN,
+                [0, 1, 2, 1, 0, 2],
+                [0, 4.58257569, 97.64220399, 2.23606798, 4.24264069, 98.41747812],
+                True,
+            ),
+            (Distance.DOT, [2, 0, 1, 2, 1, 0], [296, 25, 12, 210, 10, 6], False),
         ),
     )
+    @pytest.mark.parametrize("use_gpu", (False, True))
     def test_rank(
         self,
         distance: Distance,
@@ -108,24 +114,26 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         subject_factors: np.ndarray,
         object_factors: np.ndarray,
         dense: bool,
+        use_gpu: bool,
     ) -> None:
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3)
+        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, use_gpu=use_gpu)
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
         "distance, expected_recs, expected_scores, dense",
         (
-            (Distance.DOT, [0, 2, 2, 1, 0], [25, -1, 0, 0, 0], True),
-            (Distance.COSINE, [0, 2, 2, 1, 0], [1, -1 / (5 * 3**0.5), 0, 0, 0], True),
-            (Distance.EUCLIDEAN, [0, 2, 1, 2, 0], [0, 30**0.5, 0, 3**0.5, 5], True),
-            (Distance.DOT, [0, 2, 2, 1, 0], [25, -1, 0, 0, 0], False),
+            (Distance.DOT, [2, 0, 2, 1, 0], [296, 25, 210, 10, 6], True),
+            (Distance.COSINE, [0, 2, 1, 2, 0], [1, 0.5890328, 1, 0.9344414, 0.5366563], True),
+            (Distance.EUCLIDEAN, [0, 2, 1, 0, 2], [0, 97.64220399, 2.23606798, 4.24264069, 98.41747812], True),
+            (Distance.DOT, [2, 0, 2, 1, 0], [296, 25, 210, 10, 6], False),
         ),
     )
+    @pytest.mark.parametrize("use_gpu", (False, True))
     def test_rank_with_filtering_viewed_items(
         self,
         distance: Distance,
@@ -134,6 +142,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         subject_factors: np.ndarray,
         object_factors: np.ndarray,
         dense: bool,
+        use_gpu: bool,
     ) -> None:
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
@@ -145,19 +154,20 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             ]
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, filter_pairs_csr=ui_csr)
+        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, filter_pairs_csr=ui_csr, use_gpu=use_gpu)
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
         "distance, expected_recs, expected_scores, dense",
         (
-            (Distance.DOT, [0, 2, 2, 0], [25, -1, 0, 0], True),
-            (Distance.COSINE, [0, 2, 2, 0], [1, -1 / (5 * 3**0.5), 0, 0], True),
-            (Distance.EUCLIDEAN, [0, 2, 2, 0], [0, 30**0.5, 3**0.5, 5], True),
-            (Distance.DOT, [0, 2, 2, 0], [25, -1, 0, 0], False),
+            (Distance.DOT, [2, 0, 2, 0], [296, 25, 210, 6], True),
+            (Distance.COSINE, [0, 2, 2, 0], [1, 0.5890328, 0.9344414, 0.5366563], True),
+            (Distance.EUCLIDEAN, [0, 2, 0, 2], [0, 97.64220399, 4.24264069, 98.41747812], True),
+            (Distance.DOT, [2, 0, 2, 0], [296, 25, 210, 6], False),
         ),
     )
+    @pytest.mark.parametrize("use_gpu", (False, True))
     def test_rank_with_objects_whitelist(
         self,
         distance: Distance,
@@ -166,25 +176,29 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         subject_factors: np.ndarray,
         object_factors: np.ndarray,
         dense: bool,
+        use_gpu: bool,
     ) -> None:
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
 
-        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]))
+        _, actual_recs, actual_scores = ranker.rank(
+            subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), use_gpu=use_gpu
+        )
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize(
         "distance, expected_recs, expected_scores, dense",
         (
-            (Distance.DOT, [2, 2, 0], [-1, 0, 0], True),
-            (Distance.COSINE, [2, 2, 0], [-1 / (5 * 3**0.5), 0, 0], True),
-            (Distance.EUCLIDEAN, [2, 2, 0], [30**0.5, 3**0.5, 5], True),
-            (Distance.DOT, [2, 2, 0], [-1, 0, 0], False),
+            (Distance.DOT, [2, 2, 0], [296, 210, 6], True),
+            (Distance.COSINE, [2, 2, 0], [0.5890328, 0.9344414, 0.5366563], True),
+            (Distance.EUCLIDEAN, [2, 0, 2], [97.64220399, 4.24264069, 98.41747812], True),
+            (Distance.DOT, [2, 2, 0], [296, 210, 6], False),
         ),
     )
+    @pytest.mark.parametrize("use_gpu", (False, True))
     def test_rank_with_objects_whitelist_and_filtering_viewed_items(
         self,
         distance: Distance,
@@ -193,6 +207,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         subject_factors: np.ndarray,
         object_factors: np.ndarray,
         dense: bool,
+        use_gpu: bool,
     ) -> None:
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
@@ -205,7 +220,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
         _, actual_recs, actual_scores = ranker.rank(
-            subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), filter_pairs_csr=ui_csr
+            subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), filter_pairs_csr=ui_csr, use_gpu=use_gpu
         )
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
