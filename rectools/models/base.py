@@ -47,6 +47,15 @@ RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRec
 
 
 def deserialize_model_class(spec: tp.Any) -> tp.Any:
+    """
+    Get model class from specification.
+
+    Parameters
+    ----------
+    spec : str or type
+        Specification of model class.
+
+    """
     if not isinstance(spec, str):
         return spec
     # TODO: add short names for built-in models
