@@ -1009,7 +1009,7 @@ class SoftmaxLossCalculator(LossCalculatorBase):
 
 
 class BCELossCalculator(LossCalculatorBase):
-    """Binary Cross-Entropy Loss function (BCE). Our implementation Allows any number of negative samples."""
+    """Binary Cross-Entropy Loss function (BCE). Our implementation allows any number of negative samples."""
 
     def _get_logits(
         self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
@@ -1017,7 +1017,8 @@ class BCELossCalculator(LossCalculatorBase):
         y, negatives = batch["y"], batch["negatives"]
         pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
         pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)  # [batch_size, session_max_len, n_negatives + 1]
+        # [batch_size, session_max_len, n_negatives + 1]
+        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
         return logits
 
     def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
