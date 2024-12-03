@@ -1,5 +1,4 @@
-import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict, Hashable, List, Literal, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 import torch
@@ -31,12 +30,12 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     def __init__(
         self,
         session_max_len: int,
-        n_negatives: tp.Optional[int],
+        n_negatives: Optional[int],
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int,
         mask_prob: float,
-        item_extra_tokens: tp.Sequence[tp.Hashable],
+        item_extra_tokens: Sequence[Hashable],
         shuffle_train: bool = True,
     ) -> None:
         super().__init__(
@@ -168,18 +167,18 @@ class BERT4RecModel(TransformerModelBase):
         session_max_len: int = 32,
         n_negatives: int = 1,
         batch_size: int = 128,
-        loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
+        loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
         gbce_t: float = 0.2,
         lr: float = 0.01,
         dataloader_num_workers: int = 0,
         train_min_user_interaction: int = 2,
         mask_prob: float = 0.15,
-        trainer: tp.Optional[Trainer] = None,
-        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = BERT4RecTransformerLayers,
-        data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
-        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        trainer: Optional[Trainer] = None,
+        item_net_block_types: Sequence[Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+        transformer_layers_type: Type[TransformerLayersBase] = BERT4RecTransformerLayers,
+        data_preparator_type: Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
+        lightning_module_type: Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
