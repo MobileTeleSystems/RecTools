@@ -46,16 +46,7 @@ ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
 
 
-def deserialize_model_class(spec: tp.Any) -> tp.Any:
-    """
-    Get model class from specification.
-
-    Parameters
-    ----------
-    spec : str or type
-        Specification of model class.
-
-    """
+def _deserialize_model_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):
         return spec
     # TODO: add short names for built-in models
