@@ -1101,7 +1101,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         Prediction step.
         Encode user sessions.
         """
-        encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs)[:, -1, :]
+        encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs.to(self.device))[:, -1, :]
         return encoded_sessions
 
     def _xavier_normal_init(self) -> None:
@@ -1112,7 +1112,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
                 pass
 
 
-class TransformerModelBase(ModelBase):
+class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attributes
     """
     Base model for all recommender algorithms that work on transformer architecture (e.g. SASRec, Bert4Rec).
     To create a custom transformer model it is necessary to inherit from this class
@@ -1137,14 +1137,16 @@ class TransformerModelBase(ModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        cpu_n_threads: int = 0,
+        recommend_device: str = "cpu",
+        recommend_cpu_n_threads: int = 0,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ) -> None:
         super().__init__(verbose)
-        self.n_threads = cpu_n_threads
+        self.n_recommend_threads = recommend_cpu_n_threads
+        self.recommend_device = recommend_device
         self._torch_model = TransformerBasedSessionEncoder(
             n_blocks=n_blocks,
             n_factors=n_factors,
@@ -1198,8 +1200,8 @@ class TransformerModelBase(ModelBase):
             n_item_extra_tokens=n_item_extra_tokens,
         )
 
-        self.trainer = deepcopy(self._trainer)
-        self.trainer.fit(self.lightning_model, train_dataloader)
+        trainer = deepcopy(self._trainer)
+        trainer.fit(self.lightning_model, train_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -1222,8 +1224,9 @@ class TransformerModelBase(ModelBase):
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
+        trainer = Trainer(devices=1, accelerator=self.recommend_device)
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
-        session_embs = self.trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
+        session_embs = trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
         if session_embs is not None:
             user_embs = np.concatenate(session_embs, axis=0)
             user_embs = user_embs[user_ids]
@@ -1248,7 +1251,7 @@ class TransformerModelBase(ModelBase):
                 k=k,
                 filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
                 sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-                num_threads=self.n_threads,
+                num_threads=self.n_recommend_threads,
             )
             all_target_ids = user_ids[user_ids_indices]
         else:
@@ -1280,7 +1283,7 @@ class TransformerModelBase(ModelBase):
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
-            num_threads=0,
+            num_threads=self.n_recommend_threads,
         )
 
     @property
@@ -1293,7 +1296,67 @@ class TransformerModelBase(ModelBase):
 
 
 class SASRecModel(TransformerModelBase):
-    """TODO"""
+    """
+    SASRec model for i2i and u2i recommendations.
+
+    n_blocks: int, default 1
+        Number of transformer blocks.
+    n_heads: int, default 1
+        Number of attention heads.
+    n_factors: int, default 128
+        Latent embeddings size.
+    use_pos_emb: bool, default ``True``
+        If ``True``, adds learnable positional encoding to session item embeddings.
+    use_causal_attn: bool, default ``True``
+        If ``True``, uses causal mask as attn_mask in Multi-head Attention.
+    use_key_padding_mask: bool, default ``False``
+        If ``True``, uses key_padding_mask in Multi-head Attention.
+    dropout_rate: float, default 0.2
+        Probability of a hidden unit to be zeroed.
+    session_max_len: int, default 32
+        Maximum length of user sequence.
+    train_min_user_interaction: int, default 2
+        Minimum number of interactions user should have to be used for training. Should be greater than 1.
+    dataloader_num_workers: int, default 0
+        Number of loader worker processes.
+    batch_size: int, default 128
+        How many samples per batch to load.
+    loss: str, default "softmax"
+        Loss function.
+    n_negatives: int, default 1
+        Number of negatives for BCE and gBCE losses.
+    gbce_t: float, default 0.2
+        Calibration parameter for gBCE loss.
+    lr: float, default 0.01
+        Learning rate.
+    epochs: int, default 3
+        Number of training epochs.
+    verbose: int, default 0
+        Verbosity level.
+    deterministic: bool, default ``False``
+        If ``True``, sets deterministic algorithms for PyTorch operations.
+        Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
+    recommend_device: str, default "cpu"
+        Device for recommend. Used at predict_step of lightning module.
+    recommend_cpu_n_threads: int, default 0
+        Number of threads to use in ranker.
+    trainer: Optional(Trainer), default None
+        Which trainer to use for training.
+        If trainer is None, default pytorch_lightning Trainer is created.
+    item_net_block_types: Type(ItemNetBase), default (IdEmbeddingsItemNet, CatFeaturesItemNet)
+        Type of network returning item enbeddings.
+        (IdEmbeddingsItemNet,) - item embeddings based on ids.
+        (, CatFeaturesItemNet) - item embeddings based on categorical features.
+        (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
+    pos_encoding_type: Type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
+        Type of positional encoding.
+    transformer_layers_type: Type(TransformerLayersBase), default `SasRecTransformerLayers`
+        Type of transformer layers architecture.
+    data_preparator_type: Type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
+        Type of data preparator used for dataset processing and dataloader creation.
+    lightning_module_type: Type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
+        Type of lightning module defining training procedure.
+    """
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
@@ -1314,7 +1377,8 @@ class SASRecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        cpu_n_threads: int = 0,
+        recommend_device: str = "cpu",
+        recommend_cpu_n_threads: int = 0,
         train_min_user_interaction: int = 2,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
@@ -1340,7 +1404,8 @@ class SASRecModel(TransformerModelBase):
             epochs=epochs,
             verbose=verbose,
             deterministic=deterministic,
-            cpu_n_threads=cpu_n_threads,
+            recommend_device=recommend_device,
+            recommend_cpu_n_threads=recommend_cpu_n_threads,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
