@@ -95,3 +95,16 @@ def assert_get_config_and_from_config_compatibility(
 
     assert config_1 == config_2
     pd.testing.assert_frame_equal(reco_1, reco_2)
+
+
+def get_final_successors(cls: tp.Type) -> tp.List[tp.Type]:
+    final_classes = []
+    subclasses = cls.__subclasses__()
+
+    if not subclasses:  # If there are no subclasses, it's a final class
+        final_classes.append(cls)
+    else:
+        for subclass in subclasses:
+            final_classes.extend(get_final_successors(subclass))  # Recursively check subclasses
+
+    return final_classes

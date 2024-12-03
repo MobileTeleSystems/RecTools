@@ -27,8 +27,9 @@ from rectools.models.utils import recommend_from_scores
 from rectools.types import InternalIds, InternalIdsArray
 from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.serialization import RandomState
 
-from .base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelConfig, RandomState, Scores
+from .base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelConfig, Scores
 from .rank import Distance
 from .vector import Factors, VectorModel
 
