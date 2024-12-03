@@ -944,7 +944,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
 
 
 class LossCalculatorBase(nn.Module):
-    """Base class for session encoder loss calculators."""
+    """Base class for transformer based session encoder loss calculators."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -964,32 +964,30 @@ class LossCalculatorBase(nn.Module):
         session_embs: torch.Tensor
             Session embeddings from torch_model.forward method.
         """
+        logits = self._get_logits(batch, item_embs, session_embs)
+        return self._calc_loss(batch, logits)
+
+    def _get_logits(
+        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+    ) -> torch.Tensor:
+        raise NotImplementedError()
+
+    def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
 
 class SoftmaxLossCalculator(LossCalculatorBase):
-    """TODO"""
+    """
+    So called "Softmax" Loss function which stands for Cross Entropy Loss
+    which is calculated over full items catalog.
+    """
 
-    def forward(
+    def _get_logits(
         self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
-        """
-        Forward pass. Returns calculated loss.
+        return session_embs @ item_embs.T
 
-        Parameters
-        ----------
-        batch: Dict[str, torch.Tensor]
-            Full batch from train_dataloader. Different aspects (like x or y) can be accessed with corresponding keys.
-        item_embs: torch.Tensor
-            Full catalog item embeddings from torch_model.forward method.
-        session_embs: torch.Tensor
-            Session embeddings from torch_model.forward method.
-        """
-        logits = session_embs @ item_embs.T
-        return self._calc_softmax_loss(batch, logits)
-
-    @classmethod
-    def _calc_softmax_loss(cls, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+    def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         y, w = batch["y"], batch["yw"]
         # We are using CrossEntropyLoss with a multi-dimensional case
 
@@ -1011,39 +1009,18 @@ class SoftmaxLossCalculator(LossCalculatorBase):
 
 
 class BCELossCalculator(LossCalculatorBase):
-    """TODO"""
+    """Binary Cross-Entropy Loss function (BCE). Our implementation Allows any number of negative samples."""
 
-    def forward(
-        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Forward pass. Returns calculated loss.
-
-        Parameters
-        ----------
-        batch: Dict[str, torch.Tensor]
-            Full batch from train_dataloader. Different aspects (like x or y) can be accessed with corresponding keys.
-        item_embs: torch.Tensor
-            Full catalog item embeddings from torch_model.forward method.
-        session_embs: torch.Tensor
-            Session embeddings from torch_model.forward method.
-        """
-        logits = self._get_pos_neg_logits(batch, item_embs, session_embs)
-        return self._calc_bce_loss(batch, logits)
-
-    def _get_pos_neg_logits(
+    def _get_logits(
         self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
         y, negatives = batch["y"], batch["negatives"]
-        # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
         pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
         pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        # [batch_size, session_max_len, n_negatives + 1]
-        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
+        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)  # [batch_size, session_max_len, n_negatives + 1]
         return logits
 
-    @classmethod
-    def _calc_bce_loss(cls, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+    def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         y, w = batch["y"], batch["yw"]
 
         mask = y != 0
@@ -1058,7 +1035,11 @@ class BCELossCalculator(LossCalculatorBase):
 
 
 class GBCELossCalculator(BCELossCalculator):
-    """TODO"""
+    """
+    Generalised Binary Cross-Entropy Loss function (gBCE).
+    From "gSASRec: Reducing Overconfidence in Sequential Recommendation Trained with Negative Sampling".
+    https://arxiv.org/pdf/2308.07192.pdf
+    """
 
     def __init__(self, gbce_t: float, n_actual_items: int) -> None:
         super().__init__()
@@ -1080,13 +1061,20 @@ class GBCELossCalculator(BCELossCalculator):
         session_embs: torch.Tensor
             Session embeddings from torch_model.forward method.
         """
-        logits = self._get_pos_neg_logits(batch, item_embs, session_embs)
-        return self._calc_gbce_loss(batch, logits)
+        logits = self._get_logits(batch, item_embs, session_embs)
 
-    def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_negatives: int) -> torch.Tensor:
-        # https://arxiv.org/pdf/2308.07192.pdf
-        alpha = n_negatives / (self.n_actual_items - 1)  # negatives sampling rate
-        beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
+        # Transform logits before calculating BCE loss
+        n_negatives = batch["negatives"].shape[2]
+        logits = self._get_reduced_overconfidence_logits(logits, self.n_actual_items, n_negatives, self.gbce_t)
+
+        return self._calc_loss(batch, logits)
+
+    def _get_reduced_overconfidence_logits(
+        self, logits: torch.Tensor, n_actual_items: int, n_negatives: int, gbce_t: float
+    ) -> torch.Tensor:
+        """Transform positive items logits according to https://arxiv.org/pdf/2308.07192.pdf."""
+        alpha = n_negatives / (n_actual_items - 1)  # negatives sampling rate
+        beta = alpha * (gbce_t * (1 - 1 / alpha) + 1 / alpha)
 
         pos_logits = logits[:, :, 0:1].to(torch.float64)
         neg_logits = logits[:, :, 1:].to(torch.float64)
@@ -1101,12 +1089,6 @@ class GBCELossCalculator(BCELossCalculator):
         logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
         return logits
 
-    def _calc_gbce_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
-        n_negatives = batch["negatives"].shape[2]
-        logits = self._get_reduced_overconfidence_logits(logits, n_negatives)
-        loss = self._calc_bce_loss(batch, logits)
-        return loss
-
 
 # ####  --------------  Lightning Module  --------------  #### #
 
@@ -1114,7 +1096,8 @@ class GBCELossCalculator(BCELossCalculator):
 class SessionEncoderLightningModuleBase(LightningModule):
     """
     Base class for lightning module. To change train procedure inherit
-    from this class and pass your custom LightningModule to your model parameters.
+    from this class and pass your custom LightningModule to transformer-based recommender model during its
+    initialization.
 
     Parameters
     ----------
@@ -1145,19 +1128,18 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.torch_model = torch_model
         self.gbce_t = gbce_t
         self.item_embs: torch.Tensor
-        self.loss_calculator = self._init_loss(loss, n_actual_items)
+        if isinstance(loss, LossCalculatorBase):
+            self.loss_calculator = loss
+        else:
+            self.loss_calculator = self._init_loss(loss, n_actual_items)
 
-    def _init_loss(
-        self, loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase], n_actual_items: int
-    ) -> LossCalculatorBase:
+    def _init_loss(self, loss: Literal["softmax", "BCE", "gBCE"], n_actual_items: int) -> LossCalculatorBase:
         if loss == "softmax":
             return SoftmaxLossCalculator()
         if loss == "BCE":
             return BCELossCalculator()
         if loss == "gBCE":
             return GBCELossCalculator(self.gbce_t, n_actual_items)
-        if isinstance(loss, LossCalculatorBase):
-            return loss
         raise ValueError("Unknown loss")
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
