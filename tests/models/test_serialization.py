@@ -1,3 +1,4 @@
+import re
 import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
@@ -13,6 +14,7 @@ except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
 
 
+from rectools.metrics import NDCG
 from rectools.models import (
     DSSMModel,
     ImplicitALSWrapperModel,
@@ -23,7 +25,7 @@ from rectools.models import (
     load_model,
     model_from_config,
 )
-from rectools.models.base import ModelBase
+from rectools.models.base import ModelBase, ModelConfig
 
 from .utils import get_final_successors
 
@@ -56,6 +58,21 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
     assert isinstance(loaded_model, model_cls)
 
 
+class CustomModelConfig(ModelConfig):
+    some_param: int = 1
+    
+
+class CustomModel(ModelBase[CustomModelConfig]):
+    config_class = CustomModelConfig
+
+    def __init__(self, some_param: int = 1, verbose: int = 0):
+        self.some_param = some_param
+
+    @classmethod
+    def _from_config(cls, config: CustomModelConfig) -> "CustomModel":
+        return cls(some_param=config.some_param, verbose=config.verbose)
+    
+
 class TestModelFromConfig:
 
     @pytest.mark.parametrize("mode, simple_types", (("pydantic", False), ("dict", False), ("dict", True)))
@@ -71,8 +88,17 @@ class TestModelFromConfig:
         assert isinstance(new_model, model_cls)
         assert new_model.get_config(mode=mode, simple_types=simple_types) == config
 
-    def test_custom_model_creation(self) -> None:
-        pass
+    @pytest.mark.parametrize(
+        "config",
+        (
+            CustomModelConfig(cls=CustomModel, some_param=2),
+            {"cls": "tests.models.test_serialization.CustomModel", "some_param": 2},
+        )
+    )
+    def test_custom_model_creation(self, config: tp.Union[dict, CustomModelConfig]) -> None:
+        model = model_from_config(config)
+        assert isinstance(model, CustomModel)
+        assert model.some_param == 2
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_fails_on_missing_cls(self, simple_types: bool) -> None:
@@ -93,16 +119,23 @@ class TestModelFromConfig:
         with pytest.raises(ValueError, match="`cls` must be provided in the config to load the model"):
             model_from_config(config)
 
-    def test_fails_on_nonexistent_cls(self, ) -> None:
-        model = PopularModel()
-        config = model.get_config(mode=mode, simple_types=simple_types)
-        if mode == "pydantic":
-            config.cls = None
-        else:
-            config["cls"] = None
+    @pytest.mark.parametrize(
+        "model_cls_path, error_cls",
+        (
+            ("nonexistent_module.SomeModel", ModuleNotFoundError),
+            ("rectools.models.NonexistentModel", AttributeError),
+        )
+    )
+    def test_fails_on_nonexistent_cls(self, model_cls_path: str, error_cls: tp.Type[Exception]) -> None:
+        config = {"cls": model_cls_path}
+        with pytest.raises(error_cls):
+            model_from_config(config)
 
-    def test_fails_on_non_model_cls(self) -> None:
-        pass
+    @pytest.mark.parametrize("model_cls", ("rectools.metrics.NDCG", NDCG))
+    def test_fails_on_non_model_cls(self, model_cls: tp.Any) -> None:
+        config = {"cls": model_cls}
+        with pytest.raises(TypeError, match=re.escape("`cls` must be (or refer to) a subclass of `ModelBase`")):
+            model_from_config(config)
 
     @pytest.mark.parametrize("mode, simple_types", (("pydantic", False), ("dict", False), ("dict", True)))
     def test_fails_on_incorrect_model_cls(self, mode: tp.Literal["pydantic", "dict"], simple_types: bool) -> None:
@@ -118,6 +151,8 @@ class TestModelFromConfig:
         with pytest.raises(ValidationError):
             model_from_config(config)
 
-    def test_fails_on_model_cls_without_from_config_support(self) -> None:
-        # DSSM
-        pass
+    @pytest.mark.parametrize("model_cls", ("rectools.models.DSSMModel", DSSMModel))
+    def test_fails_on_model_cls_without_from_config_support(self, model_cls: tp.Any) -> None:
+        config = {"cls": model_cls}
+        with pytest.raises(NotImplementedError, match="`from_config` method is not implemented for `DSSMModel` model"):
+            model_from_config(config)
