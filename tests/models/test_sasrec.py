@@ -1,5 +1,7 @@
+# pylint: disable=too-many-lines
+
 import typing as tp
-from typing import List
+from typing import List, Literal, Union
 
 import numpy as np
 import pandas as pd
@@ -15,14 +17,24 @@ from rectools.models.sasrec import (
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructor,
+    LossCalculatorBase,
     SASRecDataPreparator,
     SASRecModel,
     SequenceDataset,
+    SoftmaxLossCalculator,
 )
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
 
 from .data import DATASET, INTERACTIONS
+
+
+def assert_equal_reco_and_correct_scores_ranking(actual: pd.DataFrame, expected: pd.DataFrame) -> None:
+    pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+    pd.testing.assert_frame_equal(
+        actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+        actual,
+    )
 
 
 class TestSASRecModel:
@@ -112,11 +124,49 @@ class TestSASRecModel:
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
-        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-        pd.testing.assert_frame_equal(
-            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-            actual,
+        assert_equal_reco_and_correct_scores_ranking(actual, expected)
+
+    @pytest.mark.parametrize("loss", ("softmax", "BCE", "gBCE", SoftmaxLossCalculator()))
+    def test_losses_happy_pass(
+        self, dataset: Dataset, trainer: Trainer, loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase]
+    ) -> None:
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            loss=loss,
+            deterministic=True,
+            trainer=trainer,
         )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+            }
+        )
+        assert_equal_reco_and_correct_scores_ranking(actual, expected)
+
+    def test_raise_with_incorrect_loss(self, dataset: Dataset, trainer: Trainer) -> None:
+        with pytest.raises(ValueError):
+            model = SASRecModel(
+                n_factors=32,
+                n_blocks=2,
+                session_max_len=3,
+                lr=0.001,
+                batch_size=4,
+                epochs=2,
+                loss="strange",  # type: ignore
+                deterministic=True,
+                trainer=trainer,
+            )
+            model.fit(dataset)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -167,11 +217,7 @@ class TestSASRecModel:
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
         )
-        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-        pd.testing.assert_frame_equal(
-            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-            actual,
-        )
+        assert_equal_reco_and_correct_scores_ranking(actual, expected)
 
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
@@ -305,11 +351,7 @@ class TestSASRecModel:
             k=3,
             filter_viewed=filter_viewed,
         )
-        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-        pd.testing.assert_frame_equal(
-            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-            actual,
-        )
+        assert_equal_reco_and_correct_scores_ranking(actual, expected)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -360,11 +402,7 @@ class TestSASRecModel:
                 filter_viewed=filter_viewed,
                 on_unsupported_targets="warn",
             )
-            pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-            pd.testing.assert_frame_equal(
-                actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-                actual,
-            )
+            assert_equal_reco_and_correct_scores_ranking(actual, expected)
         assert str(record[0].message) == "1 target users were considered cold because of missing known items"
         assert (
             str(record[1].message)
