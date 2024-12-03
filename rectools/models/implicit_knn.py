@@ -116,6 +116,7 @@ class ImplicitItemKNNWrapperModel(ModelBase[ImplicitItemKNNWrapperModelConfig]):
             # NOBUG: If it's a custom class, we don't know its params
             params.update({"K1": inner_model.K1, "B": inner_model.B})
         return ImplicitItemKNNWrapperModelConfig(
+            cls=self.__class__,
             model=ItemItemRecommenderConfig(
                 cls=inner_model.__class__,
                 params=params,

@@ -157,6 +157,7 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         }
         inner_model_cls = inner_model.__class__
         return LightFMWrapperModelConfig(
+            cls=self.__class__,
             model=LightFMConfig(
                 cls=inner_model_cls,
                 params=tp.cast(LightFMParams, params),  # https://github.com/python/mypy/issues/8890

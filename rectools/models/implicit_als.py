@@ -173,6 +173,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
         model_cls = model.__class__
         return ImplicitALSWrapperModelConfig(
+            cls=cls,
             model=AlternatingLeastSquaresConfig(
                 cls=(
                     model_cls

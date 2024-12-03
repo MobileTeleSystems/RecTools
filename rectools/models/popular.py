@@ -187,6 +187,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
 
     def _get_config(self) -> PopularModelConfig:
         return PopularModelConfig(
+            cls=self.__class__,
             popularity=self.popularity,
             period=self.period,
             begin_from=self.begin_from,
