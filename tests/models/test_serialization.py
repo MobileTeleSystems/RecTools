@@ -134,7 +134,7 @@ class TestModelFromConfig:
     @pytest.mark.parametrize("model_cls", ("rectools.metrics.NDCG", NDCG))
     def test_fails_on_non_model_cls(self, model_cls: tp.Any) -> None:
         config = {"cls": model_cls}
-        with pytest.raises(TypeError, match=re.escape("`cls` must be (or refer to) a subclass of `ModelBase`")):
+        with pytest.raises(ValidationError):
             model_from_config(config)
 
     @pytest.mark.parametrize("mode, simple_types", (("pydantic", False), ("dict", False), ("dict", True)))

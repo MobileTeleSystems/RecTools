@@ -1,7 +1,9 @@
 import pickle
 import typing as tp
 
-from rectools.models.base import ModelBase, ModelConfig, deserialize_model_class
+from pydantic import TypeAdapter
+
+from rectools.models.base import ModelBase, ModelConfig, deserialize_model_class, ModelClass
 from rectools.utils.serialization import FileLike, read_bytes
 
 
@@ -39,17 +41,13 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
         Model instance.
     """
 
-    def raise_on_none(model_cls: tp.Any) -> None:
-        if model_cls is None:
-            raise ValueError("`cls` must be provided in the config to load the model")
-
     if isinstance(config, dict):
-        model_cls = deserialize_model_class(config.get("cls"))
-        raise_on_none(model_cls)
-        if not issubclass(model_cls, ModelBase):
-            raise TypeError("`cls` must be (or refer to) a subclass of `ModelBase`")
+        model_cls = config.get("cls")
+        model_cls = TypeAdapter(tp.Optional[ModelClass]).validate_python(model_cls)
     else:
         model_cls = config.cls
-        raise_on_none(model_cls)
+        
+    if model_cls is None:
+        raise ValueError("`cls` must be provided in the config to load the model")
 
     return model_cls.from_config(config)
