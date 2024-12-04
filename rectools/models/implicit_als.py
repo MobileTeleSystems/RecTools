@@ -17,23 +17,96 @@ from copy import deepcopy
 
 import implicit.gpu
 import numpy as np
+import typing_extensions as tpe
+from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
+from pydantic import BeforeValidator, ConfigDict, PlainSerializer, SerializationInfo, WrapSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
+from rectools.models.base import ModelConfig
+from rectools.utils.config import BaseConfig
+from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.serialization import RandomState
 
 from .rank import Distance
 from .vector import Factors, VectorModel
 
-AVAILABLE_RECOMMEND_METHODS = ("loop",)
+ALS_STRING = "AlternatingLeastSquares"
+
 AnyAlternatingLeastSquares = tp.Union[CPUAlternatingLeastSquares, GPUAlternatingLeastSquares]
+AlternatingLeastSquaresType = tp.Union[tp.Type[AnyAlternatingLeastSquares], tp.Literal["AlternatingLeastSquares"]]
 
 
-class ImplicitALSWrapperModel(VectorModel):
+def _get_alternating_least_squares_class(spec: tp.Any) -> tp.Any:
+    if spec in (ALS_STRING, get_class_or_function_full_path(AlternatingLeastSquares)):
+        return "AlternatingLeastSquares"
+    if isinstance(spec, str):
+        return import_object(spec)
+    return spec
+
+
+def _serialize_alternating_least_squares_class(
+    cls: AlternatingLeastSquaresType, handler: tp.Callable, info: SerializationInfo
+) -> tp.Union[None, str, AnyAlternatingLeastSquares]:
+    if cls in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares) or cls == "AlternatingLeastSquares":
+        return ALS_STRING
+    if info.mode == "json":
+        return get_class_or_function_full_path(cls)
+    return cls
+
+
+AlternatingLeastSquaresClass = tpe.Annotated[
+    AlternatingLeastSquaresType,
+    BeforeValidator(_get_alternating_least_squares_class),
+    WrapSerializer(
+        func=_serialize_alternating_least_squares_class,
+        when_used="always",
+    ),
+]
+
+DType = tpe.Annotated[
+    np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
+]
+
+
+class AlternatingLeastSquaresParams(tpe.TypedDict):
+    """Params for implicit `AlternatingLeastSquares` model."""
+
+    factors: tpe.NotRequired[int]
+    regularization: tpe.NotRequired[float]
+    alpha: tpe.NotRequired[float]
+    dtype: tpe.NotRequired[DType]
+    use_native: tpe.NotRequired[bool]
+    use_cg: tpe.NotRequired[bool]
+    use_gpu: tpe.NotRequired[bool]
+    iterations: tpe.NotRequired[int]
+    calculate_training_loss: tpe.NotRequired[bool]
+    num_threads: tpe.NotRequired[int]
+    random_state: tpe.NotRequired[RandomState]
+
+
+class AlternatingLeastSquaresConfig(BaseConfig):
+    """Config for implicit `AlternatingLeastSquares` model."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    cls: AlternatingLeastSquaresClass = "AlternatingLeastSquares"
+    params: AlternatingLeastSquaresParams = {}
+
+
+class ImplicitALSWrapperModelConfig(ModelConfig):
+    """Config for `ImplicitALSWrapperModel`."""
+
+    model: AlternatingLeastSquaresConfig
+    fit_features_together: bool = False
+
+
+class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     """
     Wrapper for `implicit.als.AlternatingLeastSquares`
     with possibility to use explicit features and GPU support.
@@ -58,19 +131,87 @@ class ImplicitALSWrapperModel(VectorModel):
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
 
+    config_class = ImplicitALSWrapperModelConfig
+
     def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
+        self._config = self._make_config(model, verbose, fit_features_together)
+
         super().__init__(verbose=verbose)
 
         self.model: AnyAlternatingLeastSquares
-        self._model = model  # for refit; TODO: try to do it better
+        self._model = model  # for refit
 
         self.fit_features_together = fit_features_together
         self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
         if not self.use_gpu:
             self.n_threads = model.num_threads
 
-    def _fit(self, dataset: Dataset) -> None:  # type: ignore
+    @classmethod
+    def _make_config(
+        cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
+    ) -> ImplicitALSWrapperModelConfig:
+        params = {
+            "factors": model.factors,
+            "regularization": model.regularization,
+            "alpha": model.alpha,
+            "dtype": model.dtype,
+            "iterations": model.iterations,
+            "calculate_training_loss": model.calculate_training_loss,
+            "random_state": model.random_state,
+        }
+        if isinstance(model, GPUAlternatingLeastSquares):
+            params.update({"use_gpu": True})
+        else:
+            params.update(
+                {
+                    "use_gpu": False,
+                    "use_native": model.use_native,
+                    "use_cg": model.use_cg,
+                    "num_threads": model.num_threads,
+                }
+            )
+
+        model_cls = model.__class__
+        return ImplicitALSWrapperModelConfig(
+            model=AlternatingLeastSquaresConfig(
+                cls=(
+                    model_cls
+                    if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
+                    else "AlternatingLeastSquares"
+                ),
+                params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
+            ),
+            verbose=verbose,
+            fit_features_together=fit_features_together,
+        )
+
+    def _get_config(self) -> ImplicitALSWrapperModelConfig:
+        return self._config
+
+    @classmethod
+    def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
+        if config.model.cls == ALS_STRING:
+            model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
+        else:
+            model_cls = config.model.cls
+        model = model_cls(**config.model.params)
+        return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
+
+    def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
+        self._fit_model_for_epochs(dataset, self.model.iterations)
+
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
+            prev_epochs = 0
+        else:
+            prev_epochs = self.model.iterations
+
+        self._fit_model_for_epochs(dataset, epochs)
+        self.model.iterations = epochs + prev_epochs
+
+    def _fit_model_for_epochs(self, dataset: Dataset, epochs: int) -> None:
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
 
         if self.fit_features_together:
@@ -79,6 +220,7 @@ class ImplicitALSWrapperModel(VectorModel):
                 ui_csr,
                 dataset.get_hot_user_features(),
                 dataset.get_hot_item_features(),
+                epochs,
                 self.verbose,
             )
         else:
@@ -87,6 +229,7 @@ class ImplicitALSWrapperModel(VectorModel):
                 ui_csr,
                 dataset.get_hot_user_features(),
                 dataset.get_hot_item_features(),
+                epochs,
                 self.verbose,
             )
 
@@ -154,6 +297,7 @@ def fit_als_with_features_separately_inplace(
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
+    iterations: int,
     verbose: int = 0,
 ) -> None:
     """
@@ -172,7 +316,15 @@ def fit_als_with_features_separately_inplace(
     verbose : int
          Whether to print output.
     """
+    # If model was fitted we should drop any learnt embeddings except actual latent factors
+    if model.user_factors is not None and model.item_factors is not None:
+        # Without .copy() gpu.Matrix will break correct slicing
+        user_factors = get_users_vectors(model)[:, : model.factors].copy()
+        item_factors = get_items_vectors(model)[:, : model.factors].copy()
+        _set_factors(model, user_factors, item_factors)
+
     iu_csr = ui_csr.T.tocsr(copy=False)
+    model.iterations = iterations
     model.fit(ui_csr, show_progress=verbose > 0)
 
     user_factors_chunks = [get_users_vectors(model)]
@@ -193,10 +345,13 @@ def fit_als_with_features_separately_inplace(
     user_factors = np.hstack(user_factors_chunks)
     item_factors = np.hstack(item_factors_chunks)
 
+    _set_factors(model, user_factors, item_factors)
+
+
+def _set_factors(model: AnyAlternatingLeastSquares, user_factors: np.ndarray, item_factors: np.ndarray) -> None:
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         user_factors = implicit.gpu.Matrix(user_factors)
         item_factors = implicit.gpu.Matrix(item_factors)
-
     model.user_factors = user_factors
     model.item_factors = item_factors
 
@@ -235,36 +390,30 @@ def _fit_paired_factors(
 def _init_latent_factors_cpu(
     model: CPUAlternatingLeastSquares, n_users: int, n_items: int
 ) -> tp.Tuple[np.ndarray, np.ndarray]:
-    """Logic is copied and pasted from original implicit library code"""
+    """
+    Logic is copied and pasted from original implicit library code.
+    This method is used only for model that hasn't been fitted yet.
+    """
     random_state = check_random_state(model.random_state)
-    if model.user_factors is None:
-        user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
-    else:
-        user_latent_factors = model.user_factors
-    if model.item_factors is None:
-        item_latent_factors = random_state.random((n_items, model.factors)) * 0.01
-    else:
-        item_latent_factors = model.item_factors
+    user_latent_factors = random_state.random((n_users, model.factors)) * 0.01
+    item_latent_factors = random_state.random((n_items, model.factors)) * 0.01
     return user_latent_factors, item_latent_factors
 
 
 def _init_latent_factors_gpu(
     model: GPUAlternatingLeastSquares, n_users: int, n_items: int
 ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
-    """Logic is copied and pasted from original implicit library code"""
+    """
+    Logic is copied and pasted from original implicit library code.
+    This method is used only for model that hasn't been fitted yet.
+    """
     random_state = check_random_state(model.random_state)
-    if model.user_factors is None:
-        user_latent_factors = random_state.uniform(
-            low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_users, model.factors)
-        )
-    else:
-        user_latent_factors = model.user_factors.to_numpy()
-    if model.item_factors is None:
-        item_latent_factors = random_state.uniform(
-            low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_items, model.factors)
-        )
-    else:
-        item_latent_factors = model.item_factors.to_numpy()
+    user_latent_factors = random_state.uniform(
+        low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_users, model.factors)
+    )
+    item_latent_factors = random_state.uniform(
+        low=-0.5 / model.factors, high=0.5 / model.factors, size=(n_items, model.factors)
+    )
     return user_latent_factors, item_latent_factors
 
 
@@ -273,6 +422,7 @@ def fit_als_with_features_together_inplace(
     ui_csr: sparse.csr_matrix,
     user_features: tp.Optional[Features],
     item_features: tp.Optional[Features],
+    iterations: int,
     verbose: int = 0,
 ) -> None:
     """
@@ -293,6 +443,65 @@ def fit_als_with_features_together_inplace(
     """
     n_users, n_items = ui_csr.shape
 
+    if model.user_factors is None or model.item_factors is None:
+        user_factors, item_factors, n_user_explicit_factors, n_item_explicit_factors = (
+            _init_user_item_factors_for_combined_training_with_features(
+                model, n_users, n_items, user_features, item_features
+            )
+        )
+    else:
+        user_factors = get_users_vectors(model)
+        item_factors = get_items_vectors(model)
+        n_user_explicit_factors = user_features.values.shape[1] if user_features is not None else 0
+        n_item_explicit_factors = item_features.values.shape[1] if item_features is not None else 0
+
+    # Fix number of factors
+    n_latent_factors = model.factors
+    model.factors = n_latent_factors + n_user_explicit_factors + n_item_explicit_factors
+
+    # Give the positive examples more weight if asked for (implicit library logic copy)
+    ui_csr = model.alpha * ui_csr
+
+    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
+        _fit_combined_factors_on_gpu_inplace(
+            model,
+            ui_csr,
+            user_factors,
+            item_factors,
+            n_user_explicit_factors,
+            n_item_explicit_factors,
+            verbose,
+            iterations,
+        )
+    else:
+        _fit_combined_factors_on_cpu_inplace(
+            model,
+            ui_csr,
+            user_factors,
+            item_factors,
+            n_user_explicit_factors,
+            n_item_explicit_factors,
+            verbose,
+            iterations,
+        )
+
+    # Fix back model factors
+    model.factors = n_latent_factors
+
+
+def _init_user_item_factors_for_combined_training_with_features(
+    model: AnyAlternatingLeastSquares,
+    n_users: int,
+    n_items: int,
+    user_features: tp.Optional[Features],
+    item_features: tp.Optional[Features],
+) -> tp.Tuple[np.ndarray, np.ndarray, int, int]:
+    """
+    Init user and item factors for model that hasn't been initialized yet.
+    Final factors will include latent factors, explicit factors from
+    user/item features and their paired item/user factors.
+    This method is only used when `fit_features_together` is set to ``True``
+    """
     # Prepare explicit factors
     user_explicit_factors: np.ndarray
     if user_features is None:
@@ -314,10 +523,6 @@ def fit_als_with_features_together_inplace(
     else:
         user_latent_factors, item_latent_factors = _init_latent_factors_cpu(model, n_users, n_items)
 
-    # Fix number of factors
-    n_latent_factors = model.factors
-    model.factors = n_latent_factors + n_user_explicit_factors + n_item_explicit_factors
-
     # Prepare paired factors
     user_factors_paired_to_items = np.zeros((n_users, n_item_explicit_factors))
     item_factors_paired_to_users = np.zeros((n_items, n_user_explicit_factors))
@@ -338,29 +543,7 @@ def fit_als_with_features_together_inplace(
         )
     ).astype(model.dtype)
 
-    # Give the positive examples more weight if asked for (implicit library logic copy)
-    ui_csr = model.alpha * ui_csr
-
-    if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-        _fit_combined_factors_on_gpu_inplace(
-            model,
-            ui_csr,
-            user_factors,
-            item_factors,
-            n_user_explicit_factors,
-            n_item_explicit_factors,
-            verbose,
-        )
-    else:
-        _fit_combined_factors_on_cpu_inplace(
-            model,
-            ui_csr,
-            user_factors,
-            item_factors,
-            n_user_explicit_factors,
-            n_item_explicit_factors,
-            verbose,
-        )
+    return user_factors, item_factors, n_user_explicit_factors, n_item_explicit_factors
 
 
 def _fit_combined_factors_on_cpu_inplace(
@@ -371,6 +554,7 @@ def _fit_combined_factors_on_cpu_inplace(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
+    iterations: int,
 ) -> None:
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
@@ -384,7 +568,7 @@ def _fit_combined_factors_on_cpu_inplace(
 
     solver = model.solver
 
-    for _ in tqdm(range(model.iterations), disable=verbose == 0):
+    for _ in tqdm(range(iterations), disable=verbose == 0):
 
         solver(
             ui_csr,
@@ -416,6 +600,7 @@ def _fit_combined_factors_on_gpu_inplace(
     n_user_explicit_factors: int,
     n_item_explicit_factors: int,
     verbose: int,
+    iterations: int,
 ) -> None:  # pragma: no cover
     n_factors = user_factors.shape[1]
     user_explicit_factors = user_factors[:, :n_user_explicit_factors].copy()
@@ -435,7 +620,7 @@ def _fit_combined_factors_on_gpu_inplace(
     _YtY = implicit.gpu.Matrix.zeros(model.factors, model.factors)
     _XtX = implicit.gpu.Matrix.zeros(model.factors, model.factors)
 
-    for _ in tqdm(range(model.iterations), disable=verbose == 0):
+    for _ in tqdm(range(iterations), disable=verbose == 0):
 
         model.solver.calculate_yty(Y, _YtY, model.regularization)
         model.solver.least_squares(ui_csr_cuda, X, _YtY, Y, model.cg_steps)
