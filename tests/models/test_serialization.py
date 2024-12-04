@@ -26,15 +26,22 @@ from rectools.models import (
     model_from_config,
 )
 from rectools.models.base import ModelBase, ModelConfig
+from rectools.models.vector import VectorModel
 
-from .utils import get_final_successors
+from .utils import get_successors
 
-MODEL_CLASSES = [
+INTERMEDIATE_MODEL_CLASSES = (VectorModel,)
+
+EXPOSABLE_MODEL_CLASSES = tuple(
     cls
-    for cls in get_final_successors(ModelBase)
-    if cls.__module__.startswith("rectools.models") and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
-]
-CONFIGURABLE_MODEL_CLASSES = [cls for cls in MODEL_CLASSES if cls not in (DSSMModel,)]
+    for cls in get_successors(ModelBase)
+    if (
+        cls.__module__.startswith("rectools.models") 
+        and cls not in INTERMEDIATE_MODEL_CLASSES 
+        and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
+    )
+)
+CONFIGURABLE_MODEL_CLASSES = tuple(cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel,))
 
 
 def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
@@ -49,7 +56,7 @@ def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
     return model
 
 
-@pytest.mark.parametrize("model_cls", MODEL_CLASSES)
+@pytest.mark.parametrize("model_cls", EXPOSABLE_MODEL_CLASSES)
 def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
     model = init_default_model(model_cls)
     with NamedTemporaryFile() as f:
