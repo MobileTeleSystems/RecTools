@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## Unreleased
+
+### Added
+- `from_config`, `get_config` and `get_params` methods to all models except neural-net-based ([#170](https://github.com/MobileTeleSystems/RecTools/pull/170))
+- `fit_partial` implementation for `ImplicitALSWrapperModel` that allows to fit model for a specific number of epochs and continue training from the previous point ([#203](https://github.com/MobileTeleSystems/RecTools/pull/203), [#210](https://github.com/MobileTeleSystems/RecTools/pull/210))
+- `save` and `load` methods to all of the models ([#206](https://github.com/MobileTeleSystems/RecTools/pull/206))
+- Model configs example ([#207](https://github.com/MobileTeleSystems/RecTools/pull/207))
+- `use_gpu` argument to `ImplicitRanker.rank` method ([#201](https://github.com/MobileTeleSystems/RecTools/pull/201))
+- `keep_extra_cols` argument to `Dataset.construct` and `Interactions.from_raw` methods. `include_extra_cols` argument to `Dataset.get_raw_interactions` and `Interactions.to_external` methods ([#208](https://github.com/MobileTeleSystems/RecTools/pull/208))
+- dtype adjustment to `recommend`, `recommend_to_items` methods of `ModelBase` ([#211](https://github.com/MobileTeleSystems/RecTools/pull/211))
+- `load_model` function ([#213](https://github.com/MobileTeleSystems/RecTools/pull/213))
+
+
 ## [0.8.0] - 28.08.2024
 
 ### Added
