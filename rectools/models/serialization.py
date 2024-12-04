@@ -3,7 +3,7 @@ import typing as tp
 
 from pydantic import TypeAdapter
 
-from rectools.models.base import ModelBase, ModelConfig, deserialize_model_class, ModelClass
+from rectools.models.base import ModelBase, ModelConfig, ModelClass
 from rectools.utils.serialization import FileLike, read_bytes
 
 

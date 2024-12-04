@@ -46,21 +46,26 @@ ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
 
 
+STANDARD_MODEL_PATH_PREFIX = "rectools.models"
+
+
 def _deserialize_model_class(spec: tp.Any) -> tp.Any:
     if not isinstance(spec, str):
         return spec
-    # TODO: add short names for built-in models
+    if "." not in spec:
+        spec = f"{STANDARD_MODEL_PATH_PREFIX}.{spec}"  # EaseModel -> rectools.models.EaseModel
     return import_object(spec)
 
 
 def _serialize_model_class(cls: tp.Type["ModelBase"]) -> str:
-    # TODO: add short names for built-in models
-    return get_class_or_function_full_path(cls)
+    path = get_class_or_function_full_path(cls)
+    if path.startswith(STANDARD_MODEL_PATH_PREFIX):
+        return path.split(".")[-1]  # rectools.models.ease.EASEModel -> EASEModel
 
 
 ModelClass = tpe.Annotated[
     tp.Type["ModelBase"],
-    BeforeValidator(deserialize_model_class),
+    BeforeValidator(_deserialize_model_class),
     PlainSerializer(
         func=_serialize_model_class,
         return_type=str,
