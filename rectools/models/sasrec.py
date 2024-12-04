@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 import torch
 import typing_extensions as tpe
+from implicit.gpu import HAS_CUDA
 from pytorch_lightning import LightningModule, Trainer
 from scipy import sparse
 from torch import nn
-from implicit.gpu import HAS_CUDA
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
@@ -1138,7 +1138,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "cpu",
+        recommend_device: str = "auto",
         recommend_cpu_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = False,
         trainer: tp.Optional[Trainer] = None,
@@ -1165,7 +1165,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         )
         self.lightning_model: SessionEncoderLightningModuleBase
         self.lightning_module_type = lightning_module_type
-        self.trainer: Trainer
+        self.fit_trainer: Trainer
         if trainer is None:
             self._trainer = Trainer(
                 max_epochs=epochs,
@@ -1248,14 +1248,13 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
                 ui_csr_for_filter = None
 
             # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
-            boooo = True if self.recommend_use_gpu_ranking and HAS_CUDA else False
             user_ids_indices, all_reco_ids, all_scores = ranker.rank(
                 subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
                 k=k,
                 filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
                 sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
                 num_threads=self.recommend_cpu_n_threads,
-                use_gpu=True if self.recommend_use_gpu_ranking and HAS_CUDA else False,
+                use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
             )
             all_target_ids = user_ids[user_ids_indices]
         else:
@@ -1288,7 +1287,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
             num_threads=self.recommend_cpu_n_threads,
-            use_gpu=True if self.recommend_use_gpu_ranking and HAS_CUDA else False,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     @property
@@ -1341,7 +1340,7 @@ class SASRecModel(TransformerModelBase):
     deterministic: bool, default ``False``
         If ``True``, sets deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device: str, default "cpu"
+    recommend_device: str, default "auto"
         Device for recommend. Used at predict_step of lightning module.
     recommend_cpu_n_threads: int, default 0
         Number of threads to use in ranker.
@@ -1384,7 +1383,7 @@ class SASRecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "cpu",
+        recommend_device: str = "auto",
         recommend_cpu_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = False,
         train_min_user_interaction: int = 2,

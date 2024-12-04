@@ -163,7 +163,7 @@ class BERT4RecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "cpu",
+        recommend_device: str = "auto",
         recommend_cpu_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = False,
         session_max_len: int = 32,
