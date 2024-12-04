@@ -104,6 +104,8 @@ class ImplicitALSWrapperModelConfig(ModelConfig):
 
     model: AlternatingLeastSquaresConfig
     fit_features_together: bool = False
+    recommend_cpu_n_threads: tp.Optional[int] = None
+    recommend_use_gpu_ranking: tp.Optional[bool] = None
 
 
 class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
@@ -123,6 +125,17 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         Whether fit explicit features together with latent features or not.
         Used only if explicit features are present in dataset.
         See documentations linked above for details.
+    recommend_cpu_n_threads: Optional[int], default ``None``
+        Number of threads to use for recommendation ranking on cpu.
+        If ``None``, then number of threads will be set same as `model.num_threads`.
+        This attribute can be changed manually before calling model `recommend` method if you
+        want to change ranking behaviour.
+    recommend_use_gpu_ranking: Optional[bool], default ``None``
+        Flag to use gpu for recommendation ranking. If ``None``, then will be set same as
+        `model.use_gpu`.
+        `implicit.gpu.HAS_CUDA` will also be checked before inference.
+        This attribute can be changed manually before calling model `recommend` method if you
+        want to change ranking behaviour.
     """
 
     recommends_for_warm = False
@@ -133,8 +146,17 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
     config_class = ImplicitALSWrapperModelConfig
 
-    def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
-        self._config = self._make_config(model, verbose, fit_features_together)
+    def __init__(
+        self,
+        model: AnyAlternatingLeastSquares,
+        verbose: int = 0,
+        fit_features_together: bool = False,
+        recommend_cpu_n_threads: tp.Optional[int] = None,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
+    ):
+        self._config = self._make_config(
+            model, verbose, fit_features_together, recommend_cpu_n_threads, recommend_use_gpu_ranking
+        )
 
         super().__init__(verbose=verbose)
 
@@ -142,13 +164,23 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         self._model = model  # for refit
 
         self.fit_features_together = fit_features_together
-        self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
-        if not self.use_gpu:
-            self.n_threads = model.num_threads
+
+        if recommend_cpu_n_threads is None and isinstance(model, CPUAlternatingLeastSquares):
+            recommend_cpu_n_threads = model.num_threads
+        self.recommend_cpu_n_threads = recommend_cpu_n_threads
+
+        if recommend_use_gpu_ranking is None:
+            recommend_use_gpu_ranking = isinstance(model, GPUAlternatingLeastSquares)
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     @classmethod
     def _make_config(
-        cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
+        cls,
+        model: AnyAlternatingLeastSquares,
+        verbose: int,
+        fit_features_together: bool,
+        recommend_cpu_n_threads: tp.Optional[int] = None,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
     ) -> ImplicitALSWrapperModelConfig:
         params = {
             "factors": model.factors,
@@ -183,6 +215,8 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
             ),
             verbose=verbose,
             fit_features_together=fit_features_together,
+            recommend_cpu_n_threads=recommend_cpu_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
         )
 
     def _get_config(self) -> ImplicitALSWrapperModelConfig:
@@ -195,7 +229,13 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         else:
             model_cls = config.model.cls
         model = model_cls(**config.model.params)
-        return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
+        return cls(
+            model=model,
+            verbose=config.verbose,
+            fit_features_together=config.fit_features_together,
+            recommend_cpu_n_threads=config.recommend_cpu_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+        )
 
     def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)

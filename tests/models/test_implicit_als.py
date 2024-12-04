@@ -496,6 +496,8 @@ class TestImplicitALSWrapperModelConfiguration:
             },
             "fit_features_together": True,
             "verbose": 1,
+            "recommend_use_gpu_ranking": None,
+            "recommend_cpu_n_threads": None,
         }
         assert config == expected
 

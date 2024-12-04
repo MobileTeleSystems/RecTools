@@ -18,6 +18,7 @@ import typing as tp
 
 import numpy as np
 import typing_extensions as tpe
+from implicit.gpu import HAS_CUDA
 from scipy import sparse
 
 from rectools import InternalIds
@@ -34,6 +35,7 @@ class EASEModelConfig(ModelConfig):
 
     regularization: float = 500.0
     num_threads: int = 1
+    recommend_use_gpu_ranking: tp.Optional[bool] = None
 
 
 class EASEModel(ModelBase[EASEModelConfig]):
@@ -54,7 +56,12 @@ class EASEModel(ModelBase[EASEModelConfig]):
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
     num_threads: int, default 1
-        Number of threads used for `recommend` method.
+        Number of threads used for recommendation ranking on cpu.
+    recommend_use_gpu_ranking: Optional[bool], default ``None``
+        Flag to use gpu for recommendation ranking. If ``None``, `implicit.gpu.HAS_CUDA` will be
+        checked before inference.
+        This attribute can be changed manually before calling model `recommend` method if you
+        want to change ranking behaviour.
     """
 
     recommends_for_warm = False
@@ -67,19 +74,31 @@ class EASEModel(ModelBase[EASEModelConfig]):
         regularization: float = 500.0,
         num_threads: int = 1,
         verbose: int = 0,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
     ):
 
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
         self.num_threads = num_threads
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _get_config(self) -> EASEModelConfig:
-        return EASEModelConfig(regularization=self.regularization, num_threads=self.num_threads, verbose=self.verbose)
+        return EASEModelConfig(
+            regularization=self.regularization,
+            num_threads=self.num_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            verbose=self.verbose,
+        )
 
     @classmethod
     def _from_config(cls, config: EASEModelConfig) -> tpe.Self:
-        return cls(regularization=config.regularization, num_threads=config.num_threads, verbose=config.verbose)
+        return cls(
+            regularization=config.regularization,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+            num_threads=config.num_threads,
+            verbose=config.verbose,
+        )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
@@ -92,6 +111,13 @@ class EASEModel(ModelBase[EASEModelConfig]):
 
         self.weight = np.array(gram_matrix_inv / (-np.diag(gram_matrix_inv)))
         np.fill_diagonal(self.weight, 0.0)
+
+    @property
+    def _recommend_use_gpu_ranking(self) -> bool:
+        use_gpu = HAS_CUDA
+        if self.recommend_use_gpu_ranking is False:
+            use_gpu = False
+        return use_gpu
 
     def _recommend_u2i(
         self,
@@ -116,6 +142,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
             num_threads=self.num_threads,
+            use_gpu=self._recommend_use_gpu_ranking,
         )
 
         return all_user_ids, all_reco_ids, all_scores

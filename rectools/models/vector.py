@@ -41,8 +41,20 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    recommend_cpu_n_threads: int = 0
+    recommend_cpu_n_threads: tp.Optional[int] = None
     recommend_use_gpu_ranking: tp.Optional[bool] = None
+
+    @property
+    def _recommend_use_gpu_ranking(self) -> bool:
+        use_gpu = HAS_CUDA
+        if self.recommend_use_gpu_ranking is False:
+            use_gpu = False
+        return use_gpu
+
+    @property
+    def _recommend_cpu_n_threads(self) -> int:
+        num_threads = 0 if self.recommend_cpu_n_threads is None else self.recommend_cpu_n_threads
+        return num_threads
 
     def _recommend_u2i(
         self,
@@ -61,15 +73,14 @@ class VectorModel(ModelBase[ModelConfig_T]):
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
         ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
-        
-        use_gpu = self.recommend_use_gpu_ranking and HAS_CUDA
+
         return ranker.rank(
             subject_ids=user_ids,
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.recommend_cpu_n_threads,
-            use_gpu=use_gpu
+            num_threads=self._recommend_cpu_n_threads,
+            use_gpu=self._recommend_use_gpu_ranking,
         )
 
     def _recommend_i2i(
@@ -83,14 +94,13 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
         ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
 
-        use_gpu = self.recommend_use_gpu_ranking and HAS_CUDA
         return ranker.rank(
             subject_ids=target_ids,
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.recommend_cpu_n_threads,
-            use_gpu=use_gpu
+            num_threads=self._recommend_cpu_n_threads,
+            use_gpu=self._recommend_use_gpu_ranking,
         )
 
     def _process_biases_to_vectors(
