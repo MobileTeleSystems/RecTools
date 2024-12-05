@@ -1,5 +1,4 @@
 import typing as tp
-from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -11,9 +10,11 @@ from rectools.models.sasrec import (
     IdEmbeddingsItemNet,
     ItemNetBase,
     LearnableInversePositionalEncoding,
+    LossDescription,
     PointWiseFeedForward,
     PositionalEncodingBase,
     SessionEncoderDataPreparatorBase,
+    SessionEncoderHeadBase,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
     TransformerLayersBase,
@@ -49,7 +50,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         )
         self.mask_prob = mask_prob
 
-    def _mask_session(self, ses: List[int]) -> Tuple[List[int], List[int]]:
+    def _mask_session(self, ses: tp.List[int]) -> tp.Tuple[tp.List[int], tp.List[int]]:
         masked_session = ses.copy()
         target = ses.copy()
         random_probs = np.random.rand(len(ses))
@@ -66,8 +67,8 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
-    ) -> Dict[str, torch.Tensor]:
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+    ) -> tp.Dict[str, torch.Tensor]:
         """TODO"""
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len + 1))
@@ -90,7 +91,9 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             batch_dict["negatives"] = negatives
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(
+        self, batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]]
+    ) -> tp.Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len + 1))
         for i, (ses, _) in enumerate(batch):
@@ -167,7 +170,7 @@ class BERT4RecModel(TransformerModelBase):
         session_max_len: int = 32,
         n_negatives: int = 1,
         batch_size: int = 128,
-        loss: str = "softmax",
+        loss: tp.Union[LossDescription, SessionEncoderHeadBase] = "softmax",
         gbce_t: float = 0.2,
         lr: float = 0.01,
         dataloader_num_workers: int = 0,
@@ -205,7 +208,7 @@ class BERT4RecModel(TransformerModelBase):
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
+            n_negatives=n_negatives if self.requires_negatives else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interaction,
