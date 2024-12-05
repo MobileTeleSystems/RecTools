@@ -10,6 +10,7 @@ from rectools.models.sasrec import (
     IdEmbeddingsItemNet,
     ItemNetBase,
     LearnableInversePositionalEncoding,
+    LossDescription,
     PointWiseFeedForward,
     PositionalEncodingBase,
     SessionEncoderDataPreparatorBase,
@@ -169,7 +170,7 @@ class BERT4RecModel(TransformerModelBase):
         session_max_len: int = 32,
         n_negatives: int = 1,
         batch_size: int = 128,
-        loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase] = "softmax",
+        loss: tp.Union[LossDescription, SessionEncoderHeadBase] = "softmax",
         gbce_t: float = 0.2,
         lr: float = 0.01,
         dataloader_num_workers: int = 0,
@@ -207,7 +208,7 @@ class BERT4RecModel(TransformerModelBase):
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
+            n_negatives=n_negatives if self.requires_negatives else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interaction,

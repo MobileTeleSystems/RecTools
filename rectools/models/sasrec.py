@@ -979,6 +979,11 @@ class SessionEncoderHeadBase(nn.Module):
     def _calc_loss(self, batch: tp.Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
+    @property
+    def requires_negatives(self) -> bool:
+        """Indicator whether negatives are needed for loss computation during training."""
+        raise NotImplementedError()
+
 
 class DotProductSoftmaxHead(SessionEncoderHeadBase):
     """
@@ -1012,6 +1017,11 @@ class DotProductSoftmaxHead(SessionEncoderHeadBase):
         loss = torch.sum(loss) / torch.sum(n)
         return loss
 
+    @property
+    def requires_negatives(self) -> bool:
+        """Indicator whether negatives are needed for loss computation during training."""
+        return False
+
 
 class DotProductBCEHead(SessionEncoderHeadBase):
     """
@@ -1041,6 +1051,11 @@ class DotProductBCEHead(SessionEncoderHeadBase):
         loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
+
+    @property
+    def requires_negatives(self) -> bool:
+        """Indicator whether negatives are needed for loss computation during training."""
+        return True
 
 
 class DotProductGBCEHead(DotProductBCEHead):
@@ -1114,9 +1129,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
     ----------
     torch_model: TransformerBasedSessionEncoder
         Torch for encoding sessions using transformer architecture.
-    loss:  Union[Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase
-    ]
-        Loss function specification or custom transformer head implementation.
+    loss: Union[Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase]
+        Loss function specification or custom session encoder head implementation.
     lr: float
         Learning rate.
     gbce_t: float
@@ -1136,14 +1150,13 @@ class SessionEncoderLightningModuleBase(LightningModule):
     ):
         super().__init__()
         self.lr = lr
-        self.loss = loss
         self.torch_model = torch_model
         self.gbce_t = gbce_t
         self.item_embs: torch.Tensor
         if isinstance(loss, SessionEncoderHeadBase):
-            self.transformer_head = loss
+            self.session_encoder_head = loss
         else:
-            self.transformer_head = self._init_head(loss, n_actual_items)
+            self.session_encoder_head = self._init_head(loss, n_actual_items)
 
     def _init_head(self, loss: LossDescription, n_actual_items: int) -> SessionEncoderHeadBase:
 
@@ -1179,7 +1192,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Forward pass and loss calculation."""
         item_embs, session_embs = self.torch_model(batch["x"])
-        return self.transformer_head(batch, item_embs, session_embs)
+        return self.session_encoder_head(batch, item_embs, session_embs)
 
     def on_train_end(self) -> None:
         """Save item embeddings for inference after training end."""
@@ -1274,6 +1287,15 @@ class TransformerModelBase(ModelBase):
         self.lr = lr
         self.loss = loss
         self.gbce_t = gbce_t
+
+    @property
+    def requires_negatives(self) -> bool:
+        """Indicator whether negatives are needed for loss computation during training."""
+        if isinstance(self.loss, SessionEncoderHeadBase):
+            return self.loss.requires_negatives
+        if self.loss == "softmax":
+            return False
+        return True
 
     def _fit(
         self,
@@ -1442,9 +1464,10 @@ class SASRecModel(TransformerModelBase):
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
         )
+
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
+            n_negatives=n_negatives if self.requires_negatives else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interaction,
