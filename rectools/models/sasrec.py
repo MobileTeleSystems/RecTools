@@ -239,7 +239,7 @@ class ItemNetConstructor(ItemNetBase):
     ----------
     n_items: int
         Number of items in the dataset.
-    item_net_blocks: tp.Sequence(ItemNetBase)
+    item_net_blocks: Sequence(ItemNetBase)
         Latent embedding size of item embeddings.
     """
 
@@ -307,7 +307,7 @@ class ItemNetConstructor(ItemNetBase):
             Latent embedding size of item embeddings.
         dropout_rate: float
             Probability of a hidden unit of item embedding to be zeroed.
-        item_net_block_types: tp.Sequence(Type(ItemNetBase))
+        item_net_block_types: Sequence(Type(ItemNetBase))
             Sequence item network block types.
         """
         n_items = dataset.item_id_map.size
@@ -508,11 +508,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         If ``True``, adds learnable positional encoding to session item embeddings.
     use_causal_attn: bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
-    transformer_layers_type: tp.Type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type: Type(TransformerLayersBase), default `SasRecTransformerLayers`
         Type of transformer layers architecture.
-    item_net_type: tp.Type(ItemNetBase), default IdEmbeddingsItemNet
+    item_net_type: Type(ItemNetBase), default IdEmbeddingsItemNet
         Type of network returning item embeddings.
-    pos_encoding_type: tp.Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
+    pos_encoding_type: Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
         Type of positional encoding.
     """
 

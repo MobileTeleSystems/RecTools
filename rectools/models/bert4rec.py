@@ -1,4 +1,4 @@
-from typing import Dict, Hashable, List, Literal, Optional, Sequence, Tuple, Type, Union
+import typing as tp
 
 import numpy as np
 import torch
@@ -30,12 +30,12 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     def __init__(
         self,
         session_max_len: int,
-        n_negatives: Optional[int],
+        n_negatives: tp.Optional[int],
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int,
         mask_prob: float,
-        item_extra_tokens: Sequence[Hashable],
+        item_extra_tokens: tp.Sequence[tp.Hashable],
         shuffle_train: bool = True,
     ) -> None:
         super().__init__(
@@ -49,7 +49,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         )
         self.mask_prob = mask_prob
 
-    def _mask_session(self, ses: List[int]) -> Tuple[List[int], List[int]]:
+    def _mask_session(self, ses: tp.List[int]) -> tp.Tuple[tp.List[int], tp.List[int]]:
         masked_session = ses.copy()
         target = ses.copy()
         random_probs = np.random.rand(len(ses))
@@ -66,8 +66,8 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
-    ) -> Dict[str, torch.Tensor]:
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+    ) -> tp.Dict[str, torch.Tensor]:
         """TODO"""
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len + 1))
@@ -90,7 +90,9 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             batch_dict["negatives"] = negatives
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(
+        self, batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]]
+    ) -> tp.Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len + 1))
         for i, (ses, _) in enumerate(batch):
@@ -167,18 +169,18 @@ class BERT4RecModel(TransformerModelBase):
         session_max_len: int = 32,
         n_negatives: int = 1,
         batch_size: int = 128,
-        loss: Union[Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase] = "softmax",
+        loss: tp.Union[tp.Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase] = "softmax",
         gbce_t: float = 0.2,
         lr: float = 0.01,
         dataloader_num_workers: int = 0,
         train_min_user_interaction: int = 2,
         mask_prob: float = 0.15,
-        trainer: Optional[Trainer] = None,
-        item_net_block_types: Sequence[Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        pos_encoding_type: Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: Type[TransformerLayersBase] = BERT4RecTransformerLayers,
-        data_preparator_type: Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
-        lightning_module_type: Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        trainer: tp.Optional[Trainer] = None,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = BERT4RecTransformerLayers,
+        data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
+        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
