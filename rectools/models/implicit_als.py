@@ -143,8 +143,13 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     def _make_config(
         cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
     ) -> ImplicitALSWrapperModelConfig:
+        model_cls = (
+            model.__class__
+            if model.__class__ not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
+            else "AlternatingLeastSquares"
+        )
         inner_model_config = {
-            "cls": model.__class__,
+            "cls": model_cls,
             "factors": model.factors,
             "regularization": model.regularization,
             "alpha": model.alpha,

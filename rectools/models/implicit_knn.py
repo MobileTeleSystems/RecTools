@@ -29,7 +29,6 @@ from rectools import InternalIds
 from rectools.dataset import Dataset
 from rectools.types import InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
-from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .base import ModelBase, ModelConfig, Scores
@@ -130,8 +129,9 @@ class ImplicitItemKNNWrapperModel(ModelBase[ImplicitItemKNNWrapperModelConfig]):
 
     @classmethod
     def _from_config(cls, config: ImplicitItemKNNWrapperModelConfig) -> tpe.Self:
-        params = config.model.copy()
-        model_cls = params.pop("cls")
+        model_cls = config.model["cls"]
+        params = dict(config.model.copy())  # `cls` param is required and cannot be popped
+        del params["cls"]
         model = model_cls(**params)
         return cls(model=model, verbose=config.verbose)
 

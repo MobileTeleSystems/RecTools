@@ -493,7 +493,7 @@ class TestConfiguration:
     def test_get_config_pydantic(self) -> None:
         model = self.model_class(x=10, verbose=1)
         config = model.get_config(mode="pydantic")
-        assert config == self.config_class(x=10, verbose=1)
+        assert config == self.config_class(cls=self.model_class, x=10, verbose=1)
 
     def test_raises_on_pydantic_with_simple_types(self) -> None:
         model = self.model_class(x=10, verbose=1)
