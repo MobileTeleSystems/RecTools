@@ -121,11 +121,36 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 - For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
 - For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.**
 
+
+## Extended validation tools
+
+### `DebiasConfig` for debiased metrics calculation
+
+[User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/8_debiased_metrics.ipynb) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.metrics.debias.DebiasConfig.html)
+
+### `VisualApp` for model recommendations comparison
+
+<img src="https://recsysart.ru/images/visual_app.gif" width=500>
+
+
+[Example](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/7_visualization.ipynb) | [Demo](https://recsysart.ru/voila/) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.visuals.visual_app.VisualApp.html)
+
+
+
+### `MetricsApp` for metrics trade-off analysis
+
+
+<img src="https://recsysart.ru/images/metrics_app.gif" width=600>
+
+[Example](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb) |
+[Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.visuals.metrics_app.MetricsApp.html)
+
+
 ## Contribution
 [Contributing guide](CONTRIBUTING.rst)
 
 To install all requirements
-- you must have `python>=3.8` and `poetry>=1.5.0` installed
+- you must have `python3` and `poetry` installed
 - make sure you have no active virtual environments (deactivate conda `base` if applicable)
 - run
 ```
