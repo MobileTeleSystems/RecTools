@@ -149,13 +149,13 @@ class TestModelFromConfig:
         model = PopularModel()
         config = model.get_config(mode=mode, simple_types=simple_types)
         if mode == "pydantic":
-            config.cls = LightFMWrapperModel  # type: ignore
+            config.cls = ImplicitALSWrapperModel  # type: ignore
         else:
             if simple_types:
                 # pylint: disable=unsupported-assignment-operation
                 config["cls"] = "rectools.models.LightFMWrapperModel"  # type: ignore
             else:
-                config["cls"] = LightFMWrapperModel  # type: ignore  # pylint: disable=unsupported-assignment-operation
+                config["cls"] = ImplicitALSWrapperModel  # type: ignore  # pylint: disable=unsupported-assignment-operation
         with pytest.raises(ValidationError):
             model_from_config(config)
 
