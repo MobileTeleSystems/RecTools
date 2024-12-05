@@ -357,10 +357,8 @@ class TestLightFMWrapperModelConfiguration:
     def test_from_config(self, add_cls: bool) -> None:
         config: tp.Dict = {
             "model": {
-                "params": {
-                    "no_components": 16,
-                    "learning_rate": 0.03,
-                },
+                "no_components": 16,
+                "learning_rate": 0.03,
             },
             "epochs": 2,
             "num_threads": 3,
@@ -386,7 +384,8 @@ class TestLightFMWrapperModelConfiguration:
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
-        expected_model_params = {
+        expected_inner_model_config = {
+            "cls": "LightFM" if simple_types else LightFM,
             "no_components": 16,
             "k": 5,
             "n": 10,
@@ -402,10 +401,7 @@ class TestLightFMWrapperModelConfiguration:
         }
         expected = {
             "cls": "LightFMWrapperModel" if simple_types else LightFMWrapperModel,
-            "model": {
-                "cls": "LightFM" if simple_types else LightFM,
-                "params": expected_model_params,
-            },
+            "model": expected_inner_model_config,
             "epochs": 2,
             "num_threads": 3,
             "verbose": 1,
@@ -440,9 +436,7 @@ class TestLightFMWrapperModelConfiguration:
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
-            "model": {
-                "params": {"no_components": 16, "learning_rate": 0.03, "random_state": 42},
-            },
+            "model": {"no_components": 16, "learning_rate": 0.03, "random_state": 42},
             "verbose": 1,
         }
         assert_get_config_and_from_config_compatibility(LightFMWrapperModel, DATASET, initial_config, simple_types)
