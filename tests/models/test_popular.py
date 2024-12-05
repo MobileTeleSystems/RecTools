@@ -273,21 +273,25 @@ class TestPopularModelConfiguration:
         assert model.verbose == 0
 
     @pytest.mark.parametrize(
-        "begin_from,period,expected_period",
+        "begin_from,period,simple_begin_from,simple_period",
         (
             (
                 None,
                 timedelta(weeks=2, days=7, hours=23, milliseconds=12345),
+                None,
                 {"days": 21, "microseconds": 345000, "seconds": 82812},
             ),
-            (datetime(2021, 11, 23, 10, 20, 30, 400000), None, None),
+            (datetime(2024, 11, 23, 10, 20, 30, 400000), None, "2024-11-23T10:20:30.400000", None),
         ),
     )
+    @pytest.mark.parametrize("simple_types", (True, False))
     def test_get_config(
         self,
         period: tp.Optional[timedelta],
         begin_from: tp.Optional[datetime],
-        expected_period: tp.Optional[timedelta],
+        simple_begin_from: tp.Optional[str],
+        simple_period: tp.Optional[dict],
+        simple_types: bool,
     ) -> None:
         model = PopularModel(
             popularity="n_users",
@@ -297,12 +301,12 @@ class TestPopularModelConfiguration:
             inverse=False,
             verbose=1,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
-            "cls": PopularModel,
-            "popularity": Popularity("n_users"),
-            "period": expected_period,
-            "begin_from": begin_from,
+            "cls": "PopularModel" if simple_types else PopularModel,
+            "popularity": "n_users" if simple_types else Popularity("n_users"),
+            "period": simple_period if simple_types else period,
+            "begin_from": simple_begin_from if simple_types else begin_from,
             "add_cold": False,
             "inverse": False,
             "verbose": 1,
