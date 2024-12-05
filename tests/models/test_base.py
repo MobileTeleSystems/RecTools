@@ -459,9 +459,17 @@ class TestConfiguration:
                 td = None if config.sc is None else config.sc.td
                 return cls(x=config.x, td=td, verbose=config.verbose)
 
+        class OtherModelConfig(ModelConfig):
+            y: int
+
+        class OtherModel(ModelBase[OtherModelConfig]):
+            pass
+
         self.config_class = SomeModelConfig
         self.model_class = SomeModel
         self.model_class_path = "tests.models.test_base.TestConfiguration.setup_method.<locals>.SomeModel"
+        self.other_config_class = OtherModelConfig
+        self.other_model_class = OtherModel
 
     def test_from_pydantic_config(self) -> None:
         config = self.config_class(x=10, verbose=1)
@@ -543,6 +551,11 @@ class TestConfiguration:
             NotImplementedError, match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
         ):
             MyModelWithoutConfig().get_config()
+
+    def test_incorrct_model_class_in_config(self) -> None:
+        config = self.config_class(cls=self.other_model_class, x=1)
+        with pytest.raises(TypeError, match="`SomeModel` is used, but config is for `OtherModel`"):
+            self.model_class.from_config(config)
 
 
 class MyModel(ModelBase):
