@@ -14,10 +14,13 @@ from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import SparseFeatures
 from rectools.models.sasrec import (
     CatFeaturesItemNet,
+    DotProductBCEHead,
+    DotProductGBCEHead,
     DotProductSoftmaxHead,
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructor,
+    LossDescription,
     SASRecDataPreparator,
     SASRecModel,
     SequenceDataset,
@@ -414,6 +417,21 @@ class TestSASRecModel:
                 but some of given users are cold: they are not in the `dataset.user_id_map`
             """
         )
+
+    @pytest.mark.parametrize(
+        "loss,expected",
+        (
+            ("softmax", False),
+            ("BCE", True),
+            ("gBCE", True),
+            (DotProductSoftmaxHead(), False),
+            (DotProductBCEHead(), True),
+            (DotProductGBCEHead(0.1, 100), True),
+        ),
+    )
+    def test_requires_negatives(self, loss: tp.Union[SessionEncoderHeadBase, LossDescription], expected: bool) -> None:
+        model = SASRecModel(loss=loss)
+        assert model.requires_negatives == expected
 
 
 class TestSequenceDataset:
