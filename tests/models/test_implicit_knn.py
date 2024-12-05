@@ -276,14 +276,11 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         ),
     )
     def test_from_config(self, model_class: tp.Union[tp.Type[ItemItemRecommender], str]) -> None:
-        params: tp.Dict[str, tp.Any] = {"K": 5}
+        inner_model_config: tp.Dict[str, tp.Any] = {"cls": model_class, "K": 5}
         if model_class == "BM25Recommender":
-            params.update({"K1": 0.33})
+            inner_model_config.update({"K1": 0.33})
         config = {
-            "model": {
-                "cls": model_class,
-                "params": params,
-            },
+            "model": inner_model_config,
             "verbose": 1,
         }
         model = ImplicitItemKNNWrapperModel.from_config(config)
@@ -317,12 +314,13 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
-        expected_model_params: tp.Dict[str, tp.Any] = {
+        expected_inner_model_config: tp.Dict[str, tp.Any] = {
+            "cls": model_class if not simple_types else model_class_str,
             "K": 5,
             "num_threads": 0,
         }
         if model_class is BM25Recommender:
-            expected_model_params.update(
+            expected_inner_model_config.update(
                 {
                     "K1": 1.2,
                     "B": 0.75,
@@ -330,10 +328,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
             )
         expected = {
             "cls": "ImplicitItemKNNWrapperModel" if simple_types else ImplicitItemKNNWrapperModel,
-            "model": {
-                "cls": model_class if not simple_types else model_class_str,
-                "params": expected_model_params,
-            },
+            "model": expected_inner_model_config,
             "verbose": 1,
         }
         assert config == expected
@@ -343,7 +338,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         initial_config = {
             "model": {
                 "cls": TFIDFRecommender,
-                "params": {"K": 3},
+                "K": 3,
             },
             "verbose": 1,
         }
@@ -352,6 +347,6 @@ class TestImplicitItemKNNWrapperModelConfiguration:
         )
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
-        default_config: tp.Dict[str, tp.Any] = {"model": {"cls": ItemItemRecommender, "params": {}}}
+        default_config: tp.Dict[str, tp.Any] = {"model": {"cls": ItemItemRecommender}}
         model = ImplicitItemKNNWrapperModel(model=ItemItemRecommender())
         assert_default_config_and_default_model_params_are_the_same(model, default_config)

@@ -71,17 +71,20 @@ ItemItemRecommenderClass = tpe.Annotated[
 ]
 
 
-class ItemItemRecommenderConfig(BaseConfig):
+class ItemItemRecommenderConfig(tpe.TypedDict):
     """Config for `implicit` `ItemItemRecommender` model and its successors."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     cls: ItemItemRecommenderClass
-    params: tp.Dict[str, tp.Any] = {}
+    K: tpe.NotRequired[int]
+    K1: tpe.NotRequired[float]
+    B: tpe.NotRequired[float]
+    num_threads: tpe.NotRequired[int]
 
 
 class ImplicitItemKNNWrapperModelConfig(ModelConfig):
     """Config for `ImplicitItemKNNWrapperModel`."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     model: ItemItemRecommenderConfig
 
@@ -111,22 +114,25 @@ class ImplicitItemKNNWrapperModel(ModelBase[ImplicitItemKNNWrapperModelConfig]):
 
     def _get_config(self) -> ImplicitItemKNNWrapperModelConfig:
         inner_model = self._model
-        params = {"K": inner_model.K, "num_threads": inner_model.num_threads}
+        inner_model_config = {
+            "cls": inner_model.__class__,
+            "K": inner_model.K,
+            "num_threads": inner_model.num_threads,
+        }
         if isinstance(inner_model, BM25Recommender):
             # NOBUG: If it's a custom class, we don't know its params
-            params.update({"K1": inner_model.K1, "B": inner_model.B})
+            inner_model_config.update({"K1": inner_model.K1, "B": inner_model.B})
         return ImplicitItemKNNWrapperModelConfig(
             cls=self.__class__,
-            model=ItemItemRecommenderConfig(
-                cls=inner_model.__class__,
-                params=params,
-            ),
+            model=tp.cast(ItemItemRecommenderConfig, inner_model_config),
             verbose=self.verbose,
         )
 
     @classmethod
     def _from_config(cls, config: ImplicitItemKNNWrapperModelConfig) -> tpe.Self:
-        model = config.model.cls(**config.model.params)
+        params = config.model.copy()
+        model_cls = params.pop("cls")
+        model = model_cls(**params)
         return cls(model=model, verbose=config.verbose)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
