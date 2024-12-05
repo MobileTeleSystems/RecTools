@@ -452,7 +452,7 @@ class TestConfiguration:
 
             def _get_config(self) -> SomeModelConfig:
                 sc = None if self.td is None else SomeModelSubConfig(td=self.td)
-                return SomeModelConfig(x=self.x, sc=sc, verbose=self.verbose)
+                return SomeModelConfig(cls=self.__class__, x=self.x, sc=sc, verbose=self.verbose)
 
             @classmethod
             def _from_config(cls, config: SomeModelConfig) -> tpe.Self:
@@ -461,6 +461,7 @@ class TestConfiguration:
 
         self.config_class = SomeModelConfig
         self.model_class = SomeModel
+        self.model_class_path = "tests.models.test_base.TestConfiguration.setup_method.<locals>.SomeModel"
 
     def test_from_pydantic_config(self) -> None:
         config = self.config_class(x=10, verbose=1)
@@ -503,7 +504,8 @@ class TestConfiguration:
     def test_get_config_dict(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
         model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
         config = model.get_config(mode="dict", simple_types=simple_types)
-        assert config == {"x": 10, "verbose": 1, "sc": {"td": expected_td}}
+        expected_cls = self.model_class_path if simple_types else self.model_class
+        assert config == {"cls": expected_cls, "x": 10, "verbose": 1, "sc": {"td": expected_td}}
 
     def test_raises_on_incorrect_format(self) -> None:
         model = self.model_class(x=10, verbose=1)
@@ -514,13 +516,15 @@ class TestConfiguration:
     def test_get_params(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
         model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
         config = model.get_params(simple_types=simple_types)
-        assert config == {"x": 10, "verbose": 1, "sc.td": expected_td}
+        expected_cls = self.model_class_path if simple_types else self.model_class
+        assert config == {"cls": expected_cls, "x": 10, "verbose": 1, "sc.td": expected_td}
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_params_with_empty_subconfig(self, simple_types: bool) -> None:
         model = self.model_class(x=10, verbose=1, td=None)
         config = model.get_params(simple_types=simple_types)
-        assert config == {"x": 10, "verbose": 1, "sc": None}
+        expected_cls = self.model_class_path if simple_types else self.model_class
+        assert config == {"cls": expected_cls, "x": 10, "verbose": 1, "sc": None}
 
     def test_model_without_implemented_config_from_config(self) -> None:
         class MyModelWithoutConfig(ModelBase):

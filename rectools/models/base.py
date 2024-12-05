@@ -61,6 +61,7 @@ def _serialize_model_class(cls: tp.Type["ModelBase"]) -> str:
     path = get_class_or_function_full_path(cls)
     if path.startswith(STANDARD_MODEL_PATH_PREFIX):
         return path.split(".")[-1]  # rectools.models.ease.EASEModel -> EASEModel
+    return path
 
 
 ModelClass = tpe.Annotated[

@@ -329,6 +329,7 @@ class TestImplicitItemKNNWrapperModelConfiguration:
                 }
             )
         expected = {
+            "cls": "ImplicitItemKNNWrapperModel" if simple_types else ImplicitItemKNNWrapperModel,
             "model": {
                 "cls": model_class if not simple_types else model_class_str,
                 "params": expected_model_params,

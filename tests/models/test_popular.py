@@ -299,6 +299,7 @@ class TestPopularModelConfiguration:
         )
         config = model.get_config()
         expected = {
+            "cls": PopularModel,
             "popularity": Popularity("n_users"),
             "period": expected_period,
             "begin_from": begin_from,

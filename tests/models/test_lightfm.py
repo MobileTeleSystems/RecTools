@@ -401,6 +401,7 @@ class TestLightFMWrapperModelConfiguration:
             "random_state": random_state,
         }
         expected = {
+            "cls": "LightFMWrapperModel" if simple_types else LightFMWrapperModel,
             "model": {
                 "cls": "LightFM" if simple_types else LightFM,
                 "params": expected_model_params,

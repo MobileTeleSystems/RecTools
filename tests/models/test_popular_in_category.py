@@ -545,6 +545,7 @@ class TestPopularInCategoryModelConfiguration:
         )
         config = model.get_config()
         expected = {
+            "cls": PopularInCategoryModel,
             "category_feature": "f2",
             "n_categories": 3,
             "mixing_strategy": MixingStrategy("rotate"),

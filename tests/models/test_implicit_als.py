@@ -490,6 +490,7 @@ class TestImplicitALSWrapperModelConfiguration:
                 }
             )
         expected = {
+            "cls": "ImplicitALSWrapperModel" if simple_types else ImplicitALSWrapperModel,
             "model": {
                 "cls": "AlternatingLeastSquares",
                 "params": expected_model_params,
