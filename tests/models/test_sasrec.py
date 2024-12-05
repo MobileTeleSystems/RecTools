@@ -14,14 +14,14 @@ from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import SparseFeatures
 from rectools.models.sasrec import (
     CatFeaturesItemNet,
+    DotProductSoftmaxHead,
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructor,
-    LossCalculatorBase,
     SASRecDataPreparator,
     SASRecModel,
     SequenceDataset,
-    SoftmaxLossCalculator,
+    SessionEncoderHeadBase,
 )
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
@@ -126,9 +126,12 @@ class TestSASRecModel:
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
         assert_equal_reco_and_correct_scores_ranking(actual, expected)
 
-    @pytest.mark.parametrize("loss", ("softmax", "BCE", "gBCE", SoftmaxLossCalculator()))
+    @pytest.mark.parametrize("loss", ("softmax", "BCE", "gBCE", DotProductSoftmaxHead()))
     def test_losses_happy_pass(
-        self, dataset: Dataset, trainer: Trainer, loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase]
+        self,
+        dataset: Dataset,
+        trainer: Trainer,
+        loss: Union[Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase],
     ) -> None:
         model = SASRecModel(
             n_factors=32,

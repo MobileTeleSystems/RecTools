@@ -1,6 +1,6 @@
+import typing as tp
 import warnings
 from copy import deepcopy
-from typing import Any, Dict, Hashable, List, Literal, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -21,6 +21,8 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 
+LossDescription = tp.Literal["softmax", "BCE", "gBCE"]
+
 PADDING_VALUE = "PAD"
 
 # pylint: disable=too-many-lines
@@ -35,7 +37,7 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, *args: Any, **kwargs: Any) -> Optional[tpe.Self]:
+    def from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tp.Optional[tpe.Self]:
         """Construct ItemNet."""
         raise NotImplementedError()
 
@@ -139,7 +141,7 @@ class CatFeaturesItemNet(ItemNetBase):
         return torch.from_numpy(feature_dense)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> Optional[tpe.Self]:
+    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tp.Optional[tpe.Self]:
         """
         Create CatFeaturesItemNet from RecTools dataset.
 
@@ -237,14 +239,14 @@ class ItemNetConstructor(ItemNetBase):
     ----------
     n_items: int
         Number of items in the dataset.
-    item_net_blocks: Sequence(ItemNetBase)
+    item_net_blocks: tp.Sequence(ItemNetBase)
         Latent embedding size of item embeddings.
     """
 
     def __init__(
         self,
         n_items: int,
-        item_net_blocks: Sequence[ItemNetBase],
+        item_net_blocks: tp.Sequence[ItemNetBase],
     ) -> None:
         """TODO"""
         super().__init__()
@@ -292,7 +294,7 @@ class ItemNetConstructor(ItemNetBase):
         dataset: Dataset,
         n_factors: int,
         dropout_rate: float,
-        item_net_block_types: Sequence[Type[ItemNetBase]],
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
     ) -> tpe.Self:
         """
         Construct ItemNet from RecTools dataset and from various blocks of item networks.
@@ -305,12 +307,12 @@ class ItemNetConstructor(ItemNetBase):
             Latent embedding size of item embeddings.
         dropout_rate: float
             Probability of a hidden unit of item embedding to be zeroed.
-        item_net_block_types: Sequence(Type(ItemNetBase))
+        item_net_block_types: tp.Sequence(Type(ItemNetBase))
             Sequence item network block types.
         """
         n_items = dataset.item_id_map.size
 
-        item_net_blocks: List[ItemNetBase] = []
+        item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
             item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
             if item_net_block is not None:
@@ -506,11 +508,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         If ``True``, adds learnable positional encoding to session item embeddings.
     use_causal_attn: bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
-    transformer_layers_type: Type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type: tp.Type(TransformerLayersBase), default `SasRecTransformerLayers`
         Type of transformer layers architecture.
-    item_net_type: Type(ItemNetBase), default IdEmbeddingsItemNet
+    item_net_type: tp.Type(ItemNetBase), default IdEmbeddingsItemNet
         Type of network returning item embeddings.
-    pos_encoding_type: Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
+    pos_encoding_type: tp.Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
         Type of positional encoding.
     """
 
@@ -524,9 +526,9 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
-        transformer_layers_type: Type[TransformerLayersBase] = SASRecTransformerLayers,
-        item_net_block_types: Sequence[Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        pos_encoding_type: Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ) -> None:
         super().__init__()
 
@@ -599,7 +601,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
     def forward(
         self,
         sessions: torch.Tensor,  # [batch_size, session_max_len]
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass to get item and session embeddings.
         Get item embeddings.
@@ -628,20 +630,20 @@ class SequenceDataset(TorchDataset):
 
     Parameters
     ----------
-    sessions: List[List[int]]
+    sessions: tp.List[tp.List[int]]
         User sessions in the form of sequences of items ids.
-    weights: List[List[float]]
+    weights: tp.List[tp.List[float]]
         Weight of each interaction from the session.
     """
 
-    def __init__(self, sessions: List[List[int]], weights: List[List[float]]):
+    def __init__(self, sessions: tp.List[tp.List[int]], weights: tp.List[tp.List[float]]):
         self.sessions = sessions
         self.weights = weights
 
     def __len__(self) -> int:
         return len(self.sessions)
 
-    def __getitem__(self, index: int) -> Tuple[List[int], List[float]]:
+    def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float]]:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
         return session, weights
@@ -700,13 +702,13 @@ class SessionEncoderDataPreparatorBase:
         batch_size: int,
         dataloader_num_workers: int,
         shuffle_train: bool = True,
-        item_extra_tokens: Sequence[Hashable] = (PADDING_VALUE,),
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         train_min_user_interactions: int = 2,
-        n_negatives: Optional[int] = None,
+        n_negatives: tp.Optional[int] = None,
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap
-        self.extra_token_ids: Dict
+        self.extra_token_ids: tp.Dict
         self.session_max_len = session_max_len
         self.n_negatives = n_negatives
         self.batch_size = batch_size
@@ -887,15 +889,15 @@ class SessionEncoderDataPreparatorBase:
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
-    ) -> Dict[str, torch.Tensor]:
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+    ) -> tp.Dict[str, torch.Tensor]:
         """TODO"""
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
-        batch: List[Tuple[List[int], List[float]]],
-    ) -> Dict[str, torch.Tensor]:
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+    ) -> tp.Dict[str, torch.Tensor]:
         """TODO"""
         raise NotImplementedError()
 
@@ -905,8 +907,8 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
-    ) -> Dict[str, torch.Tensor]:
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+    ) -> tp.Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep (session_max_len+1) last items.
         Do left padding until  (session_max_len+1) is reached.
@@ -932,7 +934,9 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             batch_dict["negatives"] = negatives
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(
+        self, batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]]
+    ) -> tp.Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
         for i, (ses, _) in enumerate(batch):
@@ -940,24 +944,24 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
-# ####  --------------  Loss Calculator  --------------  #### #
+# ####  --------------  Session Encoder Head  --------------  #### #
 
 
-class LossCalculatorBase(nn.Module):
-    """Base class for transformer based session encoder loss calculators."""
+class SessionEncoderHeadBase(nn.Module):
+    """Base class for transformer based session encoder head."""
 
     def __init__(self) -> None:
         super().__init__()
 
     def forward(
-        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+        self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
         """
         Forward pass. Returns calculated loss.
 
         Parameters
         ----------
-        batch: Dict[str, torch.Tensor]
+        batch: tp.Dict[str, torch.Tensor]
             Full batch from train_dataloader. Different aspects (like x or y) can be accessed with corresponding keys.
         item_embs: torch.Tensor
             Full catalog item embeddings from torch_model.forward method.
@@ -968,26 +972,27 @@ class LossCalculatorBase(nn.Module):
         return self._calc_loss(batch, logits)
 
     def _get_logits(
-        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+        self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
         raise NotImplementedError()
 
-    def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+    def _calc_loss(self, batch: tp.Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
 
-class SoftmaxLossCalculator(LossCalculatorBase):
+class DotProductSoftmaxHead(SessionEncoderHeadBase):
     """
-    So called "Softmax" Loss function which stands for Cross Entropy Loss
+    Applies so called "Softmax" Loss function which stands for Cross Entropy Loss
     which is calculated over full items catalog.
+    Logits are computed as dot product of session embeddings and item embeddings.
     """
 
     def _get_logits(
-        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+        self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
         return session_embs @ item_embs.T
 
-    def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+    def _calc_loss(self, batch: tp.Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         y, w = batch["y"], batch["yw"]
         # We are using CrossEntropyLoss with a multi-dimensional case
 
@@ -1008,11 +1013,14 @@ class SoftmaxLossCalculator(LossCalculatorBase):
         return loss
 
 
-class BCELossCalculator(LossCalculatorBase):
-    """Binary Cross-Entropy Loss function (BCE). Our implementation allows any number of negative samples."""
+class DotProductBCEHead(SessionEncoderHeadBase):
+    """
+    Applies binary Cross-Entropy Loss function (BCE). Our implementation allows any number of negative samples.
+    Logits are computed as dot product of session embeddings and item embeddings.
+    """
 
     def _get_logits(
-        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+        self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
         y, negatives = batch["y"], batch["negatives"]
         pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
@@ -1021,7 +1029,7 @@ class BCELossCalculator(LossCalculatorBase):
         logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
         return logits
 
-    def _calc_loss(self, batch: Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
+    def _calc_loss(self, batch: tp.Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         y, w = batch["y"], batch["yw"]
 
         mask = y != 0
@@ -1035,11 +1043,13 @@ class BCELossCalculator(LossCalculatorBase):
         return loss
 
 
-class GBCELossCalculator(BCELossCalculator):
+class DotProductGBCEHead(DotProductBCEHead):
     """
-    Generalised Binary Cross-Entropy Loss function (gBCE).
+    Applies Generalised Binary Cross-Entropy Loss function (gBCE).
     From "gSASRec: Reducing Overconfidence in Sequential Recommendation Trained with Negative Sampling".
     https://arxiv.org/pdf/2308.07192.pdf
+    Our implementation allows any number of negative samples.
+    Logits are computed as dot product of session embeddings and item embeddings.
     """
 
     def __init__(self, gbce_t: float, n_actual_items: int) -> None:
@@ -1048,14 +1058,14 @@ class GBCELossCalculator(BCELossCalculator):
         self.n_actual_items = n_actual_items
 
     def forward(
-        self, batch: Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
+        self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
     ) -> torch.Tensor:
         """
         Forward pass. Returns calculated loss.
 
         Parameters
         ----------
-        batch: Dict[str, torch.Tensor]
+        batch: tp.Dict[str, torch.Tensor]
             Full batch from train_dataloader. Different aspects (like x or y) can be accessed with corresponding keys.
         item_embs: torch.Tensor
             Full catalog item embeddings from torch_model.forward method.
@@ -1104,8 +1114,9 @@ class SessionEncoderLightningModuleBase(LightningModule):
     ----------
     torch_model: TransformerBasedSessionEncoder
         Torch for encoding sessions using transformer architecture.
-    loss:  Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase]
-        Loss function specification.
+    loss:  Union[Literal["softmax", "BCE", "gBCE"], SessionEncoderHeadBase
+    ]
+        Loss function specification or custom transformer head implementation.
     lr: float
         Learning rate.
     gbce_t: float
@@ -1117,11 +1128,11 @@ class SessionEncoderLightningModuleBase(LightningModule):
     def __init__(
         self,
         torch_model: TransformerBasedSessionEncoder,
-        loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase],
+        loss: tp.Union[LossDescription, SessionEncoderHeadBase],
         lr: float,
         gbce_t: float,
         n_actual_items: int,
-        **kwargs: Any,
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.lr = lr
@@ -1129,25 +1140,26 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.torch_model = torch_model
         self.gbce_t = gbce_t
         self.item_embs: torch.Tensor
-        if isinstance(loss, LossCalculatorBase):
-            self.loss_calculator = loss
+        if isinstance(loss, SessionEncoderHeadBase):
+            self.transformer_head = loss
         else:
-            self.loss_calculator = self._init_loss(loss, n_actual_items)
+            self.transformer_head = self._init_head(loss, n_actual_items)
 
-    def _init_loss(self, loss: Literal["softmax", "BCE", "gBCE"], n_actual_items: int) -> LossCalculatorBase:
+    def _init_head(self, loss: LossDescription, n_actual_items: int) -> SessionEncoderHeadBase:
+
         if loss == "softmax":
-            return SoftmaxLossCalculator()
+            return DotProductSoftmaxHead()
         if loss == "BCE":
-            return BCELossCalculator()
+            return DotProductBCEHead()
         if loss == "gBCE":
-            return GBCELossCalculator(self.gbce_t, n_actual_items)
-        raise ValueError("Unknown loss")
+            return DotProductGBCEHead(self.gbce_t, n_actual_items)
+        raise ValueError(f"Unknown loss {loss}.")
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
         raise NotImplementedError()
 
-    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Prediction step."""
         raise NotImplementedError()
 
@@ -1164,24 +1176,24 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         # TODO: init padding embedding with zeros
         self._xavier_normal_init()
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Forward pass and loss calculation."""
         item_embs, session_embs = self.torch_model(batch["x"])
-        return self.loss_calculator(batch, item_embs, session_embs)
+        return self.transformer_head(batch, item_embs, session_embs)
 
     def on_train_end(self) -> None:
         """Save item embeddings for inference after training end."""
         self.eval()
         self.item_embs = self.torch_model.item_model.get_all_embeddings()
 
-    def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Prediction step. Encode user sessions. Get only last position hidden state from each user session."""
         encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs)[:, -1, :]
         return encoded_sessions
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
-        adam_betas: Tuple[float, float] = (0.9, 0.98)
+        adam_betas = (0.9, 0.98)
         optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=adam_betas)
         return optimizer
 
@@ -1205,8 +1217,8 @@ class TransformerModelBase(ModelBase):
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        transformer_layers_type: Type[TransformerLayersBase],
-        data_preparator_type: Type[SessionEncoderDataPreparatorBase],
+        transformer_layers_type: tp.Type[TransformerLayersBase],
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase],
         n_blocks: int = 1,
         n_heads: int = 1,
         n_factors: int = 128,
@@ -1215,17 +1227,17 @@ class TransformerModelBase(ModelBase):
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
-        loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
+        loss: tp.Union[LossDescription, SessionEncoderHeadBase] = "softmax",
         gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
         cpu_n_threads: int = 0,
-        trainer: Optional[Trainer] = None,
-        item_net_block_types: Sequence[Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        pos_encoding_type: Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        lightning_module_type: Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        trainer: tp.Optional[Trainer] = None,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ) -> None:
         super().__init__(verbose)
         self.n_threads = cpu_n_threads
@@ -1301,7 +1313,7 @@ class TransformerModelBase(ModelBase):
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         k: int,
         filter_viewed: bool,
-        sorted_item_ids_to_recommend: Optional[InternalIdsArray],  # model_internal
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
     ) -> InternalRecoTriplet:
         if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
@@ -1345,7 +1357,7 @@ class TransformerModelBase(ModelBase):
         target_ids: InternalIdsArray,  # model internal
         dataset: Dataset,
         k: int,
-        sorted_item_ids_to_recommend: Optional[InternalIdsArray],
+        sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
@@ -1391,7 +1403,7 @@ class SASRecModel(TransformerModelBase):
         session_max_len: int = 32,
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
-        loss: Union[Literal["softmax", "BCE", "gBCE"], LossCalculatorBase] = "softmax",
+        loss: tp.Union[LossDescription, SessionEncoderHeadBase] = "softmax",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.01,
@@ -1400,12 +1412,12 @@ class SASRecModel(TransformerModelBase):
         deterministic: bool = False,
         cpu_n_threads: int = 0,
         train_min_user_interaction: int = 2,
-        trainer: Optional[Trainer] = None,
-        item_net_block_types: Sequence[Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        pos_encoding_type: Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
-        data_preparator_type: Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
-        lightning_module_type: Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        trainer: tp.Optional[Trainer] = None,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
+        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
