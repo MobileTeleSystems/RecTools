@@ -1,4 +1,3 @@
-import re
 import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
@@ -73,6 +72,7 @@ class CustomModel(ModelBase[CustomModelConfig]):
     config_class = CustomModelConfig
 
     def __init__(self, some_param: int = 1, verbose: int = 0):
+        super().__init__(verbose=verbose)
         self.some_param = some_param
 
     @classmethod
@@ -120,9 +120,9 @@ class TestModelFromConfig:
         model = PopularModel()
         config = model.get_config(mode=mode, simple_types=simple_types)
         if mode == "pydantic":
-            config.cls = None
+            config.cls = None  # type: ignore
         else:
-            config["cls"] = None
+            config["cls"] = None  # type: ignore  # pylint: disable=unsupported-assignment-operation
         with pytest.raises(ValueError, match="`cls` must be provided in the config to load the model"):
             model_from_config(config)
 
@@ -149,12 +149,13 @@ class TestModelFromConfig:
         model = PopularModel()
         config = model.get_config(mode=mode, simple_types=simple_types)
         if mode == "pydantic":
-            config.cls = LightFMWrapperModel
+            config.cls = LightFMWrapperModel  # type: ignore
         else:
             if simple_types:
-                config["cls"] = "rectools.models.LightFMWrapperModel"
+                # pylint: disable=unsupported-assignment-operation
+                config["cls"] = "rectools.models.LightFMWrapperModel"  # type: ignore
             else:
-                config["cls"] = LightFMWrapperModel
+                config["cls"] = LightFMWrapperModel  # type: ignore  # pylint: disable=unsupported-assignment-operation
         with pytest.raises(ValidationError):
             model_from_config(config)
 

@@ -40,7 +40,6 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
     model
         Model instance.
     """
-
     if isinstance(config, dict):
         model_cls = config.get("cls")
         model_cls = TypeAdapter(tp.Optional[ModelClass]).validate_python(model_cls)
