@@ -41,7 +41,7 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    recommend_cpu_n_threads: tp.Optional[int] = None
+    recommend_cpu_n_threads: tp.Optional[int] = None  # TODO: decide. Lightfm has num_threads
     recommend_use_gpu_ranking: tp.Optional[bool] = None
 
     @property

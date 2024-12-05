@@ -136,7 +136,7 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         self,
         model: LightFM,
         epochs: int = 1,
-        num_threads: int = 1,
+        num_threads: int = 1,  # TODO: decide. this is used for both fit n_threads and ranker n_threads
         verbose: int = 0,
         recommend_use_gpu_ranking: tp.Optional[bool] = None,
     ):

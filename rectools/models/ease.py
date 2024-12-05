@@ -72,7 +72,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
     def __init__(
         self,
         regularization: float = 500.0,
-        num_threads: int = 1,
+        num_threads: int = 1,  # TODO: decide. We already have it. But this is actually recommend_cpu_n_threads
         verbose: int = 0,
         recommend_use_gpu_ranking: tp.Optional[bool] = None,
     ):
