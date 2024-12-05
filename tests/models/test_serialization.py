@@ -3,10 +3,10 @@ import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 
-from pydantic import ValidationError
 import pytest
 from implicit.als import AlternatingLeastSquares
 from implicit.nearest_neighbours import ItemItemRecommender
+from pydantic import ValidationError
 
 try:
     from lightfm import LightFM
@@ -36,8 +36,8 @@ EXPOSABLE_MODEL_CLASSES = tuple(
     cls
     for cls in get_successors(ModelBase)
     if (
-        cls.__module__.startswith("rectools.models") 
-        and cls not in INTERMEDIATE_MODEL_CLASSES 
+        cls.__module__.startswith("rectools.models")
+        and cls not in INTERMEDIATE_MODEL_CLASSES
         and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
     )
 )
@@ -67,7 +67,7 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
 
 class CustomModelConfig(ModelConfig):
     some_param: int = 1
-    
+
 
 class CustomModel(ModelBase[CustomModelConfig]):
     config_class = CustomModelConfig
@@ -78,7 +78,7 @@ class CustomModel(ModelBase[CustomModelConfig]):
     @classmethod
     def _from_config(cls, config: CustomModelConfig) -> "CustomModel":
         return cls(some_param=config.some_param, verbose=config.verbose)
-    
+
 
 class TestModelFromConfig:
 
@@ -100,7 +100,7 @@ class TestModelFromConfig:
         (
             CustomModelConfig(cls=CustomModel, some_param=2),
             {"cls": "tests.models.test_serialization.CustomModel", "some_param": 2},
-        )
+        ),
     )
     def test_custom_model_creation(self, config: tp.Union[dict, CustomModelConfig]) -> None:
         model = model_from_config(config)
@@ -131,7 +131,7 @@ class TestModelFromConfig:
         (
             ("nonexistent_module.SomeModel", ModuleNotFoundError),
             ("rectools.models.NonexistentModel", AttributeError),
-        )
+        ),
     )
     def test_fails_on_nonexistent_cls(self, model_cls_path: str, error_cls: tp.Type[Exception]) -> None:
         config = {"cls": model_cls_path}

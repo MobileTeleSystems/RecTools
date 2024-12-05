@@ -61,7 +61,7 @@ def _serialize_timedelta(td: timedelta) -> dict:
 TimeDelta = tpe.Annotated[
     timedelta,
     BeforeValidator(func=_deserialize_timedelta),
-    PlainSerializer(func=_serialize_timedelta, return_type=dict, when_used="json")
+    PlainSerializer(func=_serialize_timedelta, return_type=dict, when_used="json"),
 ]
 
 

@@ -3,7 +3,7 @@ import typing as tp
 
 from pydantic import TypeAdapter
 
-from rectools.models.base import ModelBase, ModelConfig, ModelClass
+from rectools.models.base import ModelBase, ModelClass, ModelConfig
 from rectools.utils.serialization import FileLike, read_bytes
 
 
@@ -46,7 +46,7 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
         model_cls = TypeAdapter(tp.Optional[ModelClass]).validate_python(model_cls)
     else:
         model_cls = config.cls
-        
+
     if model_cls is None:
         raise ValueError("`cls` must be provided in the config to load the model")
 
