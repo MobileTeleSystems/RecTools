@@ -23,6 +23,7 @@ import implicit.gpu
 import numpy as np
 from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
 from implicit.gpu import HAS_CUDA
+from implicit.utils import check_blas_config
 from scipy import sparse
 
 from rectools import InternalIds
@@ -61,6 +62,7 @@ class ImplicitRanker:
     def __init__(
         self, distance: Distance, subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix], objects_factors: np.ndarray
     ) -> None:
+        
         if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
             raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
 
@@ -252,6 +254,7 @@ class ImplicitRanker:
                 filter_query_items=filter_query_items,
             )
         else:
+            check_blas_config()
             ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
                 items=object_factors,
                 query=subject_factors,
