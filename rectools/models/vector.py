@@ -18,6 +18,7 @@ import typing as tp
 
 import attr
 import numpy as np
+from implicit.gpu import HAS_CUDA
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
@@ -40,7 +41,20 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    n_threads: int = 0  # TODO: decide how to pass it correctly for all models
+    recommend_cpu_n_threads: tp.Optional[int] = None  # TODO: decide. Lightfm has num_threads
+    recommend_use_gpu_ranking: tp.Optional[bool] = None
+
+    @property
+    def _recommend_use_gpu_ranking(self) -> bool:
+        use_gpu = HAS_CUDA
+        if self.recommend_use_gpu_ranking is False:
+            use_gpu = False
+        return use_gpu
+
+    @property
+    def _recommend_cpu_n_threads(self) -> int:
+        num_threads = 0 if self.recommend_cpu_n_threads is None else self.recommend_cpu_n_threads
+        return num_threads
 
     def _recommend_u2i(
         self,
@@ -65,7 +79,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.n_threads,
+            num_threads=self._recommend_cpu_n_threads,
+            use_gpu=self._recommend_use_gpu_ranking,
         )
 
     def _recommend_i2i(
@@ -84,7 +99,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.n_threads,
+            num_threads=self._recommend_cpu_n_threads,
+            use_gpu=self._recommend_use_gpu_ranking,
         )
 
     def _process_biases_to_vectors(
