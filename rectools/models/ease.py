@@ -93,7 +93,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
         
         if num_threads is not None:
             warnings.warn("""
-            `num_threads` argument is deprecated and will be removed in future releases. 
+            `num_threads` argument is deprecated and will be removed in future releases.
             Please use `recommend_n_threads` instead")
             """)
             recommend_n_threads = num_threads
@@ -131,13 +131,6 @@ class EASEModel(ModelBase[EASEModelConfig]):
         self.weight = np.array(gram_matrix_inv / (-np.diag(gram_matrix_inv)))
         np.fill_diagonal(self.weight, 0.0)
 
-    @property
-    def _recommend_use_gpu_ranking(self) -> bool:
-        use_gpu = HAS_CUDA
-        if self.recommend_use_gpu_ranking is False:
-            use_gpu = False
-        return use_gpu
-
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
@@ -161,7 +154,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
             num_threads=self.recommend_n_threads,
-            use_gpu=self._recommend_use_gpu_ranking,
+            use_gpu=self.recommend_use_gpu_ranking is not False and HAS_CUDA,
         )
 
         return all_user_ids, all_reco_ids, all_scores
