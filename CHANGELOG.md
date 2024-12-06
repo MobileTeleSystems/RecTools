@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - dtype adjustment to `recommend`, `recommend_to_items` methods of `ModelBase` ([#211](https://github.com/MobileTeleSystems/RecTools/pull/211))
 - `load_model` function ([#213](https://github.com/MobileTeleSystems/RecTools/pull/213))
 - `model_from_config` function ([#214](https://github.com/MobileTeleSystems/RecTools/pull/214))
+- `get_cat_features` method to `SparseFeatures`
 
 
 ## [0.8.0] - 28.08.2024
