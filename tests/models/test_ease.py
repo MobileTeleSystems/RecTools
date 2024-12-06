@@ -254,7 +254,7 @@ class TestEASEModelConfiguration:
             recommend_use_gpu_ranking=False,
             verbose=1,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
             "cls": "EASEModel" if simple_types else EASEModel,
             "regularization": 500,
