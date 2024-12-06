@@ -444,12 +444,16 @@ class TestImplicitALSWrapperModelConfiguration:
                 "use_gpu": use_gpu,
             },
             "fit_features_together": True,
+            "recommend_n_threads": None,
+            "recommend_use_gpu_ranking": None,
             "verbose": 1,
         }
         if cls is not None:
             config["model"]["cls"] = cls
         model = ImplicitALSWrapperModel.from_config(config)
         assert model.fit_features_together is True
+        assert model.recommend_n_threads is None
+        assert model.recommend_use_gpu_ranking is None
         assert model.verbose == 1
         inner_model = model._model  # pylint: disable=protected-access
         assert inner_model.factors == 16
@@ -466,6 +470,8 @@ class TestImplicitALSWrapperModelConfiguration:
         model = ImplicitALSWrapperModel(
             model=AlternatingLeastSquares(factors=16, num_threads=2, use_gpu=use_gpu, random_state=random_state),
             fit_features_together=True,
+            recommend_n_threads=10,
+            recommend_use_gpu_ranking=False,
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
@@ -493,8 +499,8 @@ class TestImplicitALSWrapperModelConfiguration:
             "model": expected_inner_model_config,
             "fit_features_together": True,
             "verbose": 1,
-            "recommend_use_gpu_ranking": None,
-            "recommend_cpu_n_threads": None,
+            "recommend_use_gpu_ranking": False,
+            "recommend_n_threads": 10,
         }
         assert config == expected
 
@@ -527,6 +533,8 @@ class TestImplicitALSWrapperModelConfiguration:
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
             "model": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
+            "recommend_use_gpu_ranking": False,
+            "recommend_n_threads": 10,
             "verbose": 1,
         }
         assert_get_config_and_from_config_compatibility(ImplicitALSWrapperModel, DATASET, initial_config, simple_types)

@@ -37,7 +37,6 @@ class EASEModelConfig(ModelConfig):
     regularization: float = 500.0
     recommend_n_threads: int = 0
     recommend_use_gpu_ranking: bool = True
-    
 
 
 class EASEModel(ModelBase[EASEModelConfig]):
@@ -90,14 +89,16 @@ class EASEModel(ModelBase[EASEModelConfig]):
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
-        
+
         if num_threads is not None:
-            warnings.warn("""
+            warnings.warn(
+                """
             `num_threads` argument is deprecated and will be removed in future releases.
             Please use `recommend_n_threads` instead")
-            """)
+            """
+            )
             recommend_n_threads = num_threads
-            
+
         self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 

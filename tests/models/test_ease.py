@@ -266,7 +266,12 @@ class TestEASEModelConfiguration:
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        initial_config = {"regularization": 500, "recommend_n_threads": 1, "verbose": 1, "recommend_use_gpu_ranking": True}
+        initial_config = {
+            "regularization": 500,
+            "recommend_n_threads": 1,
+            "verbose": 1,
+            "recommend_use_gpu_ranking": True,
+        }
         assert_get_config_and_from_config_compatibility(EASEModel, DATASET, initial_config, simple_types)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:

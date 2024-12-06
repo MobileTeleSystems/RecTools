@@ -62,7 +62,7 @@ class ImplicitRanker:
     def __init__(
         self, distance: Distance, subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix], objects_factors: np.ndarray
     ) -> None:
-        
+
         if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
             raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
 
