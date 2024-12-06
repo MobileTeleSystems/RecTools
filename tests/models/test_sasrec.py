@@ -25,6 +25,7 @@ from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, a
 from .data import DATASET, INTERACTIONS
 
 
+@pytest.mark.parametrize("accelerator", ("cpu", "gpu") if torch.cuda.is_available() else ("cpu",))
 class TestSASRecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -62,17 +63,8 @@ class TestSASRecModel:
     def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
         return Dataset.construct(interactions_df[:-4])
 
-    @pytest.fixture
-    def trainer(self) -> Trainer:
-        return Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            accelerator="cpu",
-        )
-
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "filter_viewed,expected_cpu,expected_gpu",
         (
             (
                 True,
@@ -80,6 +72,13 @@ class TestSASRecModel:
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
                         Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -93,11 +92,31 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
             ),
         ),
     )
     # TODO: tests do not pass for multiple GPUs
-    def test_u2i(self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    def test_u2i(
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        accelerator: str,
+        expected_cpu: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
+    ) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -112,6 +131,7 @@ class TestSASRecModel:
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        expected = expected_cpu if accelerator == "cpu" else expected_gpu
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -119,10 +139,17 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "filter_viewed,expected_cpu,expected_gpu",
         (
             (
                 True,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 30, 30, 40],
+                        Columns.Item: [17, 13, 17, 13],
+                        Columns.Rank: [1, 1, 2, 1],
+                    }
+                ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 30, 30, 40],
@@ -140,12 +167,30 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [13, 11, 17, 13, 11, 17, 17, 13, 11],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
             ),
         ),
     )
     def test_with_whitelist(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        accelerator: str,
+        expected_cpu: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
     ) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -167,6 +212,7 @@ class TestSASRecModel:
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
         )
+        expected = expected_cpu if accelerator == "cpu" else expected_gpu
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -174,7 +220,7 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "filter_itself,whitelist,expected",
+        "filter_itself,whitelist,expected_cpu,expected_gpu",
         (
             (
                 False,
@@ -183,6 +229,13 @@ class TestSASRecModel:
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
                         Columns.Item: [12, 17, 11, 14, 11, 13, 17, 12, 14],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
+                        Columns.Item: [12, 14, 17, 14, 12, 15, 17, 12, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -197,6 +250,13 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
+                        Columns.Item: [14, 17, 15, 12, 15, 17, 12, 15, 14],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
             ),
             (
                 True,
@@ -208,17 +268,31 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
+                        Columns.Item: [14, 15, 13, 15, 13, 15, 14, 13],
+                        Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
+                    }
+                ),
             ),
         ),
     )
     def test_i2i(
         self,
         dataset: Dataset,
-        trainer: Trainer,
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
-        expected: pd.DataFrame,
+        accelerator: str,
+        expected_cpu: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
     ) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -239,13 +313,20 @@ class TestSASRecModel:
             filter_itself=filter_itself,
             items_to_recommend=whitelist,
         )
+        expected = expected_cpu if accelerator == "cpu" else expected_gpu
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, trainer: Trainer) -> None:
+    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, accelerator: str) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -259,7 +340,7 @@ class TestSASRecModel:
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "filter_viewed,expected_cpu,expected_gpu",
         (
             (
                 True,
@@ -267,6 +348,13 @@ class TestSASRecModel:
                     {
                         Columns.User: [20, 20, 20],
                         Columns.Item: [14, 12, 17],
+                        Columns.Rank: [1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [20, 20, 20],
+                        Columns.Item: [14, 15, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -280,12 +368,30 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [20, 20, 20],
+                        Columns.Item: [13, 14, 15],
+                        Columns.Rank: [1, 2, 3],
+                    }
+                ),
             ),
         ),
     )
     def test_recommend_for_cold_user_with_hot_item(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        accelerator: str,
+        expected_cpu: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
     ) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -305,6 +411,7 @@ class TestSASRecModel:
             k=3,
             filter_viewed=filter_viewed,
         )
+        expected = expected_cpu if accelerator == "cpu" else expected_gpu
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -312,7 +419,7 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "filter_viewed,expected_cpu,expected_gpu",
         (
             (
                 True,
@@ -320,6 +427,13 @@ class TestSASRecModel:
                     {
                         Columns.User: [10, 10, 20, 20, 20],
                         Columns.Item: [17, 15, 14, 12, 17],
+                        Columns.Rank: [1, 2, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20, 20],
+                        Columns.Item: [15, 17, 14, 15, 12],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -333,12 +447,30 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 20, 20, 20],
+                        Columns.Item: [13, 14, 15, 13, 14, 15],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
+                    }
+                ),
             ),
         ),
     )
     def test_warn_when_hot_user_has_cold_items_in_recommend(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        accelerator: str,
+        expected_cpu: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
     ) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -352,6 +484,7 @@ class TestSASRecModel:
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
+        expected = expected_cpu if accelerator == "cpu" else expected_gpu
         with pytest.warns() as record:
             actual = model.recommend(
                 users=users,
