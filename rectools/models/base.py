@@ -14,17 +14,25 @@
 
 """Base model."""
 
+import pickle
 import typing as tp
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
+from pydantic import BeforeValidator, PlainSerializer
+from pydantic_core import PydanticSerializationError
 
 from rectools import Columns, ExternalIds, InternalIds
 from rectools.dataset import Dataset
 from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import ExternalIdsArray, InternalIdsArray
+from rectools.utils.config import BaseConfig
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat
+from rectools.utils.serialization import PICKLE_PROTOCOL, FileLike, read_bytes
 
 T = tp.TypeVar("T", bound="ModelBase")
 ScoresArray = np.ndarray
@@ -38,7 +46,46 @@ ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
 
 
-class ModelBase:
+STANDARD_MODEL_PATH_PREFIX = "rectools.models"
+
+
+def _deserialize_model_class(spec: tp.Any) -> tp.Any:
+    if not isinstance(spec, str):
+        return spec
+    if "." not in spec:
+        spec = f"{STANDARD_MODEL_PATH_PREFIX}.{spec}"  # EaseModel -> rectools.models.EaseModel
+    return import_object(spec)
+
+
+def _serialize_model_class(cls: tp.Type["ModelBase"]) -> str:
+    path = get_class_or_function_full_path(cls)
+    if path.startswith(STANDARD_MODEL_PATH_PREFIX):
+        return path.split(".")[-1]  # rectools.models.ease.EASEModel -> EASEModel
+    return path
+
+
+ModelClass = tpe.Annotated[
+    tp.Type["ModelBase"],
+    BeforeValidator(_deserialize_model_class),
+    PlainSerializer(
+        func=_serialize_model_class,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+
+class ModelConfig(BaseConfig):
+    """Base model config."""
+
+    cls: tp.Optional[ModelClass] = None
+    verbose: int = 0
+
+
+ModelConfig_T = tp.TypeVar("ModelConfig_T", bound=ModelConfig)
+
+
+class ModelBase(tp.Generic[ModelConfig_T]):
     """
     Base model class.
 
@@ -49,9 +96,199 @@ class ModelBase:
     recommends_for_warm: bool = False
     recommends_for_cold: bool = False
 
+    config_class: tp.Type[ModelConfig_T]
+
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
+
+    @tp.overload
+    def get_config(  # noqa: D102
+        self, mode: tp.Literal["pydantic"], simple_types: bool = False
+    ) -> ModelConfig_T:  # pragma: no cover
+        ...
+
+    @tp.overload
+    def get_config(  # noqa: D102
+        self, mode: tp.Literal["dict"] = "dict", simple_types: bool = False
+    ) -> tp.Dict[str, tp.Any]:  # pragma: no cover
+        ...
+
+    def get_config(
+        self, mode: tp.Literal["pydantic", "dict"] = "dict", simple_types: bool = False
+    ) -> tp.Union[ModelConfig_T, tp.Dict[str, tp.Any]]:
+        """
+        Return model config.
+
+        Parameters
+        ----------
+        mode : {'pydantic', 'dict'}, default 'dict'
+            Format of returning config.
+        simple_types : bool, default False
+            If True, return config with JSON serializable types.
+            Only works for `mode='dict'`.
+
+        Returns
+        -------
+        Pydantic model or dict
+            Model config.
+
+        Raises
+        ------
+        ValueError
+            If `mode` is not 'object' or 'dict', or if `simple_types` is ``True`` and format is not 'dict'.
+        """
+        config = self._get_config()
+        if mode == "pydantic":
+            if simple_types:
+                raise ValueError("`simple_types` is not compatible with `mode='pydantic'`")
+            return config
+
+        pydantic_mode = "json" if simple_types else "python"
+        try:
+            config_dict = config.model_dump(mode=pydantic_mode)
+        except PydanticSerializationError as e:
+            if e.__cause__ is not None:
+                raise e.__cause__
+            raise e
+
+        if mode == "dict":
+            return config_dict
+
+        raise ValueError(f"Unknown mode: {mode}")
+
+    def _get_config(self) -> ModelConfig_T:
+        raise NotImplementedError(f"`get_config` method is not implemented for `{self.__class__.__name__}` model")
+
+    def get_params(self, simple_types: bool = False, sep: str = ".") -> tp.Dict[str, tp.Any]:
+        """
+        Return model parameters.
+        Same as `get_config` but returns flat dict.
+
+        Parameters
+        ----------
+        simple_types : bool, default False
+            If True, return config with JSON serializable types.
+        sep : str, default "."
+            Separator for nested keys.
+
+        Returns
+        -------
+        dict
+            Model parameters.
+        """
+        config_dict = self.get_config(mode="dict", simple_types=simple_types)
+        config_flat = make_dict_flat(config_dict, sep=sep)  # NOBUG: We're not handling lists for now
+        return config_flat
+
+    @classmethod
+    def from_config(cls, config: tp.Union[dict, ModelConfig_T]) -> tpe.Self:
+        """
+        Create model from config.
+
+        Parameters
+        ----------
+        config : dict or ModelConfig
+            Model config.
+
+        Returns
+        -------
+        Model instance.
+        """
+        try:
+            config_cls = cls.config_class
+        except AttributeError:
+            raise NotImplementedError(f"`from_config` method is not implemented for `{cls.__name__}` model.") from None
+
+        if not isinstance(config, config_cls):
+            config_obj = cls.config_class.model_validate(config)
+        else:
+            config_obj = config
+
+        if config_obj.cls is not None and config_obj.cls is not cls:
+            raise TypeError(f"`{cls.__name__}` is used, but config is for `{config_obj.cls.__name__}`")
+
+        return cls._from_config(config_obj)
+
+    @classmethod
+    def _from_config(cls, config: ModelConfig_T) -> tpe.Self:
+        raise NotImplementedError()
+
+    def save(self, f: FileLike) -> int:
+        """
+        Save model to file.
+
+        Parameters
+        ----------
+        f : str or Path or file-like object
+            Path to file or file-like object.
+
+        Returns
+        -------
+        int
+            Number of bytes written.
+        """
+        data = self.dumps()
+
+        if isinstance(f, (str, Path)):
+            return Path(f).write_bytes(data)
+
+        return f.write(data)
+
+    def dumps(self) -> bytes:
+        """
+        Serialize model to bytes.
+
+        Returns
+        -------
+        bytes
+            Serialized model.
+        """
+        return pickle.dumps(self, protocol=PICKLE_PROTOCOL)
+
+    @classmethod
+    def load(cls, f: FileLike) -> tpe.Self:
+        """
+        Load model from file.
+
+        Parameters
+        ----------
+        f : str or Path or file-like object
+            Path to file or file-like object.
+
+        Returns
+        -------
+        model
+            Model instance.
+        """
+        data = read_bytes(f)
+
+        return cls.loads(data)
+
+    @classmethod
+    def loads(cls, data: bytes) -> tpe.Self:
+        """
+        Load model from bytes.
+
+        Parameters
+        ----------
+        data : bytes
+            Serialized model.
+
+        Returns
+        -------
+        model
+            Model instance.
+
+        Raises
+        ------
+        TypeError
+            If loaded object is not a direct instance of model class.
+        """
+        loaded = pickle.loads(data)
+        if loaded.__class__ is not cls:
+            raise TypeError(f"Loaded object is not a direct instance of `{cls.__name__}`")
+        return loaded
 
     def fit(self: T, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> T:
         """
@@ -72,6 +309,27 @@ class ModelBase:
 
     def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
         raise NotImplementedError()
+
+    def fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """
+        Fit model. Unlike `fit`, repeated calls to this method will cause training to resume from
+        the current model state.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Dataset with input data.
+
+        Returns
+        -------
+        self
+        """
+        self._fit_partial(dataset, *args, **kwargs)
+        self.is_fitted = True
+        return self
+
+    def _fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError("Partial fitting is not supported in {self.__class__.__name__}")
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -154,7 +412,8 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
-        # `dataset.item_id_map.external_dtype` can change
+        # We are going to lose original dataset object. Save dtype for later
+        original_user_type = dataset.user_id_map.external_dtype
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
@@ -195,13 +454,9 @@ class ModelBase:
         reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
 
-        reco_hot_final = self._adjust_reco_types(reco_hot_final, dataset.user_id_map.external_dtype, original_item_type)
-        reco_warm_final = self._adjust_reco_types(
-            reco_warm_final, dataset.user_id_map.external_dtype, original_item_type
-        )
-        reco_cold_final = self._adjust_reco_types(
-            reco_cold_final, dataset.user_id_map.external_dtype, original_item_type
-        )
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_user_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_user_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_user_type, original_item_type)
 
         del reco_hot, reco_warm, reco_cold
 
@@ -276,7 +531,7 @@ class ModelBase:
         """
         self._check_is_fitted()
         self._check_k(k)
-        # `dataset.item_id_map.external_dtype` can change
+        # We are going to lose original dataset object. Save dtype for later
         original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 
@@ -527,6 +782,9 @@ class ModelBase:
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
+
+
+ModelConfig.model_rebuild()
 
 
 class FixedColdRecoModelMixin:
