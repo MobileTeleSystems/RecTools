@@ -283,7 +283,8 @@ class TestPureSVDModelConfiguration:
         assert model.verbose == 0
 
     @pytest.mark.parametrize("random_state", (None, 42))
-    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, random_state: tp.Optional[int], simple_types: bool) -> None:
         model = PureSVDModel(
             factors=100,
             tol=1,
@@ -293,8 +294,9 @@ class TestPureSVDModelConfiguration:
             recommend_cpu_n_threads=None,
             recommend_use_gpu_ranking=None,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
+            "cls": "PureSVDModel" if simple_types else PureSVDModel,
             "factors": 100,
             "tol": 1,
             "maxiter": 100,

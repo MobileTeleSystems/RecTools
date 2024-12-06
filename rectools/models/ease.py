@@ -85,6 +85,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
 
     def _get_config(self) -> EASEModelConfig:
         return EASEModelConfig(
+            cls=self.__class__, 
             regularization=self.regularization,
             num_threads=self.num_threads,
             recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,

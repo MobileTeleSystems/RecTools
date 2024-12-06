@@ -244,7 +244,8 @@ class TestEASEModelConfiguration:
         assert model.verbose == 1
         assert model.regularization == 500
 
-    def test_get_config(self) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool) -> None:
         model = EASEModel(
             regularization=500,
             num_threads=1,
@@ -252,7 +253,11 @@ class TestEASEModelConfiguration:
             recommend_use_gpu_ranking=None,
         )
         config = model.get_config()
-        expected = {"regularization": 500, "num_threads": 1, "verbose": 1, "recommend_use_gpu_ranking": None}
+        expected = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
         assert config == expected
 
     @pytest.mark.parametrize("simple_types", (False, True))

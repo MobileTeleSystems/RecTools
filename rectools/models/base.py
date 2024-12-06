@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typing_extensions as tpe
+from pydantic import BeforeValidator, PlainSerializer
 from pydantic_core import PydanticSerializationError
 
 from rectools import Columns, ExternalIds, InternalIds
@@ -30,7 +31,7 @@ from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import ExternalIdsArray, InternalIdsArray
 from rectools.utils.config import BaseConfig
-from rectools.utils.misc import make_dict_flat
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat
 from rectools.utils.serialization import PICKLE_PROTOCOL, FileLike, read_bytes
 
 T = tp.TypeVar("T", bound="ModelBase")
@@ -45,9 +46,39 @@ ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
 
 
+STANDARD_MODEL_PATH_PREFIX = "rectools.models"
+
+
+def _deserialize_model_class(spec: tp.Any) -> tp.Any:
+    if not isinstance(spec, str):
+        return spec
+    if "." not in spec:
+        spec = f"{STANDARD_MODEL_PATH_PREFIX}.{spec}"  # EaseModel -> rectools.models.EaseModel
+    return import_object(spec)
+
+
+def _serialize_model_class(cls: tp.Type["ModelBase"]) -> str:
+    path = get_class_or_function_full_path(cls)
+    if path.startswith(STANDARD_MODEL_PATH_PREFIX):
+        return path.split(".")[-1]  # rectools.models.ease.EASEModel -> EASEModel
+    return path
+
+
+ModelClass = tpe.Annotated[
+    tp.Type["ModelBase"],
+    BeforeValidator(_deserialize_model_class),
+    PlainSerializer(
+        func=_serialize_model_class,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+
 class ModelConfig(BaseConfig):
     """Base model config."""
 
+    cls: tp.Optional[ModelClass] = None
     verbose: int = 0
 
 
@@ -173,6 +204,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             config_obj = cls.config_class.model_validate(config)
         else:
             config_obj = config
+
+        if config_obj.cls is not None and config_obj.cls is not cls:
+            raise TypeError(f"`{cls.__name__}` is used, but config is for `{config_obj.cls.__name__}`")
+
         return cls._from_config(config_obj)
 
     @classmethod
@@ -747,6 +782,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
+
+
+ModelConfig.model_rebuild()
 
 
 class FixedColdRecoModelMixin:

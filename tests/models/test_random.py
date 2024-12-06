@@ -202,13 +202,15 @@ class TestRandomModelConfiguration:
         assert model.verbose == 0
 
     @pytest.mark.parametrize("random_state", (None, 42))
-    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, random_state: tp.Optional[int], simple_types: bool) -> None:
         model = RandomModel(
             random_state=random_state,
             verbose=1,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
+            "cls": "RandomModel" if simple_types else RandomModel,
             "random_state": random_state,
             "verbose": 1,
         }

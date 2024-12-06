@@ -101,6 +101,7 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
 
     def _get_config(self) -> PureSVDModelConfig:
         return PureSVDModelConfig(
+            cls=self.__class__,
             factors=self.factors,
             tol=self.tol,
             maxiter=self.maxiter,
