@@ -15,6 +15,7 @@
 """EASE model."""
 
 import typing as tp
+import warnings
 
 import numpy as np
 import typing_extensions as tpe
@@ -34,8 +35,9 @@ class EASEModelConfig(ModelConfig):
     """Config for `EASE` model."""
 
     regularization: float = 500.0
-    num_threads: int = 1
-    recommend_use_gpu_ranking: tp.Optional[bool] = None
+    recommend_n_threads: int = 0
+    recommend_use_gpu_ranking: bool = True
+    
 
 
 class EASEModel(ModelBase[EASEModelConfig]):
@@ -53,15 +55,22 @@ class EASEModel(ModelBase[EASEModelConfig]):
     ----------
     regularization : float
         The regularization factor of the weights.
+    num_threads: Optional[int], default ``None``
+        Deprecated. Number of threads used for recommendation ranking on cpu.
+    recommend_n_threads: int, default 0
+        Number of threads to use for recommendation ranking on cpu.
+        If you want to change ranking behaviour, you can manually assign new value to model
+        `recommend_n_threads` attribute. This should be done before calling  model
+        `recommend` method.
+    recommend_use_gpu_ranking: bool, default ``True``
+        Flag to use gpu for recommendation ranking. Please note that gpu and cpu ranking may provide
+        different ordering of items with identical scores in recommendation table.
+        If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
+        If you want to change ranking behaviour, you can manually assign new value to model
+        `recommend_use_gpu_ranking` attribute. This should be done before calling  model
+        `recommend` method.
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
-    num_threads: int, default 1
-        Number of threads used for recommendation ranking on cpu.
-    recommend_use_gpu_ranking: Optional[bool], default ``None``
-        Flag to use gpu for recommendation ranking. If ``None``, `implicit.gpu.HAS_CUDA` will be
-        checked before inference.
-        This attribute can be changed manually before calling model `recommend` method if you
-        want to change ranking behaviour.
     """
 
     recommends_for_warm = False
@@ -72,22 +81,31 @@ class EASEModel(ModelBase[EASEModelConfig]):
     def __init__(
         self,
         regularization: float = 500.0,
-        num_threads: int = 1,  # TODO: decide. We already have it. But this is actually recommend_cpu_n_threads
+        num_threads: tp.Optional[int] = None,
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
         verbose: int = 0,
-        recommend_use_gpu_ranking: tp.Optional[bool] = None,
     ):
 
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
-        self.num_threads = num_threads
+        
+        if num_threads is not None:
+            warnings.warn("""
+            `num_threads` argument is deprecated and will be removed in future releases. 
+            Please use `recommend_n_threads` instead")
+            """)
+            recommend_n_threads = num_threads
+            
+        self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _get_config(self) -> EASEModelConfig:
         return EASEModelConfig(
-            cls=self.__class__, 
+            cls=self.__class__,
             regularization=self.regularization,
-            num_threads=self.num_threads,
+            recommend_n_threads=self.recommend_n_threads,
             recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
             verbose=self.verbose,
         )
@@ -96,8 +114,8 @@ class EASEModel(ModelBase[EASEModelConfig]):
     def _from_config(cls, config: EASEModelConfig) -> tpe.Self:
         return cls(
             regularization=config.regularization,
+            recommend_n_threads=config.recommend_n_threads,
             recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
-            num_threads=config.num_threads,
             verbose=config.verbose,
         )
 
@@ -142,7 +160,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.num_threads,
+            num_threads=self.recommend_n_threads,
             use_gpu=self._recommend_use_gpu_ranking,
         )
 

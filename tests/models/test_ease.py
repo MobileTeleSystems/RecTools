@@ -236,33 +236,37 @@ class TestEASEModelConfiguration:
     def test_from_config(self) -> None:
         config = {
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
+            "recommend_use_gpu_ranking": True,
             "verbose": 1,
         }
         model = EASEModel.from_config(config)
-        assert model.num_threads == 1
+        assert model.recommend_n_threads == 1
         assert model.verbose == 1
         assert model.regularization == 500
+        assert model.recommend_use_gpu_ranking is True
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config(self, simple_types: bool) -> None:
         model = EASEModel(
             regularization=500,
-            num_threads=1,
+            recommend_n_threads=1,
+            recommend_use_gpu_ranking=False,
             verbose=1,
-            recommend_use_gpu_ranking=None,
         )
         config = model.get_config()
         expected = {
+            "cls": "EASEModel" if simple_types else EASEModel,
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
+            "recommend_use_gpu_ranking": False,
             "verbose": 1,
         }
         assert config == expected
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        initial_config = {"regularization": 500, "num_threads": 1, "verbose": 1, "recommend_use_gpu_ranking": True}
+        initial_config = {"regularization": 500, "recommend_n_threads": 1, "verbose": 1, "recommend_use_gpu_ranking": True}
         assert_get_config_and_from_config_compatibility(EASEModel, DATASET, initial_config, simple_types)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
