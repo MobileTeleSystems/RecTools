@@ -164,20 +164,25 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         model = model_cls(**params)
         return cls(model=model, epochs=config.epochs, num_threads=config.num_threads, verbose=config.verbose)
 
-    def _fit(self, dataset: Dataset) -> None:  # type: ignore
+    def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
+        self._fit_partial(dataset, self.n_epochs)
+
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
 
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
         user_features = self._prepare_features(dataset.get_hot_user_features(), dataset.n_hot_users)
         item_features = self._prepare_features(dataset.get_hot_item_features(), dataset.n_hot_items)
         sample_weight = None if self._model.loss == "warp-kos" else ui_coo
 
-        self.model.fit(
+        self.model.fit_partial(
             ui_coo,
             user_features=user_features,
             item_features=item_features,
             sample_weight=sample_weight,
-            epochs=self.n_epochs,
+            epochs=epochs,
             num_threads=self.n_threads,
             verbose=self.verbose > 0,
         )
