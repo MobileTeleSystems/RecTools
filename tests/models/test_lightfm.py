@@ -38,7 +38,7 @@ from tests.models.utils import (
     assert_second_fit_refits_model,
 )
 
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`lightfm` is not compatible with Python >= 3.13")
 
 
 # pylint: disable=attribute-defined-outside-init

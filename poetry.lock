@@ -2567,6 +2567,27 @@ scikit-learn = "*"
 scipy = ">=0.17.0"
 
 [[package]]
+name = "rectools-lightfm"
+version = "1.17.2"
+description = "LightFM recommendation model"
+optional = true
+python-versions = "*"
+files = []
+develop = false
+
+[package.dependencies]
+numpy = "*"
+requests = "*"
+scikit-learn = "*"
+scipy = ">=0.17.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/chezou/rectools-lightfm.git"
+reference = "py312"
+resolved_reference = "1baabda937dda8514f6111315288a685952c788b"
+
+[[package]]
 name = "referencing"
 version = "0.35.1"
 description = "JSON Referencing + Python"
@@ -3443,8 +3464,8 @@ docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.link
 testing = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more-itertools", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy", "pytest-ruff (>=0.2.1)"]
 
 [extras]
-all = ["ipywidgets", "nbformat", "nmslib", "nmslib-metabrainz", "plotly", "pytorch-lightning", "rectools-lightfm", "torch", "torch"]
-lightfm = ["rectools-lightfm"]
+all = ["ipywidgets", "nbformat", "nmslib", "nmslib-metabrainz", "plotly", "pytorch-lightning", "rectools-lightfm", "rectools-lightfm", "torch", "torch"]
+lightfm = ["rectools-lightfm", "rectools-lightfm"]
 nmslib = ["nmslib", "nmslib-metabrainz"]
 torch = ["pytorch-lightning", "torch", "torch"]
 visuals = ["ipywidgets", "nbformat", "plotly"]
