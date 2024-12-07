@@ -174,7 +174,7 @@ class AppDataStorage:
         num_selecting = min(len(selecting_from), n_random_requests)
         new_ids = np.random.choice(selecting_from, num_selecting, replace=False)
         res = selected_requests.copy()
-        new_requests: tp.Dict[tp.Hashable, ExternalId] = {f"random_{i+1}": new_id for i, new_id in enumerate(new_ids)}
+        new_requests: tp.Dict[tp.Hashable, ExternalId] = {f"random_{i + 1}": new_id for i, new_id in enumerate(new_ids)}
         res.update(new_requests)
         return res
 
