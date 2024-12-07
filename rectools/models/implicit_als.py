@@ -137,7 +137,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         self.fit_features_together = fit_features_together
         self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
         if not self.use_gpu:
-            self.n_threads = model.num_threads
+            self.n_threads = model.num_threads  # type: ignore  # TODO: remove when recommend n_threads implemented
 
     @classmethod
     def _make_config(
