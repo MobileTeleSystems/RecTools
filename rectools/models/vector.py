@@ -38,9 +38,9 @@ class Factors:
 class VectorModel(ModelBase[ModelConfig_T]):
     """Base class for models that represents users and items as vectors"""
 
-    u2i_dist: Distance = NotImplemented
-    i2i_dist: Distance = NotImplemented
-    n_threads: int = 0  # TODO: decide how to pass it correctly for all models
+    u2i_dist: tp.ClassVar[Distance] = NotImplemented
+    i2i_dist: tp.ClassVar[Distance] = NotImplemented
+    n_threads: tp.ClassVar[int] = 0  # TODO: decide how to pass it correctly for all models
 
     def _recommend_u2i(
         self,

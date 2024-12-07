@@ -93,10 +93,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     Use derived classes instead.
     """
 
-    recommends_for_warm: bool = False
-    recommends_for_cold: bool = False
+    recommends_for_warm: tp.ClassVar[bool] = False
+    recommends_for_cold: tp.ClassVar[bool] = False
 
-    config_class: tp.Type[ModelConfig_T]
+    config_class: tp.ClassVar[tp.Type[ModelConfig_T]]
 
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
