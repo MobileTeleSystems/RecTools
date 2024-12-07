@@ -54,11 +54,11 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.9, <3.13"
 numpy = [
-    {version = ">=1.22, <2.0.0", python = ">=3.9, <3.12"},
-    {version = ">=1.26, <2.0.0", python = ">=3.12"}  # numpy <1.26 fails to install on Python 3.12
+    {version = ">=1.22, <2.0.0", python = "<3.12"},
+    {version = ">=1.26, <2.0.0", python = "3.12"}  # numpy <1.26 fails to install on Python 3.12
 ]
 pandas = ">=1.5.0, <3.0.0"
-scipy = "^1.10.1, <1.13"
+scipy = "^1.10.1, <1.13"  # in 1.13 were introduced significant changes breaking our logic
 tqdm = "^4.27.0"
 implicit = "^0.7.1"
 attrs = ">=19.1.0,<24.0.0"
@@ -68,7 +68,7 @@ pydantic-core = "^2.20.1"
 typing-extensions = "^4.12.2"
 
 # The latest released version of lightfm is 1.17 and it's not compatible with PEP-517 installers (like latest poetry versions).
-rectools-lightfm = {version="1.17.2", python = "<3.12", optional = true}
+rectools-lightfm = {version = "^1.17.3", optional = true}
 
 nmslib = {version = "^2.0.4", python = "<3.11", optional = true}
 # nmslib officialy doens't support Python 3.11 and 3.12. Use https://github.com/metabrainz/nmslib-metabrainz instead
@@ -122,7 +122,7 @@ gitpython = "3.1.43"
 
 [tool.black]
 line-length = 120
-target-version = ["py38", "py39", "py310", "py311", "py312"]
+target-version = ["py39", "py310", "py311", "py312"]
 
 
 [build-system]

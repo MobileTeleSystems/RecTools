@@ -155,8 +155,8 @@ class TestDSSMDataset(WithFixtures):
             all_user_features.append(user_features.view(1, -1))
             all_interactions.append(interactions.view(1, -1))
 
-        all_user_features = torch.cat(all_user_features, 0).numpy()  # type: ignore
-        all_interactions = torch.cat(all_interactions, 0).numpy()  # type: ignore
+        all_user_features = torch.cat(all_user_features, 0).numpy()
+        all_interactions = torch.cat(all_interactions, 0).numpy()
 
         ui_matrix = dataset.get_user_item_matrix().toarray()
         assert np.allclose(all_user_features, dataset.user_features.get_sparse().toarray())  # type: ignore
@@ -198,8 +198,8 @@ class TestUsersDataset(WithFixtures):
             all_user_features.append(user_features.view(1, -1))
             all_interactions.append(interactions.view(1, -1))
 
-        all_user_features = torch.cat(all_user_features, 0).numpy()  # type: ignore
-        all_interactions = torch.cat(all_interactions, 0).numpy()  # type: ignore
+        all_user_features = torch.cat(all_user_features, 0).numpy()
+        all_interactions = torch.cat(all_interactions, 0).numpy()
 
         ui_matrix = dataset.get_user_item_matrix().toarray()
         assert np.allclose(all_user_features, dataset.user_features.get_sparse().toarray())  # type: ignore
@@ -236,7 +236,7 @@ class TestItemsDataset(WithFixtures):
             item_features = items_dataset[idx]
             all_item_features.append(item_features.view(1, -1))
 
-        all_item_features = torch.cat(all_item_features, 0).numpy()  # type: ignore
+        all_item_features = torch.cat(all_item_features, 0).numpy()
         assert np.allclose(all_item_features, dataset.item_features.get_sparse().toarray())  # type: ignore
 
     def test_raises_attribute_error(self, dataset_no_features: Dataset) -> None:
