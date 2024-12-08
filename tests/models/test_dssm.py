@@ -12,25 +12,46 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
 import typing as tp
 
 import numpy as np
 import pandas as pd
 import pytest
-from lightning_fabric import seed_everything
+
+try:
+    from lightning_fabric import seed_everything
+except ImportError:
+    pass
+
+try:
+    import pytorch_lightning  # noqa  # pylint: disable=unused-import
+
+    filter_decorator = pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+except ImportError:
+
+    def filter_decorator(func):  # type: ignore
+        return func
+
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models import DSSMModel
-from rectools.models.dssm import DSSM
+
+try:
+    from rectools.models import DSSMModel
+    from rectools.models.dssm import DSSM
+except ModuleNotFoundError:
+    pass
 from rectools.models.vector import ImplicitRanker
 from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 from .data import INTERACTIONS
 
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
-@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+
+@filter_decorator
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     def setup_method(self) -> None:
