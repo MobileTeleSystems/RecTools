@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
 import typing as tp
 
 import numpy as np
@@ -28,6 +29,8 @@ from rectools.models.vector import ImplicitRanker
 from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 from .data import INTERACTIONS
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
