@@ -13,15 +13,24 @@
 #  limitations under the License.
 
 # pylint: disable=attribute-defined-outside-init,consider-using-enumerate
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
-import torch
+
+try:
+    import torch
+except ImportError:
+    torch = object
+
 from scipy import sparse
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.torch_datasets import DSSMItemDataset, DSSMTrainDataset, DSSMUserDataset
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 class WithFixtures:
@@ -155,8 +164,8 @@ class TestDSSMDataset(WithFixtures):
             all_user_features.append(user_features.view(1, -1))
             all_interactions.append(interactions.view(1, -1))
 
-        all_user_features = torch.cat(all_user_features, 0).numpy()
-        all_interactions = torch.cat(all_interactions, 0).numpy()
+        all_user_features = torch.cat(all_user_features, 0).numpy()  # type: ignore
+        all_interactions = torch.cat(all_interactions, 0).numpy()  # type: ignore
 
         ui_matrix = dataset.get_user_item_matrix().toarray()
         assert np.allclose(all_user_features, dataset.user_features.get_sparse().toarray())  # type: ignore
@@ -198,8 +207,8 @@ class TestUsersDataset(WithFixtures):
             all_user_features.append(user_features.view(1, -1))
             all_interactions.append(interactions.view(1, -1))
 
-        all_user_features = torch.cat(all_user_features, 0).numpy()
-        all_interactions = torch.cat(all_interactions, 0).numpy()
+        all_user_features = torch.cat(all_user_features, 0).numpy()  # type: ignore
+        all_interactions = torch.cat(all_interactions, 0).numpy()  # type: ignore
 
         ui_matrix = dataset.get_user_item_matrix().toarray()
         assert np.allclose(all_user_features, dataset.user_features.get_sparse().toarray())  # type: ignore
@@ -236,7 +245,7 @@ class TestItemsDataset(WithFixtures):
             item_features = items_dataset[idx]
             all_item_features.append(item_features.view(1, -1))
 
-        all_item_features = torch.cat(all_item_features, 0).numpy()
+        all_item_features = torch.cat(all_item_features, 0).numpy()  # type: ignore
         assert np.allclose(all_item_features, dataset.item_features.get_sparse().toarray())  # type: ignore
 
     def test_raises_attribute_error(self, dataset_no_features: Dataset) -> None:
