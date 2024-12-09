@@ -159,7 +159,7 @@ class DSSM(LightningModule):
         self.weight_decay = weight_decay
         self.log_to_prog_bar = log_to_prog_bar
 
-    def forward(  # type: ignore
+    def forward(
         self,
         item_features_pos: torch.Tensor,
         item_features_neg: torch.Tensor,
@@ -177,7 +177,7 @@ class DSSM(LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         return optimizer
 
-    def training_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore
+    def training_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Compute and return the training loss"""
         user_features, interactions, pos, neg = batch
         anchor, positive, negative = self(pos, neg, user_features, interactions)
@@ -185,7 +185,7 @@ class DSSM(LightningModule):
         self.log("loss", loss.item(), prog_bar=self.log_to_prog_bar)
         return loss
 
-    def validation_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore
+    def validation_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:
         user_features, interactions, pos, neg = batch
         anchor, positive, negative = self(pos, neg, user_features, interactions)
         val_loss = F.triplet_margin_loss(anchor, positive, negative, margin=self.triplet_loss_margin)
