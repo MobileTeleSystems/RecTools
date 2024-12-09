@@ -26,16 +26,23 @@ from .data import DATASET, INTERACTIONS
 
 
 @pytest.mark.parametrize(
-    "accelerator,n_devices",
+    "accelerator,n_devices,recommend_device",
     [
-        ("cpu", 1),
-        ("cpu", 2),
+        ("cpu", 1, "cpu"),
         pytest.param(
-            "gpu", 1, marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available")
+            "cpu", 1, "gpu", marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available")
+        ),
+        ("cpu", 2, "cpu"),
+        pytest.param(
+            "gpu", 1, "cpu", marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available")
+        ),
+        pytest.param(
+            "gpu", 1, "gpu", marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available")
         ),
         pytest.param(
             "gpu",
             2,
+            "cpu",
             marks=pytest.mark.skipif(
                 torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
                 reason="GPU is not available or there is only one gpu device",
@@ -50,6 +57,43 @@ class TestSASRecModel:
     def _seed_everything(self) -> None:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
+
+    def _init_model(self, recommend_device: str, trainer: Trainer) -> SASRecModel:
+        return SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            recommend_device=recommend_device,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+        )
+
+    def _init_trainer(self, accelerator: str, n_devices: int) -> Trainer:
+        return Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            devices=n_devices,
+            accelerator=accelerator,
+        )
+
+    def _choose_expected(
+        self,
+        accelerator: str,
+        n_devices: int,
+        expected_cpu_1: pd.DataFrame,
+        expected_cpu_2: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
+    ) -> pd.DataFrame:
+        if accelerator == "cpu" and n_devices == 1:
+            return expected_cpu_1
+        if accelerator == "cpu" and n_devices == 2:
+            return expected_cpu_2
+        return expected_gpu
 
     @pytest.fixture
     def interactions_df(self) -> pd.DataFrame:
@@ -140,37 +184,17 @@ class TestSASRecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
     ) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=n_devices,
-            accelerator=accelerator,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
+        trainer = self._init_trainer(accelerator, n_devices)
+        model = self._init_model(recommend_device, trainer)
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
-        if accelerator == "cpu" and n_devices == 1:
-            expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
-            expected = expected_cpu_2
-        else:
-            expected = expected_gpu
+        expected = self._choose_expected(accelerator, n_devices, expected_cpu_1, expected_cpu_2, expected_gpu)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -236,28 +260,13 @@ class TestSASRecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
     ) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=n_devices,
-            accelerator=accelerator,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
+        trainer = self._init_trainer(accelerator, n_devices)
+        model = self._init_model(recommend_device, trainer)
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         items_to_recommend = np.array([11, 13, 17])
@@ -268,12 +277,7 @@ class TestSASRecModel:
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
         )
-        if accelerator == "cpu" and n_devices == 1:
-            expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
-            expected = expected_cpu_2
-        else:
-            expected = expected_gpu
+        expected = self._choose_expected(accelerator, n_devices, expected_cpu_1, expected_cpu_2, expected_gpu)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -367,28 +371,13 @@ class TestSASRecModel:
         whitelist: tp.Optional[np.ndarray],
         accelerator: str,
         n_devices: int,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
     ) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=n_devices,
-            accelerator=accelerator,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
+        trainer = self._init_trainer(accelerator, n_devices)
+        model = self._init_model(recommend_device, trainer)
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
         actual = model.recommend_to_items(
@@ -398,36 +387,18 @@ class TestSASRecModel:
             filter_itself=filter_itself,
             items_to_recommend=whitelist,
         )
-        if accelerator == "cpu" and n_devices == 1:
-            expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
-            expected = expected_cpu_2
-        else:
-            expected = expected_gpu
+        expected = self._choose_expected(accelerator, n_devices, expected_cpu_1, expected_cpu_2, expected_gpu)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, accelerator: str, n_devices: int) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=n_devices,
-            accelerator=accelerator,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
+    def test_second_fit_refits_model(
+        self, dataset_hot_users_items: Dataset, accelerator: str, n_devices: int, recommend_device: str
+    ) -> None:
+        trainer = self._init_trainer(accelerator, n_devices)
+        model = self._init_model(recommend_device, trainer)
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
     @pytest.mark.parametrize(
@@ -489,28 +460,13 @@ class TestSASRecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
     ) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=n_devices,
-            accelerator=accelerator,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
+        trainer = self._init_trainer(accelerator, n_devices)
+        model = self._init_model(recommend_device, trainer)
         model.fit(dataset=dataset)
         users = np.array([20])
         actual = model.recommend(
@@ -519,12 +475,7 @@ class TestSASRecModel:
             k=3,
             filter_viewed=filter_viewed,
         )
-        if accelerator == "cpu" and n_devices == 1:
-            expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
-            expected = expected_cpu_2
-        else:
-            expected = expected_gpu
+        expected = self._choose_expected(accelerator, n_devices, expected_cpu_1, expected_cpu_2, expected_gpu)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -590,36 +541,16 @@ class TestSASRecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
     ) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=n_devices,
-            accelerator=accelerator,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
+        trainer = self._init_trainer(accelerator, n_devices)
+        model = self._init_model(recommend_device, trainer)
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
-        if accelerator == "cpu" and n_devices == 1:
-            expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
-            expected = expected_cpu_2
-        else:
-            expected = expected_gpu
+        expected = self._choose_expected(accelerator, n_devices, expected_cpu_1, expected_cpu_2, expected_gpu)
         with pytest.warns() as record:
             actual = model.recommend(
                 users=users,
