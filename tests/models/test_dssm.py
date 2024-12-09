@@ -27,8 +27,12 @@ except ImportError:
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models import DSSMModel
-from rectools.models.dssm import DSSM
+
+try:
+    from rectools.models import DSSMModel
+    from rectools.models.dssm import DSSM
+except ModuleNotFoundError:
+    DSSMModel = object
 from rectools.models.vector import ImplicitRanker
 from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
