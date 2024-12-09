@@ -130,7 +130,7 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         self.model: LightFM
         self._model = model
         self.n_epochs = epochs
-        self.n_threads = num_threads
+        self.n_threads = num_threads  # type: ignore  # TODO: remove when recommend n_threads implemented
 
     def _get_config(self) -> LightFMWrapperModelConfig:
         inner_model = self._model
