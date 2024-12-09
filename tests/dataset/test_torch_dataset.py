@@ -22,7 +22,7 @@ import pytest
 try:
     import torch
 except ImportError:
-    torch = object
+    pass
 
 from scipy import sparse
 
@@ -32,9 +32,7 @@ from rectools.dataset import Dataset
 try:
     from rectools.dataset.torch_datasets import DSSMItemDataset, DSSMTrainDataset, DSSMUserDataset
 except ModuleNotFoundError:
-    DSSMItemDataset = object
-    DSSMTrainDataset = object
-    DSSMUserDataset = object
+    pass
 
 pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
