@@ -444,15 +444,15 @@ class TestImplicitALSWrapperModelConfiguration:
                 "use_gpu": use_gpu,
             },
             "fit_features_together": True,
-            "recommend_n_threads": None,
-            "recommend_use_gpu_ranking": None,
+            "recommend_n_threads": 10,
+            "recommend_use_gpu_ranking": False,
             "verbose": 1,
         }
         if cls is not None:
             config["model"]["cls"] = cls
         model = ImplicitALSWrapperModel.from_config(config)
         assert model.fit_features_together is True
-        assert model.recommend_n_threads == 0
+        assert model.recommend_n_threads == 10
         assert model.recommend_use_gpu_ranking is False
         assert model.verbose == 1
         inner_model = model._model  # pylint: disable=protected-access
