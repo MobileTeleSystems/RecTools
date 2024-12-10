@@ -21,7 +21,7 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 import typing_extensions as tpe
-from pydantic import PlainSerializer, PlainValidator
+from pydantic import BeforeValidator, PlainSerializer
 from tqdm.auto import tqdm
 
 from rectools import Columns, InternalIds
@@ -43,7 +43,7 @@ class Popularity(Enum):
     SUM_WEIGHT = "sum_weight"
 
 
-def _deserialize_timedelta(td: tp.Union[dict, timedelta]) -> timedelta:
+def _deserialize_timedelta(td: tp.Any) -> tp.Any:
     if isinstance(td, dict):
         return timedelta(**td)
     return td
@@ -60,8 +60,8 @@ def _serialize_timedelta(td: timedelta) -> dict:
 
 TimeDelta = tpe.Annotated[
     timedelta,
-    PlainValidator(func=_deserialize_timedelta),
-    PlainSerializer(func=_serialize_timedelta),
+    BeforeValidator(func=_deserialize_timedelta),
+    PlainSerializer(func=_serialize_timedelta, return_type=dict, when_used="json"),
 ]
 
 
@@ -187,6 +187,7 @@ class PopularModel(FixedColdRecoModelMixin, PopularModelMixin, ModelBase[Popular
 
     def _get_config(self) -> PopularModelConfig:
         return PopularModelConfig(
+            cls=self.__class__,
             popularity=self.popularity,
             period=self.period,
             begin_from=self.begin_from,
