@@ -41,8 +41,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    recommend_cpu_n_threads: tp.Optional[int] = None  # TODO: decide. Lightfm has num_threads
-    recommend_use_gpu_ranking: tp.Optional[bool] = None
+    recommend_cpu_n_threads: tp.Optional[int] = None  # TODO: decide. ALS has Optional[int], other models only int
+    recommend_use_gpu_ranking: tp.Optional[bool] = None  # TODO: decide. ALS has Optional[bool], other models only bool
 
     @property
     def _recommend_use_gpu_ranking(self) -> bool:

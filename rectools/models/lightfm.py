@@ -86,7 +86,7 @@ class LightFMWrapperModelConfig(ModelConfig):
     model: LightFMConfig
     epochs: int = 1
     num_threads: int = 1
-    recommend_use_gpu_ranking: tp.Optional[bool] = None
+    recommend_use_gpu_ranking: bool = True
 
 
 class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperModelConfig]):
@@ -106,15 +106,18 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
     epochs: int, default 1
         Will be used as `epochs` parameter for `LightFM.fit`.
     num_threads: int, default 1
-        Will be used as `num_threads` parameter for `LightFM.fit`.
+        Will be used as `num_threads` parameter for `LightFM.fit` and as number of threads to use
+        for recommendation ranking on cpu.
+        If you want to change number of threads for ranking after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
-    recommend_use_gpu_ranking: Optional[bool], default ``None``
-        Flag to use gpu for recommendation ranking. If ``None``, then will be set same as
-        `model.use_gpu`.
-        `implicit.gpu.HAS_CUDA` will also be checked before inference.
-        This attribute can be changed manually before calling model `recommend` method if you
-        want to change ranking behaviour.
+    recommend_use_gpu_ranking: bool, default ``True``
+        Flag to use gpu for recommendation ranking. Please note that gpu and cpu ranking may provide
+        different ordering of items with identical scores in recommendation table.
+        If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     recommends_for_warm = True
@@ -131,7 +134,7 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         epochs: int = 1,
         num_threads: int = 1,  # TODO: decide. this is used for both fit n_threads and ranker n_threads
         verbose: int = 0,
-        recommend_use_gpu_ranking: tp.Optional[bool] = None,
+        recommend_use_gpu_ranking: bool = True,
     ):
         super().__init__(verbose=verbose)
 
@@ -139,7 +142,7 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         self._model = model
         self.n_epochs = epochs
         self.n_threads = num_threads
-        self.recommend_cpu_n_threads = num_threads  # TODO: not consistent with VectorModel parent behaviour
+        self.recommend_n_threads = num_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _get_config(self) -> LightFMWrapperModelConfig:
