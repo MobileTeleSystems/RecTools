@@ -7,10 +7,10 @@ build:
   jobs:
     pre_build:
       - cp -r examples docs/source/
-    post_install:
+    post_create_environment:
       - pip install --no-cache-dir poetry
-      - poetry export -f requirements.txt -o requirements.txt -E all --without-hashes
-      - pip install --no-cache-dir -r requirements.txt
+    post_install:
+      - poetry install -E all --with docs
 
 sphinx:
   builder: html

@@ -127,6 +127,13 @@ pytest-mock = "3.14.0"
 click = "8.1.7"
 gitpython = "3.1.43"
 
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "5.1.1"
+nbsphinx = "0.8.9"
+sphinx-rtd-theme = "1.0.0"
 
 [tool.black]
 line-length = 120
