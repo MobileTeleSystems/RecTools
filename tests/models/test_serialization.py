@@ -1,4 +1,3 @@
-import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 
@@ -35,11 +34,7 @@ INTERMEDIATE_MODEL_CLASSES = (VectorModel,)
 EXPOSABLE_MODEL_CLASSES = tuple(
     cls
     for cls in get_successors(ModelBase)
-    if (
-        cls.__module__.startswith("rectools.models")
-        and cls not in INTERMEDIATE_MODEL_CLASSES
-        and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
-    )
+    if (cls.__module__.startswith("rectools.models") and cls not in INTERMEDIATE_MODEL_CLASSES)
 )
 CONFIGURABLE_MODEL_CLASSES = tuple(cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel,))
 
