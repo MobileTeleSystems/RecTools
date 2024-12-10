@@ -136,7 +136,7 @@ class TestImplicitItemKNNWrapperModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [12, 15, 11, 14],
+                        Columns.Item: [12, 14, 11, 14],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -154,10 +154,30 @@ class TestImplicitItemKNNWrapperModel:
             ),
         ),
     )
-    def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
-    ) -> None:
+    def test_i2i(self, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame) -> None:
         base_model = TFIDFRecommender(K=5, num_threads=2)
+        # Recreate dataset to prevent same co-occurrence count between (11, 14) and (11, 15)
+        # which leads to different results in the test in Python 3.13
+        interactions = pd.DataFrame(
+            [
+                [10, 11],
+                [10, 12],
+                [10, 14],
+                [20, 11],
+                [20, 12],
+                [20, 13],
+                [30, 11],
+                [30, 12],
+                [30, 14],
+                [40, 11],
+                [40, 15],
+                [40, 17],
+            ],
+            columns=Columns.UserItem,
+        )
+        interactions[Columns.Weight] = 1
+        interactions[Columns.Datetime] = "2021-09-09"
+        dataset = Dataset.construct(interactions)
         model = ImplicitItemKNNWrapperModel(model=base_model).fit(dataset)
         actual = model.recommend_to_items(
             target_items=np.array([11, 12]),
