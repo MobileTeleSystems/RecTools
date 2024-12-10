@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support `fit_partial()` for LightFM ([#223](https://github.com/MobileTeleSystems/RecTools/pull/223))
 - LightFM Python 3.12+ support ([#224](https://github.com/MobileTeleSystems/RecTools/pull/224))
 
+### Fixed
+- Fix Implicit ALS matrix zero assignment size ([#228](https://github.com/MobileTeleSystems/RecTools/pull/228))
+
 ### Removed
 - Python 3.8 support ([#222](https://github.com/MobileTeleSystems/RecTools/pull/222))
 
