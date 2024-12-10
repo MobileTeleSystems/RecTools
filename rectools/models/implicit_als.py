@@ -121,14 +121,14 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     recommend_n_threads: Optional[int], default ``None``
         Number of threads to use for recommendation ranking on cpu.
         If ``None``, then number of threads will be set same as `model.num_threads`.
-        This attribute can be changed manually before calling model `recommend` method if you
-        want to change ranking behaviour.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: Optional[bool], default ``None``
         Flag to use gpu for recommendation ranking. If ``None``, then will be set same as
         `model.use_gpu`.
         `implicit.gpu.HAS_CUDA` will also be checked before inference.
-        This attribute can be changed manually before calling model `recommend` method if you
-        want to change ranking behaviour.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     recommends_for_warm = False
@@ -162,8 +162,8 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
         self.fit_features_together = fit_features_together
 
-        if recommend_n_threads is None and isinstance(model, CPUAlternatingLeastSquares):
-            recommend_n_threads = model.num_threads
+        if recommend_n_threads is None:
+            recommend_n_threads = model.num_threads if isinstance(model, CPUAlternatingLeastSquares) else 0
         self.recommend_n_threads = recommend_n_threads
 
         if recommend_use_gpu_ranking is None:
