@@ -41,20 +41,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    recommend_cpu_n_threads: int = 0
+    recommend_n_threads: int = 0
     recommend_use_gpu_ranking: bool = True
-
-    @property
-    def _recommend_use_gpu_ranking(self) -> bool:
-        use_gpu = HAS_CUDA
-        if self.recommend_use_gpu_ranking is False:
-            use_gpu = False
-        return use_gpu
-
-    @property
-    def _recommend_cpu_n_threads(self) -> int:
-        num_threads = 0 if self.recommend_cpu_n_threads is None else self.recommend_cpu_n_threads
-        return num_threads
 
     def _recommend_u2i(
         self,
@@ -79,8 +67,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self._recommend_cpu_n_threads,
-            use_gpu=self._recommend_use_gpu_ranking,
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     def _recommend_i2i(
@@ -99,8 +87,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self._recommend_cpu_n_threads,
-            use_gpu=self._recommend_use_gpu_ranking,
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     def _process_biases_to_vectors(
