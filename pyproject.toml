@@ -93,6 +93,10 @@ ipywidgets = {version = ">=7.7,<8.2", optional = true}
 plotly = {version="^5.22.0", optional = true}
 nbformat = {version = ">=4.2.0", optional = true}
 
+sphinx = {version = "5.1.1", optional = true}
+nbsphinx = {version = "0.8.9", optional = true}
+sphinx-rtd-theme = {version = "1.0.0", optional = true}
+
 
 [tool.poetry.extras]
 lightfm = ["rectools-lightfm"]
@@ -105,6 +109,7 @@ all = [
     "torch", "pytorch-lightning",
     "ipywidgets", "plotly", "nbformat",
 ]
+docs = ["sphinx", "nbsphinx", "sphinx-rtd-theme"]
 
 
 [tool.poetry.group.dev.dependencies]
@@ -126,7 +131,6 @@ pytest-cov = "5.0.0"
 pytest-mock = "3.14.0"
 click = "8.1.7"
 gitpython = "3.1.43"
-
 
 [tool.black]
 line-length = 120
