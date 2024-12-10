@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 
 import numpy as np
@@ -37,8 +36,6 @@ from tests.models.utils import (
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
-
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
 
 
 # pylint: disable=attribute-defined-outside-init
