@@ -41,7 +41,7 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    recommend_cpu_n_threads: int = 0 
+    recommend_cpu_n_threads: int = 0
     recommend_use_gpu_ranking: bool = True
 
     @property

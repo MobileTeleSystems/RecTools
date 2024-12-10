@@ -55,7 +55,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
     regularization : float
         The regularization factor of the weights.
     num_threads: Optional[int], default ``None``
-        Deprecated, use `recommend_n_threads` instead. 
+        Deprecated, use `recommend_n_threads` instead.
         Number of threads used for recommendation ranking on cpu.
     recommend_n_threads: int, default 0
         Number of threads to use for recommendation ranking on cpu.

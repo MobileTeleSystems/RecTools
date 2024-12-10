@@ -291,8 +291,8 @@ class TestPureSVDModelConfiguration:
             maxiter=100,
             random_state=random_state,
             verbose=1,
-            recommend_cpu_n_threads=None,
-            recommend_use_gpu_ranking=None,
+            recommend_n_threads=2,
+            recommend_use_gpu_ranking=False,
         )
         config = model.get_config(simple_types=simple_types)
         expected = {
@@ -302,8 +302,8 @@ class TestPureSVDModelConfiguration:
             "maxiter": 100,
             "random_state": random_state,
             "verbose": 1,
-            "recommend_cpu_n_threads": None,
-            "recommend_use_gpu_ranking": None,
+            "recommend_n_threads": 2,
+            "recommend_use_gpu_ranking": False,
         }
         assert config == expected
 
@@ -315,8 +315,8 @@ class TestPureSVDModelConfiguration:
             "maxiter": 100,
             "random_state": 32,
             "verbose": 0,
-            "recommend_cpu_n_threads": None,
-            "recommend_use_gpu_ranking": None,
+            "recommend_n_threads": 2,
+            "recommend_use_gpu_ranking": False,
         }
         assert_get_config_and_from_config_compatibility(PureSVDModel, DATASET, initial_config, simple_types)
 
