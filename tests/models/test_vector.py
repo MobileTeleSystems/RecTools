@@ -40,8 +40,8 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
                 [1, 10, 100],
             ]
         )
-        user_biases = np.array([0, 1])
-        item_biases = np.array([0, 1, 3])
+        user_biases = np.array([2, 1])
+        item_biases = np.array([2, 1, 3])
         self.user_factors = Factors(user_embeddings)
         self.item_factors = Factors(item_embeddings)
         self.user_biased_factors = Factors(user_embeddings, user_biases)
@@ -98,9 +98,9 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
     @pytest.mark.parametrize(
         "distance,expected_reco,expected_scores",
         (
-            (Distance.DOT, [[2, 0, 1], [2, 1, 0]], [[299.0, 25.0, 7.0], [214.0, 7.0, 7.0]]),
-            (Distance.COSINE, [[0, 2, 1], [1, 2, 0]], [[1.0, 0.58877, 0.4899], [1.0, 0.86483, 0.4899]]),
-            (Distance.EUCLIDEAN, [[0, 1, 2], [1, 0, 2]], [[0.0, 4.3589, 97.68828], [0.0, 4.3589, 98.4378]]),
+            (Distance.DOT, [[2, 0, 1], [2, 0, 1]], [[301.0, 29.0, 9.0], [214.0, 9.0, 7.0]]),
+            (Distance.COSINE, [[0, 1, 2], [1, 2, 0]], [[1.0, 0.60648, 0.55774], [1.0, 0.86483, 0.60648]]),
+            (Distance.EUCLIDEAN, [[0, 1, 2], [1, 0, 2]], [[0.0, 4.3589, 97.64732], [0.0, 4.3589, 98.4378]]),
         ),
     )
     @pytest.mark.parametrize("method", ("u2i", "i2i"))
