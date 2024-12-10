@@ -1342,14 +1342,17 @@ class SASRecModel(TransformerModelBase):
         If ``True``, sets deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
     recommend_device: Union[str, Accelerator], default "auto"
-        Device for recommend. Used at predict_step of lightning module. 
-        If you want to change this parameter after model is initialized, you can manually assign new value to model `recommend_device` attribute.
+        Device for recommend. Used at predict_step of lightning module.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_device` attribute.
     recommend_n_threads: int, default 0
-        Number of threads to use in ranker. 
-        If you want to change this parameter after model is initialized, you can manually assign new value to model `recommend_n_threads` attribute.
+        Number of threads to use in ranker.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: bool, default ``True``
         If ``True`` and HAS_CUDA ``True``, sets use_gpu=True in ImplicitRanker.rank.
-        If you want to change this parameter after model is initialized, you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     trainer: Optional(Trainer), default None
         Which trainer to use for training.
         If trainer is None, default pytorch_lightning Trainer is created.
