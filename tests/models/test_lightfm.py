@@ -402,6 +402,7 @@ class TestLightFMWrapperModelConfiguration:
             "epochs": 2,
             "num_threads": 3,
             "verbose": 1,
+            "recommend_use_gpu_ranking": True,
         }
         assert config == expected
 
