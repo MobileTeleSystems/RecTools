@@ -1,9 +1,10 @@
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import torch
 from pytorch_lightning import Trainer
+from pytorch_lightning.accelerators import Accelerator
 from torch import nn
 
 from rectools.models.sasrec import (
@@ -163,9 +164,9 @@ class BERT4RecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "auto",
-        recommend_cpu_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = False,
+        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
         session_max_len: int = 32,
         n_negatives: int = 1,
         batch_size: int = 128,
@@ -196,7 +197,7 @@ class BERT4RecModel(TransformerModelBase):
             verbose=verbose,
             deterministic=deterministic,
             recommend_device=recommend_device,
-            recommend_cpu_n_threads=recommend_cpu_n_threads,
+            recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             loss=loss,
             gbce_t=gbce_t,

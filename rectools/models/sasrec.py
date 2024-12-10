@@ -1,7 +1,7 @@
 import typing as tp
 import warnings
 from copy import deepcopy
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,7 @@ import torch
 import typing_extensions as tpe
 from implicit.gpu import HAS_CUDA
 from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.accelerators import Accelerator
 from scipy import sparse
 from torch import nn
 from torch.utils.data import DataLoader
@@ -1138,16 +1139,16 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "auto",
-        recommend_cpu_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = False,
+        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ) -> None:
         super().__init__(verbose)
-        self.recommend_cpu_n_threads = recommend_cpu_n_threads
+        self.recommend_n_threads = recommend_n_threads
         self.recommend_device = recommend_device
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
         self._torch_model = TransformerBasedSessionEncoder(
@@ -1253,7 +1254,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
                 k=k,
                 filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
                 sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-                num_threads=self.recommend_cpu_n_threads,
+                num_threads=self.recommend_n_threads,
                 use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
             )
             all_target_ids = user_ids[user_ids_indices]
@@ -1286,7 +1287,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
-            num_threads=self.recommend_cpu_n_threads,
+            num_threads=self.recommend_n_threads,
             use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
@@ -1340,12 +1341,15 @@ class SASRecModel(TransformerModelBase):
     deterministic: bool, default ``False``
         If ``True``, sets deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device: str, default "auto"
-        Device for recommend. Used at predict_step of lightning module.
-    recommend_cpu_n_threads: int, default 0
-        Number of threads to use in ranker.
-    recommend_use_gpu_ranking: bool, default ``False``
+    recommend_device: Union[str, Accelerator], default "auto"
+        Device for recommend. Used at predict_step of lightning module. 
+        If you want to change this parameter after model is initialized, you can manually assign new value to model `recommend_device` attribute.
+    recommend_n_threads: int, default 0
+        Number of threads to use in ranker. 
+        If you want to change this parameter after model is initialized, you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: bool, default ``True``
         If ``True`` and HAS_CUDA ``True``, sets use_gpu=True in ImplicitRanker.rank.
+        If you want to change this parameter after model is initialized, you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     trainer: Optional(Trainer), default None
         Which trainer to use for training.
         If trainer is None, default pytorch_lightning Trainer is created.
@@ -1383,9 +1387,9 @@ class SASRecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "auto",
-        recommend_cpu_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = False,
+        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
         train_min_user_interaction: int = 2,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
@@ -1412,7 +1416,7 @@ class SASRecModel(TransformerModelBase):
             verbose=verbose,
             deterministic=deterministic,
             recommend_device=recommend_device,
-            recommend_cpu_n_threads=recommend_cpu_n_threads,
+            recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
