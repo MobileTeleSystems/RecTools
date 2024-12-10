@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -230,6 +231,12 @@ class TestEASEModel:
         model = EASEModel()
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
+
+    def test_warn_with_num_threads(self) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            EASEModel(num_threads=10)
+            assert len(w) == 1
+            assert "`num_threads` argument is deprecated" in str(w[-1].message)
 
 
 class TestEASEModelConfiguration:
