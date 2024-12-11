@@ -32,6 +32,11 @@ from .utils import (
     assert_second_fit_refits_model,
 )
 
+try:
+    import cupy as cp
+except ImportError:  # pragma: no cover
+    cp = None
+
 
 class TestPureSVDModel:
 
@@ -40,7 +45,7 @@ class TestPureSVDModel:
         return DATASET
 
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "filter_viewed,expected,use_gpu",
         (
             (
                 True,
@@ -51,6 +56,7 @@ class TestPureSVDModel:
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
+                False,
             ),
             (
                 False,
@@ -61,6 +67,29 @@ class TestPureSVDModel:
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
+                False,
+            ),
+            (
+                True,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20],
+                        Columns.Item: [15, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2],
+                    }
+                ),
+                True,
+            ),
+            (
+                False,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20],
+                        Columns.Item: [11, 12, 11, 12],
+                        Columns.Rank: [1, 2, 1, 2],
+                    }
+                ),
+                True,
             ),
         ),
     )
@@ -69,8 +98,9 @@ class TestPureSVDModel:
         dataset: Dataset,
         filter_viewed: bool,
         expected: pd.DataFrame,
+        use_gpu: bool,
     ) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+        model = PureSVDModel(factors=2, use_gpu=use_gpu).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -284,12 +314,14 @@ class TestPureSVDModelConfiguration:
 
     @pytest.mark.parametrize("random_state", (None, 42))
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config(self, random_state: tp.Optional[int], simple_types: bool) -> None:
+    @pytest.mark.parametrize("use_gpu", (False, True))
+    def test_get_config(self, random_state: tp.Optional[int], simple_types: bool, use_gpu: bool) -> None:
         model = PureSVDModel(
             factors=100,
             tol=1,
             maxiter=100,
             random_state=random_state,
+            use_gpu=use_gpu,
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
@@ -299,6 +331,7 @@ class TestPureSVDModelConfiguration:
             "tol": 1,
             "maxiter": 100,
             "random_state": random_state,
+            "use_gpu": use_gpu,
             "verbose": 1,
         }
         assert config == expected

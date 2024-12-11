@@ -15,9 +15,11 @@
 """SVD Model."""
 
 import typing as tp
+import warnings
 
 import numpy as np
 import typing_extensions as tpe
+from implicit.gpu import HAS_CUDA
 from scipy.sparse.linalg import svds
 
 from rectools.dataset import Dataset
@@ -25,6 +27,15 @@ from rectools.exceptions import NotFittedError
 from rectools.models.base import ModelConfig
 from rectools.models.rank import Distance
 from rectools.models.vector import Factors, VectorModel
+
+try:
+    import cupy as cp
+    from cupyx.scipy.sparse import csr_matrix as cp_csr_matrix
+    from cupyx.scipy.sparse.linalg import svds as cupy_svds
+except ImportError:  # pragma: no cover
+    cupy_svds = None
+    cp_csr_matrix = None
+    cp = None
 
 
 class PureSVDModelConfig(ModelConfig):
@@ -34,6 +45,7 @@ class PureSVDModelConfig(ModelConfig):
     tol: float = 0
     maxiter: tp.Optional[int] = None
     random_state: tp.Optional[int] = None
+    use_gpu: tp.Optional[bool] = False
 
 
 class PureSVDModel(VectorModel[PureSVDModelConfig]):
@@ -70,6 +82,7 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         tol: float = 0,
         maxiter: tp.Optional[int] = None,
         random_state: tp.Optional[int] = None,
+        use_gpu: tp.Optional[bool] = False,
         verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
@@ -78,6 +91,11 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.tol = tol
         self.maxiter = maxiter
         self.random_state = random_state
+        if use_gpu and (not HAS_CUDA or cupy_svds is None):  # pragma: no cover
+            warnings.warn("Forced to use CPU. CUDA is not available.")
+            use_gpu = False
+
+        self.use_gpu = use_gpu
 
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
@@ -89,6 +107,7 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             tol=self.tol,
             maxiter=self.maxiter,
             random_state=self.random_state,
+            use_gpu=self.use_gpu,
             verbose=self.verbose,
         )
 
@@ -99,16 +118,26 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             tol=config.tol,
             maxiter=config.maxiter,
             random_state=config.random_state,
+            use_gpu=config.use_gpu,
             verbose=config.verbose,
         )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
 
-        u, sigma, vt = svds(ui_csr, k=self.factors, tol=self.tol, maxiter=self.maxiter, random_state=self.random_state)
+        if self.use_gpu:
+            ui_csr = cp_csr_matrix(ui_csr)
+            # To prevent IndexError, we need to subtract 1 from factors
+            u, sigma, vt = cupy_svds(ui_csr.toarray(), k=self.factors - 1, tol=self.tol, maxiter=self.maxiter)
+            u = u.get()
+            self.item_factors = (cp.diag(sigma) @ vt).T.get()
+        else:
+            u, sigma, vt = svds(
+                ui_csr, k=self.factors, tol=self.tol, maxiter=self.maxiter, random_state=self.random_state
+            )
+            self.item_factors = (np.diag(sigma) @ vt).T
 
         self.user_factors = u
-        self.item_factors = (np.diag(sigma) @ vt).T
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
         return Factors(self.user_factors)
