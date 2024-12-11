@@ -654,8 +654,8 @@ def _fit_combined_factors_on_gpu_inplace(
     model._item_norms_host = model._user_norms_host = None  # pylint: disable=protected-access
     model._YtY = model._XtX = None  # pylint: disable=protected-access
 
-    _YtY = implicit.gpu.Matrix.zeros(model.factors, model.factors)
-    _XtX = implicit.gpu.Matrix.zeros(model.factors, model.factors)
+    _YtY = implicit.gpu.Matrix.zeros(*item_factors.shape)
+    _XtX = implicit.gpu.Matrix.zeros(*user_factors.shape)
 
     for _ in tqdm(range(iterations), disable=verbose == 0):
 

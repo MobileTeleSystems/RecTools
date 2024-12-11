@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 
 import numpy as np
@@ -37,8 +36,6 @@ from tests.models.utils import (
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
-
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
 
 
 # pylint: disable=attribute-defined-outside-init
@@ -342,6 +339,33 @@ class TestLightFMWrapperModel:
         base_model = LightFM(no_components=2, loss="logistic", random_state=1)
         model = LightFMWrapperModel(model=base_model, epochs=5, num_threads=1)
         assert_second_fit_refits_model(model, dataset)
+
+    @pytest.mark.parametrize("loss", ("logistic", "bpr", "warp"))
+    @pytest.mark.parametrize("use_features_in_dataset", (False, True))
+    def test_per_epoch_partial_fit_consistent_with_regular_fit(
+        self,
+        dataset: Dataset,
+        dataset_with_features: Dataset,
+        use_features_in_dataset: bool,
+        loss: str,
+    ) -> None:
+        if use_features_in_dataset:
+            dataset = dataset_with_features
+
+        epochs = 20
+
+        base_model_1 = LightFM(no_components=2, loss=loss, random_state=1)
+        model_1 = LightFMWrapperModel(model=base_model_1, epochs=epochs, num_threads=1).fit(dataset)
+
+        base_model_2 = LightFM(no_components=2, loss=loss, random_state=1)
+        model_2 = LightFMWrapperModel(model=base_model_2, epochs=epochs, num_threads=1)
+        for _ in range(epochs):
+            model_2.fit_partial(dataset, epochs=1)
+
+        assert np.allclose(model_1.model.item_biases, model_2.model.item_biases)
+        assert np.allclose(model_1.model.user_biases, model_2.model.user_biases)
+        assert np.allclose(model_1.model.item_embeddings, model_2.model.item_embeddings)
+        assert np.allclose(model_1.model.user_embeddings, model_2.model.user_embeddings)
 
     def test_fail_when_getting_cold_reco_with_no_biases(self, dataset: Dataset) -> None:
         class NoBiasesLightFMWrapperModel(LightFMWrapperModel):
