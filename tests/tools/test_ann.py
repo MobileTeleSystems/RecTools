@@ -13,7 +13,8 @@
 #  limitations under the License.
 
 import pickle
-from typing import Callable, Dict, Hashable, List, Union
+from collections.abc import Hashable
+from typing import Callable, Dict, List, Union
 
 import numpy as np
 import pytest
