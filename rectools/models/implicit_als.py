@@ -112,8 +112,6 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     ----------
     model : AnyAlternatingLeastSquares
         Base model that will be used.
-    verbose : int, default 0
-        Degree of verbose output. If 0, no output will be provided.
     fit_features_together: bool, default False
         Whether fit explicit features together with latent features or not.
         Used only if explicit features are present in dataset.
@@ -129,6 +127,8 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         `implicit.gpu.HAS_CUDA` will also be checked before inference.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
+    verbose : int, default 0
+        Degree of verbose output. If 0, no output will be provided.
     """
 
     recommends_for_warm = False
@@ -142,10 +142,10 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     def __init__(
         self,
         model: AnyAlternatingLeastSquares,
-        verbose: int = 0,
         fit_features_together: bool = False,
         recommend_n_threads: tp.Optional[int] = None,
         recommend_use_gpu_ranking: tp.Optional[bool] = None,
+        verbose: int = 0,
     ):
         self._config = self._make_config(
             model=model,

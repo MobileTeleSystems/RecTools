@@ -422,6 +422,8 @@ class TestLightFMWrapperModelConfiguration:
             model=LightFM(no_components=16, learning_rate=0.03, random_state=random_state),
             epochs=2,
             num_threads=3,
+            recommend_n_threads=None,
+            recommend_use_gpu_ranking=True,
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
@@ -445,8 +447,9 @@ class TestLightFMWrapperModelConfiguration:
             "model": expected_inner_model_config,
             "epochs": 2,
             "num_threads": 3,
-            "verbose": 1,
+            "recommend_n_threads": None,
             "recommend_use_gpu_ranking": True,
+            "verbose": 1,
         }
         assert config == expected
 
@@ -476,10 +479,16 @@ class TestLightFMWrapperModelConfiguration:
         assert model.get_config()["model"]["cls"] == CustomLightFM  # pylint: disable=unsubscriptable-object
 
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_get_config_and_from_config_compatibility(
+        self, simple_types: bool, recommend_use_gpu: bool, recommend_n_threads: tp.Optional[int]
+    ) -> None:
         initial_config = {
             "model": {"no_components": 16, "learning_rate": 0.03, "random_state": 42},
             "verbose": 1,
+            "recommend_n_threads": recommend_n_threads,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
         }
         assert_get_config_and_from_config_compatibility(LightFMWrapperModel, DATASET, initial_config, simple_types)
 

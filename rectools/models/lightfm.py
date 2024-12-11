@@ -86,6 +86,7 @@ class LightFMWrapperModelConfig(ModelConfig):
     model: LightFMConfig
     epochs: int = 1
     num_threads: int = 1
+    recommend_n_threads: tp.Optional[int] = None
     recommend_use_gpu_ranking: bool = True
 
 
@@ -106,18 +107,23 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
     epochs: int, default 1
         Will be used as `epochs` parameter for `LightFM.fit`.
     num_threads: int, default 1
-        Will be used as `num_threads` parameter for `LightFM.fit` and as number of threads to use
-        for recommendation ranking on cpu.
+        Will be used as `num_threads` parameter for `LightFM.fit`. Should be larger then 0.
+        This will also be used as number of threads to use for recommendation ranking on CPU.
         If you want to change number of threads for ranking after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
-    verbose : int, default 0
-        Degree of verbose output. If 0, no output will be provided.
+    recommend_n_threads: Optional[int], default ``None``
+        Number of threads to use for recommendation ranking on CPU.
+        If ``None``, then number of threads will be set same as `num_threads`.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: bool, default ``True``
-        Flag to use gpu for recommendation ranking. Please note that gpu and cpu ranking may provide
+        Flag to use gpu for recommendation ranking. Please note that GPU and CPU ranking may provide
         different ordering of items with identical scores in recommendation table.
         If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
+    verbose : int, default 0
+        Degree of verbose output. If 0, no output will be provided.
     """
 
     recommends_for_warm = True
@@ -132,9 +138,10 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         self,
         model: LightFM,
         epochs: int = 1,
-        num_threads: int = 1,  # TODO: decide. this is used for both fit n_threads and ranker n_threads
-        verbose: int = 0,
+        num_threads: int = 1,
+        recommend_n_threads: tp.Optional[int] = None,
         recommend_use_gpu_ranking: bool = True,
+        verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
 
@@ -142,7 +149,12 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         self._model = model
         self.n_epochs = epochs
         self.n_threads = num_threads
-        self.recommend_n_threads = num_threads
+        self._recommend_n_threads = recommend_n_threads
+        self.recommend_n_threads = 0
+        if recommend_n_threads is not None:
+            self.recommend_n_threads = recommend_n_threads
+        elif num_threads > 0:
+            self.recommend_n_threads = num_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _get_config(self) -> LightFMWrapperModelConfig:
@@ -167,8 +179,9 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
             model=tp.cast(LightFMConfig, inner_config),  # https://github.com/python/mypy/issues/8890
             epochs=self.n_epochs,
             num_threads=self.n_threads,
-            verbose=self.verbose,
+            recommend_n_threads=self._recommend_n_threads,
             recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            verbose=self.verbose,
         )
 
     @classmethod
@@ -176,7 +189,14 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         params = config.model.copy()
         model_cls = params.pop("cls", LightFM)
         model = model_cls(**params)
-        return cls(model=model, epochs=config.epochs, num_threads=config.num_threads, verbose=config.verbose)
+        return cls(
+            model=model,
+            epochs=config.epochs,
+            num_threads=config.num_threads,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+            verbose=config.verbose,
+        )
 
     def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
