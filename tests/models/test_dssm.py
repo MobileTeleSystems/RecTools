@@ -27,10 +27,10 @@ except ImportError:
 try:
     import pytorch_lightning  # noqa  # pylint: disable=unused-import
 
-    filter_decorator = pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+    filter_warnings_decorator = pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
 except ImportError:
 
-    def filter_decorator(func):  # type: ignore
+    def filter_warnings_decorator(func):  # type: ignore
         return func
 
 
@@ -51,7 +51,7 @@ from .data import INTERACTIONS
 pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
-@filter_decorator
+@filter_warnings_decorator
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     def setup_method(self) -> None:
