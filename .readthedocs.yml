@@ -7,19 +7,15 @@ build:
   jobs:
     pre_build:
       - cp -r examples docs/source/
+    post_create_environment:
+      - pip install poetry
+    post_install:
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install -E all --no-root --with docs
 
 sphinx:
   builder: html
   configuration: docs/source/conf.py
   fail_on_warning: false
-
-python:
-   install:
-   - method: pip
-     path: .
-     extra_requirements:
-       - docs
-       - all
 
 formats:
   - pdf
