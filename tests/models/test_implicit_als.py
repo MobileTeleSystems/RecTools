@@ -174,6 +174,48 @@ class TestImplicitALSWrapperModel:
             actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
             np.testing.assert_equal(actual_internal_ids, expected_ids)
             np.testing.assert_allclose(actual_scores, expected_scores, atol=0.01)
+            
+            
+
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    @pytest.mark.parametrize("init_model_before_fit", (False, True))
+    def test_gpu_ranking_consistent_with_pure_implicit(
+        self, dataset: Dataset, fit_features_together: bool, use_gpu: bool, init_model_before_fit: bool
+    ) -> None:
+        base_model = AlternatingLeastSquares(factors=10, num_threads=2, iterations=30, use_gpu=False, random_state=32)
+        if init_model_before_fit:
+            self._init_model_factors_inplace(base_model, dataset)
+        users = np.array([10, 20, 30, 40])
+
+
+        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        base_model.fit(ui_csr)
+        gpu_model = base_model.to_gpu()
+        
+        wrapped_model = ImplicitALSWrapperModel(model=gpu_model, fit_features_together=fit_features_together, recommend_use_gpu_ranking=True)
+        wrapped_model.is_fitted = True
+        wrapped_model.model = wrapped_model._model
+        
+        actual_reco = wrapped_model.recommend(
+            users=users,
+            dataset=dataset,
+            k=3,
+            filter_viewed=False,
+        )
+        
+        for user_id in users:
+            internal_id = dataset.user_id_map.convert_to_internal([user_id])[0]
+            expected_ids, expected_scores = gpu_model.recommend(
+                userid=internal_id,
+                user_items=ui_csr[internal_id],
+                N=3,
+                filter_already_liked_items=False,
+            )
+            actual_ids = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Item].values
+            actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
+            actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
+            np.testing.assert_equal(actual_internal_ids, expected_ids)
+            np.testing.assert_allclose(actual_scores, expected_scores, atol=0.00001)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
