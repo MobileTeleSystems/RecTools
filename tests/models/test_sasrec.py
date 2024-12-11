@@ -24,6 +24,8 @@ from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, a
 
 from .data import DATASET, INTERACTIONS
 
+# pylint: disable=too-many-lines
+
 
 @pytest.mark.parametrize(
     "accelerator,n_devices,recommend_device",
