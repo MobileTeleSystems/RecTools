@@ -27,7 +27,9 @@ except ImportError:
 try:
     import pytorch_lightning  # noqa  # pylint: disable=unused-import
 
-    filter_warnings_decorator = pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+    filter_warnings_decorator = pytest.mark.filterwarnings(
+        "ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning"
+    )
 except ImportError:
 
     def filter_warnings_decorator(func):  # type: ignore
