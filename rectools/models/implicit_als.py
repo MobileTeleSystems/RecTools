@@ -117,15 +117,16 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         Used only if explicit features are present in dataset.
         See documentations linked above for details.
     recommend_n_threads: Optional[int], default ``None``
-        Number of threads to use for recommendation ranking on cpu.
+        Number of threads to use for recommendation ranking on CPU.
         If ``None``, then number of threads will be set same as `model.num_threads`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: Optional[bool], default ``None``
-        Flag to use gpu for recommendation ranking. If ``None``, then will be set same as
+        Flag to use GPU for recommendation ranking. If ``None``, then will be set same as
         `model.use_gpu`.
-        `implicit.gpu.HAS_CUDA` will also be checked before inference.
-        If you want to change this parameter after model is initialized,
+        `implicit.gpu.HAS_CUDA` will also be checked before inference.  Please note that GPU and CPU
+        ranking may provide different ordering of items with identical scores in recommendation
+        table. If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.

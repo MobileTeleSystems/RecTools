@@ -56,13 +56,13 @@ class EASEModel(ModelBase[EASEModelConfig]):
         The regularization factor of the weights.
     num_threads: Optional[int], default ``None``
         Deprecated, use `recommend_n_threads` instead.
-        Number of threads used for recommendation ranking on cpu.
+        Number of threads used for recommendation ranking on CPU.
     recommend_n_threads: int, default 0
-        Number of threads to use for recommendation ranking on cpu.
+        Number of threads to use for recommendation ranking on CPU.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: bool, default ``True``
-        Flag to use gpu for recommendation ranking. Please note that gpu and cpu ranking may provide
+        Flag to use GPU for recommendation ranking. Please note that GPU and CPU ranking may provide
         different ordering of items with identical scores in recommendation table.
         If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
         If you want to change this parameter after model is initialized,

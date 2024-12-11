@@ -117,7 +117,7 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: bool, default ``True``
-        Flag to use gpu for recommendation ranking. Please note that GPU and CPU ranking may provide
+        Flag to use GPU for recommendation ranking. Please note that GPU and CPU ranking may provide
         different ordering of items with identical scores in recommendation table.
         If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
         If you want to change this parameter after model is initialized,
