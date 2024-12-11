@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_cat_features` method to `SparseFeatures` ([#221](https://github.com/MobileTeleSystems/RecTools/pull/221))
 - Support `fit_partial()` for LightFM ([#223](https://github.com/MobileTeleSystems/RecTools/pull/223))
 - LightFM Python 3.12+ support ([#224](https://github.com/MobileTeleSystems/RecTools/pull/224))
+- Python 3.13 support ([#227](https://github.com/MobileTeleSystems/RecTools/pull/227))
 
 ### Removed
 - Python 3.8 support ([#222](https://github.com/MobileTeleSystems/RecTools/pull/222))
