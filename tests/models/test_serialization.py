@@ -1,3 +1,4 @@
+import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 
@@ -155,6 +156,7 @@ class TestModelFromConfig:
         with pytest.raises(ValidationError):
             model_from_config(config)
 
+    @pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python 3.13")
     @pytest.mark.parametrize("model_cls", ("rectools.models.DSSMModel", DSSMModel))
     def test_fails_on_model_cls_without_from_config_support(self, model_cls: tp.Any) -> None:
         config = {"cls": model_cls}

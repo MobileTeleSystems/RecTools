@@ -7,10 +7,6 @@ build:
   jobs:
     pre_build:
       - cp -r examples docs/source/
-    post_install:
-      - pip install --no-cache-dir poetry
-      - poetry export -f requirements.txt -o requirements.txt -E all --without-hashes
-      - pip install --no-cache-dir -r requirements.txt
 
 sphinx:
   builder: html
@@ -19,7 +15,11 @@ sphinx:
 
 python:
    install:
-   - requirements: docs/requirements.txt
+   - method: pip
+     path: .
+     extra_requirements:
+       - docs
+       - all
 
 formats:
   - pdf
