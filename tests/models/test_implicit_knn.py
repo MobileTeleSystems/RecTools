@@ -17,7 +17,12 @@ import typing as tp
 import numpy as np
 import pandas as pd
 import pytest
-from implicit.nearest_neighbours import BM25Recommender, CosineRecommender, ItemItemRecommender, TFIDFRecommender
+from implicit.nearest_neighbours import (
+    BM25Recommender,
+    CosineRecommender,
+    ItemItemRecommender,
+    TFIDFRecommender,
+)
 
 from rectools import Columns
 from rectools.dataset import Dataset

@@ -25,7 +25,12 @@ from rectools import Columns
 from rectools.metrics.base import merge_reco
 from rectools.utils import log_at_base, select_by_type
 
-from .debias import DebiasableMetrikAtK, calc_debiased_fit_task, debias_for_metric_configs, debias_interactions
+from .debias import (
+    DebiasableMetrikAtK,
+    calc_debiased_fit_task,
+    debias_for_metric_configs,
+    debias_interactions,
+)
 
 
 @attr.s

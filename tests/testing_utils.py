@@ -18,7 +18,13 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from rectools.dataset import DenseFeatures, Features, IdMap, Interactions, SparseFeatures
+from rectools.dataset import (
+    DenseFeatures,
+    Features,
+    IdMap,
+    Interactions,
+    SparseFeatures,
+)
 
 
 def assert_sparse_matrix_equal(actual: sparse.spmatrix, expected: sparse.spmatrix) -> None:

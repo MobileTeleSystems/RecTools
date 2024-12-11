@@ -4,12 +4,16 @@ from copy import deepcopy
 import numpy as np
 import typing_extensions as tpe
 from implicit.bpr import BayesianPersonalizedRanking
+
+# pylint: disable=no-name-in-module
 from implicit.cpu.bpr import (
-    BayesianPersonalizedRanking as CPUBayesianPersonalizedRanking,  # pylint: disable=no-name-in-module
+    BayesianPersonalizedRanking as CPUBayesianPersonalizedRanking,
 )
 from implicit.gpu.bpr import (
-    BayesianPersonalizedRanking as GPUBayesianPersonalizedRanking,  # pylint: disable=no-name-in-module
+    BayesianPersonalizedRanking as GPUBayesianPersonalizedRanking,
 )
+
+# pylint: enable=no-name-in-module
 from pydantic import BeforeValidator, ConfigDict, SerializationInfo, WrapSerializer
 
 from rectools.dataset.dataset import Dataset

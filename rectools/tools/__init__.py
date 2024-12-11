@@ -28,7 +28,10 @@ Tools
 try:
     from .ann import ItemToItemAnnRecommender, UserToItemAnnRecommender
 except ImportError:  # pragma: no cover
-    from ..compat import ItemToItemAnnRecommender, UserToItemAnnRecommender  # type: ignore
+    from ..compat import (  # type: ignore
+        ItemToItemAnnRecommender,
+        UserToItemAnnRecommender,
+    )
 
 __all__ = (
     "ItemToItemAnnRecommender",

@@ -5,18 +5,24 @@ import numpy as np
 import pandas as pd
 import pytest
 from implicit.bpr import BayesianPersonalizedRanking
+
+# pylint: disable=no-name-in-module
 from implicit.cpu.bpr import (
-    BayesianPersonalizedRanking as CPUBayesianPersonalizedRanking,  # pylint: disable=no-name-in-module
+    BayesianPersonalizedRanking as CPUBayesianPersonalizedRanking,
 )
 from implicit.gpu import HAS_CUDA
 from implicit.gpu.bpr import (
-    BayesianPersonalizedRanking as GPUBayesianPersonalizedRanking,  # pylint: disable=no-name-in-module
+    BayesianPersonalizedRanking as GPUBayesianPersonalizedRanking,
 )
 
+# pylint: enable=no-name-in-module
 from rectools.columns import Columns
 from rectools.dataset.dataset import Dataset
 from rectools.exceptions import NotFittedError
-from rectools.models.implicit_bpr import AnyBayesianPersonalizedRanking, ImplicitBPRWrapperModel
+from rectools.models.implicit_bpr import (
+    AnyBayesianPersonalizedRanking,
+    ImplicitBPRWrapperModel,
+)
 from rectools.models.utils import recommend_from_scores
 from tests.models.data import DATASET
 from tests.models.utils import (

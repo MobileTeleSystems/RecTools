@@ -21,7 +21,11 @@ from scipy import sparse
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.dataset.torch_datasets import DSSMItemDataset, DSSMTrainDataset, DSSMUserDataset
+from rectools.dataset.torch_datasets import (
+    DSSMItemDataset,
+    DSSMTrainDataset,
+    DSSMUserDataset,
+)
 
 
 class WithFixtures:
