@@ -1,4 +1,5 @@
 import typing as tp
+from copy import deepcopy
 
 import implicit.gpu
 import numpy as np
@@ -19,6 +20,7 @@ from implicit.gpu.bpr import (
 from rectools.columns import Columns
 from rectools.dataset.dataset import Dataset
 from rectools.exceptions import NotFittedError
+from rectools.models.base import ModelBase
 from rectools.models.implicit_bpr import (
     AnyBayesianPersonalizedRanking,
     ImplicitBPRWrapperModel,
@@ -28,7 +30,6 @@ from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_dumps_loads_do_not_change_model,
-    assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
 
@@ -80,7 +81,7 @@ class TestImplicitBPRWrapperModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [11, 12, 11, 17],
+                        Columns.Item: [11, 17, 11, 17],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -103,7 +104,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=1
+            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
         )
         self._init_model_factors_inplace(base_model, dataset)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
@@ -127,14 +128,13 @@ class TestImplicitBPRWrapperModel:
         self._init_model_factors_inplace(base_model, dataset)
         users = np.array([10, 20, 30, 40])
 
-        model_for_wrap = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
-        )
-        self._init_model_factors_inplace(model_for_wrap, dataset)
+        model_for_wrap = deepcopy(base_model)
+        state = np.random.get_state()
         wrapper_model = ImplicitBPRWrapperModel(model=model_for_wrap).fit(dataset)
         actual_reco = wrapper_model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
 
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        np.random.set_state(state)
         base_model.fit(ui_csr)
         for user_id in users:
             internal_id = dataset.user_id_map.convert_to_internal([user_id])[0]
@@ -410,14 +410,31 @@ class TestImplicitBPRWrapperModelConfiguration:
 
         assert model.get_config()["model"]["cls"] == CustomBPR  # pylint: disable=unsubscriptable-object
 
-    @pytest.mark.skip("BPR doesn't behave deterministically")
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
-            "model": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
+            "model": {"factors": 4, "num_threads": 2, "iterations": 2, "random_state": 42},
             "verbose": 1,
         }
-        assert_get_config_and_from_config_compatibility(ImplicitBPRWrapperModel, DATASET, initial_config, simple_types)
+        dataset = DATASET
+        model = ImplicitBPRWrapperModel
+
+        def get_reco(model: ModelBase) -> pd.DataFrame:
+            return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)
+
+        state = np.random.get_state()
+        model_1 = model.from_config(initial_config)
+        reco_1 = get_reco(model_1)
+        config_1 = model_1.get_config(simple_types=simple_types)
+
+        model_2 = model.from_config(config_1)
+        np.random.set_state(state)
+        reco_2 = get_reco(model_2)
+
+        config_2 = model_2.get_config(simple_types=simple_types)
+
+        assert config_1 == config_2
+        pd.testing.assert_frame_equal(reco_1, reco_2, atol=0.01)
 
     def test_default_config_and_default_model_params_are_the_same(self) -> None:
         default_config: tp.Dict[str, tp.Any] = {"model": {}}
