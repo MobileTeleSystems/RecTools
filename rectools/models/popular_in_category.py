@@ -28,13 +28,7 @@ from rectools.dataset import Dataset, Interactions, features
 from rectools.types import InternalIdsArray
 
 from .base import ModelBase, Scores
-from .popular import (
-    FixedColdRecoModelMixin,
-    PopularityOptions,
-    PopularModel,
-    PopularModelConfig,
-    PopularModelMixin,
-)
+from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, PopularityOptions
 
 
 class MixingStrategy(Enum):

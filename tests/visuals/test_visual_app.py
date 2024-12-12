@@ -21,13 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns, ExternalId
-from rectools.visuals.visual_app import (
-    AppDataStorage,
-    ItemToItemVisualApp,
-    StorageFiles,
-    TablesDict,
-    VisualApp,
-)
+from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, StorageFiles, TablesDict, VisualApp
 
 RECO_U2I: TablesDict = {
     "model1": pd.DataFrame(

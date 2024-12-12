@@ -6,12 +6,8 @@ import typing_extensions as tpe
 from implicit.bpr import BayesianPersonalizedRanking
 
 # pylint: disable=no-name-in-module
-from implicit.cpu.bpr import (
-    BayesianPersonalizedRanking as CPUBayesianPersonalizedRanking,
-)
-from implicit.gpu.bpr import (
-    BayesianPersonalizedRanking as GPUBayesianPersonalizedRanking,
-)
+from implicit.cpu.bpr import BayesianPersonalizedRanking as CPUBayesianPersonalizedRanking
+from implicit.gpu.bpr import BayesianPersonalizedRanking as GPUBayesianPersonalizedRanking
 
 # pylint: enable=no-name-in-module
 from pydantic import BeforeValidator, ConfigDict, SerializationInfo, WrapSerializer

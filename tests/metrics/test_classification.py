@@ -21,16 +21,7 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import (
-    MCC,
-    Accuracy,
-    DebiasConfig,
-    F1Beta,
-    HitRate,
-    Precision,
-    Recall,
-    debias_interactions,
-)
+from rectools.metrics import MCC, Accuracy, DebiasConfig, F1Beta, HitRate, Precision, Recall, debias_interactions
 from rectools.metrics.base import merge_reco
 from rectools.metrics.classification import (
     ClassificationMetric,

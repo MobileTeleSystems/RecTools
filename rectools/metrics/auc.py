@@ -22,11 +22,7 @@ from attrs import define, field
 
 from rectools import Columns
 from rectools.metrics.base import outer_merge_reco
-from rectools.metrics.debias import (
-    DebiasableMetrikAtK,
-    calc_debiased_fit_task,
-    debias_interactions,
-)
+from rectools.metrics.debias import DebiasableMetrikAtK, calc_debiased_fit_task, debias_interactions
 
 
 class InsufficientHandling(str, Enum):

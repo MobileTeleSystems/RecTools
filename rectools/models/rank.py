@@ -21,9 +21,7 @@ from enum import Enum
 import implicit.cpu
 import implicit.gpu
 import numpy as np
-from implicit.cpu.matrix_factorization_base import (
-    _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix,
-)
+from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
 from implicit.gpu import HAS_CUDA
 from scipy import sparse
 

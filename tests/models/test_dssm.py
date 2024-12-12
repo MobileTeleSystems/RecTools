@@ -25,10 +25,7 @@ from rectools.exceptions import NotFittedError
 from rectools.models import DSSMModel
 from rectools.models.dssm import DSSM
 from rectools.models.vector import ImplicitRanker
-from tests.models.utils import (
-    assert_dumps_loads_do_not_change_model,
-    assert_second_fit_refits_model,
-)
+from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 from .data import INTERACTIONS
 

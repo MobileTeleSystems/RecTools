@@ -23,11 +23,7 @@ from rectools.utils import select_by_type
 
 from .auc import AucMetric, calc_auc_metrics
 from .base import Catalog, MetricAtK, merge_reco
-from .classification import (
-    ClassificationMetric,
-    SimpleClassificationMetric,
-    calc_classification_metrics,
-)
+from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
 from .dq import CrossDQMetric, RecoDQMetric, calc_cross_dq_metrics, calc_reco_dq_metrics
 from .intersection import IntersectionMetric, calc_intersection_metrics

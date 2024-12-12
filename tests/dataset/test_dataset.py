@@ -23,14 +23,7 @@ import pytest
 from scipy import sparse
 
 from rectools import Columns
-from rectools.dataset import (
-    Dataset,
-    DenseFeatures,
-    Features,
-    IdMap,
-    Interactions,
-    SparseFeatures,
-)
+from rectools.dataset import Dataset, DenseFeatures, Features, IdMap, Interactions, SparseFeatures
 from tests.testing_utils import (
     assert_feature_set_equal,
     assert_id_map_equal,

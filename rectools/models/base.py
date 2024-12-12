@@ -31,11 +31,7 @@ from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import ExternalIdsArray, InternalIdsArray
 from rectools.utils.config import BaseConfig
-from rectools.utils.misc import (
-    get_class_or_function_full_path,
-    import_object,
-    make_dict_flat,
-)
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat
 from rectools.utils.serialization import PICKLE_PROTOCOL, FileLike, read_bytes
 
 T = tp.TypeVar("T", bound="ModelBase")

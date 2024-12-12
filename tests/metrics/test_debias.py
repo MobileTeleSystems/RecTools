@@ -19,23 +19,11 @@ import pandas as pd
 import pytest
 
 from rectools import Columns
-from rectools.metrics import (
-    MAP,
-    MCC,
-    MRR,
-    NDCG,
-    PAP,
-    Accuracy,
-    F1Beta,
-    HitRate,
-    PartialAUC,
-    Precision,
-    Recall,
-)
+from rectools.metrics import MAP, MCC, MRR, NDCG, PAP, Accuracy, F1Beta, HitRate, PartialAUC, Precision, Recall
 from rectools.metrics.base import merge_reco
 from rectools.metrics.debias import (
-    DebiasableMetrikAtK,
     DebiasConfig,
+    DebiasableMetrikAtK,
     calc_debiased_fit_task,
     debias_for_metric_configs,
     debias_interactions,

@@ -22,11 +22,7 @@ import pytest
 from scipy import sparse
 
 from rectools.dataset import DenseFeatures, IdMap, SparseFeatures
-from rectools.dataset.features import (
-    DIRECT_FEATURE_VALUE,
-    AbsentIdError,
-    UnknownIdError,
-)
+from rectools.dataset.features import DIRECT_FEATURE_VALUE, AbsentIdError, UnknownIdError
 from tests.testing_utils import assert_sparse_matrix_equal
 
 
