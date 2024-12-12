@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- Python 3.13 support ([#227](https://github.com/MobileTeleSystems/RecTools/pull/227))
 
 ## [0.9.0] - 11.12.2024
 
@@ -20,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `model_from_config` function ([#214](https://github.com/MobileTeleSystems/RecTools/pull/214))
 - `get_cat_features` method to `SparseFeatures` ([#221](https://github.com/MobileTeleSystems/RecTools/pull/221))
 - LightFM Python 3.12+ support ([#224](https://github.com/MobileTeleSystems/RecTools/pull/224))
-- Python 3.13 support ([#227](https://github.com/MobileTeleSystems/RecTools/pull/227))
 
 ### Fixed
 - Implicit ALS matrix zero assignment size ([#228](https://github.com/MobileTeleSystems/RecTools/pull/228))
