@@ -21,7 +21,7 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 
-LossDescription = tp.Literal["softmax", "BCE", "gBCE"]
+LossName = tp.Literal["softmax", "BCE", "gBCE"]
 
 PADDING_VALUE = "PAD"
 
@@ -950,6 +950,8 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
 class SessionEncoderHeadBase(nn.Module):
     """Base class for transformer based session encoder head."""
 
+    requires_negatives: tp.ClassVar[bool] = NotImplemented
+    
     def __init__(self) -> None:
         super().__init__()
 
@@ -979,11 +981,6 @@ class SessionEncoderHeadBase(nn.Module):
     def _calc_loss(self, batch: tp.Dict[str, torch.Tensor], logits: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
-    @property
-    def requires_negatives(self) -> bool:
-        """Indicator whether negatives are needed for loss computation during training."""
-        raise NotImplementedError()
-
 
 class DotProductSoftmaxHead(SessionEncoderHeadBase):
     """
@@ -991,6 +988,7 @@ class DotProductSoftmaxHead(SessionEncoderHeadBase):
     which is calculated over full items catalog.
     Logits are computed as dot product of session embeddings and item embeddings.
     """
+    requires_negatives: tp.ClassVar[bool] = False
 
     def _get_logits(
         self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
@@ -1017,17 +1015,13 @@ class DotProductSoftmaxHead(SessionEncoderHeadBase):
         loss = torch.sum(loss) / torch.sum(n)
         return loss
 
-    @property
-    def requires_negatives(self) -> bool:
-        """Indicator whether negatives are needed for loss computation during training."""
-        return False
-
 
 class DotProductBCEHead(SessionEncoderHeadBase):
     """
     Applies binary Cross-Entropy Loss function (BCE). Our implementation allows any number of negative samples.
     Logits are computed as dot product of session embeddings and item embeddings.
     """
+    requires_negatives: tp.ClassVar[bool] = True
 
     def _get_logits(
         self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor, session_embs: torch.Tensor
@@ -1051,11 +1045,6 @@ class DotProductBCEHead(SessionEncoderHeadBase):
         loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
-
-    @property
-    def requires_negatives(self) -> bool:
-        """Indicator whether negatives are needed for loss computation during training."""
-        return True
 
 
 class DotProductGBCEHead(DotProductBCEHead):
@@ -1142,7 +1131,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
     def __init__(
         self,
         torch_model: TransformerBasedSessionEncoder,
-        loss: tp.Union[LossDescription, SessionEncoderHeadBase],
+        loss: tp.Union[LossName, SessionEncoderHeadBase],
         lr: float,
         gbce_t: float,
         n_actual_items: int,
@@ -1158,7 +1147,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         else:
             self.session_encoder_head = self._init_head(loss, n_actual_items)
 
-    def _init_head(self, loss: LossDescription, n_actual_items: int) -> SessionEncoderHeadBase:
+    def _init_head(self, loss: LossName, n_actual_items: int) -> SessionEncoderHeadBase:
 
         if loss == "softmax":
             return DotProductSoftmaxHead()
@@ -1240,7 +1229,7 @@ class TransformerModelBase(ModelBase):
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
-        loss: tp.Union[LossDescription, SessionEncoderHeadBase] = "softmax",
+        loss: tp.Union[LossName, SessionEncoderHeadBase] = "softmax",
         gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
@@ -1425,7 +1414,7 @@ class SASRecModel(TransformerModelBase):
         session_max_len: int = 32,
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
-        loss: tp.Union[LossDescription, SessionEncoderHeadBase] = "softmax",
+        loss: tp.Union[LossName, SessionEncoderHeadBase] = "softmax",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.01,
