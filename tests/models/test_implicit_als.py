@@ -438,12 +438,10 @@ class TestImplicitALSWrapperModelConfiguration:
     def test_from_config(self, use_gpu: bool, cls: tp.Any) -> None:
         config: tp.Dict = {
             "model": {
-                "params": {
-                    "factors": 16,
-                    "num_threads": 2,
-                    "iterations": 100,
-                    "use_gpu": use_gpu,
-                },
+                "factors": 16,
+                "num_threads": 2,
+                "iterations": 100,
+                "use_gpu": use_gpu,
             },
             "fit_features_together": True,
             "verbose": 1,
@@ -471,7 +469,8 @@ class TestImplicitALSWrapperModelConfiguration:
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
-        expected_model_params = {
+        expected_inner_model_config = {
+            "cls": "AlternatingLeastSquares",
             "factors": 16,
             "regularization": 0.01,
             "alpha": 1.0,
@@ -482,7 +481,7 @@ class TestImplicitALSWrapperModelConfiguration:
             "use_gpu": use_gpu,
         }
         if not use_gpu:
-            expected_model_params.update(
+            expected_inner_model_config.update(
                 {
                     "use_native": True,
                     "use_cg": True,
@@ -490,10 +489,8 @@ class TestImplicitALSWrapperModelConfiguration:
                 }
             )
         expected = {
-            "model": {
-                "cls": "AlternatingLeastSquares",
-                "params": expected_model_params,
-            },
+            "cls": "ImplicitALSWrapperModel" if simple_types else ImplicitALSWrapperModel,
+            "model": expected_inner_model_config,
             "fit_features_together": True,
             "verbose": 1,
         }
@@ -527,9 +524,7 @@ class TestImplicitALSWrapperModelConfiguration:
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
-            "model": {
-                "params": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
-            },
+            "model": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
             "verbose": 1,
         }
         assert_get_config_and_from_config_compatibility(ImplicitALSWrapperModel, DATASET, initial_config, simple_types)

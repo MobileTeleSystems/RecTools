@@ -244,14 +244,16 @@ class TestEASEModelConfiguration:
         assert model.verbose == 1
         assert model.regularization == 500
 
-    def test_get_config(self) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool) -> None:
         model = EASEModel(
             regularization=500,
             num_threads=1,
             verbose=1,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
+            "cls": "EASEModel" if simple_types else EASEModel,
             "regularization": 500,
             "num_threads": 1,
             "verbose": 1,
