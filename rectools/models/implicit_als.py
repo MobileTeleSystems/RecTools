@@ -22,7 +22,7 @@ from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
-from pydantic import BeforeValidator, ConfigDict, PlainSerializer, SerializationInfo, WrapSerializer
+from pydantic import BeforeValidator, ConfigDict, SerializationInfo, WrapSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
 
@@ -30,7 +30,7 @@ from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 from rectools.models.base import ModelConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
-from rectools.utils.serialization import RandomState
+from rectools.utils.serialization import DType, RandomState
 
 from .rank import Distance
 from .vector import Factors, VectorModel
@@ -66,10 +66,6 @@ AlternatingLeastSquaresClass = tpe.Annotated[
         func=_serialize_alternating_least_squares_class,
         when_used="always",
     ),
-]
-
-DType = tpe.Annotated[
-    np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
 ]
 
 
