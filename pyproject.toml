@@ -64,8 +64,8 @@ pandas = [
     {version = ">=2.2.3, <3.0.0", python = ">=3.13"}  # pandas <2.2.3 fails to install on Python 3.13
 ]
 scipy = [
-    {version = "^1.13.1, <2.0.0", python = "<3.10"},
-    {version = ">=1.14.1, <2.0.0", python = ">=3.10"}  # scipy <1.14.1 fails to install on Python 3.9
+    {version = "^1.10.1, <1.13", python = "<3.10"},  # there is a bug in 1.13* https://github.com/scipy/scipy/issues/20670
+    {version = ">=1.14.1, <2.0.0", python = ">=3.10"}  # scipy >=1.14.1 fails to install on Python 3.9
 ]
 tqdm = "^4.27.0"
 implicit = "^0.7.1"
