@@ -86,6 +86,9 @@ settings.json
 # Pytorch-lightning
 lightning_logs
 
+# Catboost
+catboost_info
+
 # benchmarks
 benchmark_results/
 
