@@ -12,7 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import Dict, Hashable, Optional, Union
+from collections.abc import Hashable
+from typing import Dict, Optional, Union
 
 import attr
 import numpy as np
