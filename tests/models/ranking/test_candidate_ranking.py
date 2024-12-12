@@ -17,6 +17,7 @@ from rectools.models.ranking import (
     CandidateRankingModel,
     CatBoostReranker,
     PerUserNegativeSampler,
+    Reranker,
 )
 
 
@@ -272,3 +273,19 @@ class TestCandidateRankingModel:
             }
         )
         pd.testing.assert_frame_equal(actual, expected, atol=0.001)
+
+
+class TestReranker:
+    def test_recommend(self) -> None:
+        scored_pairs = pd.DataFrame(
+            {
+                Columns.User: [1, 1, 1, 1, 2, 2, 2],
+                Columns.Item: [10, 20, 30, 40, 10, 20, 30],
+                Columns.Score: [1, 4, 2, 3, 2, 3, 1],
+            }
+        )
+        actual = Reranker.recommend(scored_pairs, 2, add_rank_col=False)
+        expected = pd.DataFrame(
+            {Columns.User: [1, 1, 2, 2], Columns.Item: [20, 40, 20, 10], Columns.Score: [4, 3, 3, 2]}
+        )
+        pd.testing.assert_frame_equal(actual, expected)

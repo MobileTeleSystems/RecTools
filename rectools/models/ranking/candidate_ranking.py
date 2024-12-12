@@ -49,7 +49,7 @@ class Reranker:
         self.fit_kwargs = fit_kwargs
 
     def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
 
         fit_kwargs = {
@@ -63,24 +63,34 @@ class Reranker:
         return fit_kwargs
 
     def fit(self, candidates_with_target: pd.DataFrame) -> None:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
         self.model.fit(**fit_kwargs)
 
-    def rerank(self, candidates: pd.DataFrame) -> pd.DataFrame:
-        """TODO: Documentation""" ""
-        reco = candidates.reindex(columns=Columns.UserItem)
+    def predict_scores(self, candidates: pd.DataFrame) -> pd.Series:
+        """TODO: Documentation"""
         x_full = candidates.drop(columns=Columns.UserItem)
 
         if isinstance(self.model, ClassifierBase):
-            reco[Columns.Score] = self.model.predict_proba(x_full)[:, 1]
-        else:
-            reco[Columns.Score] = self.model.predict(x_full)
+            return self.model.predict_proba(x_full)[:, 1]
+
+        return self.model.predict(x_full)
+
+    @classmethod
+    def recommend(cls, scored_pairs: pd.DataFrame, k: int, add_rank_col: bool = True) -> pd.DataFrame:
+        """TODO: Documentation"""
+        # TODO: optimize computations and introduce polars
+        # Discussion here: https://github.com/MobileTeleSystems/RecTools/pull/209
+        # Branch here: https://github.com/blondered/RecTools/tree/feature/polars
         reco = (
-            reco.groupby([Columns.User])
-            .apply(lambda x: x.sort_values([Columns.Score], ascending=False))
+            scored_pairs.groupby(Columns.User, sort=False)
+            .apply(lambda x: x.sort_values([Columns.Score], ascending=False).head(k))
             .reset_index(drop=True)
         )
+
+        if add_rank_col:
+            reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
+
         return reco
 
 
@@ -544,10 +554,7 @@ class CandidateRankingModel(ModelBase):
 
         train = self.feature_collector.collect_features(candidates, dataset, fold_info=None)
 
-        reco = self.reranker.rerank(train)
-        reco = reco.groupby(Columns.User).head(k)
+        scored_pairs = candidates.reindex(columns=Columns.UserItem)
+        scored_pairs[Columns.Score] = self.reranker.predict_scores(train)
 
-        if add_rank_col:
-            reco[Columns.Rank] = reco.groupby(Columns.User, sort=False).cumcount() + 1
-
-        return reco.reset_index(drop=True)
+        return self.reranker.recommend(scored_pairs, k=k, add_rank_col=add_rank_col)
