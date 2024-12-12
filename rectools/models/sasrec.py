@@ -953,7 +953,7 @@ class SessionEncoderHeadBase(nn.Module):
     """Base class for transformer based session encoder head."""
 
     requires_negatives: tp.ClassVar[bool] = NotImplemented
-    
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -990,6 +990,7 @@ class DotProductSoftmaxHead(SessionEncoderHeadBase):
     which is calculated over full items catalog.
     Logits are computed as dot product of session embeddings and item embeddings.
     """
+
     requires_negatives: tp.ClassVar[bool] = False
 
     def _get_logits(
@@ -1023,6 +1024,7 @@ class DotProductBCEHead(SessionEncoderHeadBase):
     Applies binary Cross-Entropy Loss function (BCE). Our implementation allows any number of negative samples.
     Logits are computed as dot product of session embeddings and item embeddings.
     """
+
     requires_negatives: tp.ClassVar[bool] = True
 
     def _get_logits(

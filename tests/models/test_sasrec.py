@@ -20,7 +20,7 @@ from rectools.models.sasrec import (
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructor,
-    LossDescription,
+    LossName,
     SASRecDataPreparator,
     SASRecModel,
     SequenceDataset,
@@ -429,7 +429,7 @@ class TestSASRecModel:
             (DotProductGBCEHead(0.1, 100), True),
         ),
     )
-    def test_requires_negatives(self, loss: tp.Union[SessionEncoderHeadBase, LossDescription], expected: bool) -> None:
+    def test_requires_negatives(self, loss: tp.Union[SessionEncoderHeadBase, LossName], expected: bool) -> None:
         model = SASRecModel(loss=loss)
         assert model.requires_negatives == expected
 
