@@ -11,8 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+import time
 import typing as tp
+
+import pandas as pd
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
@@ -36,6 +38,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     ref_models: tp.Optional[tp.List[str]] = None,
     validate_ref_models: bool = False,
     on_unsupported_targets: ErrorBehaviour = "warn",
+    compute_timings: bool = False,
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -100,6 +103,61 @@ def cross_validate(  # pylint: disable=too-many-locals
             ]
         }
     """
+
+    def fit_recommend(model: ModelBase, ref_model: bool = False) -> tp.Tuple[pd.DataFrame, tp.Dict[str, tp.Any]]:
+        """
+        Trains the given recommendation model on a dataset split and generates recommendations.
+
+        This function fits a model on the training portion of the dataset split and then generates
+        recommendations for the test users. Optionally, timing information for the fitting and
+        recommendation steps can be calculated and returned.
+
+        Parameters
+        ----------
+        model : ModelBase
+            The recommendation model to be trained and used for generating recommendations.
+            Must be an instance of a subclass of `rectools.models.base.ModelBase`.
+        ref_model : bool, optional, default False
+            Indicates whether the model is a reference model used for comparison. If True,
+            and `validate_ref_models` is False, this model's recommendations may be reused
+            across splits without being refitted.
+
+        Returns
+        -------
+        tuple(pd.DataFrame, dict)
+            - A DataFrame with recommendations.
+            - A dictionary containing timing metrics (`fit_time` and `recommend_time`), if
+              `compute_timings` is enabled; otherwise, an empty dictionary.
+        """
+        res = {}
+        if compute_timings and ((validate_ref_models) or (not ref_model)):
+            fit_start_time = time.time()
+            model.fit(fold_dataset)
+            res.update({"fit_time": round(time.time() - fit_start_time, 2)})
+        else:
+            model.fit(fold_dataset)
+        if compute_timings and ((validate_ref_models) or (not ref_model)):
+            recommend_start_time = time.time()
+            reco = model.recommend(
+                users=test_users,
+                dataset=fold_dataset,
+                k=k,
+                filter_viewed=filter_viewed,
+                items_to_recommend=items_to_recommend,
+                on_unsupported_targets=on_unsupported_targets,
+            )
+            res.update({"recommend_time": round(time.time() - recommend_start_time, 2)})
+        else:
+            reco = model.recommend(
+                users=test_users,
+                dataset=fold_dataset,
+                k=k,
+                filter_viewed=filter_viewed,
+                items_to_recommend=items_to_recommend,
+                on_unsupported_targets=on_unsupported_targets,
+            )
+        return reco, res
+
     split_iterator = splitter.split(dataset.interactions, collect_fold_stats=True)
 
     split_infos = []
@@ -123,35 +181,21 @@ def cross_validate(  # pylint: disable=too-many-locals
 
         # ### Train ref models if any
         ref_reco = {}
+        ref_res = {}
         for model_name in ref_models or []:
             model = models[model_name]
-            model.fit(fold_dataset)
-            ref_reco[model_name] = model.recommend(
-                users=test_users,
-                dataset=fold_dataset,
-                k=k,
-                filter_viewed=filter_viewed,
-                items_to_recommend=items_to_recommend,
-                on_unsupported_targets=on_unsupported_targets,
-            )
+            ref_reco[model_name], ref_res[model_name] = fit_recommend(model, ref_model=True)
 
+        model_res: tp.Dict[str, tp.Any] = {}
         # ### Generate recommendations and calc metrics
         for model_name, model in models.items():
             if model_name in ref_reco and not validate_ref_models:
                 continue
-
             if model_name in ref_reco:
                 reco = ref_reco[model_name]
+                model_res = ref_res[model_name]
             else:
-                model.fit(fold_dataset)
-                reco = model.recommend(
-                    users=test_users,
-                    dataset=fold_dataset,
-                    k=k,
-                    filter_viewed=filter_viewed,
-                    items_to_recommend=items_to_recommend,
-                    on_unsupported_targets=on_unsupported_targets,
-                )
+                reco, model_res = fit_recommend(model)
 
             metric_values = calc_metrics(
                 metrics,
@@ -163,6 +207,7 @@ def cross_validate(  # pylint: disable=too-many-locals
             )
             res = {"model": model_name, "i_split": split_info["i_split"]}
             res.update(metric_values)
+            res.update(model_res)
             metrics_all.append(res)
 
     result = {"splits": split_infos, "metrics": metrics_all}
