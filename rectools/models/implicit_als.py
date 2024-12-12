@@ -29,10 +29,9 @@ from tqdm.auto import tqdm
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 from rectools.models.base import ModelConfig
-from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.serialization import RandomState
 
-from .base import RandomState
 from .rank import Distance
 from .vector import Factors, VectorModel
 
@@ -74,9 +73,10 @@ DType = tpe.Annotated[
 ]
 
 
-class AlternatingLeastSquaresParams(tpe.TypedDict):
-    """Params for implicit `AlternatingLeastSquares` model."""
+class AlternatingLeastSquaresConfig(tpe.TypedDict):
+    """Config for implicit `AlternatingLeastSquares` model."""
 
+    cls: tpe.NotRequired[AlternatingLeastSquaresClass]
     factors: tpe.NotRequired[int]
     regularization: tpe.NotRequired[float]
     alpha: tpe.NotRequired[float]
@@ -90,17 +90,10 @@ class AlternatingLeastSquaresParams(tpe.TypedDict):
     random_state: tpe.NotRequired[RandomState]
 
 
-class AlternatingLeastSquaresConfig(BaseConfig):
-    """Config for implicit `AlternatingLeastSquares` model."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    cls: AlternatingLeastSquaresClass = "AlternatingLeastSquares"
-    params: AlternatingLeastSquaresParams = {}
-
-
 class ImplicitALSWrapperModelConfig(ModelConfig):
     """Config for `ImplicitALSWrapperModel`."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     model: AlternatingLeastSquaresConfig
     fit_features_together: bool = False
@@ -150,7 +143,13 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     def _make_config(
         cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
     ) -> ImplicitALSWrapperModelConfig:
-        params = {
+        model_cls = (
+            model.__class__
+            if model.__class__ not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
+            else "AlternatingLeastSquares"
+        )
+        inner_model_config = {
+            "cls": model_cls,
             "factors": model.factors,
             "regularization": model.regularization,
             "alpha": model.alpha,
@@ -160,9 +159,9 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
             "random_state": model.random_state,
         }
         if isinstance(model, GPUAlternatingLeastSquares):
-            params.update({"use_gpu": True})
+            inner_model_config.update({"use_gpu": True})
         else:
-            params.update(
+            inner_model_config.update(
                 {
                     "use_gpu": False,
                     "use_native": model.use_native,
@@ -171,16 +170,10 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
                 }
             )
 
-        model_cls = model.__class__
         return ImplicitALSWrapperModelConfig(
-            model=AlternatingLeastSquaresConfig(
-                cls=(
-                    model_cls
-                    if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
-                    else "AlternatingLeastSquares"
-                ),
-                params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
-            ),
+            cls=cls,
+            # https://github.com/python/mypy/issues/8890
+            model=tp.cast(AlternatingLeastSquaresConfig, inner_model_config),
             verbose=verbose,
             fit_features_together=fit_features_together,
         )
@@ -190,19 +183,29 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
     @classmethod
     def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
-        if config.model.cls == ALS_STRING:
-            model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
-        else:
-            model_cls = config.model.cls
-        model = model_cls(**config.model.params)
+        inner_model_params = config.model.copy()
+        inner_model_cls = inner_model_params.pop("cls", AlternatingLeastSquares)
+        if inner_model_cls == ALS_STRING:
+            inner_model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
+        model = inner_model_cls(**inner_model_params)  # type: ignore  # mypy misses we replaced str with a func
         return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
 
-    # TODO: move to `epochs` argument of `partial_fit` method when implemented
-    def _fit(self, dataset: Dataset, epochs: tp.Optional[int] = None) -> None:  # type: ignore
+    def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
+        self._fit_model_for_epochs(dataset, self.model.iterations)
+
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
+            prev_epochs = 0
+        else:
+            prev_epochs = self.model.iterations
+
+        self._fit_model_for_epochs(dataset, epochs)
+        self.model.iterations = epochs + prev_epochs
+
+    def _fit_model_for_epochs(self, dataset: Dataset, epochs: int) -> None:
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
-        if epochs is None:
-            epochs = self.model.iterations
 
         if self.fit_features_together:
             fit_als_with_features_together_inplace(
@@ -607,8 +610,8 @@ def _fit_combined_factors_on_gpu_inplace(
     model._item_norms_host = model._user_norms_host = None  # pylint: disable=protected-access
     model._YtY = model._XtX = None  # pylint: disable=protected-access
 
-    _YtY = implicit.gpu.Matrix.zeros(model.factors, model.factors)
-    _XtX = implicit.gpu.Matrix.zeros(model.factors, model.factors)
+    _YtY = implicit.gpu.Matrix.zeros(*item_factors.shape)
+    _XtX = implicit.gpu.Matrix.zeros(*user_factors.shape)
 
     for _ in tqdm(range(iterations), disable=verbose == 0):
 

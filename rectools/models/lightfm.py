@@ -25,10 +25,10 @@ from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 from rectools.models.utils import recommend_from_scores
 from rectools.types import InternalIds, InternalIdsArray
-from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.serialization import RandomState
 
-from .base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelConfig, RandomState, Scores
+from .base import FixedColdRecoModelMixin, InternalRecoTriplet, ModelConfig, Scores
 from .rank import Distance
 from .vector import Factors, VectorModel
 
@@ -60,9 +60,10 @@ LightFMClass = tpe.Annotated[
 ]
 
 
-class LightFMParams(tpe.TypedDict):
-    """Params for `LightFM` model."""
+class LightFMConfig(tpe.TypedDict):
+    """Config for `LightFM` model."""
 
+    cls: tpe.NotRequired[LightFMClass]
     no_components: tpe.NotRequired[int]
     k: tpe.NotRequired[int]
     n: tpe.NotRequired[int]
@@ -77,17 +78,10 @@ class LightFMParams(tpe.TypedDict):
     random_state: tpe.NotRequired[RandomState]
 
 
-class LightFMConfig(BaseConfig):
-    """Config for `LightFM` model."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    cls: LightFMClass = LightFM
-    params: LightFMParams = {}
-
-
 class LightFMWrapperModelConfig(ModelConfig):
     """Config for `LightFMWrapperModel`."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     model: LightFMConfig
     epochs: int = 1
@@ -140,7 +134,8 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
 
     def _get_config(self) -> LightFMWrapperModelConfig:
         inner_model = self._model
-        params = {
+        inner_config = {
+            "cls": inner_model.__class__,
             "no_components": inner_model.no_components,
             "k": inner_model.k,
             "n": inner_model.n,
@@ -154,12 +149,9 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
             "max_sampled": inner_model.max_sampled,
             "random_state": inner_model.initial_random_state,  # random_state is an object and can't be serialized
         }
-        inner_model_cls = inner_model.__class__
         return LightFMWrapperModelConfig(
-            model=LightFMConfig(
-                cls=inner_model_cls,
-                params=tp.cast(LightFMParams, params),  # https://github.com/python/mypy/issues/8890
-            ),
+            cls=self.__class__,
+            model=tp.cast(LightFMConfig, inner_config),  # https://github.com/python/mypy/issues/8890
             epochs=self.n_epochs,
             num_threads=self.n_threads,
             verbose=self.verbose,
@@ -167,24 +159,30 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
 
     @classmethod
     def _from_config(cls, config: LightFMWrapperModelConfig) -> tpe.Self:
-        model_cls = config.model.cls
-        model = model_cls(**config.model.params)
+        params = config.model.copy()
+        model_cls = params.pop("cls", LightFM)
+        model = model_cls(**params)
         return cls(model=model, epochs=config.epochs, num_threads=config.num_threads, verbose=config.verbose)
 
-    def _fit(self, dataset: Dataset) -> None:  # type: ignore
+    def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
+        self._fit_partial(dataset, self.n_epochs)
+
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
 
         ui_coo = dataset.get_user_item_matrix(include_weights=True).tocoo(copy=False)
         user_features = self._prepare_features(dataset.get_hot_user_features(), dataset.n_hot_users)
         item_features = self._prepare_features(dataset.get_hot_item_features(), dataset.n_hot_items)
         sample_weight = None if self._model.loss == "warp-kos" else ui_coo
 
-        self.model.fit(
+        self.model.fit_partial(
             ui_coo,
             user_features=user_features,
             item_features=item_features,
             sample_weight=sample_weight,
-            epochs=self.n_epochs,
+            epochs=epochs,
             num_threads=self.n_threads,
             verbose=self.verbose > 0,
         )

@@ -95,3 +95,12 @@ def assert_get_config_and_from_config_compatibility(
 
     assert config_1 == config_2
     pd.testing.assert_frame_equal(reco_1, reco_2)
+
+
+def get_successors(cls: tp.Type) -> tp.List[tp.Type]:
+    successors = []
+    subclasses = cls.__subclasses__()
+    for subclass in subclasses:
+        successors.append(subclass)
+        successors.extend(get_successors(subclass))
+    return successors
