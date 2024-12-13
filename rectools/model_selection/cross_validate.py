@@ -193,7 +193,6 @@ def cross_validate(  # pylint: disable=too-many-locals
             model = models[model_name]
             ref_reco[model_name], ref_res[model_name] = fit_recommend(model, ref_model=True)
 
-        model_res: tp.Dict[str, tp.Any] = {}
         # ### Generate recommendations and calc metrics
         for model_name, model in models.items():
             if model_name in ref_reco and not validate_ref_models:
