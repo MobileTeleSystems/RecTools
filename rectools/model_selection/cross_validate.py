@@ -13,6 +13,7 @@
 #  limitations under the License.
 import time
 import typing as tp
+from contextlib import contextmanager
 
 import pandas as pd
 
@@ -24,6 +25,26 @@ from rectools.models.base import ErrorBehaviour, ModelBase
 from rectools.types import ExternalIds
 
 from .splitter import Splitter
+
+
+@contextmanager
+def compute_timing(label: str, timings: tp.Optional[tp.Dict[str, float]] = None) -> tp.Iterator[None]:
+    """
+    Context manager to compute timing for a code block.
+
+    Parameters
+    ----------
+    label : str
+        Label to store the timing result in the timings dictionary.
+    timings : dict, optional
+        Dictionary to store the timing results. If None, timing is not recorded.
+    """
+    if timings is not None:
+        start_time = time.time()
+        yield
+        timings[label] = round(time.time() - start_time, 2)
+    else:
+        yield
 
 
 def cross_validate(  # pylint: disable=too-many-locals
@@ -108,10 +129,6 @@ def cross_validate(  # pylint: disable=too-many-locals
         """
         Trains the given recommendation model on a dataset split and generates recommendations.
 
-        This function fits a model on the training portion of the dataset split and then generates
-        recommendations for the test users. Optionally, timing information for the fitting and
-        recommendation steps can be calculated and returned.
-
         Parameters
         ----------
         model : ModelBase
@@ -129,15 +146,14 @@ def cross_validate(  # pylint: disable=too-many-locals
             - A dictionary containing timing metrics (`fit_time` and `recommend_time`), if
               `compute_timings` is enabled; otherwise, an empty dictionary.
         """
-        res = {}
-        if compute_timings and ((validate_ref_models) or (not ref_model)):
-            fit_start_time = time.time()
+        timings: tp.Optional[tp.Dict[str, float]] = (
+            {} if compute_timings and (validate_ref_models or not ref_model) else None
+        )
+
+        with compute_timing("fit_time", timings):
             model.fit(fold_dataset)
-            res.update({"fit_time": round(time.time() - fit_start_time, 2)})
-        else:
-            model.fit(fold_dataset)
-        if compute_timings and ((validate_ref_models) or (not ref_model)):
-            recommend_start_time = time.time()
+
+        with compute_timing("recommend_time", timings):
             reco = model.recommend(
                 users=test_users,
                 dataset=fold_dataset,
@@ -146,17 +162,8 @@ def cross_validate(  # pylint: disable=too-many-locals
                 items_to_recommend=items_to_recommend,
                 on_unsupported_targets=on_unsupported_targets,
             )
-            res.update({"recommend_time": round(time.time() - recommend_start_time, 2)})
-        else:
-            reco = model.recommend(
-                users=test_users,
-                dataset=fold_dataset,
-                k=k,
-                filter_viewed=filter_viewed,
-                items_to_recommend=items_to_recommend,
-                on_unsupported_targets=on_unsupported_targets,
-            )
-        return reco, res
+
+        return reco, (timings or {})
 
     split_iterator = splitter.split(dataset.interactions, collect_fold_stats=True)
 
