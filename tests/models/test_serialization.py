@@ -39,18 +39,27 @@ from rectools.models import (
     model_from_config,
 )
 from rectools.models.base import ModelBase, ModelConfig
+from rectools.models.sasrec import SASRecModel, TransformerModelBase
 from rectools.models.vector import VectorModel
 
 from .utils import get_successors
 
-INTERMEDIATE_MODEL_CLASSES = (VectorModel,)
+INTERMEDIATE_MODEL_CLASSES = (VectorModel, TransformerModelBase)
 
 EXPOSABLE_MODEL_CLASSES = tuple(
     cls
     for cls in get_successors(ModelBase)
     if (cls.__module__.startswith("rectools.models") and cls not in INTERMEDIATE_MODEL_CLASSES)
 )
-CONFIGURABLE_MODEL_CLASSES = tuple(cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel,))
+CONFIGURABLE_MODEL_CLASSES = tuple(
+    cls
+    for cls in EXPOSABLE_MODEL_CLASSES
+    if cls
+    not in (
+        DSSMModel,
+        SASRecModel,
+    )
+)
 
 
 def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
