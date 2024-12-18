@@ -24,6 +24,8 @@ from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, a
 
 from .data import DATASET, INTERACTIONS
 
+# pylint: disable=too-many-lines
+
 
 class TestSASRecModel:
     def setup_method(self) -> None:
@@ -72,7 +74,41 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "accelerator,n_devices,recommend_device",
+        [
+            ("cpu", 1, "cpu"),
+            pytest.param(
+                "cpu",
+                1,
+                "gpu",
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+            ),
+            ("cpu", 2, "cpu"),
+            pytest.param(
+                "gpu",
+                1,
+                "cpu",
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+            ),
+            pytest.param(
+                "gpu",
+                1,
+                "gpu",
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+            ),
+            pytest.param(
+                "gpu",
+                [0, 1],
+                "cpu",
+                marks=pytest.mark.skipif(
+                    torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
+                    reason="GPU is not available or there is only one gpu device",
+                ),
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "filter_viewed,expected_cpu_1,expected_cpu_2,expected_gpu",
         (
             (
                 True,
@@ -80,6 +116,20 @@ class TestSASRecModel:
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
                         Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 14, 17, 13, 14, 15, 12],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -93,11 +143,41 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [12, 14, 13, 11, 12, 14, 17, 14, 15],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
             ),
         ),
     )
-    # TODO: tests do not pass for multiple GPUs
-    def test_u2i(self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    def test_u2i(
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        accelerator: str,
+        n_devices: int,
+        recommend_device: str,
+        expected_cpu_1: pd.DataFrame,
+        expected_cpu_2: pd.DataFrame,
+        expected_gpu: pd.DataFrame,
+    ) -> None:
+        trainer = Trainer(
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            devices=n_devices,
+            accelerator=accelerator,
+        )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -106,12 +186,19 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            recommend_device=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        if accelerator == "cpu" and n_devices == 1:
+            expected = expected_cpu_1
+        elif accelerator == "cpu" and n_devices == 2:
+            expected = expected_cpu_2
+        else:
+            expected = expected_gpu
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
