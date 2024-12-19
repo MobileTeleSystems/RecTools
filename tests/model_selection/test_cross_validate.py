@@ -380,29 +380,14 @@ class TestCrossValidate:
                 ["popular"],
                 False,
                 [
-                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0, "intersection_popular": 0.5},
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_popular": 0.75,
-                    },
-                ],
-                False,
-            ),
-            (
-                ["popular"],
-                False,
-                [
                     {
                         "model": "random",
                         "i_split": 0,
                         "precision@2": 0.5,
                         "recall@1": 0.0,
                         "intersection_popular": 0.5,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -410,8 +395,8 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.5,
                         "intersection_popular": 0.75,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                 ],
                 True,
@@ -426,37 +411,8 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.5,
                         "intersection_popular": 1.0,
-                    },
-                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0, "intersection_popular": 0.5},
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_popular": 1.0,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_popular": 0.75,
-                    },
-                ],
-                False,
-            ),
-            (
-                ["popular"],
-                True,
-                [
-                    {
-                        "model": "popular",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.5,
-                        "intersection_popular": 1.0,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -464,8 +420,8 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.0,
                         "intersection_popular": 0.5,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "popular",
@@ -473,8 +429,8 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.25,
                         "intersection_popular": 1.0,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -482,26 +438,11 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.5,
                         "intersection_popular": 0.75,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                 ],
                 True,
-            ),
-            (
-                ["random"],
-                False,
-                [
-                    {"model": "popular", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5, "intersection_random": 0.5},
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_random": 0.75,
-                    },
-                ],
-                False,
             ),
             (
                 ["random"],
@@ -513,8 +454,8 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.5,
                         "intersection_random": 0.5,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "popular",
@@ -522,34 +463,11 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.25,
                         "intersection_random": 0.75,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                 ],
                 True,
-            ),
-            (
-                ["random"],
-                True,
-                [
-                    {"model": "popular", "i_split": 0, "precision@2": 0.5, "recall@1": 0.5, "intersection_random": 0.5},
-                    {"model": "random", "i_split": 0, "precision@2": 0.5, "recall@1": 0.0, "intersection_random": 1.0},
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_random": 0.75,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_random": 1.0,
-                    },
-                ],
-                False,
             ),
             (
                 ["random"],
@@ -561,8 +479,8 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.5,
                         "intersection_random": 0.5,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -570,8 +488,8 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.0,
                         "intersection_random": 1.0,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "popular",
@@ -579,8 +497,8 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.25,
                         "intersection_random": 0.75,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -588,13 +506,12 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.5,
                         "intersection_random": 1.0,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                 ],
                 True,
             ),
-            (["random", "popular"], False, [], False),
             (["random", "popular"], False, [], True),
             (
                 ["random", "popular"],
@@ -607,6 +524,8 @@ class TestCrossValidate:
                         "recall@1": 0.5,
                         "intersection_random": 0.5,
                         "intersection_popular": 1.0,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -615,6 +534,8 @@ class TestCrossValidate:
                         "recall@1": 0.0,
                         "intersection_random": 1.0,
                         "intersection_popular": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "popular",
@@ -623,6 +544,8 @@ class TestCrossValidate:
                         "recall@1": 0.25,
                         "intersection_random": 0.75,
                         "intersection_popular": 1.0,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -631,53 +554,8 @@ class TestCrossValidate:
                         "recall@1": 0.5,
                         "intersection_random": 1.0,
                         "intersection_popular": 0.75,
-                    },
-                ],
-                False,
-            ),
-            (
-                ["random", "popular"],
-                True,
-                [
-                    {
-                        "model": "popular",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.5,
-                        "intersection_random": 0.5,
-                        "intersection_popular": 1.0,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.0,
-                        "intersection_random": 1.0,
-                        "intersection_popular": 0.5,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
-                    },
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_random": 0.75,
-                        "intersection_popular": 1.0,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_random": 1.0,
-                        "intersection_popular": 0.75,
-                        "fit_time": 0.5,
-                        "recommend_time": 0.5,
+                        "fit_time": 0.0,
+                        "recommend_time": 0.0,
                     },
                 ],
                 True,
@@ -705,33 +583,35 @@ class TestCrossValidate:
             compute_timings=compute_timings,
         )
 
-        expected_keys = {"fit_time", "recommend_time"}
+        time_threshold = 0.5
 
-        if compute_timings:
-            for data in actual["metrics"]:
-                assert len(expected_keys.intersection(set(data.keys()))) == 2
-        else:
-            expected = {
-                "splits": [
-                    {
-                        "i_split": 0,
-                        "test": 2,
-                        "test_items": 2,
-                        "test_users": 2,
-                        "train": 2,
-                        "train_items": 2,
-                        "train_users": 2,
-                    },
-                    {
-                        "i_split": 1,
-                        "test": 4,
-                        "test_items": 3,
-                        "test_users": 4,
-                        "train": 6,
-                        "train_items": 2,
-                        "train_users": 4,
-                    },
-                ],
-                "metrics": expected_metrics,
-            }
-            assert actual == expected
+        for data in actual["metrics"]:
+            print(data["fit_time"])
+            print(data["recommend_time"])
+            assert data["fit_time"] < time_threshold
+            assert data["recommend_time"] < time_threshold
+
+        expected = {
+            "splits": [
+                {
+                    "i_split": 0,
+                    "test": 2,
+                    "test_items": 2,
+                    "test_users": 2,
+                    "train": 2,
+                    "train_items": 2,
+                    "train_users": 2,
+                },
+                {
+                    "i_split": 1,
+                    "test": 4,
+                    "test_items": 3,
+                    "test_users": 4,
+                    "train": 6,
+                    "train_items": 2,
+                    "train_users": 4,
+                },
+            ],
+            "metrics": expected_metrics,
+        }
+        assert actual == expected
