@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -231,31 +232,41 @@ class TestEASEModel:
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
 
+    def test_warn_with_num_threads(self) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            EASEModel(num_threads=10)
+            assert len(w) == 1
+            assert "`num_threads` argument is deprecated" in str(w[-1].message)
+
 
 class TestEASEModelConfiguration:
     def test_from_config(self) -> None:
         config = {
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
+            "recommend_use_gpu_ranking": True,
             "verbose": 1,
         }
         model = EASEModel.from_config(config)
-        assert model.num_threads == 1
+        assert model.recommend_n_threads == 1
         assert model.verbose == 1
         assert model.regularization == 500
+        assert model.recommend_use_gpu_ranking is True
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config(self, simple_types: bool) -> None:
         model = EASEModel(
             regularization=500,
-            num_threads=1,
+            recommend_n_threads=1,
+            recommend_use_gpu_ranking=False,
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
         expected = {
             "cls": "EASEModel" if simple_types else EASEModel,
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
+            "recommend_use_gpu_ranking": False,
             "verbose": 1,
         }
         assert config == expected
@@ -264,8 +275,9 @@ class TestEASEModelConfiguration:
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
             "verbose": 1,
+            "recommend_use_gpu_ranking": True,
         }
         assert_get_config_and_from_config_compatibility(EASEModel, DATASET, initial_config, simple_types)
 

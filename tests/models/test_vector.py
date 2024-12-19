@@ -32,16 +32,16 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
     def setup_method(self) -> None:
         stub_interactions = pd.DataFrame([], columns=Columns.Interactions)
         self.stub_dataset = Dataset.construct(stub_interactions)
-        user_embeddings = np.array([[-4, 0, 3], [0, 0, 0]])
+        user_embeddings = np.array([[-4, 0, 3], [0, 1, 2]])
         item_embeddings = np.array(
             [
                 [-4, 0, 3],
-                [0, 0, 0],
-                [1, 1, 1],
+                [0, 1, 2],
+                [1, 10, 100],
             ]
         )
-        user_biases = np.array([0, 1])
-        item_biases = np.array([0, 1, 3])
+        user_biases = np.array([2, 1])
+        item_biases = np.array([2, 1, 3])
         self.user_factors = Factors(user_embeddings)
         self.item_factors = Factors(item_embeddings)
         self.user_biased_factors = Factors(user_embeddings, user_biases)
@@ -74,9 +74,9 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
     @pytest.mark.parametrize(
         "distance,expected_reco,expected_scores",
         (
-            (Distance.DOT, [[0, 1, 2], [2, 1, 0]], [[25, 0, -1], [0, 0, 0]]),
-            (Distance.COSINE, [[0, 1, 2], [2, 1, 0]], [[1, 0, -1 / (5 * 3**0.5)], [0, 0, 0]]),
-            (Distance.EUCLIDEAN, [[0, 1, 2], [1, 2, 0]], [[0, 5, 30**0.5], [0, 3**0.5, 5]]),
+            (Distance.DOT, [[2, 0, 1], [2, 0, 1]], [[296.0, 25.0, 6.0], [210.0, 6.0, 5.0]]),
+            (Distance.COSINE, [[0, 2, 1], [1, 2, 0]], [[1.0, 0.58903, 0.53666], [1.0, 0.93444, 0.53666]]),
+            (Distance.EUCLIDEAN, [[0, 1, 2], [1, 0, 2]], [[0.0, 4.24264, 97.6422], [0.0, 4.24264, 98.41748]]),
         ),
     )
     @pytest.mark.parametrize("method", ("u2i", "i2i"))
@@ -98,9 +98,9 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
     @pytest.mark.parametrize(
         "distance,expected_reco,expected_scores",
         (
-            (Distance.DOT, [[0, 2, 1], [2, 1, 0]], [[25, 2, 1], [4, 2, 1]]),
-            (Distance.COSINE, [[0, 1, 2], [1, 2, 0]], [[1, 0, -1 / (5 * 12**0.5)], [1, 3 / (1 * 12**0.5), 0]]),
-            (Distance.EUCLIDEAN, [[0, 1, 2], [1, 2, 0]], [[0, 26**0.5, 39**0.5], [0, 7**0.5, 26**0.5]]),
+            (Distance.DOT, [[2, 0, 1], [2, 0, 1]], [[301.0, 29.0, 9.0], [214.0, 9.0, 7.0]]),
+            (Distance.COSINE, [[0, 1, 2], [1, 2, 0]], [[1.0, 0.60648, 0.55774], [1.0, 0.86483, 0.60648]]),
+            (Distance.EUCLIDEAN, [[0, 1, 2], [1, 0, 2]], [[0.0, 4.3589, 97.64732], [0.0, 4.3589, 98.4378]]),
         ),
     )
     @pytest.mark.parametrize("method", ("u2i", "i2i"))
