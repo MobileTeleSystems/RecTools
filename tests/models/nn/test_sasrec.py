@@ -15,6 +15,10 @@ from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
 
+# TODO: add tests with BCE and GBCE
+# TODO: tests for BERT4Rec in a separate file (one loss will be enough)
+
+
 class TestSASRecModel:
     def setup_method(self) -> None:
         self._seed_everything()
