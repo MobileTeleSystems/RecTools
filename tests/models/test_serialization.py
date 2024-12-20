@@ -26,7 +26,7 @@ from rectools.models import (
     model_from_config,
 )
 from rectools.models.base import ModelBase, ModelConfig
-from rectools.models.sasrec import SASRecModel, TransformerModelBase
+from rectools.models.nn.sasrec import SASRecModel, TransformerModelBase
 from rectools.models.vector import VectorModel
 
 from .utils import get_successors
