@@ -151,18 +151,24 @@ class ImplicitRanker:
         object_norms: tp.Optional[np.ndarray],
         filter_query_items: tp.Optional[tp.Union[sparse.csr_matrix, sparse.csr_array]],
     ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
-        object_factors = implicit.gpu.Matrix(object_factors.astype(np.float32))
+
+        def _convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> implicit.gpu.Matrix:
+            if arr.base is not None:
+                arr = arr.copy()
+            return implicit.gpu.Matrix(arr)
+
+        object_factors = _convert_arr_to_implicit_gpu_matrix(object_factors.astype(np.float32))
 
         if isinstance(subject_factors, sparse.spmatrix):
             warnings.warn("Sparse subject factors converted to Dense matrix")
             subject_factors = subject_factors.todense()
 
-        subject_factors = implicit.gpu.Matrix(subject_factors.astype(np.float32))
+        subject_factors = _convert_arr_to_implicit_gpu_matrix(subject_factors.astype(np.float32))
 
         if object_norms is not None:
             if len(np.shape(object_norms)) == 1:
                 object_norms = np.expand_dims(object_norms, axis=0)
-            object_norms = implicit.gpu.Matrix(object_norms)
+            object_norms = _convert_arr_to_implicit_gpu_matrix(object_norms)
 
         if filter_query_items is not None:
             filter_query_items = implicit.gpu.COOMatrix(filter_query_items.tocoo())

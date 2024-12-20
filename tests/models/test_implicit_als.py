@@ -138,6 +138,7 @@ class TestImplicitALSWrapperModel:
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
     @pytest.mark.parametrize("fit_features_together", (False, True))
     @pytest.mark.parametrize("init_model_before_fit", (False, True))
     def test_consistent_with_pure_implicit(
