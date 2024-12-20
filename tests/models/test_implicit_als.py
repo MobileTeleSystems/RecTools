@@ -194,7 +194,7 @@ class TestImplicitALSWrapperModel:
             model=gpu_model, fit_features_together=fit_features_together, recommend_use_gpu_ranking=True
         )
         wrapped_model.is_fitted = True
-        wrapped_model.model = wrapped_model._model
+        wrapped_model.model = wrapped_model._model  # pylint: disable=protected-access
 
         actual_reco = wrapped_model.recommend(
             users=users,
