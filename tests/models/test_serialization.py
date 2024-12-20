@@ -15,6 +15,7 @@ except ImportError:
 
 from rectools.metrics import NDCG
 from rectools.models import (
+    BERT4RecModel,
     DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
@@ -22,11 +23,12 @@ from rectools.models import (
     LightFMWrapperModel,
     PopularInCategoryModel,
     PopularModel,
+    SASRecModel,
     load_model,
     model_from_config,
 )
 from rectools.models.base import ModelBase, ModelConfig
-from rectools.models.nn.sasrec import SASRecModel, TransformerModelBase
+from rectools.models.nn.transformer_base import TransformerModelBase
 from rectools.models.vector import VectorModel
 
 from .utils import get_successors
@@ -49,6 +51,7 @@ CONFIGURABLE_MODEL_CLASSES = tuple(
     not in (
         DSSMModel,
         SASRecModel,
+        BERT4RecModel,
     )
 )
 
