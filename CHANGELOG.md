@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- If `Column.Model` is not provided in `VisualApp`, then default model name added to dataframe ([#118](https://github.com/MobileTeleSystems/RecTools/pull/235))
+- If `Column.Model` is not provided in `VisualApp`, then default model name added to dataframe ([#235](https://github.com/MobileTeleSystems/RecTools/pull/235))
 - Changed tests for `VisualApp` missing columns
 
 ## [0.9.0] - 11.12.2024
