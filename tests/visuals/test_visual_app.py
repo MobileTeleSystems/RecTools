@@ -51,7 +51,7 @@ ITEM_DATA = pd.DataFrame({Columns.Item: [3, 4, 5, 6, 7, 8], "feature_1": ["one",
 INTERACTIONS = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
 SELECTED_REQUESTS_U2I: tp.Dict[tp.Hashable, tp.Hashable] = {"user_one": 1, "user_three": 3}
 SELECTED_REQUESTS_I2I: tp.Dict[tp.Hashable, tp.Hashable] = {"item_three": 3}
-
+DEFAULT_MODEL_NAME = "model1"
 
 def check_data_storages_equal(one: AppDataStorage, two: AppDataStorage) -> None:
     assert one.id_col == two.id_col
@@ -229,17 +229,17 @@ class TestAppDataStorage:
             )
 
         # Missing `Columns.Model` in reco pd.DataFrame
-        with pytest.raises(KeyError):
-            incorrect_reco = pd.DataFrame(
-                {Columns.User: [1, 2, 3, 4], Columns.Item: [3, 4, 3, 4], Columns.Score: [0.99, 0.9, 0.5, 0.5]}
-            )
-            AppDataStorage.from_raw(
-                reco=incorrect_reco,
-                item_data=ITEM_DATA,
-                interactions=INTERACTIONS,
-                is_u2i=True,
-                selected_requests=SELECTED_REQUESTS_U2I,
-            )
+        incorrect_reco = pd.DataFrame(
+            {Columns.User: [1, 2, 3, 4], Columns.Item: [3, 4, 3, 4], Columns.Score: [0.99, 0.9, 0.5, 0.5]}
+        )
+        ads = AppDataStorage.from_raw(
+            reco=incorrect_reco,
+            item_data=ITEM_DATA,
+            interactions=INTERACTIONS,
+            is_u2i=True,
+            selected_requests=SELECTED_REQUESTS_U2I,
+        )
+        assert "model1" in ads.model_names
 
     def test_incorrect_interactions_for_reco_case(self) -> None:
 

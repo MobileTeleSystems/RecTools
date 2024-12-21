@@ -29,6 +29,7 @@ TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 MIN_WIDTH_LIMIT = 10
 REQUEST_NAMES_COL = "request_name"
 REQUEST_IDS_COL = "request_id"
+DEFAULT_MODEL_NAME = "model1"
 
 VisualAppT = tp.TypeVar("VisualAppT", bound="VisualAppBase")
 
@@ -71,7 +72,8 @@ class AppDataStorage:
         ----------
         reco : tp.Union[pd.DataFrame, TablesDict]
             Recommendations from different models in a form of a pd.DataFrame or a dict.
-            In DataFrame form model names must be specified in `Columns.Model` column. In dict form
+            In DataFrame form model names must be specified in `Columns.Model` column.
+            If not, `Columns.Model` column will be created with default value ``model1``. In dict form
             model names are supposed to be dict keys.
         item_data : pd.DataFrame
             Data for items that is used for visualisation in both interactions and recommendations
@@ -100,7 +102,7 @@ class AppDataStorage:
 
         if isinstance(reco, pd.DataFrame):
             if Columns.Model not in reco.columns:
-                raise KeyError("Missing `{Columns.Model}` column in `reco` DataFrame")
+                reco[Columns.Model] = DEFAULT_MODEL_NAME
             reco = cls._df_to_tables_dict(reco, Columns.Model)
         cls._check_columns_present_in_reco(reco=reco, id_col=id_col)
 
