@@ -154,22 +154,22 @@ class CandidateFeatureCollector:
 
 @attr.s(auto_attribs=True)
 class NegativeSamplerBase:
-    """TODO: Documentation""" ""
+    """TODO: Documentation"""
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         raise NotImplementedError()
 
 
 @attr.s(auto_attribs=True)
 class PerUserNegativeSampler(NegativeSamplerBase):
-    """TODO: Documentation""" ""
+    """TODO: Documentation"""
 
     n_negatives: int = 3
     random_state: tp.Optional[int] = None
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         # train: user_id, item_id, scores, ranks, target(1/0)
 
         # TODO: refactor for faster computations: avoid shuffle and apply
@@ -196,7 +196,7 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
 
 class CandidateGenerator:
-    """TODO: Documentation""" ""
+    """TODO: Documentation"""
 
     def __init__(
         self,
@@ -217,7 +217,7 @@ class CandidateGenerator:
         self.is_fitted_for_recommend = False
 
     def fit(self, dataset: Dataset, for_train: bool) -> None:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         self.model.fit(dataset)
         if for_train:
             self.is_fitted_for_train = True  # TODO: keep multiple fitted instances?
@@ -235,7 +235,7 @@ class CandidateGenerator:
         items_to_recommend: tp.Optional[ExternalIds] = None,
         on_unsupported_targets: ErrorBehaviour = "raise",
     ) -> pd.DataFrame:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         if for_train and not self.is_fitted_for_train:
             raise NotFittedForStageError(self.model.__class__.__name__, "train")
         if not for_train and not self.is_fitted_for_recommend:
@@ -534,7 +534,7 @@ class CandidateRankingModel(ModelBase):
         on_unsupported_targets: ErrorBehaviour = "raise",
         force_fit_candidate_generators: bool = False,
     ) -> pd.DataFrame:
-        """TODO: Documentation""" ""
+        """TODO: Documentation"""
         self._check_is_fitted()
         self._check_k(k)
 
