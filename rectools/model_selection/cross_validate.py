@@ -40,7 +40,7 @@ def compute_timing(label: str, timings: tp.Optional[tp.Dict[str, float]] = None)
     if timings is not None:
         start_time = time.time()
         yield
-        timings[label] = round(time.time() - start_time, 2)
+        timings[label] = round(time.time() - start_time, 5)
     else:
         yield
 

@@ -374,10 +374,9 @@ class TestCrossValidate:
         assert actual == expected
 
     @pytest.mark.parametrize(
-        "ref_models,validate_ref_models,expected_metrics,compute_timings",
+        "validate_ref_models,expected_metrics,compute_timings",
         (
             (
-                ["popular"],
                 False,
                 [
                     {
@@ -386,8 +385,6 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.0,
                         "intersection_popular": 0.5,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -395,14 +392,11 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.5,
                         "intersection_popular": 0.75,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                 ],
                 True,
             ),
             (
-                ["popular"],
                 True,
                 [
                     {
@@ -411,8 +405,6 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.5,
                         "intersection_popular": 1.0,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -420,8 +412,6 @@ class TestCrossValidate:
                         "precision@2": 0.5,
                         "recall@1": 0.0,
                         "intersection_popular": 0.5,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                     {
                         "model": "popular",
@@ -429,8 +419,6 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.25,
                         "intersection_popular": 1.0,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
@@ -438,133 +426,68 @@ class TestCrossValidate:
                         "precision@2": 0.375,
                         "recall@1": 0.5,
                         "intersection_popular": 0.75,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                 ],
                 True,
             ),
             (
-                ["random"],
                 False,
                 [
                     {
-                        "model": "popular",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.5,
-                        "intersection_random": 0.5,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_random": 0.75,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                ],
-                True,
-            ),
-            (
-                ["random"],
-                True,
-                [
-                    {
-                        "model": "popular",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.5,
-                        "intersection_random": 0.5,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                    {
                         "model": "random",
                         "i_split": 0,
                         "precision@2": 0.5,
                         "recall@1": 0.0,
-                        "intersection_random": 1.0,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_random": 0.75,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_random": 1.0,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                ],
-                True,
-            ),
-            (["random", "popular"], False, [], True),
-            (
-                ["random", "popular"],
-                True,
-                [
-                    {
-                        "model": "popular",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.5,
-                        "intersection_random": 0.5,
-                        "intersection_popular": 1.0,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.0,
-                        "intersection_random": 1.0,
                         "intersection_popular": 0.5,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
-                    },
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_random": 0.75,
-                        "intersection_popular": 1.0,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                     {
                         "model": "random",
                         "i_split": 1,
                         "precision@2": 0.375,
                         "recall@1": 0.5,
-                        "intersection_random": 1.0,
                         "intersection_popular": 0.75,
-                        "fit_time": 0.0,
-                        "recommend_time": 0.0,
                     },
                 ],
+                False,
+            ),
+            (
                 True,
+                [
+                    {
+                        "model": "popular",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.5,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.0,
+                        "intersection_popular": 0.5,
+                    },
+                    {
+                        "model": "popular",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.25,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_popular": 0.75,
+                    },
+                ],
+                False,
             ),
         ),
     )
     def test_happy_path_with_intersection_timings(
         self,
-        ref_models: tp.Optional[tp.List[str]],
         validate_ref_models: bool,
         expected_metrics: tp.List[tp.Dict[str, tp.Any]],
         compute_timings: bool,
@@ -578,18 +501,20 @@ class TestCrossValidate:
             models=self.models,
             k=2,
             filter_viewed=False,
-            ref_models=ref_models,
+            ref_models=["popular"],
             validate_ref_models=validate_ref_models,
             compute_timings=compute_timings,
         )
 
         time_threshold = 0.5
 
-        for data in actual["metrics"]:
-            print(data["fit_time"])
-            print(data["recommend_time"])
-            assert data["fit_time"] < time_threshold
-            assert data["recommend_time"] < time_threshold
+        if compute_timings:
+            for data in actual["metrics"]:
+                assert data["fit_time"] < time_threshold
+                assert data["recommend_time"] < time_threshold
+
+                del data["fit_time"]
+                del data["recommend_time"]
 
         expected = {
             "splits": [
