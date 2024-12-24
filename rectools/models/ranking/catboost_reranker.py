@@ -22,7 +22,7 @@ class CatBoostReranker(Reranker):
         self.fit_kwargs = fit_kwargs
         self.pool_kwargs = pool_kwargs
 
-    def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
+    def prepare_training_pool(self, candidates_with_target: pd.DataFrame) -> Pool:
         """TODO: add description"""
         if self.is_classifier:
             pool_kwargs = {
@@ -40,9 +40,14 @@ class CatBoostReranker(Reranker):
         if self.pool_kwargs is not None:
             pool_kwargs.update(self.pool_kwargs)
 
-        fit_kwargs = {"X": Pool(**pool_kwargs)}
+        return Pool(**pool_kwargs)
 
+    def fit(self, candidates_with_target: pd.DataFrame) -> None:
+        """TODO: add description"""
+        training_pool = self.prepare_training_pool(candidates_with_target)
+
+        fit_kwargs = {"X": training_pool}
         if self.fit_kwargs is not None:
             fit_kwargs.update(self.fit_kwargs)
 
-        return fit_kwargs
+        self.model.fit(**fit_kwargs)
