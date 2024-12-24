@@ -2,6 +2,47 @@ import torch
 from torch import nn
 
 
+class PointWiseFeedForward(nn.Module):
+    """
+    Feed-Forward network to introduce nonlinearity into the transformer model.
+    This implementation is the one used by SASRec authors.
+
+    Parameters
+    ----------
+    n_factors: int
+        Latent embeddings size.
+    n_factors_ff: int
+        How many hidden units to use in the network.
+    dropout_rate: float
+        Probability of a hidden unit to be zeroed.
+    """
+
+    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module) -> None:
+        super().__init__()
+        self.ff_linear1 = nn.Linear(n_factors, n_factors_ff)
+        self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
+        self.ff_activation = activation
+        self.ff_linear2 = nn.Linear(n_factors_ff, n_factors)
+
+    def forward(self, seqs: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+
+        Parameters
+        ----------
+        seqs: torch.Tensor
+            User sequences of item embeddings.
+
+        Returns
+        -------
+        torch.Tensor
+            User sequence that passed through all layers.
+        """
+        output = self.ff_activation(self.ff_linear1(seqs))
+        fin = self.ff_linear2(self.ff_dropout1(output))
+        return fin
+
+
 class TransformerLayersBase(nn.Module):
     """Base class for transformer layers."""
 
@@ -13,7 +54,10 @@ class TransformerLayersBase(nn.Module):
 
 
 class PreLNTransformerLayers(TransformerLayersBase):
-    """TODO"""
+    """
+    Pre-LN Transformer Layers as described in "On Layer Normalization in the Transformer
+    Architecture" https://arxiv.org/pdf/2002.04745
+    """
 
     def __init__(
         self,
@@ -64,47 +108,6 @@ class PositionalEncodingBase(torch.nn.Module):
     def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """Forward pass."""
         raise NotImplementedError()
-
-
-class PointWiseFeedForward(nn.Module):
-    """
-    Feed-Forward network to introduce nonlinearity into the transformer model.
-    This implementation is the one used by SASRec authors.
-
-    Parameters
-    ----------
-    n_factors: int
-        Latent embeddings size.
-    n_factors_ff: int
-        How many hidden units to use in the network.
-    dropout_rate: float
-        Probability of a hidden unit to be zeroed.
-    """
-
-    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module) -> None:
-        super().__init__()
-        self.ff_linear1 = nn.Linear(n_factors, n_factors_ff)
-        self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
-        self.ff_activation = activation
-        self.ff_linear2 = nn.Linear(n_factors_ff, n_factors)
-
-    def forward(self, seqs: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
-
-        Parameters
-        ----------
-        seqs: torch.Tensor
-            User sequences of item embeddings.
-
-        Returns
-        -------
-        torch.Tensor
-            User sequence that passed through all layers.
-        """
-        output = self.ff_activation(self.ff_linear1(seqs))
-        fin = self.ff_linear2(self.ff_dropout1(output))
-        return fin
 
 
 class LearnableInversePositionalEncoding(PositionalEncodingBase):
