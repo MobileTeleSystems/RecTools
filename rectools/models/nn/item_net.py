@@ -10,7 +10,6 @@ from rectools.dataset.features import SparseFeatures
 
 
 class ItemNetBase(nn.Module):
-    """TODO: use Protocol"""
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """Forward pass."""
@@ -18,7 +17,7 @@ class ItemNetBase(nn.Module):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tp.Optional[tpe.Self]:
-        """Construct ItemNet."""
+        """Construct ItemNet from Dataset."""
         raise NotImplementedError()
 
     def get_all_embeddings(self) -> torch.Tensor:

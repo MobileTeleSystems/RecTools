@@ -365,7 +365,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        **kwargs: tp.Any
+        **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose)
         self.recommend_n_threads = recommend_n_threads
