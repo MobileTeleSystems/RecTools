@@ -2,7 +2,6 @@ import typing as tp
 from collections import defaultdict
 from functools import reduce
 
-import attr
 import numpy as np
 import pandas as pd
 import typing_extensions as tpe
@@ -152,7 +151,6 @@ class CandidateFeatureCollector:
         return res
 
 
-@attr.s(auto_attribs=True)
 class NegativeSamplerBase:
     """TODO: Documentation"""
 
@@ -161,12 +159,16 @@ class NegativeSamplerBase:
         raise NotImplementedError()
 
 
-@attr.s(auto_attribs=True)
 class PerUserNegativeSampler(NegativeSamplerBase):
     """TODO: Documentation"""
 
-    n_negatives: int = 3
-    random_state: tp.Optional[int] = None
+    def __init__(
+        self,
+        n_negatives: int = 3,
+        random_state: tp.Optional[int] = None,
+    ):
+        self.n_negatives = n_negatives
+        self.random_state = random_state
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
         """TODO: Documentation"""
