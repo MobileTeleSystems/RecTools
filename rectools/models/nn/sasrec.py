@@ -91,7 +91,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         self.n_blocks = n_blocks
         self.multi_head_attn = nn.ModuleList(
             [torch.nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
-        )  # TODO: original architecture had another version of MHA
+        )  # important: original architecture had another version of MHA
         self.q_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.ff_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
@@ -151,7 +151,10 @@ class SASRecModel(TransformerModelBase):
     use_pos_emb: bool, default ``True``
         If ``True``, adds learnable positional encoding to session item embeddings.
     use_causal_attn: bool, default ``True``
-        If ``True``, uses causal mask as attn_mask in Multi-head Attention.
+        If ``True``, uses causal mask as attn_mask in Multi-head Attention.  Please note that default
+        SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
+        parameter to ``False`` only when you change the training task with custom
+        `data_preparator_type` or if you are absolutely sure of what you are doing.
     use_key_padding_mask: bool, default ``False``
         If ``True``, uses key_padding_mask in Multi-head Attention.
     dropout_rate: float, default 0.2

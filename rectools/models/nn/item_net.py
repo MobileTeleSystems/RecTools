@@ -10,6 +10,7 @@ from rectools.dataset.features import SparseFeatures
 
 
 class ItemNetBase(nn.Module):
+    """Base class for item net."""
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """Forward pass."""

@@ -113,14 +113,17 @@ class BERT4RecModel(TransformerModelBase):
         Latent embeddings size.
     use_pos_emb: bool, default ``True``
         If ``True``, adds learnable positional encoding to session item embeddings.
-    use_causal_attn: bool, default ``True``
-        If ``True``, uses causal mask as attn_mask in Multi-head Attention.
+    use_causal_attn: bool, default ``False``
+        If ``True``, uses causal mask as attn_mask in Multi-head Attention. Please note that default
+        BERT4Rec training task (MLM) does not match well with causal masking. Set this parameter to
+        ``True`` only when you change the training task with custom `data_preparator_type` or if you
+        are absolutely sure of what you are doing.
     use_key_padding_mask: bool, default ``False``
         If ``True``, uses key_padding_mask in Multi-head Attention.
     dropout_rate: float, default 0.2
         Probability of a hidden unit to be zeroed.
     session_max_len: int, default 32
-        Maximum length of user sequence.
+        Maximum length of user sequence that model will accept dting inference.
     train_min_user_interactions: int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater than 1.
     mask_prob: float, default 0.15
@@ -180,7 +183,7 @@ class BERT4RecModel(TransformerModelBase):
         n_heads: int = 1,
         n_factors: int = 128,
         use_pos_emb: bool = True,
-        use_causal_attn: bool = False,  # TODO: remove?
+        use_causal_attn: bool = False,
         use_key_padding_mask: bool = True,
         dropout_rate: float = 0.2,
         epochs: int = 3,
