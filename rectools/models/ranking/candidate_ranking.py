@@ -175,6 +175,7 @@ class PerUserNegativeSampler(NegativeSamplerBase):
         # train: user_id, item_id, scores, ranks, target(1/0)
 
         # TODO: refactor for faster computations: avoid shuffle and apply
+        # https://github.com/MobileTeleSystems/RecTools/pull/209#discussion_r1842977064
 
         negative_mask = train[Columns.Target] == 0
         pos = train[~negative_mask]
