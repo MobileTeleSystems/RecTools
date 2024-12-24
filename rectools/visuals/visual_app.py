@@ -29,7 +29,7 @@ TablesDict = tp.Dict[tp.Hashable, pd.DataFrame]
 MIN_WIDTH_LIMIT = 10
 REQUEST_NAMES_COL = "request_name"
 REQUEST_IDS_COL = "request_id"
-DEFAULT_MODEL_NAME = "model1"
+DEFAULT_MODEL_NAME = "model"
 
 VisualAppT = tp.TypeVar("VisualAppT", bound="VisualAppBase")
 

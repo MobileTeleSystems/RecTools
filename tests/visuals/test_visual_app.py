@@ -21,7 +21,12 @@ import pandas as pd
 import pytest
 
 from rectools import Columns, ExternalId
-from rectools.visuals.visual_app import AppDataStorage, ItemToItemVisualApp, StorageFiles, TablesDict, VisualApp
+from rectools.visuals.visual_app import (AppDataStorage,
+                                         ItemToItemVisualApp,
+                                         StorageFiles,
+                                         TablesDict,
+                                         VisualApp,
+                                         DEFAULT_MODEL_NAME)
 
 RECO_U2I: TablesDict = {
     "model1": pd.DataFrame(
@@ -51,7 +56,6 @@ ITEM_DATA = pd.DataFrame({Columns.Item: [3, 4, 5, 6, 7, 8], "feature_1": ["one",
 INTERACTIONS = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
 SELECTED_REQUESTS_U2I: tp.Dict[tp.Hashable, tp.Hashable] = {"user_one": 1, "user_three": 3}
 SELECTED_REQUESTS_I2I: tp.Dict[tp.Hashable, tp.Hashable] = {"item_three": 3}
-DEFAULT_MODEL_NAME = "model1"
 
 def check_data_storages_equal(one: AppDataStorage, two: AppDataStorage) -> None:
     assert one.id_col == two.id_col
@@ -183,7 +187,6 @@ class TestAppDataStorage:
         assert "random_2" in ads.selected_requests
 
     def test_missing_columns_validation(self) -> None:
-
         # Missing `Columns.User` for u2i
         with pytest.raises(KeyError):
             incorrect_u2i_reco: TablesDict = {
@@ -228,18 +231,33 @@ class TestAppDataStorage:
                 selected_requests=SELECTED_REQUESTS_U2I,
             )
 
-        # Missing `Columns.Model` in reco pd.DataFrame
-        incorrect_reco = pd.DataFrame(
+    def test_successful_path_with_missing_model(self) -> None:
+        # Missing `Columns.Model`
+        reco_without_model = pd.DataFrame(
             {Columns.User: [1, 2, 3, 4], Columns.Item: [3, 4, 3, 4], Columns.Score: [0.99, 0.9, 0.5, 0.5]}
         )
         ads = AppDataStorage.from_raw(
-            reco=incorrect_reco,
+            reco=reco_without_model,
             item_data=ITEM_DATA,
             interactions=INTERACTIONS,
             is_u2i=True,
             selected_requests=SELECTED_REQUESTS_U2I,
         )
-        assert "model1" in ads.model_names
+        expected_grouped_reco = {
+            "model": {
+                "user_one": pd.DataFrame(
+                    {Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]}
+                ),
+                "user_three": pd.DataFrame(
+                    {Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.5]}
+                )
+            }
+        }
+        assert expected_grouped_reco.keys() == ads.grouped_reco.keys()
+        for model_name, model_reco in expected_grouped_reco.items():
+            assert model_reco.keys() == ads.grouped_reco[model_name].keys()
+            for user_name, user_reco in model_reco.items():
+                pd.testing.assert_frame_equal(user_reco, ads.grouped_reco[model_name][user_name])
 
     def test_incorrect_interactions_for_reco_case(self) -> None:
 
