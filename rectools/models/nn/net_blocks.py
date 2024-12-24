@@ -3,7 +3,7 @@ from torch import nn
 
 
 class TransformerLayersBase(nn.Module):
-    """TODO: use Protocol"""
+    """Base class for transformer layers."""
 
     def forward(
         self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
@@ -59,7 +59,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
 
 
 class PositionalEncodingBase(torch.nn.Module):
-    """TODO: use Protocol"""
+    """Base class for positional encoding."""
 
     def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """Forward pass."""
