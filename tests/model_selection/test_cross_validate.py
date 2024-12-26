@@ -374,7 +374,7 @@ class TestCrossValidate:
         assert actual == expected
 
     @pytest.mark.parametrize(
-        "validate_ref_models,expected_metrics,compute_timings",
+        "validate_ref_models,expected_metrics",
         (
             (
                 False,
@@ -394,7 +394,6 @@ class TestCrossValidate:
                         "intersection_popular": 0.75,
                     },
                 ],
-                True,
             ),
             (
                 True,
@@ -428,64 +427,10 @@ class TestCrossValidate:
                         "intersection_popular": 0.75,
                     },
                 ],
-                True,
-            ),
-            (
-                False,
-                [
-                    {
-                        "model": "random",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.0,
-                        "intersection_popular": 0.5,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_popular": 0.75,
-                    },
-                ],
-                False,
-            ),
-            (
-                True,
-                [
-                    {
-                        "model": "popular",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.5,
-                        "intersection_popular": 1.0,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 0,
-                        "precision@2": 0.5,
-                        "recall@1": 0.0,
-                        "intersection_popular": 0.5,
-                    },
-                    {
-                        "model": "popular",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.25,
-                        "intersection_popular": 1.0,
-                    },
-                    {
-                        "model": "random",
-                        "i_split": 1,
-                        "precision@2": 0.375,
-                        "recall@1": 0.5,
-                        "intersection_popular": 0.75,
-                    },
-                ],
-                False,
             ),
         ),
     )
+    @pytest.mark.parametrize("compute_timings", (False, True))
     def test_happy_path_with_intersection_timings(
         self,
         validate_ref_models: bool,
