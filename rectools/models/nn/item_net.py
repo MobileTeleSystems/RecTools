@@ -70,7 +70,7 @@ class CatFeaturesItemNet(ItemNetBase):
             Item embeddings.
         """
         device = self.category_embeddings.weight.device
-        # TODO: Should we use torch.nn.EmbeddingBag?
+        # TODO: Switch to torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
 
         feature_embs = self.category_embeddings(self.feature_catalog.to(device))

@@ -99,6 +99,58 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
+    @staticmethod
+    def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:
+        return torch.zeros_like(mask, dtype=query.dtype).masked_fill_(mask, float("-inf"))
+
+    def _merge_masks(
+        self, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor, query: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Merge `attn_mask` and `key_padding_mask` as a new `attn_mask`.
+        Both masks are expanded to shape ``(batch_size * n_heads, session_max_len, session_max_len)``
+        and combined with logical ``or``.
+        Diagonal elements in last two dimensions are set equal to ``0``.
+        This prevents nan values in gradients for pytorch < 2.5.0 when both masks are present in forward pass of
+        `torch.nn.MultiheadAttention` (https://github.com/pytorch/pytorch/issues/41508).
+
+        Parameters
+        ----------
+        attn_mask:  torch.Tensor. [session_max_len, session_max_len]
+            Boolean causal attention mask.
+        key_padding_mask: torch.Tensor. [batch_size, session_max_len]
+            Boolean padding mask.
+        query: torch.Tensor
+            Query tensor used to acquire correct shapes and dtype for new `attn_mask`.
+
+        Returns
+        -------
+        torch.Tensor. [batch_size * n_heads, session_max_len, session_max_len]
+            Merged mask to use as new `attn_mask` with zeroed diagonal elements in last 2 dimensions.
+        """
+        batch_size, seq_len, _ = query.shape
+
+        key_padding_mask_expanded = self._convert_mask_to_float(  # [batch_size, session_max_len]
+            key_padding_mask, query
+        ).view(
+            batch_size, 1, seq_len
+        )  # [batch_size, 1, session_max_len]
+
+        attn_mask_expanded = (
+            self._convert_mask_to_float(attn_mask, query)  # [session_max_len, session_max_len]
+            .view(1, seq_len, seq_len)
+            .expand(batch_size, -1, -1)
+        )  # [batch_size, session_max_len, session_max_len]
+
+        merged_mask = attn_mask_expanded + key_padding_mask_expanded
+        res = (
+            merged_mask.view(batch_size, 1, seq_len, seq_len)
+            .expand(-1, self.n_heads, -1, -1)
+            .view(-1, seq_len, seq_len)
+        )  # [batch_size * n_heads, session_max_len, session_max_len]
+        torch.diagonal(res, dim1=1, dim2=2).zero_()
+        return res
+
     def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         """
         Pass user history through item embeddings.
@@ -120,18 +172,23 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         session_max_len = sessions.shape[1]
         attn_mask = None
         key_padding_mask = None
-        # TODO: att_mask and key_padding_mask together result into NaN scores
+
+        timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
+
+        seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
+        seqs = self.pos_encoding(seqs)
+        seqs = self.emb_dropout(seqs)
+
         if self.use_causal_attn:
             attn_mask = ~torch.tril(
                 torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
             )
         if self.use_key_padding_mask:
             key_padding_mask = sessions == 0
-        timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
-        seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
-        seqs = self.pos_encoding(seqs)
-        seqs = self.emb_dropout(seqs)
-        # TODO: stop passing timeline_mask together with key_padding_mask because they have same information
+            if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
+                attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
+                key_padding_mask = None
+
         seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
@@ -412,7 +469,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         processed_dataset = self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
 
-        torch_model = deepcopy(self._torch_model)  # TODO: check that it works
+        torch_model = deepcopy(self._torch_model)
         torch_model.construct_item_net(processed_dataset)
 
         n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
@@ -445,7 +502,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         filter_viewed: bool,
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],  # model_internal
     ) -> InternalRecoTriplet:
-        if sorted_item_ids_to_recommend is None:  # TODO: move to _get_sorted_item_ids_to_recommend
+        if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
         recommend_trainer = Trainer(devices=1, accelerator=self.recommend_device)
