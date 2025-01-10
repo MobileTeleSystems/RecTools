@@ -85,18 +85,18 @@ class PreLNTransformerLayers(TransformerLayersBase):
     Pre-LN Transformer Layers as described in "On Layer Normalization in the Transformer
     Architecture" https://arxiv.org/pdf/2002.04745
 
-        Parameters
-        ----------
-        n_blocks: int
-            Number of transformer blocks.
-        n_factors: int
-            Latent embeddings size.
-        n_heads: int
-            Number of attention heads.
-        dropout_rate: float
-            Probability of a hidden unit to be zeroed.
-        ff_factors_multiplier: int
-            Feed-forward layers latent embedding size multiplier.       
+    Parameters
+    ----------
+    n_blocks: int
+        Number of transformer blocks.
+    n_factors: int
+        Latent embeddings size.
+    n_heads: int
+        Number of attention heads.
+    dropout_rate: float
+        Probability of a hidden unit to be zeroed.
+    ff_factors_multiplier: int
+        Feed-forward layers latent embedding size multiplier.
     """
 
     def __init__(
@@ -116,7 +116,10 @@ class PreLNTransformerLayers(TransformerLayersBase):
         self.dropout1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.layer_norm2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors * ff_factors_multiplier, dropout_rate, torch.nn.GELU()) for _ in range(n_blocks)]
+            [
+                PointWiseFeedForward(n_factors, n_factors * ff_factors_multiplier, dropout_rate, torch.nn.GELU())
+                for _ in range(n_blocks)
+            ]
         )
         self.dropout2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.dropout3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
