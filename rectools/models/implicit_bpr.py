@@ -83,12 +83,12 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
     """
     Wrapper for `implicit.bpr.BayesianPersonalizedRanking` model.
 
-    See https://implicit.readthedocs.io/en/latest/bpr.html for details of the base model.
+    See https://benfred.github.io/implicit/api/models/cpu/bpr.html for details of the base model.
 
     Parameters
     ----------
     model : BayesianPersonalizedRanking
-        Baes model to wrap.
+        Base model to wrap.
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
     """
