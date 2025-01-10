@@ -803,6 +803,22 @@ class SessionEncoderDataPreparatorBase:
         )
         return train_dataloader
 
+    def get_dataloader_val(self, processed_dataset: tp.Optional[Dataset]) -> tp.Optional[DataLoader]:
+        """
+        Construct validation dataloader from processed dataset.
+
+        Parameters
+        ----------
+        processed_dataset: Optional(Dataset), default None
+            RecTools dataset prepared for training.
+
+        Returns
+        -------
+        Optional(Dataset)
+            Validation dataloader.
+        """
+        return None
+
     def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
         """TODO"""
         sequence_dataset = SequenceDataset.from_interactions(dataset.interactions.df)
@@ -888,6 +904,13 @@ class SessionEncoderDataPreparatorBase:
         return filtered_dataset
 
     def _collate_fn_train(
+        self,
+        batch: List[Tuple[List[int], List[float]]],
+    ) -> Dict[str, torch.Tensor]:
+        """TODO"""
+        raise NotImplementedError()
+
+    def _collate_fn_val(
         self,
         batch: List[Tuple[List[int], List[float]]],
     ) -> Dict[str, torch.Tensor]:
@@ -987,6 +1010,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
+        raise NotImplementedError()
+
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Validate step."""
         raise NotImplementedError()
 
     def predict_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
