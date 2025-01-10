@@ -21,12 +21,14 @@ import pandas as pd
 import pytest
 
 from rectools import Columns, ExternalId
-from rectools.visuals.visual_app import (AppDataStorage,
-                                         ItemToItemVisualApp,
-                                         StorageFiles,
-                                         TablesDict,
-                                         VisualApp,
-                                         DEFAULT_MODEL_NAME)
+from rectools.visuals.visual_app import (
+    DEFAULT_MODEL_NAME,
+    AppDataStorage,
+    ItemToItemVisualApp,
+    StorageFiles,
+    TablesDict,
+    VisualApp,
+)
 
 RECO_U2I: TablesDict = {
     "model1": pd.DataFrame(
@@ -56,6 +58,7 @@ ITEM_DATA = pd.DataFrame({Columns.Item: [3, 4, 5, 6, 7, 8], "feature_1": ["one",
 INTERACTIONS = pd.DataFrame({Columns.User: [1, 1, 2], Columns.Item: [3, 7, 8]})
 SELECTED_REQUESTS_U2I: tp.Dict[tp.Hashable, tp.Hashable] = {"user_one": 1, "user_three": 3}
 SELECTED_REQUESTS_I2I: tp.Dict[tp.Hashable, tp.Hashable] = {"item_three": 3}
+
 
 def check_data_storages_equal(one: AppDataStorage, two: AppDataStorage) -> None:
     assert one.id_col == two.id_col
@@ -244,13 +247,9 @@ class TestAppDataStorage:
             selected_requests=SELECTED_REQUESTS_U2I,
         )
         expected_grouped_reco = {
-            "model": {
-                "user_one": pd.DataFrame(
-                    {Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]}
-                ),
-                "user_three": pd.DataFrame(
-                    {Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.5]}
-                )
+            DEFAULT_MODEL_NAME: {
+                "user_one": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.99]}),
+                "user_three": pd.DataFrame({Columns.Item: [3], "feature_1": ["one"], Columns.Score: [0.5]}),
             }
         }
         assert expected_grouped_reco.keys() == ads.grouped_reco.keys()
