@@ -156,7 +156,7 @@ class TestImplicitBPRWrapperModel:
             ),
         ),
     )
-    def test_with_allowlist(
+    def test_with_whitelist(
         self,
         dataset: Dataset,
         filter_viewed: bool,
