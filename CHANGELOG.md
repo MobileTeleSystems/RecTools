@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_cat_features` method to `SparseFeatures` ([#221](https://github.com/MobileTeleSystems/RecTools/pull/221))
 - Support `fit_partial()` for LightFM ([#223](https://github.com/MobileTeleSystems/RecTools/pull/223))
 - LightFM Python 3.12+ support ([#224](https://github.com/MobileTeleSystems/RecTools/pull/224))
-- all vector models and `EASEModel` support for enabling ranking on gpu and selecting number of threads for cpu ranking. `recommend_n_threads` and `recommend_use_gpu_ranking` parameters to `EASEModel`, `ImplicitALSWrapperModel` and `PureSVDModel`, `recommend_use_gpu_ranking` to `LightFMWrapperModel`. Gpu and cpu ranking may provide different ordering of items with identical scores in recommendation table, so this could change ordering items in recommendations since gpu ranking is now used as a default one. ([#218](https://github.com/MobileTeleSystems/RecTools/pull/218))
+- all vector models and `EASEModel` support for enabling ranking on gpu and selecting number of threads for cpu ranking. `recommend_n_threads` and `recommend_use_gpu_ranking` parameters to `EASEModel`, `ImplicitALSWrapperModel`, `PureSVDModel` and `DSSMModel`, `recommend_use_gpu_ranking` to `LightFMWrapperModel`. Gpu and cpu ranking may provide different ordering of items with identical scores in recommendation table, so this could change ordering items in recommendations since gpu ranking is now used as a default one. ([#218](https://github.com/MobileTeleSystems/RecTools/pull/218))
 
 ### Fixed
 - Fix Implicit ALS matrix zero assignment size ([#228](https://github.com/MobileTeleSystems/RecTools/pull/228))
