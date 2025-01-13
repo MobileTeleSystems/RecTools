@@ -153,17 +153,16 @@ class ImplicitRanker:
     ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
 
         def _convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> implicit.gpu.Matrix:
-            if arr.base is not None:
-                arr = arr.copy()
-            return implicit.gpu.Matrix(arr)
+            # We need to explicitly create copy to handle transposed arrays correctly
+            return implicit.gpu.Matrix(arr.astype(np.float32).copy())
 
-        object_factors = _convert_arr_to_implicit_gpu_matrix(object_factors.astype(np.float32))
+        object_factors = _convert_arr_to_implicit_gpu_matrix(object_factors)
 
         if isinstance(subject_factors, sparse.spmatrix):
             warnings.warn("Sparse subject factors converted to Dense matrix")
             subject_factors = subject_factors.todense()
 
-        subject_factors = _convert_arr_to_implicit_gpu_matrix(subject_factors.astype(np.float32))
+        subject_factors = _convert_arr_to_implicit_gpu_matrix(subject_factors)
 
         if object_norms is not None:
             if len(np.shape(object_norms)) == 1:
