@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import typing_extensions as tpe
-from pydantic import PlainSerializer
+from pydantic import BeforeValidator, PlainSerializer
 
 FileLike = tp.Union[str, Path, tp.IO[bytes]]
 
@@ -35,6 +35,10 @@ def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.Random
 RandomState = tpe.Annotated[
     tp.Union[None, int, np.random.RandomState],
     PlainSerializer(func=_serialize_random_state, when_used="json"),
+]
+
+DType = tpe.Annotated[
+    np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
 ]
 
 
