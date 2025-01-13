@@ -18,6 +18,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from implicit.gpu import HAS_CUDA
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -32,6 +33,7 @@ from .utils import (
 )
 
 
+@pytest.mark.parametrize("recommend_use_gpu_ranking", (False, True) if HAS_CUDA else (False,))
 class TestEASEModel:
     @pytest.fixture
     def dataset(self) -> Dataset:
@@ -64,8 +66,10 @@ class TestEASEModel:
             ),
         ),
     )
-    def test_basic(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
+    def test_basic(
+        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, recommend_use_gpu_ranking: bool
+    ) -> None:
+        model = EASEModel(regularization=500, recommend_use_gpu_ranking=recommend_use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -101,8 +105,10 @@ class TestEASEModel:
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
+    def test_with_whitelist(
+        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, recommend_use_gpu_ranking: bool
+    ) -> None:
+        model = EASEModel(regularization=500, recommend_use_gpu_ranking=recommend_use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -151,9 +157,14 @@ class TestEASEModel:
         ),
     )
     def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
+        recommend_use_gpu_ranking: bool,
     ) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
+        model = EASEModel(regularization=500, recommend_use_gpu_ranking=recommend_use_gpu_ranking).fit(dataset)
         actual = model.recommend_to_items(
             target_items=np.array([11, 12]),
             dataset=dataset,
@@ -167,7 +178,7 @@ class TestEASEModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset: Dataset) -> None:
+    def test_second_fit_refits_model(self, dataset: Dataset, recommend_use_gpu_ranking: bool) -> None:
         model = EASEModel()
         assert_second_fit_refits_model(model, dataset)
 
@@ -189,7 +200,11 @@ class TestEASEModel:
     )
     @pytest.mark.parametrize("filter_viewed", (True, False))
     def test_u2i_with_warm_and_cold_users(
-        self, filter_viewed: bool, user_features: tp.Optional[pd.DataFrame], error_match: str
+        self,
+        filter_viewed: bool,
+        user_features: tp.Optional[pd.DataFrame],
+        error_match: str,
+        recommend_use_gpu_ranking: bool,
     ) -> None:
         dataset = Dataset.construct(INTERACTIONS, user_features_df=user_features)
         model = EASEModel(regularization=500).fit(dataset)
@@ -217,7 +232,9 @@ class TestEASEModel:
             ),
         ),
     )
-    def test_i2i_with_warm_and_cold_items(self, item_features: tp.Optional[pd.DataFrame], error_match: str) -> None:
+    def test_i2i_with_warm_and_cold_items(
+        self, item_features: tp.Optional[pd.DataFrame], error_match: str, recommend_use_gpu_ranking: bool
+    ) -> None:
         dataset = Dataset.construct(INTERACTIONS, item_features_df=item_features)
         model = EASEModel(regularization=500).fit(dataset)
         with pytest.raises(ValueError, match=error_match):
@@ -227,12 +244,12 @@ class TestEASEModel:
                 k=2,
             )
 
-    def test_dumps_loads(self, dataset: Dataset) -> None:
+    def test_dumps_loads(self, dataset: Dataset, recommend_use_gpu_ranking: bool) -> None:
         model = EASEModel()
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
 
-    def test_warn_with_num_threads(self) -> None:
+    def test_warn_with_num_threads(self, recommend_use_gpu_ranking: bool) -> None:
         with warnings.catch_warnings(record=True) as w:
             EASEModel(num_threads=10)
             assert len(w) == 1
