@@ -80,14 +80,17 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
         ),
     )
     @pytest.mark.parametrize("method", ("u2i", "i2i"))
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_without_biases(
         self,
         distance: Distance,
         expected_reco: tp.List[tp.List[int]],
         expected_scores: tp.List[tp.List[float]],
         method: str,
+        use_gpu_ranking: bool,
     ) -> None:
         model = self.make_model(self.user_factors, self.item_factors, u2i_distance=distance, i2i_distance=distance)
+        model.recommend_use_gpu_ranking = use_gpu_ranking
         if method == "u2i":
             _, reco, scores = model._recommend_u2i(np.array([0, 1]), self.stub_dataset, 5, False, None)
         else:  # i2i
@@ -104,16 +107,19 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
         ),
     )
     @pytest.mark.parametrize("method", ("u2i", "i2i"))
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_with_biases(
         self,
         distance: Distance,
         expected_reco: tp.List[tp.List[int]],
         expected_scores: tp.List[tp.List[float]],
         method: str,
+        use_gpu_ranking: bool,
     ) -> None:
         model = self.make_model(
             self.user_biased_factors, self.item_biased_factors, u2i_distance=distance, i2i_distance=distance
         )
+        model.recommend_use_gpu_ranking = use_gpu_ranking
         if method == "u2i":
             _, reco, scores = model._recommend_u2i(np.array([0, 1]), self.stub_dataset, 5, False, None)
         else:  # i2i
