@@ -215,7 +215,7 @@ class DSSM(LightningModule):
         return vectors
 
 
-class DSSMModel(VectorModel):
+class DSSMModel(VectorModel):  # pylint: disable=too-many-instance-attributes
     """
     Wrapper for `rectools.models.dssm.DSSM`
 
