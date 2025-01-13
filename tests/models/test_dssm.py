@@ -53,8 +53,8 @@ class TestDSSMModel:
                 [14, "f2", "f2val1"],
                 [15, "f1", "f1val2"],
                 [15, "f2", "f2val2"],
-                [17, "f1", "f1val2"],
-                [17, "f2", "f2val3"],
+                [17, "f1", "f1val3"],
+                [17, "f2", "f2val1"],
                 [16, "f1", "f1val2"],
                 [16, "f2", "f2val3"],
             ],
@@ -92,7 +92,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20, 50, 50],
-                        Columns.Item: [13, 15, 15, 17, 11, 12],
+                        Columns.Item: [17, 13, 14, 17, 11, 14],
                         Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
@@ -102,7 +102,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20, 50, 50],
-                        Columns.Item: [12, 11, 11, 12, 11, 12],
+                        Columns.Item: [11, 14, 11, 14, 11, 14],
                         Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
@@ -154,7 +154,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 50, 50, 50],
-                        Columns.Item: [13, 17, 11, 13, 17],
+                        Columns.Item: [17, 13, 11, 17, 13],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -164,7 +164,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 50, 50, 50],
-                        Columns.Item: [11, 13, 17, 11, 13, 17],
+                        Columns.Item: [11, 17, 13, 11, 17, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -265,7 +265,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [11, 15, 12, 13],
+                        Columns.Item: [11, 12, 12, 11],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -276,7 +276,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [15, 12, 13, 11],
+                        Columns.Item: [12, 13, 11, 13],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -287,7 +287,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12],
-                        Columns.Item: [15, 12, 11, 15],
+                        Columns.Item: [12, 15, 11, 15],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
