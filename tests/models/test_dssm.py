@@ -92,7 +92,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 20, 20, 20, 50, 50, 50],
-                        Columns.Item: [13, 15, 17, 14, 15, 17, 11, 12, 13],
+                        Columns.Item: [13, 15, 16, 15, 16, 17, 11, 12, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -102,7 +102,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 20, 20, 20, 50, 50, 50],
-                        Columns.Item: [11, 12, 13, 11, 12, 13, 11, 12, 13],
+                        Columns.Item: [12, 11, 13, 11, 12, 13, 11, 12, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -115,15 +115,15 @@ class TestDSSMModel:
             base_model = None
         else:
             base_model = DSSM(
-                n_factors_item=32,
-                n_factors_user=32,
+                n_factors_item=10,
+                n_factors_user=10,
                 dim_input_item=dataset.item_features.get_sparse().shape[1],  # type: ignore
                 dim_input_user=dataset.user_features.get_sparse().shape[1],  # type: ignore
                 dim_interactions=dataset.get_user_item_matrix().shape[1],
             )
         model = DSSMModel(
             model=base_model,
-            n_factors=32,
+            n_factors=10,
             max_epochs=3,
             batch_size=4,
             deterministic=True,
@@ -250,7 +250,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 11, 12, 12, 12, 16, 16, 16],
-                        Columns.Item: [11, 13, 17, 12, 16, 17, 16, 17, 14],
+                        Columns.Item: [11, 15, 12, 12, 13, 11, 16, 17, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -261,7 +261,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 11, 12, 12, 12, 16, 16, 16],
-                        Columns.Item: [13, 16, 17, 16, 17, 14, 17, 14, 12],
+                        Columns.Item: [15, 12, 16, 13, 11, 15, 17, 15, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -272,7 +272,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [11, 11, 12, 12, 16, 16, 16],
-                        Columns.Item: [12, 15, 15, 11, 12, 11, 15],
+                        Columns.Item: [15, 12, 11, 15, 15, 11, 12],
                         Columns.Rank: [1, 2, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -283,7 +283,7 @@ class TestDSSMModel:
         self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
     ) -> None:
         model = DSSMModel(
-            n_factors=2,
+            n_factors=10,
             max_epochs=3,
             batch_size=4,
             deterministic=True,
