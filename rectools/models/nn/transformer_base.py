@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 from copy import deepcopy
 
@@ -31,25 +45,25 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
     Parameters
     ----------
-    n_blocks: int
+    n_blocks : int
         Number of transformer blocks.
-    n_factors: int
+    n_factors : int
         Latent embeddings size.
-    n_heads: int
+    n_heads : int
         Number of attention heads.
-    session_max_len: int
+    session_max_len : int
         Maximum length of user sequence.
-    dropout_rate: float
+    dropout_rate : float
         Probability of a hidden unit to be zeroed.
-    use_pos_emb: bool, default True
-        If ``True``, adds learnable positional encoding to session item embeddings.
-    use_causal_attn: bool, default True
+    use_pos_emb : bool, default True
+        If ``True``, learnable positional encoding will be added to session item embeddings.
+    use_causal_attn : bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
-    transformer_layers_type: Type(TransformerLayersBase), default `PreLNTransformerLayers`
+    transformer_layers_type : Type(TransformerLayersBase), default `PreLNTransformerLayers`
         Type of transformer layers architecture.
-    item_net_type: Type(ItemNetBase), default IdEmbeddingsItemNet
+    item_net_type : Type(ItemNetBase), default IdEmbeddingsItemNet
         Type of network returning item embeddings.
-    pos_encoding_type: Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
+    pos_encoding_type : Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
         Type of positional encoding.
     """
 
@@ -92,7 +106,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
         Parameters
         ----------
-        dataset: Dataset
+        dataset : Dataset
             RecTools dataset with user-item interactions.
         """
         self.item_model = ItemNetConstructor.from_dataset(
@@ -107,9 +121,9 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
         Parameters
         ----------
-        sessions:  torch.Tensor
+        sessions :  torch.Tensor
             User sessions in the form of sequences of items ids.
-        item_embs: torch.Tensor
+        item_embs : torch.Tensor
             Item embeddings.
 
         Returns
@@ -146,7 +160,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 
         Parameters
         ----------
-        sessions: torch.Tensor
+        sessions : torch.Tensor
             User sessions in the form of sequences of items ids.
 
         Returns
@@ -168,13 +182,13 @@ class SessionEncoderLightningModuleBase(LightningModule):
 
     Parameters
     ----------
-    torch_model: TransformerBasedSessionEncoder
+    torch_model : TransformerBasedSessionEncoder
         Torch model to make recommendations.
-    lr: float
+    lr : float
         Learning rate.
-    loss: str, default "softmax"
+    loss : str, default "softmax"
         Loss function.
-    adam_betas: Tuple[float, float], default (0.9, 0.98)
+    adam_betas : Tuple[float, float], default (0.9, 0.98)
         Coefficients for running averages of gradient and its square.
     """
 
@@ -451,36 +465,35 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         recommend_trainer = Trainer(devices=1, accelerator=self.recommend_device)
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
         session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
-        if session_embs is not None:
-            user_embs = np.concatenate(session_embs, axis=0)
-            user_embs = user_embs[user_ids]
-            item_embs = self.lightning_model.item_embs
-            item_embs_np = item_embs.detach().cpu().numpy()
-
-            ranker = ImplicitRanker(
-                self.u2i_dist,
-                user_embs,  # [n_rec_users, n_factors]
-                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-            )
-            if filter_viewed:
-                user_items = dataset.get_user_item_matrix(include_weights=False)
-                ui_csr_for_filter = user_items[user_ids]
-            else:
-                ui_csr_for_filter = None
-
-            # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
-            user_ids_indices, all_reco_ids, all_scores = ranker.rank(
-                subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
-                k=k,
-                filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
-                sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-                num_threads=self.recommend_n_threads,
-                use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
-            )
-            all_target_ids = user_ids[user_ids_indices]
-        else:
-            explanation = """Received empty recommendations. Used for type-annotation"""
+        if session_embs is None:
+            explanation = """Received empty recommendations."""
             raise ValueError(explanation)
+        user_embs = np.concatenate(session_embs, axis=0)
+        user_embs = user_embs[user_ids]
+        item_embs = self.lightning_model.item_embs
+        item_embs_np = item_embs.detach().cpu().numpy()
+
+        ranker = ImplicitRanker(
+            self.u2i_dist,
+            user_embs,  # [n_rec_users, n_factors]
+            item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+        )
+        if filter_viewed:
+            user_items = dataset.get_user_item_matrix(include_weights=False)
+            ui_csr_for_filter = user_items[user_ids]
+        else:
+            ui_csr_for_filter = None
+
+        # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
+        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
+            subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
+            k=k,
+            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
+            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
+        )
+        all_target_ids = user_ids[user_ids_indices]
         return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
 
     def _recommend_i2i(

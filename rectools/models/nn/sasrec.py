@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 from typing import Dict, List, Tuple, Union
 
@@ -7,19 +21,18 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import Accelerator
 from torch import nn
 
-from rectools.models.nn.transformer_base import (
-    PADDING_VALUE,
-    SessionEncoderLightningModule,
-    SessionEncoderLightningModuleBase,
-    TransformerModelBase,
-)
-
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PointWiseFeedForward,
     PositionalEncodingBase,
     TransformerLayersBase,
+)
+from .transformer_base import (
+    PADDING_VALUE,
+    SessionEncoderLightningModule,
+    SessionEncoderLightningModuleBase,
+    TransformerModelBase,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 
@@ -70,13 +83,13 @@ class SASRecTransformerLayers(TransformerLayersBase):
 
     Parameters
     ----------
-    n_blocks: int
+    n_blocks : int
         Number of transformer blocks.
-    n_factors: int
+    n_factors : int
         Latent embeddings size.
-    n_heads: int
+    n_heads : int
         Number of attention heads.
-    dropout_rate: float
+    dropout_rate : float
         Probability of a hidden unit to be zeroed.
     """
 
@@ -108,11 +121,11 @@ class SASRecTransformerLayers(TransformerLayersBase):
 
         Parameters
         ----------
-        seqs: torch.Tensor
+        seqs : torch.Tensor
             User sequences of item embeddings.
-        timeline_mask: torch.Tensor
+        timeline_mask : torch.Tensor
             Mask to zero out padding elements.
-        attn_mask: torch.Tensor
+        attn_mask : torch.Tensor
             Mask to forbid model to use future interactions.
 
         Returns
@@ -142,73 +155,73 @@ class SASRecModel(TransformerModelBase):
     """
     SASRec model.
 
-    n_blocks: int, default 1
+    n_blocks : int, default 1
         Number of transformer blocks.
-    n_heads: int, default 1
+    n_heads : int, default 1
         Number of attention heads.
-    n_factors: int, default 128
+    n_factors : int, default 128
         Latent embeddings size.
-    use_pos_emb: bool, default ``True``
-        If ``True``, adds learnable positional encoding to session item embeddings.
-    use_causal_attn: bool, default ``True``
-        If ``True``, uses causal mask as attn_mask in Multi-head Attention.  Please note that default
+    use_pos_emb : bool, default ``True``
+        If ``True``, learnable positional encoding will be added to session item embeddings.
+    use_causal_attn : bool, default ``True``
+        If ``True``, causal mask will be added as attn_mask in Multi-head Attention. Please note that default
         SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
         parameter to ``False`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
-    use_key_padding_mask: bool, default ``False``
-        If ``True``, uses key_padding_mask in Multi-head Attention.
-    dropout_rate: float, default 0.2
+    use_key_padding_mask : bool, default ``False``
+        If ``True``, key_padding_mask will be added in Multi-head Attention.
+    dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
-    session_max_len: int, default 32
+    session_max_len : int, default 32
         Maximum length of user sequence.
-    train_min_user_interactions: int, default 2
+    train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater than 1.
-    dataloader_num_workers: int, default 0
+    dataloader_num_workers : int, default 0
         Number of loader worker processes.
-    batch_size: int, default 128
+    batch_size : int, default 128
         How many samples per batch to load.
-    loss: str, default "softmax"
+    loss : {"softmax", "BCE", "gBCE"}, default "softmax"
         Loss function.
-    n_negatives: int, default 1
+    n_negatives : int, default 1
         Number of negatives for BCE and gBCE losses.
-    gbce_t: float, default 0.2
+    gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
-    lr: float, default 0.01
+    lr : float, default 0.01
         Learning rate.
-    epochs: int, default 3
+    epochs : int, default 3
         Number of training epochs.
-    verbose: int, default 0
+    verbose : int, default 0
         Verbosity level.
-    deterministic: bool, default ``False``
-        If ``True``, sets deterministic algorithms for PyTorch operations.
+    deterministic : bool, default ``False``
+        If ``True``, set deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device: Union[str, Accelerator], default "auto"
+    recommend_device : Union[str, Accelerator], default "auto"
         Device for recommend. Used at predict_step of lightning module.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
-    recommend_n_threads: int, default 0
+    recommend_n_threads : int, default 0
         Number of threads to use in ranker.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
-    recommend_use_gpu_ranking: bool, default ``True``
-        If ``True`` and HAS_CUDA ``True``, sets use_gpu=True in ImplicitRanker.rank.
+    recommend_use_gpu_ranking : bool, default ``True``
+        If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
-    trainer: Optional(Trainer), default None
+    trainer : Optional(Trainer), default None
         Which trainer to use for training.
         If trainer is None, default pytorch_lightning Trainer is created.
-    item_net_block_types: Type(ItemNetBase), default (IdEmbeddingsItemNet, CatFeaturesItemNet)
-        Type of network returning item enbeddings.
+    item_net_block_types : Type(ItemNetBase), default (IdEmbeddingsItemNet, CatFeaturesItemNet)
+        Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
         (, CatFeaturesItemNet) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
-    pos_encoding_type: Type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
+    pos_encoding_type : Type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type: Type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type : Type(TransformerLayersBase), default `SasRecTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type: Type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : Type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
-    lightning_module_type: Type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
+    lightning_module_type : Type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
         Type of lightning module defining training procedure.
     """
 

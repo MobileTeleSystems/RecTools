@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import torch
 from torch import nn
 
@@ -9,11 +23,11 @@ class PointWiseFeedForward(nn.Module):
 
     Parameters
     ----------
-    n_factors: int
+    n_factors : int
         Latent embeddings size.
-    n_factors_ff: int
+    n_factors_ff : int
         How many hidden units to use in the network.
-    dropout_rate: float
+    dropout_rate : float
         Probability of a hidden unit to be zeroed.
     """
 
@@ -30,7 +44,7 @@ class PointWiseFeedForward(nn.Module):
 
         Parameters
         ----------
-        seqs: torch.Tensor
+        seqs : torch.Tensor
             User sequences of item embeddings.
 
         Returns
@@ -116,11 +130,11 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
 
     Parameters
     ----------
-    use_pos_emb: bool
-        If ``True``, adds learnable positional encoding to session item embeddings.
-    session_max_len: int
+    use_pos_emb : bool
+        If ``True``, learnable positional encoding will be added to session item embeddings.
+    session_max_len : int
         Maximum length of user sequence.
-    n_factors: int
+    n_factors : int
        Latent embeddings size.
     """
 
@@ -134,9 +148,9 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
 
         Parameters
         ----------
-        sessions: torch.Tensor
+        sessions : torch.Tensor
             User sessions in the form of sequences of items ids.
-        timeline_mask: torch.Tensor
+        timeline_mask : torch.Tensor
             Mask to zero out padding elements.
 
         Returns

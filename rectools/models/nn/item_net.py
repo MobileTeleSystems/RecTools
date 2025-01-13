@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 import warnings
 
@@ -32,11 +46,11 @@ class CatFeaturesItemNet(ItemNetBase):
 
     Parameters
     ----------
-    item_features: SparseFeatures
+    item_features : SparseFeatures
         Storage for sparse features.
-    n_factors: int
+    n_factors : int
         Latent embedding size of item embeddings.
-    dropout_rate: float
+    dropout_rate : float
         Probability of a hidden unit to be zeroed.
     """
 
@@ -61,7 +75,7 @@ class CatFeaturesItemNet(ItemNetBase):
 
         Parameters
         ----------
-        items: torch.Tensor
+        items : torch.Tensor
             Internal item ids.
 
         Returns
@@ -90,7 +104,7 @@ class CatFeaturesItemNet(ItemNetBase):
 
         Parameters
         ----------
-        items: torch.Tensor
+        items : torch.Tensor
             Internal item ids.
 
         Returns
@@ -108,11 +122,11 @@ class CatFeaturesItemNet(ItemNetBase):
 
         Parameters
         ----------
-        dataset: Dataset
+        dataset : Dataset
             RecTools dataset.
-        n_factors: int
+        n_factors : int
             Latent embedding size of item embeddings.
-        dropout_rate: float
+        dropout_rate : float
             Probability of a hidden unit of item embedding to be zeroed.
         """
         item_features = dataset.item_features
@@ -148,11 +162,11 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     Parameters
     ----------
-    n_factors: int
+    n_factors : int
         Latent embedding size of item embeddings.
-    n_items: int
+    n_items : int
         Number of items in the dataset.
-    dropout_rate: float
+    dropout_rate : float
         Probability of a hidden unit to be zeroed.
     """
 
@@ -173,7 +187,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
         Parameters
         ----------
-        items: torch.Tensor
+        items : torch.Tensor
             Internal item ids.
 
         Returns
@@ -198,9 +212,9 @@ class ItemNetConstructor(ItemNetBase):
 
     Parameters
     ----------
-    n_items: int
+    n_items : int
         Number of items in the dataset.
-    item_net_blocks: Sequence(ItemNetBase)
+    item_net_blocks : Sequence(ItemNetBase)
         Latent embedding size of item embeddings.
     """
 
@@ -225,7 +239,7 @@ class ItemNetConstructor(ItemNetBase):
 
         Parameters
         ----------
-        items: torch.Tensor
+        items : torch.Tensor
             Internal item ids.
 
         Returns
@@ -262,13 +276,13 @@ class ItemNetConstructor(ItemNetBase):
 
         Parameters
         ----------
-        dataset: Dataset
+        dataset : Dataset
             RecTools dataset.
-        n_factors: int
+        n_factors : int
             Latent embedding size of item embeddings.
-        dropout_rate: float
+        dropout_rate : float
             Probability of a hidden unit of item embedding to be zeroed.
-        item_net_block_types: Sequence(Type(ItemNetBase))
+        item_net_block_types : Sequence(Type(ItemNetBase))
             Sequence item network block types.
         """
         n_items = dataset.item_id_map.size

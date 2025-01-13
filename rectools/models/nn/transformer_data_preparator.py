@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 import warnings
 
@@ -20,9 +34,9 @@ class SequenceDataset(TorchDataset):
 
     Parameters
     ----------
-    sessions: List[List[int]]
+    sessions : List[List[int]]
         User sessions in the form of sequences of items ids.
-    weights: List[List[float]]
+    weights : List[List[float]]
         Weight of each interaction from the session.
     """
 
@@ -49,7 +63,7 @@ class SequenceDataset(TorchDataset):
 
         Parameters
         ----------
-        interactions: pd.DataFrame
+        interactions : pd.DataFrame
             User-item interactions.
         """
         sessions = (
@@ -72,17 +86,17 @@ class SessionEncoderDataPreparatorBase:
 
     Parameters
     ----------
-    session_max_len: int
+    session_max_len : int
         Maximum length of user sequence.
-    batch_size: int
+    batch_size : int
         How many samples per batch to load.
-    dataloader_num_workers: int
+    dataloader_num_workers : int
         Number of loader worker processes.
-    item_extra_tokens: Sequence(Hashable)
+    item_extra_tokens : Sequence(Hashable)
         Which element to use for sequence padding.
-    shuffle_train: bool, default True
+    shuffle_train : bool, default True
         If ``True``, reshuffles data at each epoch.
-    train_min_user_interactions: int, default 2
+    train_min_user_interactions : int, default 2
         Minimum length of user sequence. Cannot be less than 2.
     """
 
@@ -127,8 +141,10 @@ class SessionEncoderDataPreparatorBase:
         # Filter interactions
         user_stats = interactions[Columns.User].value_counts()
         users = user_stats[user_stats >= self.train_min_user_interactions].index
-        interactions = interactions[(interactions[Columns.User].isin(users))]
-        interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_max_len + 1)
+        interactions = interactions[interactions[Columns.User].isin(users)]
+        interactions = (
+            interactions.sort_values(Columns.Datetime).groupby(Columns.User, sort=True).tail(self.session_max_len + 1)
+        )
 
         # Construct dataset
         # TODO: user features are dropped for now
@@ -175,7 +191,7 @@ class SessionEncoderDataPreparatorBase:
 
         Parameters
         ----------
-        processed_dataset: Dataset
+        processed_dataset : Dataset
             RecTools dataset prepared for training.
 
         Returns
@@ -214,9 +230,9 @@ class SessionEncoderDataPreparatorBase:
 
         Parameters
         ----------
-        dataset: Dataset
+        dataset : Dataset
             RecTools dataset.
-        users: ExternalIds
+        users : ExternalIds
             Array of external user ids to recommend for.
 
         Returns
