@@ -77,6 +77,8 @@ class ImplicitBPRWrapperModelConfig(ModelConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     model: BayesianPersonalizedRankingConfig
+    recommend_n_threads: tp.Optional[int] = None
+    recommend_use_gpu_ranking: tp.Optional[bool] = None
 
 
 class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
@@ -91,6 +93,18 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
         Base model to wrap.
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
+    recommend_n_threads: Optional[int], default ``None``
+        Number of threads to use for recommendation ranking on CPU.
+        If ``None``, then number of threads will be set same as `model.num_threads`.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: Optional[bool], default ``None``
+        Flag to use GPU for recommendation ranking. If ``None``, then will be set same as
+        `model.use_gpu`.
+        `implicit.gpu.HAS_CUDA` will also be checked before inference.  Please note that GPU and CPU
+        ranking may provide different ordering of items with identical scores in recommendation
+        table. If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     recommends_for_warm = False
@@ -101,18 +115,39 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
 
     config_class = ImplicitBPRWrapperModelConfig
 
-    def __init__(self, model: AnyBayesianPersonalizedRanking, verbose: int = 0):
-        self._config = self._make_config(model, verbose)
+    def __init__(
+        self,
+        model: AnyBayesianPersonalizedRanking,
+        verbose: int = 0,
+        recommend_n_threads: tp.Optional[int] = None,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
+    ):
+        self._config = self._make_config(
+            model=model,
+            verbose=verbose,
+            recommend_n_threads=recommend_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
+        )
         super().__init__(verbose=verbose)
         self.model: AnyBayesianPersonalizedRanking
         self._model = model  # for refit
 
-        self.use_gpu = isinstance(model, GPUBayesianPersonalizedRanking)
-        if not self.use_gpu:
-            self.n_threads = model.num_threads
+        if recommend_n_threads is None:
+            recommend_n_threads = model.num_threads if isinstance(model, CPUBayesianPersonalizedRanking) else 0
+        self.recommend_n_threads = recommend_n_threads
+
+        if recommend_use_gpu_ranking is None:
+            recommend_use_gpu_ranking = isinstance(model, GPUBayesianPersonalizedRanking)
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     @classmethod
-    def _make_config(cls, model: AnyBayesianPersonalizedRanking, verbose: int) -> ImplicitBPRWrapperModelConfig:
+    def _make_config(
+        cls,
+        model: AnyBayesianPersonalizedRanking,
+        verbose: int,
+        recommend_n_threads: tp.Optional[int] = None,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
+    ) -> ImplicitBPRWrapperModelConfig:
         model_cls = (
             model.__class__
             if model.__class__ not in (CPUBayesianPersonalizedRanking, GPUBayesianPersonalizedRanking)
@@ -144,6 +179,8 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
             cls=cls,
             model=tp.cast(BayesianPersonalizedRankingConfig, inner_model_config),
             verbose=verbose,
+            recommend_n_threads=recommend_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
         )
 
     def _get_config(self) -> ImplicitBPRWrapperModelConfig:
@@ -157,7 +194,12 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
         if inner_model_cls == BPR_STRING:
             inner_model_cls = BayesianPersonalizedRanking
         model = inner_model_cls(**inner_model_params)
-        return cls(model=model, verbose=config.verbose)
+        return cls(
+            model=model,
+            verbose=config.verbose,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+        )
 
     def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
