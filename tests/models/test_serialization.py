@@ -1,8 +1,23 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 from tempfile import NamedTemporaryFile
 
 import pytest
 from implicit.als import AlternatingLeastSquares
+from implicit.bpr import BayesianPersonalizedRanking
 from implicit.nearest_neighbours import ItemItemRecommender
 from pydantic import ValidationError
 
@@ -17,6 +32,7 @@ from rectools.models import (
     DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
+    ImplicitBPRWrapperModel,
     ImplicitItemKNNWrapperModel,
     LightFMWrapperModel,
     PopularInCategoryModel,
@@ -43,6 +59,7 @@ def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
     mandatory_params = {
         ImplicitItemKNNWrapperModel: {"model": ItemItemRecommender()},
         ImplicitALSWrapperModel: {"model": AlternatingLeastSquares()},
+        ImplicitBPRWrapperModel: {"model": BayesianPersonalizedRanking()},
         LightFMWrapperModel: {"model": LightFM()},
         PopularInCategoryModel: {"category_feature": "some_feature"},
     }
