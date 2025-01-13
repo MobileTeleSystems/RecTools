@@ -709,6 +709,8 @@ class SessionEncoderDataPreparatorBase:
         """TODO"""
         self.item_id_map: IdMap
         self.extra_token_ids: tp.Dict
+        self.val_k_out: int
+        self.val_users: tp.Optional[ExternalIds]
         self.session_max_len = session_max_len
         self.n_negatives = n_negatives
         self.batch_size = batch_size
@@ -730,9 +732,86 @@ class SessionEncoderDataPreparatorBase:
         """Return number of padding elements"""
         return len(self.item_extra_tokens)
 
-    def process_dataset_train(self, dataset: Dataset) -> Dataset:
+    def _prepared_dataset_train_for_val(self, dataset: Dataset, raw_interactions: pd.DataFrame) -> Dataset:
         """TODO"""
-        interactions = dataset.get_raw_interactions()
+        interactions_train = raw_interactions.copy()
+        dataset_train = dataset
+        if self.val_k_out:
+            # Ctreating train dataset
+            interactions_train[f"{Columns.Rank}_inverse"] = (
+                interactions_train.sort_values(Columns.Datetime, ascending=False).groupby(Columns.User).cumcount() + 1
+            )
+            mask_train = ~(
+                (interactions_train[Columns.User].isin(self.val_users))
+                & (interactions_train[f"{Columns.Rank}_inverse"].isin(range(1, self.val_k_out + 1)))
+            )
+            interactions_train.drop(columns=f"{Columns.Rank}_inverse", inplace=True)
+
+            interactions_train = interactions_train[mask_train]
+
+            user_id_map = IdMap.from_values(interactions_train[Columns.User].values)
+            item_id_map = IdMap.from_values(interactions_train[Columns.Item].values)
+            item_features = None
+            if dataset.item_features is not None:
+                item_features = dataset.item_features.take(item_id_map.internal_ids)
+
+            interactions_train = Interactions.from_raw(
+                interactions_train, user_id_map, item_id_map, keep_extra_cols=False
+            )
+            dataset_train = Dataset(user_id_map, dataset.item_id_map, interactions_train, item_features=item_features)
+
+        return dataset_train
+
+    def _processed_dataset_val(self, dataset_train: Dataset, raw_interactions: pd.DataFrame) -> Dataset:
+        """TODO"""
+        interactions_val = raw_interactions.copy()
+        interactions_val = interactions_val[
+            (interactions_val[Columns.User].isin(self.val_users))
+            & (interactions_val[Columns.User].isin(dataset_train.user_id_map.to_external))
+            & (interactions_val[Columns.Item].isin(dataset_train.item_id_map.to_external))
+        ]
+        interactions_val[f"{Columns.Rank}_inverse"] = (
+            interactions_val.sort_values(Columns.Datetime, ascending=False).groupby(Columns.User).cumcount() + 1
+        )
+        mask_val = interactions_val[f"{Columns.Rank}_inverse"].isin(range(1, self.val_k_out + 1))
+        interactions_val.drop(columns=f"{Columns.Rank}_inverse", inplace=True)
+
+        interactions_val.loc[~mask_val, Columns.Weight] = 0
+        interactions_val = (
+            interactions_val.sort_values(Columns.Datetime)
+            .groupby(Columns.User)
+            .tail(self.session_max_len + self.val_k_out)
+        )
+        interactions_val = Interactions.from_raw(
+            interactions_val,
+            dataset_train.user_id_map,
+            dataset_train.item_id_map,
+            keep_extra_cols=False,
+        )
+        processed_dataset_val = Dataset(
+            dataset_train.user_id_map,
+            dataset_train.item_id_map,
+            interactions_val,
+            item_features=dataset_train.item_features,
+        )
+        return processed_dataset_val
+
+    def process_dataset_train(
+        self,
+        dataset: Dataset,
+        val_k_out: int = 0,
+        val_users: tp.Optional[ExternalIds] = None,
+    ) -> tp.Tuple[Dataset, tp.Optional[Dataset]]:
+        """TODO"""
+        self.val_k_out = val_k_out
+        self.val_users = val_users
+
+        raw_interactions = dataset.get_raw_interactions()
+
+        # Ctreating train dataset
+        processed_dataset_train = self._prepared_dataset_train_for_val(dataset, raw_interactions)
+
+        interactions = processed_dataset_train.get_raw_interactions()
 
         # Filter interactions
         user_stats = interactions[Columns.User].value_counts()
@@ -748,13 +827,13 @@ class SessionEncoderDataPreparatorBase:
 
         # get item features
         item_features = None
-        if dataset.item_features is not None:
-            item_features = dataset.item_features
+        if processed_dataset_train.item_features is not None:
+            item_features = processed_dataset_train.item_features
             # TODO: remove assumption on SparseFeatures and add Dense Features support
             if not isinstance(item_features, SparseFeatures):
                 raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
 
-            internal_ids = dataset.item_id_map.convert_to_internal(
+            internal_ids = processed_dataset_train.item_id_map.convert_to_internal(
                 item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
             )
             sorted_item_features = item_features.take(internal_ids)
@@ -771,13 +850,19 @@ class SessionEncoderDataPreparatorBase:
 
         interactions = Interactions.from_raw(interactions, user_id_map, item_id_map)
 
-        dataset = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
+        processed_dataset_train = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
 
-        self.item_id_map = dataset.item_id_map
+        self.item_id_map = processed_dataset_train.item_id_map
 
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
         self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
-        return dataset
+
+        # Ctreating validation dataset
+        processed_dataset_val = None
+        if self.val_k_out:
+            processed_dataset_val = self._processed_dataset_val(processed_dataset_train, raw_interactions)
+
+        return processed_dataset_train, processed_dataset_val
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """
@@ -817,7 +902,18 @@ class SessionEncoderDataPreparatorBase:
         Optional(Dataset)
             Validation dataloader.
         """
-        return None
+        if processed_dataset is None:
+            return None
+
+        sequence_dataset = SequenceDataset.from_interactions(processed_dataset.interactions.df)
+        val_dataloader = DataLoader(
+            sequence_dataset,
+            collate_fn=self._collate_fn_val,
+            batch_size=self.batch_size,
+            num_workers=self.dataloader_num_workers,
+            shuffle=False,
+        )
+        return val_dataloader
 
     def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
         """TODO"""
@@ -928,6 +1024,26 @@ class SessionEncoderDataPreparatorBase:
 class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     """TODO"""
 
+    def __init__(
+        self,
+        session_max_len: int,
+        batch_size: int,
+        dataloader_num_workers: int,
+        shuffle_train: bool = True,
+        item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
+        train_min_user_interactions: int = 2,
+        n_negatives: tp.Optional[int] = None,
+    ) -> None:
+        super().__init__(
+            session_max_len=session_max_len,
+            batch_size=batch_size,
+            dataloader_num_workers=dataloader_num_workers,
+            shuffle_train=shuffle_train,
+            item_extra_tokens=item_extra_tokens,
+            train_min_user_interactions=train_min_user_interactions,
+            n_negatives=n_negatives,
+        )
+
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
@@ -953,6 +1069,34 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
                 low=self.n_item_extra_tokens,
                 high=self.item_id_map.size,
                 size=(batch_size, self.session_max_len, self.n_negatives),
+            )  # [batch_size, session_max_len, n_negatives]
+            batch_dict["negatives"] = negatives
+        return batch_dict
+
+    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+        batch_size = len(batch)
+        x = np.zeros((batch_size, self.session_max_len))
+        y = np.zeros((batch_size, self.val_k_out))
+        yw = np.zeros((batch_size, self.val_k_out))
+        for i, (ses, ses_weights) in enumerate(batch):
+            input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
+            target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0]
+
+            targets = list(map(ses.__getitem__, target_idx))
+            targets_weights = list(map(ses_weights.__getitem__, target_idx))
+
+            # ses: [session_len] -> x[i]: [session_max_len]
+            x[i, -len(input_session) :] = input_session[-self.session_max_len :]
+            y[i, :] = targets  # y[i]: [val_k_out]
+            yw[i, :] = targets_weights  # yw[i]: [val_k_out]
+
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        # TODO: we are sampling negatives for paddings
+        if self.n_negatives is not None:
+            negatives = torch.randint(
+                low=self.n_item_extra_tokens,
+                high=self.item_id_map.size,
+                size=(batch_size, self.val_k_out, self.n_negatives),
             )  # [batch_size, session_max_len, n_negatives]
             batch_dict["negatives"] = negatives
         return batch_dict
@@ -993,6 +1137,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         n_item_extra_tokens: int,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
+        verbose: int = 0,
     ):
         super().__init__()
         self.lr = lr
@@ -1001,6 +1146,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
         self.n_item_extra_tokens = n_item_extra_tokens
+        self.verbose = verbose
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -1024,6 +1170,26 @@ class SessionEncoderLightningModuleBase(LightningModule):
 class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     """Lightning module to train SASRec model."""
 
+    def __init__(
+        self,
+        torch_model: TransformerBasedSessionEncoder,
+        lr: float,
+        gbce_t: float,
+        n_item_extra_tokens: int,
+        loss: str = "softmax",
+        adam_betas: Tuple[float, float] = (0.9, 0.98),
+        verbose: int = 1,
+    ):
+        super().__init__(
+            torch_model=torch_model,
+            lr=lr,
+            gbce_t=gbce_t,
+            n_item_extra_tokens=n_item_extra_tokens,
+            loss=loss,
+            adam_betas=adam_betas,
+            verbose=verbose,
+        )
+
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
         # TODO: init padding embedding with zeros
@@ -1034,17 +1200,42 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
             logits = self._get_full_catalog_logits(x)
-            return self._calc_softmax_loss(logits, y, w)
-        if self.loss == "BCE":
+            train_loss = self._calc_softmax_loss(logits, y, w)
+        elif self.loss == "BCE":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
-            return self._calc_bce_loss(logits, y, w)
-        if self.loss == "gBCE":
+            train_loss = self._calc_bce_loss(logits, y, w)
+        elif self.loss == "gBCE":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
-            return self._calc_gbce_loss(logits, y, w, negatives)
+            train_loss = self._calc_gbce_loss(logits, y, w, negatives)
+        else:
+            raise ValueError(f"loss {self.loss} is not supported")
+        self.log("train/loss", train_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        return train_loss
 
-        raise ValueError(f"loss {self.loss} is not supported")
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Validate step."""
+        x, y, w = batch["x"], batch["y"], batch["yw"]
+        if self.loss == "softmax":
+            logits = self._get_full_catalog_logits(x)
+            last_logits = logits[:, -1:, :]
+            val_loss = self._calc_softmax_loss(last_logits, y, w)
+        elif self.loss == "BCE":
+            negatives = batch["negatives"]
+            logits = self._get_pos_neg_logits(x, y, negatives)
+            last_logits = logits[:, -1:, :]
+            val_loss = self._calc_bce_loss(last_logits, y, w)
+        elif self.loss == "gBCE":
+            negatives = batch["negatives"]
+            logits = self._get_pos_neg_logits(x, y, negatives)
+            last_logits = logits[:, -1:, :]
+            val_loss = self._calc_gbce_loss(last_logits, y, w, negatives)
+        else:
+            raise ValueError(f"loss {self.loss} is not supported")
+
+        self.log("val/loss", val_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        return val_loss
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
@@ -1174,7 +1365,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ) -> None:
-        super().__init__(verbose)
+        super().__init__(verbose=verbose)
         self.recommend_n_threads = recommend_n_threads
         self.recommend_device = recommend_device
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
@@ -1215,12 +1406,17 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
     def _fit(
         self,
         dataset: Dataset,
+        val_k_out: int = 0,
+        val_users: tp.Optional[ExternalIds] = None,
     ) -> None:
-        processed_dataset = self.data_preparator.process_dataset_train(dataset)
-        train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
+        processed_dataset_train, processed_dataset_val = self.data_preparator.process_dataset_train(
+            dataset, val_k_out, val_users
+        )
+        train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset_train)
+        val_dataloader = self.data_preparator.get_dataloader_val(processed_dataset_val)
 
         torch_model = deepcopy(self._torch_model)  # TODO: check that it works
-        torch_model.construct_item_net(processed_dataset)
+        torch_model.construct_item_net(processed_dataset_train)
 
         n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
         self.lightning_model = self.lightning_module_type(
@@ -1229,10 +1425,11 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             loss=self.loss,
             gbce_t=self.gbce_t,
             n_item_extra_tokens=n_item_extra_tokens,
+            verbose=self.verbose,
         )
 
         self.fit_trainer = deepcopy(self._trainer)
-        self.fit_trainer.fit(self.lightning_model, train_dataloader)
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
