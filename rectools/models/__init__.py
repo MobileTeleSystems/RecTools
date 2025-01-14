@@ -38,6 +38,7 @@ Models
 
 from .ease import EASEModel
 from .implicit_als import ImplicitALSWrapperModel
+from .implicit_bpr import ImplicitBPRWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
 from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
@@ -59,6 +60,7 @@ except ImportError:  # pragma: no cover
 __all__ = (
     "EASEModel",
     "ImplicitALSWrapperModel",
+    "ImplicitBPRWrapperModel",
     "ImplicitItemKNNWrapperModel",
     "LightFMWrapperModel",
     "PopularModel",

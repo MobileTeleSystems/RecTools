@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `use_gpu` for PureSVD ([#229](https://github.com/MobileTeleSystems/RecTools/pull/229))
+- `ImplicitBPRWrapperModel` model ([#232](https://github.com/MobileTeleSystems/RecTools/pull/232))
 
 ## [0.9.0] - 11.12.2024
 
