@@ -18,6 +18,7 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 from implicit.als import AlternatingLeastSquares
+from implicit.bpr import BayesianPersonalizedRanking
 from implicit.nearest_neighbours import ItemItemRecommender
 from pydantic import ValidationError
 
@@ -32,6 +33,7 @@ from rectools.models import (
     DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
+    ImplicitBPRWrapperModel,
     ImplicitItemKNNWrapperModel,
     LightFMWrapperModel,
     PopularInCategoryModel,
@@ -58,6 +60,7 @@ def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
     mandatory_params = {
         ImplicitItemKNNWrapperModel: {"model": ItemItemRecommender()},
         ImplicitALSWrapperModel: {"model": AlternatingLeastSquares()},
+        ImplicitBPRWrapperModel: {"model": BayesianPersonalizedRanking()},
         LightFMWrapperModel: {"model": LightFM()},
         PopularInCategoryModel: {"category_feature": "some_feature"},
     }
