@@ -39,6 +39,11 @@ class ItemNetBase(nn.Module):
         """Return item embeddings."""
         raise NotImplementedError()
 
+    @property
+    def device(self) -> torch.device:
+        """Return ItemNet device."""
+        return next(self.parameters()).device
+
 
 class CatFeaturesItemNet(ItemNetBase):
     """
@@ -83,14 +88,13 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        device = self.category_embeddings.weight.device
         # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
 
-        feature_embs = self.category_embeddings(self.feature_catalog.to(device))
+        feature_embs = self.category_embeddings(self.feature_catalog.to(self.device))
         feature_embs = self.drop_layer(feature_embs)
 
-        feature_embeddings_per_items = feature_dense.to(device) @ feature_embs
+        feature_embeddings_per_items = feature_dense.to(self.device) @ feature_embs
         return feature_embeddings_per_items
 
     @property
@@ -195,7 +199,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        item_embs = self.ids_emb(items.to(self.ids_emb.weight.device))
+        item_embs = self.ids_emb(items.to(self.device))
         item_embs = self.drop_layer(item_embs)
         return item_embs
 

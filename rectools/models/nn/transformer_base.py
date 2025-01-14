@@ -338,6 +338,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
+            # ValueError is raised if `param.data` is a tensor with fewer than 2 dimensions.
             try:
                 torch.nn.init.xavier_normal_(param.data)
             except ValueError:

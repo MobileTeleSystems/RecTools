@@ -33,10 +33,10 @@ class PointWiseFeedForward(nn.Module):
 
     def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module) -> None:
         super().__init__()
-        self.ff_linear1 = nn.Linear(n_factors, n_factors_ff)
-        self.ff_dropout1 = torch.nn.Dropout(dropout_rate)
+        self.ff_linear_1 = nn.Linear(n_factors, n_factors_ff)
+        self.ff_dropout_1 = torch.nn.Dropout(dropout_rate)
         self.ff_activation = activation
-        self.ff_linear2 = nn.Linear(n_factors_ff, n_factors)
+        self.ff_linear_2 = nn.Linear(n_factors_ff, n_factors)
 
     def forward(self, seqs: torch.Tensor) -> torch.Tensor:
         """
@@ -52,8 +52,8 @@ class PointWiseFeedForward(nn.Module):
         torch.Tensor
             User sequence that passed through all layers.
         """
-        output = self.ff_activation(self.ff_linear1(seqs))
-        fin = self.ff_linear2(self.ff_dropout1(output))
+        output = self.ff_activation(self.ff_linear_1(seqs))
+        fin = self.ff_linear_2(self.ff_dropout_1(output))
         return fin
 
 
@@ -85,21 +85,21 @@ class PreLNTransformerLayers(TransformerLayersBase):
         self.multi_head_attn = nn.ModuleList(
             [nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
         )
-        self.layer_norm1 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.dropout1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        self.layer_norm2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
+        self.layer_norm_1 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
+        self.dropout_1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
+        self.layer_norm_2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
             [PointWiseFeedForward(n_factors, n_factors * 4, dropout_rate, torch.nn.GELU()) for _ in range(n_blocks)]
         )
-        self.dropout2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        self.dropout3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
+        self.dropout_2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
+        self.dropout_3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
 
     def forward(
         self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
     ) -> torch.Tensor:
         """Forward pass."""
         for i in range(self.n_blocks):
-            mha_input = self.layer_norm1[i](seqs)
+            mha_input = self.layer_norm_1[i](seqs)
             mha_output, _ = self.multi_head_attn[i](
                 mha_input,
                 mha_input,
@@ -108,11 +108,11 @@ class PreLNTransformerLayers(TransformerLayersBase):
                 key_padding_mask=key_padding_mask,
                 need_weights=False,
             )
-            seqs = seqs + self.dropout1[i](mha_output)
-            ff_input = self.layer_norm2[i](seqs)
+            seqs = seqs + self.dropout_1[i](mha_output)
+            ff_input = self.layer_norm_2[i](seqs)
             ff_output = self.feed_forward[i](ff_input)
-            seqs = seqs + self.dropout2[i](ff_output)
-            seqs = self.dropout3[i](seqs)
+            seqs = seqs + self.dropout_2[i](ff_output)
+            seqs = self.dropout_3[i](seqs)
         return seqs
 
 

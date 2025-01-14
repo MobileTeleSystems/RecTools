@@ -199,15 +199,16 @@ class SASRecModel(TransformerModelBase):
         Device for recommend. Used at predict_step of lightning module.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
+        Support {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or custom Accelerator.
     recommend_n_threads : int, default 0
-        Number of threads to use in ranker.
+        Number of threads to use in ranker if GPU ranking is turned off or unavailable.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking : bool, default ``True``
         If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
-    trainer : Optional(Trainer), default None
+    trainer : Trainer, optional, default ``None``
         Which trainer to use for training.
         If trainer is None, default pytorch_lightning Trainer is created.
     item_net_block_types : Type(ItemNetBase), default (IdEmbeddingsItemNet, CatFeaturesItemNet)
