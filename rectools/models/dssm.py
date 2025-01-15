@@ -269,6 +269,7 @@ class DSSMModel(VectorModel):  # pylint: disable=too-many-instance-attributes
         Use `pytorch_lightning.seed_everything` together with this param to fix the random state.
     recommend_n_threads: int, default 0
         Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: bool, default ``True``

@@ -95,6 +95,7 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
         Degree of verbose output. If ``0``, no output will be provided.
     recommend_n_threads: Optional[int], default ``None``
         Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
         If ``None``, then number of threads will be set same as `model.num_threads`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.

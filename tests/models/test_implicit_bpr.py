@@ -480,8 +480,9 @@ class TestImplicitBPRWrapperModelConfiguration:
     def test_get_config_and_from_config_compatibility(
         self, simple_types: bool, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
     ) -> None:
+        # note that num_threads > 1 will make model training undeterministic
         initial_config = {
-            "model": {"factors": 4, "num_threads": 2, "iterations": 2, "random_state": 42},
+            "model": {"factors": 4, "num_threads": 1, "iterations": 2, "random_state": 42},
             "verbose": 1,
             "recommend_use_gpu_ranking": recommend_use_gpu,
             "recommend_n_threads": recommend_n_threads,

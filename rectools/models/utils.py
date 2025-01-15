@@ -16,6 +16,7 @@
 
 import typing as tp
 
+import implicit.gpu
 import numpy as np
 from scipy import sparse
 
@@ -114,3 +115,22 @@ def recommend_from_scores(
         reco_scores = -reco_scores
 
     return reco_ids, reco_scores
+
+
+def convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> implicit.gpu.Matrix:
+    """
+    Safely convert numpy array to implicit.gpu.Matrix.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Array to be converted.
+
+    Returns
+    -------
+    np.ndarray
+        implicit.gpu.Matrix from array.
+    """
+    # We need to explicitly create copy to handle transposed and sliced arrays correctly
+    # since Matrix is created from a direct copy of the underlying memory block, and `.T` is just a view
+    return implicit.gpu.Matrix(arr.astype(np.float32).copy())
