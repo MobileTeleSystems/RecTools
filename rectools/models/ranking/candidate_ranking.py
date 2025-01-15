@@ -385,6 +385,29 @@ class CandidateRankingModel(ModelBase):
             dataset, self.splitter
         )
 
+        candidates = self.get_candidates_with_targets(train_targets, history_dataset)
+        candidates = self.sampler.sample_negatives(candidates)
+
+        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
+
+        return train_with_target
+
+    def get_candidates_with_targets(self, train_targets: pd.DataFrame, history_dataset: Dataset) -> pd.DataFrame:
+        """
+        Prepare candidates with target values set from first-stage candidate generators.
+
+        Parameters
+        ----------
+        train_targets : pd.DataFrame
+            DataFrame containing training targets.
+        history_dataset : Dataset
+            The dataset to fit the candidate generators on.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with target values set.
+        """
         self._fit_candidate_generators(history_dataset, for_train=True)
 
         candidates = self._get_candidates_from_first_stage(
@@ -394,11 +417,7 @@ class CandidateRankingModel(ModelBase):
             for_train=True,
         )
         candidates = self._set_targets_to_candidates(candidates, train_targets)
-        candidates = self.sampler.sample_negatives(candidates)
-
-        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
-
-        return train_with_target
+        return candidates
 
     def _set_targets_to_candidates(self, candidates: pd.DataFrame, train_targets: pd.DataFrame) -> pd.DataFrame:
         """
