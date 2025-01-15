@@ -201,7 +201,7 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
     session_max_len : int
         Maximum length of user sequence.
     n_factors : int
-       Latent embeddings size.
+        Latent embeddings size.
     """
 
     def __init__(self, use_pos_emb: bool, session_max_len: int, n_factors: int):
