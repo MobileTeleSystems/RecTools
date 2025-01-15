@@ -9,12 +9,10 @@ from pytorch_lightning import Trainer, seed_everything
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import BERT4RecModel
+from rectools.models.nn.bert4rec import MASKING_VALUE, PADDING_VALUE, BERT4RecDataPreparator
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
-from rectools.models.nn.bert4rec import PADDING_VALUE, BERT4RecDataPreparator
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
-
-# TODO: tests for BERT4Rec in a separate file (one loss will be enough)
 
 
 class TestBERT4RecModel:
@@ -452,187 +450,194 @@ class TestBERT4RecModel:
         )
 
 
-# class TestSASRecDataPreparator:
+class TestBERT4RecDataPreparator:
 
-#     def setup_method(self) -> None:
-#         self._seed_everything()
+    def setup_method(self) -> None:
+        self._seed_everything()
 
-#     def _seed_everything(self) -> None:
-#         torch.use_deterministic_algorithms(True)
-#         seed_everything(32, workers=True)
+    def _seed_everything(self) -> None:
+        torch.use_deterministic_algorithms(True)
+        seed_everything(32, workers=True)
 
-#     @pytest.fixture
-#     def dataset(self) -> Dataset:
-#         interactions_df = pd.DataFrame(
-#             [
-#                 [10, 13, 1, "2021-11-30"],
-#                 [10, 11, 1, "2021-11-29"],
-#                 [10, 12, 1, "2021-11-29"],
-#                 [30, 11, 1, "2021-11-27"],
-#                 [30, 12, 2, "2021-11-26"],
-#                 [30, 15, 1, "2021-11-25"],
-#                 [40, 11, 1, "2021-11-25"],
-#                 [40, 17, 1, "2021-11-26"],
-#                 [50, 16, 1, "2021-11-25"],
-#                 [10, 14, 1, "2021-11-28"],
-#                 [10, 16, 1, "2021-11-27"],
-#                 [20, 13, 9, "2021-11-28"],
-#             ],
-#             columns=Columns.Interactions,
-#         )
-#         return Dataset.construct(interactions_df)
+    @pytest.fixture
+    def dataset(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 12, 2, "2021-11-26"],
+                [30, 15, 1, "2021-11-25"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 17, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
 
-#     @pytest.fixture
-#     def data_preparator(self) -> SASRecDataPreparator:
-#         return SASRecDataPreparator(
-#             session_max_len=3, batch_size=4, dataloader_num_workers=0, item_extra_tokens=(PADDING_VALUE,)
-#         )
+    @pytest.fixture
+    def data_preparator(self) -> BERT4RecDataPreparator:
+        return BERT4RecDataPreparator(
+            session_max_len=3,
+            n_negatives=None,
+            batch_size=4,
+            dataloader_num_workers=0,
+            train_min_user_interactions=2,
+            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
+            shuffle_train=True,
+            mask_prob=0.2,
+        )
 
-#     @pytest.mark.parametrize(
-#         "expected_user_id_map, expected_item_id_map, expected_interactions",
-#         (
-#             (
-#                 IdMap.from_values([30, 40, 10]),
-#                 IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-#                 Interactions(
-#                     pd.DataFrame(
-#                         [
-#                             [0, 1, 1.0, "2021-11-25"],
-#                             [1, 2, 1.0, "2021-11-25"],
-#                             [0, 3, 2.0, "2021-11-26"],
-#                             [1, 4, 1.0, "2021-11-26"],
-#                             [0, 2, 1.0, "2021-11-27"],
-#                             [2, 5, 1.0, "2021-11-28"],
-#                             [2, 2, 1.0, "2021-11-29"],
-#                             [2, 3, 1.0, "2021-11-29"],
-#                             [2, 6, 1.0, "2021-11-30"],
-#                         ],
-#                         columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-#                     ),
-#                 ),
-#             ),
-#         ),
-#     )
-#     def test_process_dataset_train(
-#         self,
-#         dataset: Dataset,
-#         data_preparator: SASRecDataPreparator,
-#         expected_interactions: Interactions,
-#         expected_item_id_map: IdMap,
-#         expected_user_id_map: IdMap,
-#     ) -> None:
-#         actual = data_preparator.process_dataset_train(dataset)
-#         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-#         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-#         assert_interactions_set_equal(actual.interactions, expected_interactions)
+    @pytest.mark.parametrize(
+        "expected_user_id_map, expected_item_id_map, expected_interactions",
+        (
+            (
+                IdMap.from_values([30, 40, 10]),
+                IdMap.from_values(["PAD", "MASK", 15, 11, 12, 17, 14, 13]),
+                Interactions(
+                    pd.DataFrame(
+                        [
+                            [0, 2, 1.0, "2021-11-25"],
+                            [1, 3, 1.0, "2021-11-25"],
+                            [0, 4, 2.0, "2021-11-26"],
+                            [1, 5, 1.0, "2021-11-26"],
+                            [0, 3, 1.0, "2021-11-27"],
+                            [2, 6, 1.0, "2021-11-28"],
+                            [2, 3, 1.0, "2021-11-29"],
+                            [2, 4, 1.0, "2021-11-29"],
+                            [2, 7, 1.0, "2021-11-30"],
+                        ],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                    ),
+                ),
+            ),
+        ),
+    )
+    def test_process_dataset_train(
+        self,
+        dataset: Dataset,
+        data_preparator: BERT4RecDataPreparator,
+        expected_interactions: Interactions,
+        expected_item_id_map: IdMap,
+        expected_user_id_map: IdMap,
+    ) -> None:
+        actual = data_preparator.process_dataset_train(dataset)
+        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
+        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
+        assert_interactions_set_equal(actual.interactions, expected_interactions)
 
-#     @pytest.mark.parametrize(
-#         "expected_user_id_map, expected_item_id_map, expected_interactions",
-#         (
-#             (
-#                 IdMap.from_values([10, 20]),
-#                 IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-#                 Interactions(
-#                     pd.DataFrame(
-#                         [
-#                             [0, 6, 1.0, "2021-11-30"],
-#                             [0, 2, 1.0, "2021-11-29"],
-#                             [0, 3, 1.0, "2021-11-29"],
-#                             [0, 5, 1.0, "2021-11-28"],
-#                             [1, 6, 9.0, "2021-11-28"],
-#                         ],
-#                         columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-#                     ),
-#                 ),
-#             ),
-#         ),
-#     )
-#     def test_transform_dataset_u2i(
-#         self,
-#         dataset: Dataset,
-#         data_preparator: SASRecDataPreparator,
-#         expected_interactions: Interactions,
-#         expected_item_id_map: IdMap,
-#         expected_user_id_map: IdMap,
-#     ) -> None:
-#         data_preparator.process_dataset_train(dataset)
-#         users = [10, 20]
-#         actual = data_preparator.transform_dataset_u2i(dataset, users)
-#         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-#         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-#         assert_interactions_set_equal(actual.interactions, expected_interactions)
+    @pytest.mark.parametrize(
+        "expected_user_id_map, expected_item_id_map, expected_interactions",
+        (
+            (
+                IdMap.from_values([10, 20]),
+                IdMap.from_values(["PAD", "MASK", 15, 11, 12, 17, 14, 13]),
+                Interactions(
+                    pd.DataFrame(
+                        [
+                            [0, 7, 1.0, "2021-11-30"],
+                            [0, 3, 1.0, "2021-11-29"],
+                            [0, 4, 1.0, "2021-11-29"],
+                            [0, 6, 1.0, "2021-11-28"],
+                            [1, 7, 9.0, "2021-11-28"],
+                        ],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                    ),
+                ),
+            ),
+        ),
+    )
+    def test_transform_dataset_u2i(
+        self,
+        dataset: Dataset,
+        data_preparator: BERT4RecDataPreparator,
+        expected_interactions: Interactions,
+        expected_item_id_map: IdMap,
+        expected_user_id_map: IdMap,
+    ) -> None:
+        data_preparator.process_dataset_train(dataset)
+        users = [10, 20]
+        actual = data_preparator.transform_dataset_u2i(dataset, users)
+        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
+        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
+        assert_interactions_set_equal(actual.interactions, expected_interactions)
 
-#     @pytest.mark.parametrize(
-#         "expected_user_id_map, expected_item_id_map, expected_interactions",
-#         (
-#             (
-#                 IdMap.from_values([10, 30, 40, 50, 20]),
-#                 IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-#                 Interactions(
-#                     pd.DataFrame(
-#                         [
-#                             [0, 6, 1.0, "2021-11-30"],
-#                             [0, 2, 1.0, "2021-11-29"],
-#                             [0, 3, 1.0, "2021-11-29"],
-#                             [1, 2, 1.0, "2021-11-27"],
-#                             [1, 3, 2.0, "2021-11-26"],
-#                             [1, 1, 1.0, "2021-11-25"],
-#                             [2, 2, 1.0, "2021-11-25"],
-#                             [2, 4, 1.0, "2021-11-26"],
-#                             [0, 5, 1.0, "2021-11-28"],
-#                             [4, 6, 9.0, "2021-11-28"],
-#                         ],
-#                         columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-#                     ),
-#                 ),
-#             ),
-#         ),
-#     )
-#     def test_tranform_dataset_i2i(
-#         self,
-#         dataset: Dataset,
-#         data_preparator: SASRecDataPreparator,
-#         expected_interactions: Interactions,
-#         expected_item_id_map: IdMap,
-#         expected_user_id_map: IdMap,
-#     ) -> None:
-#         data_preparator.process_dataset_train(dataset)
-#         actual = data_preparator.transform_dataset_i2i(dataset)
-#         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-#         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-#         assert_interactions_set_equal(actual.interactions, expected_interactions)
+    @pytest.mark.parametrize(
+        "expected_user_id_map, expected_item_id_map, expected_interactions",
+        (
+            (
+                IdMap.from_values([10, 30, 40, 50, 20]),
+                IdMap.from_values(["PAD", "MASK", 15, 11, 12, 17, 14, 13]),
+                Interactions(
+                    pd.DataFrame(
+                        [
+                            [0, 7, 1.0, "2021-11-30"],
+                            [0, 3, 1.0, "2021-11-29"],
+                            [0, 4, 1.0, "2021-11-29"],
+                            [1, 3, 1.0, "2021-11-27"],
+                            [1, 4, 2.0, "2021-11-26"],
+                            [1, 2, 1.0, "2021-11-25"],
+                            [2, 3, 1.0, "2021-11-25"],
+                            [2, 5, 1.0, "2021-11-26"],
+                            [0, 6, 1.0, "2021-11-28"],
+                            [4, 7, 9.0, "2021-11-28"],
+                        ],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                    ),
+                ),
+            ),
+        ),
+    )
+    def test_tranform_dataset_i2i(
+        self,
+        dataset: Dataset,
+        data_preparator: BERT4RecDataPreparator,
+        expected_interactions: Interactions,
+        expected_item_id_map: IdMap,
+        expected_user_id_map: IdMap,
+    ) -> None:
+        data_preparator.process_dataset_train(dataset)
+        actual = data_preparator.transform_dataset_i2i(dataset)
+        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
+        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
+        assert_interactions_set_equal(actual.interactions, expected_interactions)
 
-#     @pytest.mark.parametrize(
-#         "train_batch",
-#         (
-#             (
-#                 {
-#                     "x": torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
-#                     "y": torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
-#                     "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 2.0, 1.0], [0.0, 0.0, 1.0]]),
-#                 }
-#             ),
-#         ),
-#     )
-#     def test_get_dataloader_train(
-#         self, dataset: Dataset, data_preparator: SASRecDataPreparator, train_batch: tp.List
-#     ) -> None:
-#         dataset = data_preparator.process_dataset_train(dataset)
-#         dataloader = data_preparator.get_dataloader_train(dataset)
-#         actual = next(iter(dataloader))
-#         for key, value in actual.items():
-#             assert torch.equal(value, train_batch[key])
+    @pytest.mark.parametrize(
+        "train_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[6, 3, 4, 7], [0, 2, 4, 1], [0, 0, 3, 5]]),
+                    "y": torch.tensor([[0, 0, 0, 0], [0, 0, 0, 3], [0, 0, 0, 0]]),
+                    "yw": torch.tensor([[1, 1, 1, 1], [0, 1, 2, 1], [0, 0, 1, 1]], dtype=torch.float),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_train(
+        self, dataset: Dataset, data_preparator: BERT4RecDataPreparator, train_batch: tp.List
+    ) -> None:
+        dataset = data_preparator.process_dataset_train(dataset)
+        dataloader = data_preparator.get_dataloader_train(dataset)
+        actual = next(iter(dataloader))
+        for key, value in actual.items():
+            assert torch.equal(value, train_batch[key])
 
-#     @pytest.mark.parametrize(
-#         "recommend_batch",
-#         (({"x": torch.tensor([[2, 3, 6], [1, 3, 2], [0, 2, 4], [0, 0, 6]])}),),
-#     )
-#     def test_get_dataloader_recommend(
-#         self, dataset: Dataset, data_preparator: SASRecDataPreparator, recommend_batch: torch.Tensor
-#     ) -> None:
-#         data_preparator.process_dataset_train(dataset)
-#         dataset = data_preparator.transform_dataset_i2i(dataset)
-#         dataloader = data_preparator.get_dataloader_recommend(dataset)
-#         actual = next(iter(dataloader))
-#         for key, value in actual.items():
-#             assert torch.equal(value, recommend_batch[key])
+    @pytest.mark.parametrize(
+        "recommend_batch",
+        (({"x": torch.tensor([[3, 4, 7, 1], [2, 4, 3, 1], [0, 3, 5, 1], [0, 0, 7, 1]])}),),
+    )
+    def test_get_dataloader_recommend(
+        self, dataset: Dataset, data_preparator: BERT4RecDataPreparator, recommend_batch: torch.Tensor
+    ) -> None:
+        data_preparator.process_dataset_train(dataset)
+        dataset = data_preparator.transform_dataset_i2i(dataset)
+        dataloader = data_preparator.get_dataloader_recommend(dataset)
+        actual = next(iter(dataloader))
+        for key, value in actual.items():
+            assert torch.equal(value, recommend_batch[key])
