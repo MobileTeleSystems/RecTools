@@ -762,7 +762,7 @@ class SessionEncoderDataPreparatorBase:
 
         return dataset_train
 
-    def _processed_dataset_val(self, dataset_train: Dataset, raw_interactions: pd.DataFrame) -> Dataset:
+    def _processed_interactions_val(self, dataset_train: Dataset, raw_interactions: pd.DataFrame) -> pd.DataFrame:
         """TODO"""
         interactions_val = raw_interactions.copy()
         interactions_val = interactions_val[
@@ -788,20 +788,15 @@ class SessionEncoderDataPreparatorBase:
             dataset_train.item_id_map,
             keep_extra_cols=False,
         )
-        processed_dataset_val = Dataset(
-            dataset_train.user_id_map,
-            dataset_train.item_id_map,
-            interactions_val,
-            item_features=dataset_train.item_features,
-        )
-        return processed_dataset_val
+        interactions_val = interactions_val.df
+        return interactions_val
 
     def process_dataset_train(
         self,
         dataset: Dataset,
         val_k_out: int = 0,
         val_users: tp.Optional[ExternalIds] = None,
-    ) -> tp.Tuple[Dataset, tp.Optional[Dataset]]:
+    ) -> tp.Tuple[Dataset, pd.DataFrame]:
         """TODO"""
         self.val_k_out = val_k_out
         self.val_users = val_users
@@ -858,11 +853,11 @@ class SessionEncoderDataPreparatorBase:
         self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
 
         # Ctreating validation dataset
-        processed_dataset_val = None
+        processed_interactions_val = None
         if self.val_k_out:
-            processed_dataset_val = self._processed_dataset_val(processed_dataset_train, raw_interactions)
+            processed_interactions_val = self._processed_interactions_val(processed_dataset_train, raw_interactions)
 
-        return processed_dataset_train, processed_dataset_val
+        return processed_dataset_train, processed_interactions_val
 
     def get_dataloader_train(self, processed_dataset: Dataset) -> DataLoader:
         """
@@ -888,7 +883,7 @@ class SessionEncoderDataPreparatorBase:
         )
         return train_dataloader
 
-    def get_dataloader_val(self, processed_dataset: tp.Optional[Dataset]) -> tp.Optional[DataLoader]:
+    def get_dataloader_val(self, processed_interactions: pd.DataFrame) -> tp.Optional[DataLoader]:
         """
         Construct validation dataloader from processed dataset.
 
@@ -902,10 +897,10 @@ class SessionEncoderDataPreparatorBase:
         Optional(Dataset)
             Validation dataloader.
         """
-        if processed_dataset is None:
+        if processed_interactions is None:
             return None
 
-        sequence_dataset = SequenceDataset.from_interactions(processed_dataset.interactions.df)
+        sequence_dataset = SequenceDataset.from_interactions(processed_interactions)
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -1135,9 +1130,11 @@ class SessionEncoderLightningModuleBase(LightningModule):
         lr: float,
         gbce_t: float,
         n_item_extra_tokens: int,
+        train_interactions: pd.DataFrame,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
         verbose: int = 0,
+        val_max_k: tp.Optional[int] = None,
     ):
         super().__init__()
         self.lr = lr
@@ -1147,6 +1144,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.gbce_t = gbce_t
         self.n_item_extra_tokens = n_item_extra_tokens
         self.verbose = verbose
+        self.train_interactions = train_interactions
+        self.val_max_k = val_max_k
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -1176,9 +1175,11 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         lr: float,
         gbce_t: float,
         n_item_extra_tokens: int,
+        train_interactions: pd.DataFrame,
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
         verbose: int = 1,
+        val_max_k: tp.Optional[int] = None,
     ):
         super().__init__(
             torch_model=torch_model,
@@ -1188,7 +1189,13 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             loss=loss,
             adam_betas=adam_betas,
             verbose=verbose,
+            train_interactions=train_interactions,
+            val_max_k=val_max_k,
         )
+
+        if self.val_max_k is not None and self.loss == "softmax":
+            self.epoch_val_recos: tp.List[tp.List[int]] = []
+            self.epoch_targets: tp.List[tp.List[int]] = []
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
@@ -1211,6 +1218,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             train_loss = self._calc_gbce_loss(logits, y, w, negatives)
         else:
             raise ValueError(f"loss {self.loss} is not supported")
+
         self.log("train/loss", train_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return train_loss
 
@@ -1221,6 +1229,12 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             logits = self._get_full_catalog_logits(x)
             last_logits = logits[:, -1:, :]
             val_loss = self._calc_softmax_loss(last_logits, y, w)
+
+            if self.val_max_k is not None:
+                _, sorted_batch_recos = last_logits.topk(k=self.val_max_k)
+                self.epoch_val_recos.extend(sorted_batch_recos.squeeze().tolist())
+                self.epoch_targets.extend(y.tolist())
+
         elif self.loss == "BCE":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
@@ -1364,6 +1378,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        val_max_k: tp.Optional[int] = None,
+        # split_dataset_train_val: tp.Optional[tp.Callable] = None,
     ) -> None:
         super().__init__(verbose=verbose)
         self.recommend_n_threads = recommend_n_threads
@@ -1402,6 +1418,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         self.lr = lr
         self.loss = loss
         self.gbce_t = gbce_t
+        self.val_max_k = val_max_k
+        # self.split_dataset_train_val = split_dataset_train_val
 
     def _fit(
         self,
@@ -1409,11 +1427,12 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         val_k_out: int = 0,
         val_users: tp.Optional[ExternalIds] = None,
     ) -> None:
-        processed_dataset_train, processed_dataset_val = self.data_preparator.process_dataset_train(
+        # TODO: create callback function `split_dataset_train_val` and add callback to __init__
+        processed_dataset_train, processed_interactions_val = self.data_preparator.process_dataset_train(
             dataset, val_k_out, val_users
         )
         train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset_train)
-        val_dataloader = self.data_preparator.get_dataloader_val(processed_dataset_val)
+        val_dataloader = self.data_preparator.get_dataloader_val(processed_interactions_val)
 
         torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         torch_model.construct_item_net(processed_dataset_train)
@@ -1426,6 +1445,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             gbce_t=self.gbce_t,
             n_item_extra_tokens=n_item_extra_tokens,
             verbose=self.verbose,
+            val_max_k=self.val_max_k,
+            train_interactions=processed_dataset_train.interactions.df,
         )
 
         self.fit_trainer = deepcopy(self._trainer)
@@ -1624,6 +1645,8 @@ class SASRecModel(TransformerModelBase):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        val_max_k: tp.Optional[int] = None,
+        # split_dataset_train_val: tp.Optional[tp.Callable] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -1649,6 +1672,8 @@ class SASRecModel(TransformerModelBase):
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            val_max_k=val_max_k,
+            # split_dataset_train_val=split_dataset_train_val,
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
