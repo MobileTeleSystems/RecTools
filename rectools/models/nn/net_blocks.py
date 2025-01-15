@@ -216,8 +216,6 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         ----------
         sessions : torch.Tensor
             User sessions in the form of sequences of items ids.
-        timeline_mask : torch.Tensor
-            Mask to zero out padding elements.
 
         Returns
         -------
