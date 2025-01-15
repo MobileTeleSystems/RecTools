@@ -286,7 +286,7 @@ class ItemNetConstructor(ItemNetBase):
             Latent embedding size of item embeddings.
         dropout_rate : float
             Probability of a hidden unit of item embedding to be zeroed.
-        item_net_block_types : Sequence(Type(ItemNetBase))
+        item_net_block_types : sequence of `type(ItemNetBase)`
             Sequence item network block types.
         """
         n_items = dataset.item_id_map.size
