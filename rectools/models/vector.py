@@ -41,8 +41,11 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    recommend_n_threads: int = 0
-    recommend_use_gpu_ranking: bool = True
+
+    def __init__(self, verbose: int = 0, **kwargs: tp.Any) -> None:
+        super().__init__(verbose=verbose)
+        self.recommend_n_threads: int
+        self.recommend_use_gpu_ranking: bool
 
     def _recommend_u2i(
         self,

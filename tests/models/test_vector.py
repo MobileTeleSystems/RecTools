@@ -59,6 +59,11 @@ class TestVectorModel:  # pylint: disable=protected-access, attribute-defined-ou
             u2i_dist = u2i_distance
             i2i_dist = i2i_distance
 
+            def __init__(self, verbose: int = 0):
+                super().__init__(verbose=verbose)
+                self.recommend_n_threads = 1
+                self.recommend_use_gpu_ranking = False
+
             def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
                 pass
 

@@ -117,7 +117,7 @@ def recommend_from_scores(
     return reco_ids, reco_scores
 
 
-def convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> implicit.gpu.Matrix:
+def convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> tp.Any:
     """
     Safely convert numpy array to implicit.gpu.Matrix.
 
