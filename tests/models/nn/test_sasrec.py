@@ -29,8 +29,6 @@ from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
 # TODO: add tests with BCE and GBCE
-# TODO: tests for BERT4Rec in a separate file (one loss will be enough)
-
 
 class TestSASRecModel:
     def setup_method(self) -> None:
@@ -204,6 +202,59 @@ class TestSASRecModel:
             expected = expected_cpu_2
         else:
             expected = expected_gpu
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "loss,expected",
+        (
+            (
+                "BCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+            (
+                "gBCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+        ),
+    )
+    def test_u2i_losses(
+        self,
+        dataset: Dataset,
+        loss: str,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = SASRecModel(
+            n_negatives=2,
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+        )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
