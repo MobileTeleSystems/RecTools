@@ -133,4 +133,4 @@ def convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> tp.Any:
     """
     # We need to explicitly create copy to handle transposed and sliced arrays correctly
     # since Matrix is created from a direct copy of the underlying memory block, and `.T` is just a view
-    return implicit.gpu.Matrix(arr.astype(np.float32).copy())
+    return implicit.gpu.Matrix(arr.astype(np.float32).copy())  # pragma: no cover
