@@ -181,9 +181,9 @@ class BERT4RecModel(TransformerModelBase):
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : type(SessionEncoderDataPreparatorBase), default `BERT4RecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
         Type of lightning module defining training procedure.
