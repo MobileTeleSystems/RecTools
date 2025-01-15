@@ -23,7 +23,6 @@ import implicit.gpu
 import numpy as np
 from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
 from implicit.gpu import HAS_CUDA
-from implicit.utils import check_blas_config
 from scipy import sparse
 
 from rectools import InternalIds
@@ -257,7 +256,6 @@ class ImplicitRanker:
                 filter_query_items=filter_query_items,
             )
         else:
-            check_blas_config()
             ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
                 items=object_factors,
                 query=subject_factors,
