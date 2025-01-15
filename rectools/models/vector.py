@@ -18,6 +18,7 @@ import typing as tp
 
 import attr
 import numpy as np
+from implicit.gpu import HAS_CUDA
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
@@ -40,7 +41,11 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
     u2i_dist: Distance = NotImplemented
     i2i_dist: Distance = NotImplemented
-    n_threads: int = 0  # TODO: decide how to pass it correctly for all models
+
+    def __init__(self, verbose: int = 0, **kwargs: tp.Any) -> None:
+        super().__init__(verbose=verbose)
+        self.recommend_n_threads: int
+        self.recommend_use_gpu_ranking: bool
 
     def _recommend_u2i(
         self,
@@ -65,7 +70,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.n_threads,
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     def _recommend_i2i(
@@ -84,7 +90,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.n_threads,
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     def _process_biases_to_vectors(

@@ -34,6 +34,8 @@ class PureSVDModelConfig(ModelConfig):
     tol: float = 0
     maxiter: tp.Optional[int] = None
     random_state: tp.Optional[int] = None
+    recommend_n_threads: int = 0
+    recommend_use_gpu_ranking: bool = True
 
 
 class PureSVDModel(VectorModel[PureSVDModelConfig]):
@@ -54,6 +56,17 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         Pseudorandom number generator state used to generate resamples.
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
+    recommend_n_threads: int, default 0
+        Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: bool, default ``True``
+        Flag to use GPU for recommendation ranking. Please note that GPU and CPU ranking may provide
+        different ordering of items with identical scores in recommendation table.
+        If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     recommends_for_warm = False
@@ -71,6 +84,8 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         maxiter: tp.Optional[int] = None,
         random_state: tp.Optional[int] = None,
         verbose: int = 0,
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
     ):
         super().__init__(verbose=verbose)
 
@@ -78,6 +93,8 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.tol = tol
         self.maxiter = maxiter
         self.random_state = random_state
+        self.recommend_n_threads = recommend_n_threads
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
@@ -90,6 +107,8 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             maxiter=self.maxiter,
             random_state=self.random_state,
             verbose=self.verbose,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
         )
 
     @classmethod
@@ -100,6 +119,8 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             maxiter=config.maxiter,
             random_state=config.random_state,
             verbose=config.verbose,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
         )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
