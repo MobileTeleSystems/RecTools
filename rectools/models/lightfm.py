@@ -108,11 +108,11 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         Will be used as `epochs` parameter for `LightFM.fit`.
     num_threads: int, default 1
         Will be used as `num_threads` parameter for `LightFM.fit`. Should be larger then 0.
-        This will also be used as number of threads to use for recommendation ranking on CPU.
-        If you want to change number of threads for ranking after model is initialized,
-        you can manually assign new value to model `recommend_n_threads` attribute.
+        Can also be used as number of threads for recommendation ranking on CPU.
+        See `recommend_n_threads` for details.
     recommend_n_threads: Optional[int], default ``None``
         Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
         If ``None``, then number of threads will be set same as `num_threads`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
@@ -149,12 +149,10 @@ class LightFMWrapperModel(FixedColdRecoModelMixin, VectorModel[LightFMWrapperMod
         self._model = model
         self.n_epochs = epochs
         self.n_threads = num_threads
-        self._recommend_n_threads = recommend_n_threads
-        self.recommend_n_threads = 0
+        self._recommend_n_threads = recommend_n_threads  # used to make a config
+        self.recommend_n_threads = num_threads
         if recommend_n_threads is not None:
             self.recommend_n_threads = recommend_n_threads
-        elif num_threads > 0:
-            self.recommend_n_threads = num_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _get_config(self) -> LightFMWrapperModelConfig:

@@ -33,6 +33,7 @@ from rectools.utils.misc import get_class_or_function_full_path, import_object
 from rectools.utils.serialization import DType, RandomState
 
 from .rank import Distance
+from .utils import convert_arr_to_implicit_gpu_matrix
 from .vector import Factors, VectorModel
 
 ALS_STRING = "AlternatingLeastSquares"
@@ -114,6 +115,7 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         See documentations linked above for details.
     recommend_n_threads: Optional[int], default ``None``
         Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
         If ``None``, then number of threads will be set same as `model.num_threads`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
@@ -352,9 +354,8 @@ def fit_als_with_features_separately_inplace(
     """
     # If model was fitted we should drop any learnt embeddings except actual latent factors
     if model.user_factors is not None and model.item_factors is not None:
-        # Without .copy() gpu.Matrix will break correct slicing
-        user_factors = get_users_vectors(model)[:, : model.factors].copy()
-        item_factors = get_items_vectors(model)[:, : model.factors].copy()
+        user_factors = get_users_vectors(model)[:, : model.factors]
+        item_factors = get_items_vectors(model)[:, : model.factors]
         _set_factors(model, user_factors, item_factors)
 
     iu_csr = ui_csr.T.tocsr(copy=False)
@@ -384,8 +385,8 @@ def fit_als_with_features_separately_inplace(
 
 def _set_factors(model: AnyAlternatingLeastSquares, user_factors: np.ndarray, item_factors: np.ndarray) -> None:
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-        user_factors = implicit.gpu.Matrix(user_factors)
-        item_factors = implicit.gpu.Matrix(item_factors)
+        user_factors = convert_arr_to_implicit_gpu_matrix(user_factors)
+        item_factors = convert_arr_to_implicit_gpu_matrix(item_factors)
     model.user_factors = user_factors
     model.item_factors = item_factors
 
@@ -403,7 +404,7 @@ def _fit_paired_factors(
     }
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         features_model = GPUAlternatingLeastSquares(**features_model_params)
-        features_model.item_factors = implicit.gpu.Matrix(y_factors)
+        features_model.item_factors = convert_arr_to_implicit_gpu_matrix(y_factors)
         features_model.fit(xy_csr)
         x_factors = features_model.user_factors.to_numpy()
     else:
@@ -643,8 +644,8 @@ def _fit_combined_factors_on_gpu_inplace(
 
     iu_csr_cuda = implicit.gpu.CSRMatrix(iu_csr)
     ui_csr_cuda = implicit.gpu.CSRMatrix(ui_csr)
-    X = implicit.gpu.Matrix(user_factors)
-    Y = implicit.gpu.Matrix(item_factors)
+    X = convert_arr_to_implicit_gpu_matrix(user_factors)
+    Y = convert_arr_to_implicit_gpu_matrix(item_factors)
 
     # invalidate cached norms and squared factors
     model._item_norms = model._user_norms = None  # pylint: disable=protected-access
@@ -661,14 +662,14 @@ def _fit_combined_factors_on_gpu_inplace(
 
         user_factors_np = X.to_numpy()
         user_factors_np[:, :n_user_explicit_factors] = user_explicit_factors
-        X = implicit.gpu.Matrix(user_factors_np)
+        X = convert_arr_to_implicit_gpu_matrix(user_factors_np)
 
         model.solver.calculate_yty(X, _XtX, model.regularization)
         model.solver.least_squares(iu_csr_cuda, Y, _XtX, X, model.cg_steps)
 
         item_factors_np = Y.to_numpy()
         item_factors_np[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
-        Y = implicit.gpu.Matrix(item_factors_np)
+        Y = convert_arr_to_implicit_gpu_matrix(item_factors_np)
 
     model.user_factors = X
     model.item_factors = Y

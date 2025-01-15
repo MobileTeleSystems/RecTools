@@ -30,6 +30,8 @@ from rectools import InternalIds
 from rectools.models.base import Scores
 from rectools.types import InternalIdsArray
 
+from .utils import convert_arr_to_implicit_gpu_matrix
+
 
 class Distance(Enum):
     """Distance metric"""
@@ -152,22 +154,18 @@ class ImplicitRanker:
         filter_query_items: tp.Optional[tp.Union[sparse.csr_matrix, sparse.csr_array]],
     ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
 
-        def _convert_arr_to_implicit_gpu_matrix(arr: np.ndarray) -> implicit.gpu.Matrix:
-            # We need to explicitly create copy to handle transposed arrays correctly
-            return implicit.gpu.Matrix(arr.astype(np.float32).copy())
-
-        object_factors = _convert_arr_to_implicit_gpu_matrix(object_factors)
+        object_factors = convert_arr_to_implicit_gpu_matrix(object_factors)
 
         if isinstance(subject_factors, sparse.spmatrix):
             warnings.warn("Sparse subject factors converted to Dense matrix")
             subject_factors = subject_factors.todense()
 
-        subject_factors = _convert_arr_to_implicit_gpu_matrix(subject_factors)
+        subject_factors = convert_arr_to_implicit_gpu_matrix(subject_factors)
 
         if object_norms is not None:
             if len(np.shape(object_norms)) == 1:
                 object_norms = np.expand_dims(object_norms, axis=0)
-            object_norms = _convert_arr_to_implicit_gpu_matrix(object_norms)
+            object_norms = convert_arr_to_implicit_gpu_matrix(object_norms)
 
         if filter_query_items is not None:
             filter_query_items = implicit.gpu.COOMatrix(filter_query_items.tocoo())

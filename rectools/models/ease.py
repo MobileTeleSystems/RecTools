@@ -59,6 +59,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
         Number of threads used for recommendation ranking on CPU.
     recommend_n_threads: int, default 0
         Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     recommend_use_gpu_ranking: bool, default ``True``
