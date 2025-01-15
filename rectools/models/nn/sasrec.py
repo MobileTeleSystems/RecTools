@@ -59,7 +59,6 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        # TODO: we are sampling negatives for paddings
         if self.n_negatives is not None:
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
@@ -114,7 +113,11 @@ class SASRecTransformerLayers(TransformerLayersBase):
         self.last_layernorm = torch.nn.LayerNorm(n_factors, eps=1e-8)
 
     def forward(
-        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
+        self,
+        seqs: torch.Tensor,
+        timeline_mask: torch.Tensor,
+        attn_mask: tp.Optional[torch.Tensor],
+        key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
@@ -124,9 +127,12 @@ class SASRecTransformerLayers(TransformerLayersBase):
         seqs : torch.Tensor
             User sequences of item embeddings.
         timeline_mask : torch.Tensor
-            Mask to zero out padding elements.
-        attn_mask : torch.Tensor
-            Mask to forbid model to use future interactions.
+            Mask indicating padding elements.
+        attn_mask : torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        key_padding_mask : torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
+
 
         Returns
         -------

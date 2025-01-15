@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import typing as tp
 
 import torch
 from torch import nn
@@ -29,6 +30,8 @@ class PointWiseFeedForward(nn.Module):
         How many hidden units to use in the network.
     dropout_rate : float
         Probability of a hidden unit to be zeroed.
+    activation: torch.nn.Module
+        Activation function module.
     """
 
     def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module) -> None:
@@ -61,9 +64,32 @@ class TransformerLayersBase(nn.Module):
     """Base class for transformer layers."""
 
     def forward(
-        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
+        self,
+        seqs: torch.Tensor,
+        timeline_mask: torch.Tensor,
+        attn_mask: tp.Optional[torch.Tensor],
+        key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
-        """Forward pass."""
+        """
+        Forward pass through transformer blocks.
+
+        Parameters
+        ----------
+        seqs: torch.Tensor
+            User sequences of item embeddings.
+        timeline_mask: torch.Tensor
+            Mask indicating padding elements.
+        attn_mask: torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        key_padding_mask: torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
+
+
+        Returns
+        -------
+        torch.Tensor
+            User sequences passed through transformer layers.
+        """
         raise NotImplementedError()
 
 
@@ -71,6 +97,19 @@ class PreLNTransformerLayers(TransformerLayersBase):
     """
     Pre-LN Transformer Layers as described in "On Layer Normalization in the Transformer
     Architecture" https://arxiv.org/pdf/2002.04745
+
+    Parameters
+    ----------
+    n_blocks: int
+        Number of transformer blocks.
+    n_factors: int
+        Latent embeddings size.
+    n_heads: int
+        Number of attention heads.
+    dropout_rate: float
+        Probability of a hidden unit to be zeroed.
+    ff_factors_multiplier: int
+        Feed-forward layers latent embedding size multiplier.
     """
 
     def __init__(
@@ -79,6 +118,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
+        ff_factors_multiplier: int = 4,
     ):
         super().__init__()
         self.n_blocks = n_blocks
@@ -89,15 +129,41 @@ class PreLNTransformerLayers(TransformerLayersBase):
         self.dropout_1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.layer_norm_2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
         self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors * 4, dropout_rate, torch.nn.GELU()) for _ in range(n_blocks)]
+            [
+                PointWiseFeedForward(n_factors, n_factors * ff_factors_multiplier, dropout_rate, torch.nn.GELU())
+                for _ in range(n_blocks)
+            ]
         )
         self.dropout_2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.dropout_3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
 
     def forward(
-        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
+        self,
+        seqs: torch.Tensor,
+        timeline_mask: torch.Tensor,
+        attn_mask: tp.Optional[torch.Tensor],
+        key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
-        """Forward pass."""
+        """
+        Forward pass through transformer blocks.
+
+        Parameters
+        ----------
+        seqs: torch.Tensor
+            User sequences of item embeddings.
+        timeline_mask: torch.Tensor
+            Mask indicating padding elements.
+        attn_mask: torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        key_padding_mask: torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
+
+
+        Returns
+        -------
+        torch.Tensor
+            User sequences passed through transformer layers.
+        """
         for i in range(self.n_blocks):
             mha_input = self.layer_norm_1[i](seqs)
             mha_output, _ = self.multi_head_attn[i](
