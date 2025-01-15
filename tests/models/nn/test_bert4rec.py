@@ -502,13 +502,13 @@ class TestBERT4RecDataPreparator:
     def data_preparator(self) -> BERT4RecDataPreparator:
         return BERT4RecDataPreparator(
             session_max_len=3,
-            n_negatives=None,
+            n_negatives=1,
             batch_size=4,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
             item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
             shuffle_train=True,
-            mask_prob=0.2,
+            mask_prob=0.5,
         )
 
     @pytest.mark.parametrize(
@@ -630,9 +630,10 @@ class TestBERT4RecDataPreparator:
         (
             (
                 {
-                    "x": torch.tensor([[6, 3, 4, 7], [0, 2, 4, 1], [0, 0, 3, 5]]),
-                    "y": torch.tensor([[0, 0, 0, 0], [0, 0, 0, 3], [0, 0, 0, 0]]),
+                    "x": torch.tensor([[6, 1, 4, 7], [0, 2, 4, 1], [0, 0, 3, 5]]),
+                    "y": torch.tensor([[0, 3, 0, 0], [0, 0, 0, 3], [0, 0, 0, 0]]),
                     "yw": torch.tensor([[1, 1, 1, 1], [0, 1, 2, 1], [0, 0, 1, 1]], dtype=torch.float),
+                    "negatives": torch.tensor([[[6], [2], [2]], [[7], [4], [5]], [[6], [3], [5]]]),
                 }
             ),
         ),

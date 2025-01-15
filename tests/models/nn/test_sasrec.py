@@ -30,6 +30,7 @@ from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equ
 
 # TODO: add tests with BCE and GBCE
 
+
 class TestSASRecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -551,7 +552,11 @@ class TestSASRecDataPreparator:
     @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
         return SASRecDataPreparator(
-            session_max_len=3, batch_size=4, dataloader_num_workers=0, item_extra_tokens=(PADDING_VALUE,)
+            session_max_len=3,
+            batch_size=4,
+            dataloader_num_workers=0,
+            item_extra_tokens=(PADDING_VALUE,),
+            n_negatives=1,
         )
 
     @pytest.mark.parametrize(
@@ -676,6 +681,7 @@ class TestSASRecDataPreparator:
                     "x": torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
                     "y": torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
                     "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 2.0, 1.0], [0.0, 0.0, 1.0]]),
+                    "negatives": torch.tensor([[[5], [1], [1]], [[6], [3], [4]], [[5], [2], [4]]]),
                 }
             ),
         ),
