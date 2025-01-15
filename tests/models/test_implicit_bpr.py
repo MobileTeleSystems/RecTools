@@ -282,11 +282,18 @@ class TestImplicitBPRWrapperModel:
             actual,
         )
 
-    @pytest.mark.skip("BPR doesn't behave deterministically")
     def test_second_fit_refits_model(self, dataset: Dataset, use_gpu: bool) -> None:
-        base_model = BayesianPersonalizedRanking(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        # note that num_threads > 1 will make model training undeterministic
+        # https://github.com/benfred/implicit/issues/710
+        # GPU training is always undeterministic so we only test for CPU training
+        base_model = BayesianPersonalizedRanking(factors=8, num_threads=1, use_gpu=False, random_state=1)
         model = ImplicitBPRWrapperModel(model=base_model)
-        assert_second_fit_refits_model(model, dataset)
+        state = np.random.get_state()
+
+        def set_random_state() -> None:
+            np.random.set_state(state)
+
+        assert_second_fit_refits_model(model, dataset, set_random_state)
 
     def test_dumps_loads(self, dataset: Dataset, use_gpu: bool) -> None:
         base_model = BayesianPersonalizedRanking(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
@@ -481,6 +488,7 @@ class TestImplicitBPRWrapperModelConfiguration:
         self, simple_types: bool, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
     ) -> None:
         # note that num_threads > 1 will make model training undeterministic
+        # https://github.com/benfred/implicit/issues/710
         initial_config = {
             "model": {"factors": 4, "num_threads": 1, "iterations": 2, "random_state": 42},
             "verbose": 1,
