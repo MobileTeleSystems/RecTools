@@ -5,10 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.10.0] - 16.01.2025
 
 ### Added
-- `ImplicitBPRWrapperModel` model ([#232](https://github.com/MobileTeleSystems/RecTools/pull/232))
+- `ImplicitBPRWrapperModel` model with algorithm description in extended baselines tutorial ([#232](https://github.com/MobileTeleSystems/RecTools/pull/232), [#239](https://github.com/MobileTeleSystems/RecTools/pull/239))
 - All vector models and `EASEModel` support for enabling ranking on GPU and selecting number of threads for CPU ranking. Added `recommend_n_threads` and `recommend_use_gpu_ranking` parameters to `EASEModel`, `ImplicitALSWrapperModel`, `ImplicitBPRWrapperModel`, `PureSVDModel` and `DSSMModel`. Added `recommend_use_gpu_ranking` to `LightFMWrapperModel`. GPU and CPU ranking may provide different ordering of items with identical scores in recommendation table, so this could change ordering items in recommendations since GPU ranking is now used as a default one. ([#218](https://github.com/MobileTeleSystems/RecTools/pull/218))
 
 ## [0.9.0] - 11.12.2024
