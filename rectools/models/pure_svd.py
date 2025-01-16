@@ -111,7 +111,7 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             if cp is None:
                 warnings.warn("Forced to use CPU. CuPy is not available.")
                 use_gpu = False
-            if cp.cuda.runtime.getDeviceCount() == 0:
+            if not cp.cuda.is_available():
                 warnings.warn("Forced to use CPU. GPU is not available.")
                 use_gpu = False
 
