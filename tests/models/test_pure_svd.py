@@ -142,7 +142,7 @@ class TestPureSVDModel:
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
-        )        
+        )
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
