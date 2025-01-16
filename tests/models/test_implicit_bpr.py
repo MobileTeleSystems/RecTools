@@ -26,6 +26,10 @@ from tests.models.utils import (
     assert_second_fit_refits_model,
 )
 
+# Note that num_threads > 1 for BayesianPersonalizedRanking CPU training will make model training undeterministic
+# https://github.com/benfred/implicit/issues/710
+# GPU training is always underministic
+
 
 @pytest.mark.parametrize("use_gpu", (False, True) if HAS_CUDA else (False,))
 class TestImplicitBPRWrapperModel:
@@ -57,7 +61,7 @@ class TestImplicitBPRWrapperModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 15, 17, 15],
+                        Columns.Item: [17, 13, 17, 15],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -97,7 +101,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
+            factors=2, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=42
         )
         self._init_model_factors_inplace(base_model, dataset)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
@@ -116,7 +120,7 @@ class TestImplicitBPRWrapperModel:
 
     def test_consistent_with_pure_implicit(self, dataset: Dataset, use_gpu: bool) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
+            factors=2, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=42
         )
         self._init_model_factors_inplace(base_model, dataset)
         users = np.array([10, 20, 30, 40])
@@ -150,7 +154,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=False, random_state=42
+            factors=2, num_threads=1, iterations=100, use_gpu=False, random_state=42
         )
         self._init_model_factors_inplace(base_model, dataset)
         users = np.array([10, 20, 30, 40])
@@ -205,7 +209,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=32, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
+            factors=32, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=42
         )
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
         actual = model.recommend(
@@ -265,7 +269,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=1
+            factors=2, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=1
         )
         self._init_model_factors_inplace(base_model, dataset)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
@@ -283,8 +287,6 @@ class TestImplicitBPRWrapperModel:
         )
 
     def test_second_fit_refits_model(self, dataset: Dataset, use_gpu: bool) -> None:
-        # note that num_threads > 1 will make model training undeterministic
-        # https://github.com/benfred/implicit/issues/710
         # GPU training is always nondeterministic so we only test for CPU training
         if use_gpu:
             pytest.skip("BPR is nondeterministic on GPU")
@@ -298,7 +300,7 @@ class TestImplicitBPRWrapperModel:
         assert_second_fit_refits_model(model, dataset, set_random_state)
 
     def test_dumps_loads(self, dataset: Dataset, use_gpu: bool) -> None:
-        base_model = BayesianPersonalizedRanking(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        base_model = BayesianPersonalizedRanking(factors=8, num_threads=1, use_gpu=use_gpu, random_state=1)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
 
@@ -489,8 +491,6 @@ class TestImplicitBPRWrapperModelConfiguration:
     def test_get_config_and_from_config_compatibility(
         self, simple_types: bool, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
     ) -> None:
-        # note that num_threads > 1 will make model training undeterministic
-        # https://github.com/benfred/implicit/issues/710
         initial_config = {
             "model": {"factors": 4, "num_threads": 1, "iterations": 2, "random_state": 42},
             "verbose": 1,
