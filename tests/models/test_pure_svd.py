@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -71,13 +71,16 @@ class TestPureSVDModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_basic(
         self,
         dataset: Dataset,
         filter_viewed: bool,
         expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
-        model = PureSVDModel(factors=2, use_gpu=False).fit(dataset)
+
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -123,7 +126,7 @@ class TestPureSVDModel:
         filter_viewed: bool,
         expected: pd.DataFrame,
     ) -> None:
-        model = PureSVDModel(factors=2, use_gpu=True).fit(dataset)
+        model = PureSVDModel(factors=2, use_gpu=True, recommend_use_gpu_ranking=True).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -134,7 +137,7 @@ class TestPureSVDModel:
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
-        )
+        )        
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -161,8 +164,11 @@ class TestPureSVDModel:
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_whitelist(
+        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, use_gpu_ranking: bool
+    ) -> None:
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -176,8 +182,9 @@ class TestPureSVDModel:
             actual,
         )
 
-    def test_get_vectors(self, dataset: Dataset) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_get_vectors(self, dataset: Dataset, use_gpu_ranking: bool) -> None:
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         user_embeddings, item_embeddings = model.get_vectors()
         predictions = user_embeddings @ item_embeddings.T
         vectors_predictions = [recommend_from_scores(predictions[i], k=5) for i in range(4)]
@@ -236,10 +243,16 @@ class TestPureSVDModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend_to_items(
             target_items=np.array([11, 12]),
             dataset=dataset,
@@ -354,6 +367,8 @@ class TestPureSVDModelConfiguration:
             random_state=random_state,
             use_gpu=use_gpu,
             verbose=1,
+            recommend_n_threads=2,
+            recommend_use_gpu_ranking=False,
         )
         config = model.get_config(simple_types=simple_types)
         expected = {
@@ -364,6 +379,8 @@ class TestPureSVDModelConfiguration:
             "random_state": random_state,
             "use_gpu": use_gpu,
             "verbose": 1,
+            "recommend_n_threads": 2,
+            "recommend_use_gpu_ranking": False,
         }
         assert config == expected
 
@@ -375,6 +392,8 @@ class TestPureSVDModelConfiguration:
             "maxiter": 100,
             "random_state": 32,
             "verbose": 0,
+            "recommend_n_threads": 2,
+            "recommend_use_gpu_ranking": False,
         }
         assert_get_config_and_from_config_compatibility(PureSVDModel, DATASET, initial_config, simple_types)
 
