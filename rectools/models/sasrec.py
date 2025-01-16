@@ -1373,8 +1373,6 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         dataset: Dataset,
         split_interactions_train_val: tp.Optional[tp.Callable] = None,
     ) -> None:
-        # TODO: create callback function `split_dataset_train_val` and add callback to __init__
-        # TODO: add to class variable processed_dataset_train, processed_interactions_val
         self.data_preparator.process_dataset_train(dataset, split_interactions_train_val)
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
@@ -1382,7 +1380,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         torch_model = deepcopy(self._torch_model)  # TODO: check that it works
         torch_model.construct_item_net(self.data_preparator.processed_dataset_train)
 
-        self.lightning_model = self.lightning_module_type(  # TODO: data_preparator arg lightning_model
+        self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             lr=self.lr,
             loss=self.loss,
