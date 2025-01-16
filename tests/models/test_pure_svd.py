@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover
 
 try:
     HAS_CUDA = cp.is_available() if cp else False
-except Exception:  # pragma: no cover
+except Exception:  # pragma: no cover  # pylint: disable=broad-except
     # If CUDA isn't installed cupy raises CUDARuntimeError:
     HAS_CUDA = False
 
