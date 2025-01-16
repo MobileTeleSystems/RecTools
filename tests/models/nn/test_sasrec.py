@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer, seed_everything
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
@@ -63,6 +63,33 @@ class TestSASRecModel:
     @pytest.fixture
     def dataset(self, interactions_df: pd.DataFrame) -> Dataset:
         return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def dataset_item_features(self, interactions_df: pd.DataFrame) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [11, "f1", "f1val1"],
+                [11, "f2", "f2val1"],
+                [12, "f1", "f1val1"],
+                [12, "f2", "f2val2"],
+                [13, "f1", "f1val1"],
+                [13, "f2", "f2val3"],
+                [14, "f1", "f1val2"],
+                [11, "f3", 0],
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [14, "f3", 3],
+                [15, "f3", 4],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        ds = Dataset.construct(
+            interactions_df,
+            item_features_df=item_features,
+            cat_item_features=["f1", "f2"],
+        )
+        return ds
 
     @pytest.fixture
     def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
@@ -252,10 +279,89 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
+            loss=loss,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "expected",
+        (
+            pd.DataFrame(
+                {
+                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                    Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                }
+            ),
+        ),
+    )
+    def test_u2i_with_key_and_attn_masks(
+        self,
+        dataset: Dataset,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+            use_key_padding_mask=True,
+        )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "expected",
+        (
+            pd.DataFrame(
+                {
+                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                    Columns.Item: [13, 12, 14, 11, 15, 14, 17, 14, 15],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                }
+            ),
+        ),
+    )
+    def test_u2i_with_item_features(
+        self,
+        dataset_item_features: Dataset,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
+            trainer=trainer,
+            use_key_padding_mask=True,
+        )
+        model.fit(dataset=dataset_item_features)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset_item_features, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
