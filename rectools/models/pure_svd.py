@@ -19,7 +19,6 @@ import warnings
 
 import numpy as np
 import typing_extensions as tpe
-from implicit.gpu import HAS_CUDA
 from scipy.sparse.linalg import svds
 
 from rectools.dataset import Dataset
@@ -109,14 +108,15 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.maxiter = maxiter
         self.random_state = random_state
         if use_gpu:  # pragma: no cover
-            if not HAS_CUDA:
-                warnings.warn("Forced to use CPU. CUDA is not available.")
-                use_gpu = False
             if cp is None:
                 warnings.warn("Forced to use CPU. CuPy is not available.")
                 use_gpu = False
+            if cp.cuda.runtime.getDeviceCount() == 0:
+                warnings.warn("Forced to use CPU. GPU is not available.")
+                use_gpu = False
 
         self.use_gpu = use_gpu
+        self._use_gpu = use_gpu  # for making a config
         self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
@@ -130,7 +130,7 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             tol=self.tol,
             maxiter=self.maxiter,
             random_state=self.random_state,
-            use_gpu=self.use_gpu,
+            use_gpu=self._use_gpu,
             verbose=self.verbose,
             recommend_n_threads=self.recommend_n_threads,
             recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,

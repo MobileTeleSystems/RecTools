@@ -17,7 +17,6 @@ import typing as tp
 import numpy as np
 import pandas as pd
 import pytest
-from implicit.gpu import HAS_CUDA
 from pytest_mock import MockerFixture
 
 from rectools import Columns
@@ -94,7 +93,7 @@ class TestPureSVDModel:
         )
 
     # SciPy's svds and cupy's svds results can be different and use_gpu fallback causes errors
-    @pytest.mark.skipif(HAS_CUDA is False, reason="CUDA is not available")
+    @pytest.mark.skipif(cp is None or cp.cuda.runtime.getDeviceCount() == 0, reason="CUDA is not available")
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -335,8 +334,8 @@ class TestPureSVDModelConfiguration:
 
     @pytest.mark.parametrize("use_gpu", (False, True))
     def test_from_config(self, mocker: MockerFixture, use_gpu: bool) -> None:
-        mocker.patch("rectools.models.pure_svd.HAS_CUDA", return_value=True)
         mocker.patch("rectools.models.pure_svd.cp", return_value=True)
+        mocker.patch("rectools.models.pure_svd.cp.cuda.runtime.getDeviceCount", return_value=1)
         config = {
             "factors": 100,
             "tol": 0,
@@ -358,7 +357,7 @@ class TestPureSVDModelConfiguration:
     def test_get_config(
         self, mocker: MockerFixture, random_state: tp.Optional[int], simple_types: bool, use_gpu: bool
     ) -> None:
-        mocker.patch("rectools.models.pure_svd.HAS_CUDA", return_value=True)
+        mocker.patch("rectools.models.pure_svd.cp.cuda.runtime.getDeviceCount", return_value=1)
         mocker.patch("rectools.models.pure_svd.cp", return_value=True)
         model = PureSVDModel(
             factors=100,
