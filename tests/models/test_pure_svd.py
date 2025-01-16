@@ -38,6 +38,12 @@ try:
 except ImportError:  # pragma: no cover
     cp = None
 
+try:
+    HAS_CUDA = cp.is_available() if cp else False
+except Exception:  # pragma: no cover
+    # If CUDA isn't installed cupy raises CUDARuntimeError:
+    HAS_CUDA = False
+
 
 class TestPureSVDModel:
 
@@ -93,7 +99,7 @@ class TestPureSVDModel:
         )
 
     # SciPy's svds and cupy's svds results can be different and use_gpu fallback causes errors
-    @pytest.mark.skipif(cp is None or not cp.cuda.is_available(), reason="CUDA is not available")
+    @pytest.mark.skipif(cp is None or not HAS_CUDA, reason="CUDA is not available")
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (

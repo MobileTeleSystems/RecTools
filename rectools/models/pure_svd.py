@@ -108,10 +108,10 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.maxiter = maxiter
         self.random_state = random_state
         if use_gpu:  # pragma: no cover
-            if cp is None:
+            if not cp:
                 warnings.warn("Forced to use CPU. CuPy is not available.")
                 use_gpu = False
-            if not cp.cuda.is_available():
+            elif not cp.cuda.is_available():
                 warnings.warn("Forced to use CPU. GPU is not available.")
                 use_gpu = False
 
