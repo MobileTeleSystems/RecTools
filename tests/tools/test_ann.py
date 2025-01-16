@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import pickle
+import sys
 from collections.abc import Hashable
 from typing import Callable, Dict, List, Union
 
@@ -20,7 +21,14 @@ import numpy as np
 import pytest
 
 from rectools.dataset import IdMap
-from rectools.tools import ItemToItemAnnRecommender, UserToItemAnnRecommender
+
+try:
+    from rectools.tools import ItemToItemAnnRecommender, UserToItemAnnRecommender
+except ImportError:
+    pass
+
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`nsmlib` is not compatible with Python >= 3.13")
 
 
 class TestItemToItemAnnRecommender:
