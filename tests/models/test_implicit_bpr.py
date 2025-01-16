@@ -1,3 +1,17 @@
+#  Copyright 2025 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 from copy import deepcopy
 
@@ -25,6 +39,10 @@ from tests.models.utils import (
     assert_dumps_loads_do_not_change_model,
     assert_second_fit_refits_model,
 )
+
+# Note that num_threads > 1 for BayesianPersonalizedRanking CPU training will make model training undeterministic
+# https://github.com/benfred/implicit/issues/710
+# GPU training is always underministic
 
 
 @pytest.mark.parametrize("use_gpu", (False, True) if HAS_CUDA else (False,))
@@ -57,7 +75,7 @@ class TestImplicitBPRWrapperModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 15, 17, 15],
+                        Columns.Item: [17, 13, 17, 15],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -97,7 +115,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
+            factors=2, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=42
         )
         self._init_model_factors_inplace(base_model, dataset)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
@@ -116,7 +134,7 @@ class TestImplicitBPRWrapperModel:
 
     def test_consistent_with_pure_implicit(self, dataset: Dataset, use_gpu: bool) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
+            factors=2, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=42
         )
         self._init_model_factors_inplace(base_model, dataset)
         users = np.array([10, 20, 30, 40])
@@ -143,6 +161,47 @@ class TestImplicitBPRWrapperModel:
             np.testing.assert_equal(actual_internal_ids, expected_ids)
             np.testing.assert_allclose(actual_scores, expected_scores, atol=0.03)
 
+    @pytest.mark.skipif(not implicit.gpu.HAS_CUDA, reason="implicit cannot find CUDA for gpu ranking")
+    def test_gpu_ranking_consistent_with_pure_implicit(
+        self,
+        dataset: Dataset,
+        use_gpu: bool,
+    ) -> None:
+        base_model = BayesianPersonalizedRanking(
+            factors=2, num_threads=1, iterations=100, use_gpu=False, random_state=42
+        )
+        self._init_model_factors_inplace(base_model, dataset)
+        users = np.array([10, 20, 30, 40])
+
+        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        base_model.fit(ui_csr)
+        gpu_model = base_model.to_gpu()
+
+        wrapped_model = ImplicitBPRWrapperModel(model=gpu_model, recommend_use_gpu_ranking=True)
+        wrapped_model.is_fitted = True
+        wrapped_model.model = wrapped_model._model  # pylint: disable=protected-access
+
+        actual_reco = wrapped_model.recommend(
+            users=users,
+            dataset=dataset,
+            k=3,
+            filter_viewed=False,
+        )
+
+        for user_id in users:
+            internal_id = dataset.user_id_map.convert_to_internal([user_id])[0]
+            expected_ids, expected_scores = gpu_model.recommend(
+                userid=internal_id,
+                user_items=ui_csr[internal_id],
+                N=3,
+                filter_already_liked_items=False,
+            )
+            actual_ids = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Item].values
+            actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
+            actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
+            np.testing.assert_equal(actual_internal_ids, expected_ids)
+            np.testing.assert_allclose(actual_scores, expected_scores, atol=0.00001)
+
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -164,7 +223,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=32, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=42
+            factors=32, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=42
         )
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
         actual = model.recommend(
@@ -224,7 +283,7 @@ class TestImplicitBPRWrapperModel:
         use_gpu: bool,
     ) -> None:
         base_model = BayesianPersonalizedRanking(
-            factors=2, num_threads=2, iterations=100, use_gpu=use_gpu, random_state=1
+            factors=2, num_threads=1, iterations=100, use_gpu=use_gpu, random_state=1
         )
         self._init_model_factors_inplace(base_model, dataset)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
@@ -241,14 +300,21 @@ class TestImplicitBPRWrapperModel:
             actual,
         )
 
-    @pytest.mark.skip("BPR doesn't behave deterministically")
     def test_second_fit_refits_model(self, dataset: Dataset, use_gpu: bool) -> None:
-        base_model = BayesianPersonalizedRanking(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        # GPU training is always nondeterministic so we only test for CPU training
+        if use_gpu:
+            pytest.skip("BPR is nondeterministic on GPU")
+        base_model = BayesianPersonalizedRanking(factors=8, num_threads=1, use_gpu=use_gpu, random_state=1)
         model = ImplicitBPRWrapperModel(model=base_model)
-        assert_second_fit_refits_model(model, dataset)
+        state = np.random.get_state()
+
+        def set_random_state() -> None:
+            np.random.set_state(state)
+
+        assert_second_fit_refits_model(model, dataset, set_random_state)
 
     def test_dumps_loads(self, dataset: Dataset, use_gpu: bool) -> None:
-        base_model = BayesianPersonalizedRanking(factors=8, num_threads=2, use_gpu=use_gpu, random_state=1)
+        base_model = BayesianPersonalizedRanking(factors=8, num_threads=1, use_gpu=use_gpu, random_state=1)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
 
@@ -307,7 +373,11 @@ class TestImplicitBPRWrapperModelConfiguration:
 
     @pytest.mark.parametrize("use_gpu", (False, True))
     @pytest.mark.parametrize("cls", (None, "BayesianPersonalizedRanking", "implicit.bpr.BayesianPersonalizedRanking"))
-    def test_from_config(self, use_gpu: bool, cls: tp.Any) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (None, False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_from_config(
+        self, use_gpu: bool, cls: tp.Any, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
+    ) -> None:
         config: tp.Dict = {
             "model": {
                 "factors": 10,
@@ -319,6 +389,8 @@ class TestImplicitBPRWrapperModelConfiguration:
                 "use_gpu": use_gpu,
             },
             "verbose": 1,
+            "recommend_n_threads": recommend_n_threads,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
         }
         if cls is not None:
             config["model"]["cls"] = cls
@@ -332,13 +404,33 @@ class TestImplicitBPRWrapperModelConfiguration:
         assert inner_model.verify_negative_samples is False
         if not use_gpu:
             assert inner_model.num_threads == 2
+
+        if recommend_n_threads is not None:
+            assert model.recommend_n_threads == recommend_n_threads
+        elif not use_gpu:
+            assert model.recommend_n_threads == inner_model.num_threads
+        else:
+            assert model.recommend_n_threads == 0
+        if recommend_use_gpu is not None:
+            assert model.recommend_use_gpu_ranking == recommend_use_gpu
+        else:
+            assert model.recommend_use_gpu_ranking == use_gpu
         expected_model_class = GPUBayesianPersonalizedRanking if use_gpu else CPUBayesianPersonalizedRanking
         assert isinstance(inner_model, expected_model_class)
 
     @pytest.mark.parametrize("use_gpu", (False, True))
     @pytest.mark.parametrize("random_state", (None, 42))
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_to_config(self, use_gpu: bool, random_state: tp.Optional[int], simple_types: bool) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (None, False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_to_config(
+        self,
+        use_gpu: bool,
+        random_state: tp.Optional[int],
+        simple_types: bool,
+        recommend_use_gpu: tp.Optional[bool],
+        recommend_n_threads: tp.Optional[int],
+    ) -> None:
         model = ImplicitBPRWrapperModel(
             model=BayesianPersonalizedRanking(
                 factors=10,
@@ -351,6 +443,8 @@ class TestImplicitBPRWrapperModelConfiguration:
                 use_gpu=use_gpu,
             ),
             verbose=1,
+            recommend_n_threads=recommend_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu,
         )
         config = model.get_config(simple_types=simple_types)
         expected_inner_model_config = {
@@ -375,6 +469,8 @@ class TestImplicitBPRWrapperModelConfiguration:
             "cls": "ImplicitBPRWrapperModel" if simple_types else ImplicitBPRWrapperModel,
             "model": expected_inner_model_config,
             "verbose": 1,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
+            "recommend_n_threads": recommend_n_threads,
         }
         assert config == expected
 
@@ -404,10 +500,16 @@ class TestImplicitBPRWrapperModelConfiguration:
         assert model.get_config()["model"]["cls"] == CustomBPR  # pylint: disable=unsubscriptable-object
 
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (None, False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_get_config_and_from_config_compatibility(
+        self, simple_types: bool, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
+    ) -> None:
         initial_config = {
-            "model": {"factors": 4, "num_threads": 2, "iterations": 2, "random_state": 42},
+            "model": {"factors": 4, "num_threads": 1, "iterations": 2, "random_state": 42},
             "verbose": 1,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
+            "recommend_n_threads": recommend_n_threads,
         }
         dataset = DATASET
         model = ImplicitBPRWrapperModel

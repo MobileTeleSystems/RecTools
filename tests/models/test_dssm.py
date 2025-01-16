@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -76,8 +76,8 @@ class TestDSSMModel:
                 [14, "f2", "f2val1"],
                 [15, "f1", "f1val2"],
                 [15, "f2", "f2val2"],
-                [17, "f1", "f1val2"],
-                [17, "f2", "f2val3"],
+                [17, "f1", "f1val3"],
+                [17, "f2", "f2val1"],
                 [16, "f1", "f1val2"],
                 [16, "f2", "f2val3"],
             ],
@@ -114,9 +114,9 @@ class TestDSSMModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 20, 20, 20, 50, 50, 50],
-                        Columns.Item: [13, 15, 17, 14, 15, 17, 11, 12, 13],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [10, 10, 20, 20, 50, 50],
+                        Columns.Item: [17, 13, 14, 17, 11, 14],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
@@ -124,36 +124,45 @@ class TestDSSMModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 20, 20, 20, 50, 50, 50],
-                        Columns.Item: [11, 12, 13, 11, 12, 13, 11, 12, 13],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [10, 10, 20, 20, 50, 50],
+                        Columns.Item: [11, 14, 11, 14, 11, 14],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
         ),
     )
     @pytest.mark.parametrize("default_base_model", (True, False))
-    def test_u2i(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, default_base_model: bool) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_u2i(
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        expected: pd.DataFrame,
+        default_base_model: bool,
+        use_gpu_ranking: bool,
+    ) -> None:
         if default_base_model:
             base_model = None
         else:
             base_model = DSSM(
-                n_factors_item=32,
-                n_factors_user=32,
+                n_factors_item=10,
+                n_factors_user=10,
                 dim_input_item=dataset.item_features.get_sparse().shape[1],  # type: ignore
                 dim_input_user=dataset.user_features.get_sparse().shape[1],  # type: ignore
                 dim_interactions=dataset.get_user_item_matrix().shape[1],
             )
         model = DSSMModel(
             model=base_model,
-            n_factors=32,
+            n_factors=10,
             max_epochs=3,
             batch_size=4,
             deterministic=True,
+            recommend_use_gpu_ranking=use_gpu_ranking,
         )
         model.fit(dataset=dataset, dataset_valid=dataset)
         users = np.array([10, 20, 50])
-        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        actual = model.recommend(users=users, dataset=dataset, k=2, filter_viewed=filter_viewed)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, True]).reset_index(drop=True),
@@ -168,7 +177,7 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 50, 50, 50],
-                        Columns.Item: [13, 17, 11, 13, 17],
+                        Columns.Item: [17, 13, 11, 17, 13],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -178,19 +187,23 @@ class TestDSSMModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 50, 50, 50],
-                        Columns.Item: [11, 13, 17, 11, 13, 17],
+                        Columns.Item: [11, 17, 13, 11, 17, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_whitelist(
+        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, use_gpu_ranking: bool
+    ) -> None:
         model = DSSMModel(
             n_factors=32,
             max_epochs=3,
             batch_size=4,
             deterministic=True,
+            recommend_use_gpu_ranking=use_gpu_ranking,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 50])
@@ -207,7 +220,8 @@ class TestDSSMModel:
             actual,
         )
 
-    def test_get_vectors(self, dataset: Dataset) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_get_vectors(self, dataset: Dataset, use_gpu_ranking: bool) -> None:
         base_model = DSSM(
             n_factors_item=32,
             n_factors_user=32,
@@ -223,6 +237,7 @@ class TestDSSMModel:
             batch_size=4,
             dataloader_num_workers=0,
             callbacks=None,
+            recommend_use_gpu_ranking=use_gpu_ranking,
         )
         model.fit(dataset=dataset)
         user_embeddings, item_embeddings = model.get_vectors(dataset)
@@ -272,9 +287,9 @@ class TestDSSMModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 11, 12, 12, 12, 16, 16, 16],
-                        Columns.Item: [11, 13, 17, 12, 16, 17, 16, 17, 14],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.TargetItem: [11, 11, 12, 12],
+                        Columns.Item: [11, 12, 12, 11],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -283,9 +298,9 @@ class TestDSSMModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 11, 12, 12, 12, 16, 16, 16],
-                        Columns.Item: [13, 16, 17, 16, 17, 14, 17, 14, 12],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.TargetItem: [11, 11, 12, 12],
+                        Columns.Item: [12, 13, 11, 13],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -294,29 +309,36 @@ class TestDSSMModel:
                 np.array([11, 15, 12]),
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [11, 11, 12, 12, 16, 16, 16],
-                        Columns.Item: [12, 15, 15, 11, 12, 11, 15],
-                        Columns.Rank: [1, 2, 1, 2, 1, 2, 3],
+                        Columns.TargetItem: [11, 11, 12, 12],
+                        Columns.Item: [12, 15, 11, 15],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
         model = DSSMModel(
-            n_factors=2,
+            n_factors=10,
             max_epochs=3,
             batch_size=4,
             deterministic=True,
+            recommend_use_gpu_ranking=use_gpu_ranking,
         )
         model.fit(dataset=dataset, dataset_valid=dataset)
-        target_items = np.array([11, 12, 16])
+        target_items = np.array([11, 12])
         actual = model.recommend_to_items(
             target_items=target_items,
             dataset=dataset,
-            k=3,
+            k=2,
             filter_itself=filter_itself,
             items_to_recommend=whitelist,
         )
