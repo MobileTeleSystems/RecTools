@@ -101,6 +101,9 @@ class ImplicitBPRWrapperModel(VectorModel[ImplicitBPRWrapperModelConfig]):
 
     See https://benfred.github.io/implicit/api/models/cpu/bpr.html for details of the base model.
 
+    Please note that implicit BPR model training is not deterministic with num_threads > 1 or use_gpu=True.
+    https://github.com/benfred/implicit/issues/710
+
     Parameters
     ----------
     model : BayesianPersonalizedRanking
