@@ -705,6 +705,7 @@ class SessionEncoderDataPreparatorBase:
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
+        split_interactions_train_val: tp.Optional[tp.Callable] = None,
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap
@@ -718,6 +719,7 @@ class SessionEncoderDataPreparatorBase:
         self.train_min_user_interactions = train_min_user_interactions
         self.item_extra_tokens = item_extra_tokens
         self.shuffle_train = shuffle_train
+        self.split_interactions_train_val = split_interactions_train_val
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -732,11 +734,7 @@ class SessionEncoderDataPreparatorBase:
         """Return number of padding elements"""
         return len(self.item_extra_tokens)
 
-    def process_dataset_train(
-        self,
-        dataset: Dataset,
-        split_interactions_train_val: tp.Optional[tp.Callable] = None,
-    ) -> None:
+    def process_dataset_train(self, dataset: Dataset) -> None:
         """TODO"""
         raw_interactions = dataset.get_raw_interactions()
 
@@ -787,9 +785,26 @@ class SessionEncoderDataPreparatorBase:
 
         dataset_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
 
-        self.processed_dataset_train = Dataset(
-            user_id_map, item_id_map, dataset_interactions, item_features=item_features
-        )
+        processed_dataset_train = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
+
+        # Splitting interactions on train and val samples
+        processed_interactions_val = None
+        if self.split_interactions_train_val is not None:
+            processed_interactions_train, processed_interactions_val = self.split_interactions_train_val(
+                processed_dataset_train
+            )
+            if processed_dataset_train.item_features is not None:
+                existed_item_iids = item_id_map.convert_to_internal(processed_interactions_train[Columns.Item].unique())
+                item_features = processed_dataset_train.item_features.take(existed_item_iids)
+
+            user_id_map = IdMap.from_values(processed_interactions_train[Columns.User].values)
+            item_id_map = IdMap.from_values(self.item_extra_tokens)
+            item_id_map = item_id_map.add_ids(processed_interactions_train[Columns.Item])
+
+            processed_interactions_train = Interactions.from_raw(processed_interactions_train, user_id_map, item_id_map)
+            processed_dataset_train = Dataset(
+                user_id_map, item_id_map, processed_interactions_train, item_features=item_features
+            )
 
         self.item_id_map = self.processed_dataset_train.item_id_map
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
@@ -976,6 +991,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
+        split_interactions_train_val: tp.Optional[tp.Callable] = None,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -985,6 +1001,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             item_extra_tokens=item_extra_tokens,
             train_min_user_interactions=train_min_user_interactions,
             n_negatives=n_negatives,
+            split_interactions_train_val=split_interactions_train_val,
         )
 
     def _collate_fn_train(
@@ -1138,9 +1155,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             val_max_k=val_max_k,
         )
 
-        if self.val_max_k is not None:
-            self.epoch_val_recos: tp.List[tp.List[int]] = []
-            self.epoch_targets: tp.List[tp.List[int]] = []
+        # if self.val_max_k is not None:
+        #     self.epoch_val_recos: tp.List[tp.List[int]] = []
+        #     self.epoch_targets: tp.List[tp.List[int]] = []
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
@@ -1167,7 +1184,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         self.log("train/loss", train_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return train_loss
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> tp.Union[torch.Tensor, tp.List[torch.Tensor, List[List[int]], List[List[int]]]]:
         """Validate step."""
         x, y, w = batch["x"], batch["y"], batch["yw"]
         all_last_logits = None
@@ -1191,14 +1208,17 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
         self.log("val/loss", val_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
 
+        outputs = [val_loss]
         if self.val_max_k is not None:
             if all_last_logits is None:
                 all_last_logits = self._get_full_catalog_logits(x)[:, -1, :]
             _, sorted_batch_recos = all_last_logits.topk(k=self.val_max_k)
-            self.epoch_val_recos.extend(sorted_batch_recos.tolist())
-            self.epoch_targets.extend(y.tolist())
+            # self.epoch_val_recos.extend(sorted_batch_recos.tolist())
+            # self.epoch_targets.extend(y.tolist())
 
-        return val_loss
+            outputs += [sorted_batch_recos.tolist(), y.tolist()]
+
+        return outputs
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
@@ -1368,12 +1388,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         self.gbce_t = gbce_t
         self.val_max_k = val_max_k
 
-    def _fit(
-        self,
-        dataset: Dataset,
-        split_interactions_train_val: tp.Optional[tp.Callable] = None,
-    ) -> None:
-        self.data_preparator.process_dataset_train(dataset, split_interactions_train_val)
+    def _fit(self, dataset: Dataset) -> None:
+        self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
@@ -1587,6 +1603,7 @@ class SASRecModel(TransformerModelBase):
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
         val_max_k: tp.Optional[int] = None,
+        split_interactions_train_val: tp.Optional[tp.Callable] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -1620,4 +1637,5 @@ class SASRecModel(TransformerModelBase):
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interaction,
+            split_interactions_train_val=split_interactions_train_val,
         )
