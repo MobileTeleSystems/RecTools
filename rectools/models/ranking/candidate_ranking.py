@@ -392,7 +392,7 @@ class CandidateRankingModel(ModelBase):
 
         return train_with_target
 
-    def get_candidates_with_targets(self, train_targets: pd.DataFrame, history_dataset: Dataset) -> pd.DataFrame:
+    def get_full_candidates_with_targets(self, train_targets: pd.DataFrame, history_dataset: Dataset) -> pd.DataFrame:
         """
         Prepare candidates with target values set from first-stage candidate generators.
 
