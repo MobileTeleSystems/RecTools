@@ -324,7 +324,7 @@ class CandidateRankingModel(ModelBase):
             cand_gen_dict[identifier] = candgen
         return cand_gen_dict
 
-    def _split_to_history_dataset_and_train_targets(
+    def split_to_history_dataset_and_train_targets(
         self, dataset: Dataset, splitter: Splitter
     ) -> tp.Tuple[Dataset, pd.DataFrame, tp.Dict[str, tp.Any]]:
         """
@@ -381,11 +381,11 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame
             DataFrame containing training data with targets and 2 extra columns: `Columns.User`, `Columns.Item`.
         """
-        history_dataset, train_targets, fold_info = self._split_to_history_dataset_and_train_targets(
+        history_dataset, train_targets, fold_info = self.split_to_history_dataset_and_train_targets(
             dataset, self.splitter
         )
 
-        candidates = self.get_candidates_with_targets(train_targets, history_dataset)
+        candidates = self.get_full_candidates_with_targets(train_targets, history_dataset)
         candidates = self.sampler.sample_negatives(candidates)
 
         train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
