@@ -710,7 +710,7 @@ class SessionEncoderDataPreparatorBase:
         self.item_id_map: IdMap
         self.extra_token_ids: tp.Dict
         self.processed_dataset_train: Dataset
-        self.processed_interactions_val: tp.Optional[pd.DataFrame]
+        self.processed_interactions_val: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
         self.n_negatives = n_negatives
         self.batch_size = batch_size
@@ -738,13 +738,23 @@ class SessionEncoderDataPreparatorBase:
         split_interactions_train_val: tp.Optional[tp.Callable] = None,
     ) -> None:
         """TODO"""
-        interactions = dataset.get_raw_interactions()
+        raw_interactions = dataset.get_raw_interactions()
 
-        # Filter interactions
+        # Exclude val interaction targets from train if needed
+        interactions = raw_interactions
+        if split_interactions_train_val is not None:
+            val_mask = split_interactions_train_val(raw_interactions)
+            interactions = raw_interactions[~val_mask]
+
+        # Filter train interactions
         user_stats = interactions[Columns.User].value_counts()
         users = user_stats[user_stats >= self.train_min_user_interactions].index
         interactions = interactions[(interactions[Columns.User].isin(users))]
-        interactions = interactions.sort_values(Columns.Datetime).groupby(Columns.User).tail(self.session_max_len + 1)
+        interactions = (
+            interactions.sort_values(Columns.Datetime, kind="stable")
+            .groupby(Columns.User)
+            .tail(self.session_max_len + 1)
+        )
 
         # Construct dataset
         # TODO: user features are dropped for now
@@ -775,37 +785,27 @@ class SessionEncoderDataPreparatorBase:
 
             item_features = SparseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
 
-        interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
+        dataset_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
 
-        processed_dataset_train = Dataset(user_id_map, item_id_map, interactions, item_features=item_features)
+        self.processed_dataset_train = Dataset(
+            user_id_map, item_id_map, dataset_interactions, item_features=item_features
+        )
 
-        # Splitting interactions on train and val samples
-        processed_interactions_val = None
-        if split_interactions_train_val is not None:
-            processed_interactions_train, processed_interactions_val = split_interactions_train_val(
-                processed_dataset_train
-            )
-            if processed_dataset_train.item_features is not None:
-                existed_item_iids = item_id_map.convert_to_internal(processed_interactions_train[Columns.Item].unique())
-                item_features = processed_dataset_train.item_features.take(existed_item_iids)
-
-            user_id_map = IdMap.from_values(processed_interactions_train[Columns.User].values)
-            item_id_map = IdMap.from_values(self.item_extra_tokens)
-            item_id_map = item_id_map.add_ids(processed_interactions_train[Columns.Item])
-
-            processed_interactions_train = Interactions.from_raw(processed_interactions_train, user_id_map, item_id_map)
-            processed_dataset_train = Dataset(
-                user_id_map, item_id_map, processed_interactions_train, item_features=item_features
-            )
-
-            processed_interactions_val = Interactions.from_raw(processed_interactions_val, user_id_map, item_id_map).df
-
-        self.item_id_map = processed_dataset_train.item_id_map
+        self.item_id_map = self.processed_dataset_train.item_id_map
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
         self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
 
-        self.processed_dataset_train = processed_dataset_train
-        self.processed_interactions_val = processed_interactions_val
+        # Define val interactions
+        if split_interactions_train_val is not None:
+            val_targets = raw_interactions[val_mask]
+            val_targets = val_targets[
+                (val_targets[Columns.User].isin(user_id_map.external_ids))
+                & (val_targets[Columns.Item].isin(item_id_map.external_ids))
+            ]
+            val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
+            val_interactions[Columns.Weight] = 0
+            val_interactions = pd.concat([val_interactions, val_targets], axis=0)
+            self.processed_interactions_val = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
 
     def get_dataloader_train(self) -> DataLoader:
         """
