@@ -67,10 +67,6 @@ class SequenceDataset(TorchDataset):
         interactions : pd.DataFrame
             User-item interactions.
         """
-        # Recommend dataloader should return interactions sorted by user ids.
-        # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
-        # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
-        # that will be returned by the net.
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
             .groupby(Columns.User, sort=sort_users)[[Columns.Item, Columns.Weight]]
@@ -148,9 +144,7 @@ class SessionEncoderDataPreparatorBase:
         users = user_stats[user_stats >= self.train_min_user_interactions].index
         interactions = interactions[interactions[Columns.User].isin(users)]
         interactions = (
-            interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User, sort=True)
-            .tail(self.session_max_len + 1)
+            interactions.sort_values(Columns.Datetime).groupby(Columns.User, sort=True).tail(self.session_max_len + 1)
         )
 
         # Construct dataset
@@ -218,6 +212,10 @@ class SessionEncoderDataPreparatorBase:
 
     def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
         """TODO"""
+        # Recommend dataloader should return interactions sorted by user ids.
+        # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
+        # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
+        # that will be returned by the net.
         sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
