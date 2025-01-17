@@ -324,7 +324,7 @@ class CandidateRankingModel(ModelBase):
             cand_gen_dict[identifier] = candgen
         return cand_gen_dict
 
-    def _split_to_history_dataset_and_train_targets(
+    def split_to_history_dataset_and_train_targets(
         self, dataset: Dataset, splitter: Splitter
     ) -> tp.Tuple[Dataset, pd.DataFrame, tp.Dict[str, tp.Any]]:
         """
@@ -381,10 +381,33 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame
             DataFrame containing training data with targets and 2 extra columns: `Columns.User`, `Columns.Item`.
         """
-        history_dataset, train_targets, fold_info = self._split_to_history_dataset_and_train_targets(
+        history_dataset, train_targets, fold_info = self.split_to_history_dataset_and_train_targets(
             dataset, self.splitter
         )
 
+        candidates = self.get_full_candidates_with_targets(train_targets, history_dataset)
+        candidates = self.sampler.sample_negatives(candidates)
+
+        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
+
+        return train_with_target
+
+    def get_full_candidates_with_targets(self, train_targets: pd.DataFrame, history_dataset: Dataset) -> pd.DataFrame:
+        """
+        Prepare candidates with target values set from first-stage candidate generators.
+
+        Parameters
+        ----------
+        train_targets : pd.DataFrame
+            DataFrame containing training targets.
+        history_dataset : Dataset
+            The dataset to fit the candidate generators on.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with target values set.
+        """
         self._fit_candidate_generators(history_dataset, for_train=True)
 
         candidates = self._get_candidates_from_first_stage(
@@ -394,11 +417,7 @@ class CandidateRankingModel(ModelBase):
             for_train=True,
         )
         candidates = self._set_targets_to_candidates(candidates, train_targets)
-        candidates = self.sampler.sample_negatives(candidates)
-
-        train_with_target = self.feature_collector.collect_features(candidates, history_dataset, fold_info)
-
-        return train_with_target
+        return candidates
 
     def _set_targets_to_candidates(self, candidates: pd.DataFrame, train_targets: pd.DataFrame) -> pd.DataFrame:
         """
