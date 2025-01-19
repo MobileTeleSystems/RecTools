@@ -31,16 +31,9 @@ Data Containers
 """
 
 
-from .dataset import Dataset
+from .dataset import Dataset, DatasetSchema
 from .features import DenseFeatures, Features, SparseFeatures
 from .identifiers import IdMap
 from .interactions import Interactions
 
-__all__ = (
-    "Dataset",
-    "DenseFeatures",
-    "SparseFeatures",
-    "Features",
-    "IdMap",
-    "Interactions",
-)
+__all__ = ("Dataset", "DenseFeatures", "SparseFeatures", "Features", "IdMap", "Interactions", "DatasetSchema")

@@ -15,20 +15,21 @@
 """Dataset - all data container."""
 
 import typing as tp
-import typing_extensions as tpe
 
 import attr
 import numpy as np
 import pandas as pd
-from scipy import sparse
+import typing_extensions as tpe
 from pydantic import PlainSerializer
+from scipy import sparse
 
 from rectools import Columns
 from rectools.utils.config import BaseConfig
 
 from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
-from .identifiers import IdMap, ExternalId
+from .identifiers import ExternalId, IdMap
 from .interactions import Interactions
+
 
 def _serialize_any(spec: tp.Any) -> tp.Hashable:
     if isinstance(spec, tuple):
@@ -39,9 +40,9 @@ def _serialize_any(spec: tp.Any) -> tp.Hashable:
         return spec.item()
     return "unsupported feature_name"
 
-FeatureName = tpe.Annotated[
-    tp.Any, PlainSerializer(_serialize_any, when_used="json")
-]
+
+FeatureName = tpe.Annotated[tp.Any, PlainSerializer(_serialize_any, when_used="json")]
+
 
 class DatasetSchema(BaseConfig):
     """Dataset schema."""
@@ -92,8 +93,8 @@ class Dataset:
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
 
-    def get_schema(self) -> DatasetSchema:
-
+    def get_schema(self, simple_types=True) -> DatasetSchema:
+        """TODO."""
         has_user_features = self.user_features is not None
         dense_user_features = None
         user_feature_cat_cols = None
@@ -117,20 +118,22 @@ class Dataset:
                 item_feature_cat_cols = self.item_features.cat_feature_cols.tolist()
 
         schema = DatasetSchema(
-            n_hot_users = self.n_hot_users,
-            user_id_map_external_ids = self.user_id_map.external_ids.tolist(),
-            has_user_features = has_user_features,
-            make_dense_user_features = dense_user_features,
-            user_feature_names = user_feature_names,
-            user_feature_cat_cols = user_feature_cat_cols,
-            n_hot_items = self.n_hot_items,
-            item_id_map_external_ids = self.item_id_map.external_ids.tolist(),
-            has_item_features = has_item_features,
-            make_dense_item_features = dense_item_features,
-            item_feature_names = item_feature_names,
-            item_feature_cat_cols = item_feature_cat_cols
+            n_hot_users=self.n_hot_users,
+            user_id_map_external_ids=self.user_id_map.external_ids.tolist(),
+            has_user_features=has_user_features,
+            make_dense_user_features=dense_user_features,
+            user_feature_names=user_feature_names,
+            user_feature_cat_cols=user_feature_cat_cols,
+            n_hot_items=self.n_hot_items,
+            item_id_map_external_ids=self.item_id_map.external_ids.tolist(),
+            has_item_features=has_item_features,
+            make_dense_item_features=dense_item_features,
+            item_feature_names=item_feature_names,
+            item_feature_cat_cols=item_feature_cat_cols,
         )
-        return schema.model_dump(mode="json")
+        if simple_types:
+            return schema.model_dump(mode="json")
+        return schema
 
     @property
     def n_hot_users(self) -> int:

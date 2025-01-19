@@ -408,7 +408,7 @@ class SparseFeatures:
         n_objects: int,
     ) -> tp.Tuple[sparse.csr_matrix, tp.List[SparseFeatureName]]:
         df = df.query("feature == @feature")
-        unq_feature_values = df["value"].unique()
+        unq_feature_values = df["value"].unique()  # (list(set....tolist()))
         n_unq_values = len(unq_feature_values)
         ids = np.arange(n_unq_values)
         value_map = pd.Series(ids, index=unq_feature_values)
@@ -450,16 +450,21 @@ class SparseFeatures:
         """Return number of objects."""
         return self.values.shape[0]
 
+    @property
+    def cat_col_mask(self) -> np.ndarray:
+        """TODO."""
+        return np.array([True if feature_name[1] != DIRECT_FEATURE_VALUE else False for feature_name in self.names])
+
+    @property
+    def cat_feature_cols(self) -> np.ndarray:
+        """TODO."""
+        return np.arange(len(self.names))[self.cat_col_mask]
+
     def get_cat_features(self) -> "SparseFeatures":
         """Return `SparseFeatures` only with categorical features."""
-        cat_feature_ids: tp.List[int] = []
-        for idx, (_, value) in enumerate(self.names):
-            if value != DIRECT_FEATURE_VALUE:
-                cat_feature_ids.append(idx)
-
         return SparseFeatures(
-            values=self.values[:, cat_feature_ids],
-            names=tuple(map(self.names.__getitem__, cat_feature_ids)),
+            values=self.values[:, self.cat_feature_cols],
+            names=tuple(map(self.names.__getitem__, self.cat_feature_cols)),
         )
 
 

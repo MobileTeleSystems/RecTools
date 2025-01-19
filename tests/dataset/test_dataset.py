@@ -73,7 +73,7 @@ class TestDataset:
             "has_item_features": False,
             "make_dense_item_features": None,
             "item_feature_names": None,
-            "item_feature_cat_cols": None
+            "item_feature_cat_cols": None,
         }
 
     def assert_dataset_equal_to_expected(
@@ -92,7 +92,6 @@ class TestDataset:
         assert_interactions_set_equal(actual.interactions, self.expected_interactions)
         assert_feature_set_equal(actual.user_features, expected_user_features)
         assert_feature_set_equal(actual.item_features, expected_item_features)
-
 
     def test_construct_with_extra_cols(self) -> None:
 
@@ -163,7 +162,7 @@ class TestDataset:
             "has_item_features": True,
             "make_dense_item_features": False,
             "item_feature_names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
-            "item_feature_cat_cols": [1, 2]
+            "item_feature_cat_cols": [1, 2],
         }
         assert dataset.get_schema() == expected_schema
 
