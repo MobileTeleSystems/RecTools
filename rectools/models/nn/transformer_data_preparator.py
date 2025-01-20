@@ -144,7 +144,9 @@ class SessionEncoderDataPreparatorBase:
         users = user_stats[user_stats >= self.train_min_user_interactions].index
         interactions = interactions[interactions[Columns.User].isin(users)]
         interactions = (
-            interactions.sort_values(Columns.Datetime).groupby(Columns.User, sort=True).tail(self.session_max_len + 1)
+            interactions.sort_values(Columns.Datetime, kind="stable")
+            .groupby(Columns.User, sort=False)
+            .tail(self.session_max_len + 1)
         )
 
         # Construct dataset
