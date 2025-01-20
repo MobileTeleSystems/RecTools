@@ -750,7 +750,7 @@ class SessionEncoderDataPreparatorBase:
         interactions = interactions[(interactions[Columns.User].isin(users))]
         interactions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User)
+            .groupby(Columns.User, sort=False)
             .tail(self.session_max_len + 1)
         )
 
