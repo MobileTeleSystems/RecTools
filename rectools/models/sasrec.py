@@ -742,7 +742,7 @@ class SessionEncoderDataPreparatorBase:
         interactions = raw_interactions
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(raw_interactions)
-            interactions = raw_interactions[~val_mask]
+        interactions = raw_interactions[~val_mask]
 
         # Filter train interactions
         user_stats = interactions[Columns.User].value_counts()
@@ -1080,7 +1080,6 @@ class SessionEncoderLightningModuleBase(LightningModule):
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
         verbose: int = 0,
-        top_k_saved_val_reco: tp.Optional[int] = None,
     ):
         super().__init__()
         self.lr = lr
@@ -1090,7 +1089,6 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.gbce_t = gbce_t
         self.data_preparator = data_preparator
         self.verbose = verbose
-        self.top_k_saved_val_reco = top_k_saved_val_reco
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -1102,7 +1100,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         """Training step."""
         raise NotImplementedError()
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
         """Validate step."""
         raise NotImplementedError()
 
@@ -1123,7 +1121,6 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
         verbose: int = 1,
-        top_k_saved_val_reco: tp.Optional[int] = None,
     ):
         super().__init__(
             torch_model=torch_model,
@@ -1133,12 +1130,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             loss=loss,
             adam_betas=adam_betas,
             verbose=verbose,
-            top_k_saved_val_reco=top_k_saved_val_reco,
         )
 
-        if self.top_k_saved_val_reco is not None:
-            self.epoch_val_recos: tp.List[tp.List[int]] = []
-            self.epoch_targets: tp.List[tp.List[int]] = []
+        self.item_embs: torch.Tensor
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
@@ -1165,35 +1159,36 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         self.log("train/loss", train_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return train_loss
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def on_validation_epoch_start(self) -> None:
+        """Get item embeddings before validation epoch."""
+        self.item_embs = self.torch_model.item_model.get_all_embeddings()
+
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
         """Validate step."""
+        # x: [batch_size, session_max_len]
+        # y: [batch_size, 1]
+        # yw: [batch_size, 1]
         x, y, w = batch["x"], batch["y"], batch["yw"]
-        logits = None
+        outputs = {}
         if self.loss == "softmax":
             logits = self._get_full_catalog_logits(x)[:, -1:, :]
-            val_loss = self._calc_softmax_loss(logits, y, w)
-            logits = logits.squeeze()
+            outputs["loss"] = self._calc_softmax_loss(logits, y, w)
+            outputs["logits"] = logits.squeeze()
         elif self.loss == "BCE":
             negatives = batch["negatives"]
             pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
-            val_loss = self._calc_bce_loss(pos_neg_logits, y, w)
+            outputs["loss"] = self._calc_bce_loss(pos_neg_logits, y, w)
+            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         elif self.loss == "gBCE":
             negatives = batch["negatives"]
             pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
-            val_loss = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
+            outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
+            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         else:
             raise ValueError(f"loss {self.loss} is not supported")
 
-        self.log("val/loss", val_loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
-
-        if self.top_k_saved_val_reco is not None:
-            if logits is None:
-                logits = self._get_full_catalog_logits(x)[:, -1, :]
-            _, sorted_batch_recos = logits.topk(k=self.top_k_saved_val_reco)
-            self.epoch_val_recos.extend(sorted_batch_recos.tolist())
-            self.epoch_targets.extend(y.tolist())
-
-        return val_loss
+        self.log("val/loss", outputs["loss"], on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        return outputs
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
@@ -1322,7 +1317,6 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        top_k_saved_val_reco: tp.Optional[int] = None,
     ) -> None:
         super().__init__(verbose=verbose)
         self.recommend_n_threads = recommend_n_threads
@@ -1361,7 +1355,6 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         self.lr = lr
         self.loss = loss
         self.gbce_t = gbce_t
-        self.top_k_saved_val_reco = top_k_saved_val_reco
 
     def _fit(self, dataset: Dataset) -> None:
         self.data_preparator.process_dataset_train(dataset)
@@ -1378,11 +1371,12 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             gbce_t=self.gbce_t,
             data_preparator=self.data_preparator,
             verbose=self.verbose,
-            top_k_saved_val_reco=self.top_k_saved_val_reco,
         )
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
+
+        # TODO: add cleaning data_preparator processed data
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -1577,7 +1571,6 @@ class SASRecModel(TransformerModelBase):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        top_k_saved_val_reco: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
     ):
         super().__init__(
@@ -1604,7 +1597,6 @@ class SASRecModel(TransformerModelBase):
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
-            top_k_saved_val_reco=top_k_saved_val_reco,
         )
         self.data_preparator = data_preparator_type(
             session_max_len=session_max_len,
