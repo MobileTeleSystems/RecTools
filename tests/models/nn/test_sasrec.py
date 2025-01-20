@@ -588,8 +588,7 @@ class TestSASRecDataPreparator:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        actual = data_preparator.train_dataset
+        actual = data_preparator.process_dataset_train(dataset)
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, expected_interactions)
@@ -736,8 +735,8 @@ class TestSASRecDataPreparator:
     def test_get_dataloader_train(
         self, dataset: Dataset, data_preparator: SASRecDataPreparator, train_batch: tp.List
     ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        dataloader = data_preparator.get_dataloader_train()
+        dataset = data_preparator.process_dataset_train(dataset)
+        dataloader = data_preparator.get_dataloader_train(dataset)
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, train_batch[key])
