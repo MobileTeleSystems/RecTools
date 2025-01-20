@@ -22,12 +22,6 @@ from pytorch_lightning.accelerators import Accelerator
 from torch import nn
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
-from .net_blocks import (
-    LearnableInversePositionalEncoding,
-    PointWiseFeedForward,
-    PositionalEncodingBase,
-    TransformerLayersBase,
-)
 from .transformer_base import (
     PADDING_VALUE,
     SessionEncoderLightningModule,
@@ -35,6 +29,12 @@ from .transformer_base import (
     TransformerModelBase,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_net_blocks import (
+    LearnableInversePositionalEncoding,
+    PointWiseFeedForward,
+    PositionalEncodingBase,
+    TransformerLayersBase,
+)
 
 
 class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
@@ -201,11 +201,10 @@ class SASRecModel(TransformerModelBase):
     deterministic : bool, default ``False``
         If ``True``, set deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device : Union[str, Accelerator], default "auto"
+    recommend_device : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or Accelerator, default "auto"
         Device for recommend. Used at predict_step of lightning module.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
-        Support {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or custom Accelerator.
     recommend_n_threads : int, default 0
         Number of threads to use in ranker if GPU ranking is turned off or unavailable.
         If you want to change this parameter after model is initialized,
@@ -217,18 +216,18 @@ class SASRecModel(TransformerModelBase):
     trainer : Trainer, optional, default ``None``
         Which trainer to use for training.
         If trainer is None, default pytorch_lightning Trainer is created.
-    item_net_block_types : Type(ItemNetBase), default (IdEmbeddingsItemNet, CatFeaturesItemNet)
+    item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
         (, CatFeaturesItemNet) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
-    pos_encoding_type : Type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
+    pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type : Type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type : Type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
-    lightning_module_type : Type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
+    lightning_module_type : type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
         Type of lightning module defining training procedure.
     """
 

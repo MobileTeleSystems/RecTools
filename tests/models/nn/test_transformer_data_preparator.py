@@ -52,7 +52,7 @@ class TestSequenceDataset:
         expected_sessions: tp.List[tp.List[int]],
         expected_weights: tp.List[tp.List[float]],
     ) -> None:
-        actual = SequenceDataset.from_interactions(interactions_df)
+        actual = SequenceDataset.from_interactions(interactions=interactions_df, sort_users=True)
         assert len(actual.sessions) == len(expected_sessions)
         assert all(
             actual_list == expected_list for actual_list, expected_list in zip(actual.sessions, expected_sessions)

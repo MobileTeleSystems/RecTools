@@ -28,13 +28,13 @@ from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
-from .net_blocks import (
+from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
-from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 
 PADDING_VALUE = "PAD"
 
@@ -59,11 +59,11 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         If ``True``, learnable positional encoding will be added to session item embeddings.
     use_causal_attn : bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
-    transformer_layers_type : Type(TransformerLayersBase), default `PreLNTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
         Type of transformer layers architecture.
-    item_net_type : Type(ItemNetBase), default IdEmbeddingsItemNet
+    item_net_type : type(ItemNetBase), default `IdEmbeddingsItemNet`
         Type of network returning item embeddings.
-    pos_encoding_type : Type(PositionalEncodingBase), default LearnableInversePositionalEncoding
+    pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
     """
 
@@ -395,11 +395,8 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
-            # ValueError is raised if `param.data` is a tensor with fewer than 2 dimensions.
-            try:
+            if param.data.dim() > 1:
                 torch.nn.init.xavier_normal_(param.data)
-            except ValueError:
-                pass
 
 
 # ####  --------------  Transformer Model Base  --------------  #### #
