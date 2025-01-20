@@ -22,7 +22,15 @@ import pytest
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import PopularModel
-from tests.models.utils import assert_second_fit_refits_model
+from rectools.models.popular import Popularity
+from tests.models.utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
+
+from .data import DATASET
 
 
 class TestPopularModel:
@@ -142,7 +150,7 @@ class TestPopularModel:
 
     def test_raises_when_incorrect_popularity(self) -> None:
         with pytest.raises(ValueError):
-            PopularModel(popularity="strange")
+            PopularModel(popularity="strange")  # type: ignore[arg-type]
 
     def test_raises_when_both_period_and_begin_from_are_set(self) -> None:
         with pytest.raises(ValueError):
@@ -212,3 +220,140 @@ class TestPopularModel:
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = PopularModel()
         assert_second_fit_refits_model(model, dataset)
+
+    def test_dumps_loads(self, dataset: Dataset) -> None:
+        model = PopularModel()
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)
+
+
+class TestPopularModelConfiguration:
+    @pytest.mark.parametrize(
+        "begin_from,period,expected_begin_from,expected_period",
+        (
+            (None, timedelta(days=7), None, timedelta(days=7)),
+            (datetime(2021, 11, 23), None, datetime(2021, 11, 23), None),
+            ("2021-11-23T10:20:30.400", None, datetime(2021, 11, 23, 10, 20, 30, 400000), None),
+            (
+                None,
+                {
+                    "days": 7,
+                    "seconds": 123,
+                    "microseconds": 12345,
+                    "milliseconds": 32,
+                    "minutes": 2,
+                    "weeks": 7,
+                },
+                None,
+                timedelta(days=56, seconds=243, microseconds=44345),
+            ),
+        ),
+    )
+    def test_from_config(
+        self,
+        period: tp.Optional[tp.Union[timedelta, dict]],
+        begin_from: tp.Optional[tp.Union[datetime, str]],
+        expected_begin_from: tp.Optional[datetime],
+        expected_period: tp.Optional[dict],
+    ) -> None:
+        config = {
+            "popularity": "n_interactions",
+            "period": period,
+            "begin_from": begin_from,
+            "add_cold": True,
+            "inverse": True,
+            "verbose": 0,
+        }
+        model = PopularModel.from_config(config)
+        assert model.popularity.value == "n_interactions"
+        assert model.period == expected_period
+        assert model.begin_from == expected_begin_from
+        assert model.add_cold is True
+        assert model.inverse is True
+        assert model.verbose == 0
+
+    @pytest.mark.parametrize(
+        "begin_from,period,simple_begin_from,simple_period",
+        (
+            (
+                None,
+                timedelta(weeks=2, days=7, hours=23, milliseconds=12345),
+                None,
+                {"days": 21, "microseconds": 345000, "seconds": 82812},
+            ),
+            (datetime(2024, 11, 23, 10, 20, 30, 400000), None, "2024-11-23T10:20:30.400000", None),
+        ),
+    )
+    @pytest.mark.parametrize("simple_types", (True, False))
+    def test_get_config(
+        self,
+        period: tp.Optional[timedelta],
+        begin_from: tp.Optional[datetime],
+        simple_begin_from: tp.Optional[str],
+        simple_period: tp.Optional[dict],
+        simple_types: bool,
+    ) -> None:
+        model = PopularModel(
+            popularity="n_users",
+            period=period,
+            begin_from=begin_from,
+            add_cold=False,
+            inverse=False,
+            verbose=1,
+        )
+        config = model.get_config(simple_types=simple_types)
+        expected = {
+            "cls": "PopularModel" if simple_types else PopularModel,
+            "popularity": "n_users" if simple_types else Popularity("n_users"),
+            "period": simple_period if simple_types else period,
+            "begin_from": simple_begin_from if simple_types else begin_from,
+            "add_cold": False,
+            "inverse": False,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize(
+        "begin_from,period,simple_types",
+        (
+            (
+                None,
+                timedelta(weeks=1, days=2, hours=3, minutes=4, seconds=5, milliseconds=6000, microseconds=70000),
+                True,
+            ),
+            (datetime(2021, 11, 23), None, False),
+            ("2021-11-23T10:20:30.400", None, True),
+            (
+                None,
+                {
+                    "days": 7,
+                    "seconds": 123,
+                    "microseconds": 12345,
+                    "milliseconds": 32,
+                    "minutes": 2,
+                    "weeks": 7,
+                },
+                False,
+            ),
+        ),
+    )
+    def test_get_config_and_from_config_compatibility(
+        self,
+        period: tp.Optional[timedelta],
+        begin_from: tp.Optional[datetime],
+        simple_types: bool,
+    ) -> None:
+        initial_config = {
+            "popularity": "n_users",
+            "period": period,
+            "begin_from": begin_from,
+            "add_cold": True,
+            "inverse": False,
+            "verbose": 0,
+        }
+        assert_get_config_and_from_config_compatibility(PopularModel, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = PopularModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)

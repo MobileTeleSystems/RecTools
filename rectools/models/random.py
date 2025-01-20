@@ -18,10 +18,12 @@ import random
 import typing as tp
 
 import numpy as np
+import typing_extensions as tpe
 from tqdm.auto import tqdm
 
 from rectools import InternalIds
 from rectools.dataset import Dataset
+from rectools.models.base import ModelConfig
 from rectools.types import AnyIdsArray, InternalId, InternalIdsArray
 from rectools.utils import fast_isin_for_sorted_test_elements
 
@@ -50,7 +52,13 @@ class _RandomSampler:
         return sampled
 
 
-class RandomModel(ModelBase):
+class RandomModelConfig(ModelConfig):
+    """Config for `Random` model."""
+
+    random_state: tp.Optional[int] = None
+
+
+class RandomModel(ModelBase[RandomModelConfig]):
     """
     Model generating random recommendations.
 
@@ -70,12 +78,21 @@ class RandomModel(ModelBase):
     recommends_for_warm = False
     recommends_for_cold = True
 
+    config_class = RandomModelConfig
+
     def __init__(self, random_state: tp.Optional[int] = None, verbose: int = 0):
         super().__init__(verbose=verbose)
         self.random_state = random_state
         self.random_gen = _RandomGen(random_state)
 
         self.all_item_ids: np.ndarray
+
+    def _get_config(self) -> RandomModelConfig:
+        return RandomModelConfig(cls=self.__class__, random_state=self.random_state, verbose=self.verbose)
+
+    @classmethod
+    def _from_config(cls, config: RandomModelConfig) -> tpe.Self:
+        return cls(random_state=config.random_state, verbose=config.verbose)
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         self.all_item_ids = dataset.item_id_map.internal_ids

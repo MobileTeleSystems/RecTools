@@ -21,13 +21,14 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
 
 from rectools import Columns, InternalIds
 from rectools.dataset import Dataset, Interactions, features
 from rectools.types import InternalIdsArray
 
-from .base import Scores
-from .popular import PopularModel
+from .base import ModelBase, Scores
+from .popular import FixedColdRecoModelMixin, PopularModel, PopularModelConfig, PopularModelMixin, PopularityOptions
 
 
 class MixingStrategy(Enum):
@@ -44,7 +45,18 @@ class RatioStrategy(Enum):
     PROPORTIONAL = "proportional"
 
 
-class PopularInCategoryModel(PopularModel):
+class PopularInCategoryModelConfig(PopularModelConfig):
+    """Config for `PopularInCategoryModel`."""
+
+    category_feature: str
+    n_categories: tp.Optional[int] = None
+    mixing_strategy: MixingStrategy = MixingStrategy.ROTATE
+    ratio_strategy: RatioStrategy = RatioStrategy.PROPORTIONAL
+
+
+class PopularInCategoryModel(
+    FixedColdRecoModelMixin, PopularModelMixin, ModelBase[PopularInCategoryModelConfig]
+):  # pylint: disable=too-many-instance-attributes
     """
     Model generating recommendations based on popularity of items.
 
@@ -98,13 +110,15 @@ class PopularInCategoryModel(PopularModel):
     recommends_for_warm = False
     recommends_for_cold = True
 
+    config_class = PopularInCategoryModelConfig
+
     def __init__(
         self,
         category_feature: str,
         n_categories: tp.Optional[int] = None,
-        mixing_strategy: tp.Optional[str] = "rotate",
-        ratio_strategy: tp.Optional[str] = "proportional",
-        popularity: str = "n_users",
+        mixing_strategy: tp.Literal["rotate", "group"] = "rotate",
+        ratio_strategy: tp.Literal["proportional", "equal"] = "proportional",
+        popularity: PopularityOptions = "n_users",
         period: tp.Optional[timedelta] = None,
         begin_from: tp.Optional[datetime] = None,
         add_cold: bool = False,
@@ -112,26 +126,18 @@ class PopularInCategoryModel(PopularModel):
         verbose: int = 0,
     ):
         super().__init__(
-            popularity=popularity,
-            period=period,
-            begin_from=begin_from,
-            add_cold=add_cold,
-            inverse=inverse,
             verbose=verbose,
         )
 
+        self.popularity = self._validate_popularity(popularity)
+        self._validate_time_attributes(period, begin_from)
+        self.period = period
+        self.begin_from = begin_from
+
+        self.add_cold = add_cold
+        self.inverse = inverse
+
         self.category_feature = category_feature
-        self.category_columns: tp.List[int] = []
-        self.category_interactions: tp.Dict[int, pd.DataFrame] = {}
-        self.category_scores: pd.Series
-        self.models: tp.Dict[int, PopularModel] = {}
-        self.n_effective_categories: int
-
-        if n_categories is None or n_categories > 0:
-            self.n_categories = n_categories
-        else:
-            raise ValueError(f"`n_categories` must be a positive number. Got {n_categories}")
-
         try:
             self.mixing_strategy = MixingStrategy(mixing_strategy)
         except ValueError:
@@ -143,6 +149,46 @@ class PopularInCategoryModel(PopularModel):
         except ValueError:
             possible_values = {item.value for item in RatioStrategy.__members__.values()}
             raise ValueError(f"`ratio_strategy` must be one of the {possible_values}. Got {ratio_strategy}.")
+        self.category_columns: tp.List[int] = []
+        self.category_interactions: tp.Dict[int, pd.DataFrame] = {}
+        self.category_scores: pd.Series
+        self.models: tp.Dict[int, PopularModel] = {}
+        self.n_effective_categories: int
+
+        if n_categories is None or n_categories > 0:
+            self.n_categories = n_categories
+        else:
+            raise ValueError(f"`n_categories` must be a positive number. Got {n_categories}")
+
+    def _get_config(self) -> PopularInCategoryModelConfig:
+        return PopularInCategoryModelConfig(
+            cls=self.__class__,
+            category_feature=self.category_feature,
+            n_categories=self.n_categories,
+            mixing_strategy=self.mixing_strategy,
+            ratio_strategy=self.ratio_strategy,
+            popularity=self.popularity,
+            period=self.period,
+            begin_from=self.begin_from,
+            add_cold=self.add_cold,
+            inverse=self.inverse,
+            verbose=self.verbose,
+        )
+
+    @classmethod
+    def _from_config(cls, config: PopularInCategoryModelConfig) -> tpe.Self:
+        return cls(
+            category_feature=config.category_feature,
+            n_categories=config.n_categories,
+            mixing_strategy=config.mixing_strategy.value,
+            ratio_strategy=config.ratio_strategy.value,
+            popularity=config.popularity.value,
+            period=config.period,
+            begin_from=config.begin_from,
+            add_cold=config.add_cold,
+            inverse=config.inverse,
+            verbose=config.verbose,
+        )
 
     def _check_category_feature(self, dataset: Dataset) -> None:
         if not dataset.item_features:
@@ -200,7 +246,7 @@ class PopularInCategoryModel(PopularModel):
         self.n_effective_categories = 0
 
         self._check_category_feature(dataset)
-        interactions = self._filter_interactions(dataset.interactions.df)
+        interactions = self._filter_interactions(dataset.interactions.df, self.period, self.begin_from)
         self._calc_category_scores(dataset, interactions)
         self._define_categories_for_analysis()
 

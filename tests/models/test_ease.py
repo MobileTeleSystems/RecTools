@@ -23,7 +23,12 @@ from rectools.dataset import Dataset
 from rectools.models import EASEModel
 
 from .data import DATASET, INTERACTIONS
-from .utils import assert_second_fit_refits_model
+from .utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_dumps_loads_do_not_change_model,
+    assert_get_config_and_from_config_compatibility,
+    assert_second_fit_refits_model,
+)
 
 
 class TestEASEModel:
@@ -220,3 +225,51 @@ class TestEASEModel:
                 dataset=dataset,
                 k=2,
             )
+
+    def test_dumps_loads(self, dataset: Dataset) -> None:
+        model = EASEModel()
+        model.fit(dataset)
+        assert_dumps_loads_do_not_change_model(model, dataset)
+
+
+class TestEASEModelConfiguration:
+    def test_from_config(self) -> None:
+        config = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        model = EASEModel.from_config(config)
+        assert model.num_threads == 1
+        assert model.verbose == 1
+        assert model.regularization == 500
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool) -> None:
+        model = EASEModel(
+            regularization=500,
+            num_threads=1,
+            verbose=1,
+        )
+        config = model.get_config(simple_types=simple_types)
+        expected = {
+            "cls": "EASEModel" if simple_types else EASEModel,
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+        initial_config = {
+            "regularization": 500,
+            "num_threads": 1,
+            "verbose": 1,
+        }
+        assert_get_config_and_from_config_compatibility(EASEModel, DATASET, initial_config, simple_types)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = EASEModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
