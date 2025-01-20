@@ -708,7 +708,7 @@ class SequenceDataset(TorchDataset):
             User-item interactions.
         """
         sessions = (
-            interactions.sort_values(Columns.Datetime)
+            interactions.sort_values(Columns.Datetime, kind="stable")
             .groupby(Columns.User, sort=True)[[Columns.Item, Columns.Weight]]
             .agg(list)
         )
@@ -1559,6 +1559,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             enable_model_summary=self.verbose > 0,
             logger=self.verbose > 0,
             enable_checkpointing=False,
+            devices=1
         )
 
     def _init_torch_model(self) -> None:

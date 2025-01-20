@@ -42,15 +42,7 @@ EXPOSABLE_MODEL_CLASSES = tuple(
         and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
     )
 )
-CONFIGURABLE_MODEL_CLASSES = tuple(
-    cls
-    for cls in EXPOSABLE_MODEL_CLASSES
-    if cls
-    not in (
-        DSSMModel,
-        # SASRecModel,
-    )
-)
+CONFIGURABLE_MODEL_CLASSES = tuple(cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel,))
 
 
 def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:

@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import SparseFeatures
-from rectools.models import SASRecModel
+from rectools.models import SASRecModel, BERT4RecModel
 from rectools.models.sasrec import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -24,6 +24,7 @@ from rectools.models.sasrec import (
     SASRecTransformerLayers,
     SequenceDataset,
     SessionEncoderLightningModule,
+    TransformerModelBase
 )
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
@@ -468,7 +469,8 @@ class TestSASRecModel:
             """
         )
 
-    def test_checkpoint(self, dataset: Dataset) -> None:
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_checkpoint(self, dataset: Dataset, model_cls: tp.Type[TransformerModelBase]) -> None:
         with TemporaryDirectory() as dirname:
             checkpoint_callback = ModelCheckpoint(dirpath=dirname, filename="last_state", save_on_train_epoch_end=True)
             trainer = Trainer(
@@ -479,7 +481,7 @@ class TestSASRecModel:
                 callbacks=[checkpoint_callback],
                 devices=1,
             )
-            model = SASRecModel(
+            model = model_cls(
                 n_factors=32,
                 n_blocks=2,
                 session_max_len=3,
@@ -494,7 +496,7 @@ class TestSASRecModel:
             users = np.array([10, 30, 40])
             expected = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
 
-            loaded = SASRecModel.load_from_checkpoint(Path(dirname) / "last_state.ckpt")
+            loaded = model_cls.load_from_checkpoint(Path(dirname) / "last_state.ckpt")
             actual = loaded.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
             pd.testing.assert_frame_equal(actual, expected)
 
