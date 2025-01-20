@@ -39,6 +39,8 @@ Models
 from .ease import EASEModel
 from .implicit_als import ImplicitALSWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
+from .nn.bert4rec import BERT4RecModel
+from .nn.sasrec import SASRecModel
 from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
 from .pure_svd import PureSVDModel
@@ -57,6 +59,8 @@ except ImportError:  # pragma: no cover
 
 
 __all__ = (
+    "SASRecModel",
+    "BERT4RecModel",
     "EASEModel",
     "ImplicitALSWrapperModel",
     "ImplicitItemKNNWrapperModel",

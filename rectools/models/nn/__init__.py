@@ -12,8 +12,4 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from pydantic import BaseModel
-
-
-class BaseConfig(BaseModel, extra="forbid"):
-    """Base config class for rectools."""
+"""Recommendation models based on neural nets."""

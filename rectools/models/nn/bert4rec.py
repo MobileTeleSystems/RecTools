@@ -1,3 +1,17 @@
+#  Copyright 2024 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import typing as tp
 from typing import Dict, List, Tuple, Union
 
@@ -5,28 +19,27 @@ import numpy as np
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import Accelerator
-from torch import nn
 
-from rectools.models.sasrec import (
-    CatFeaturesItemNet,
-    IdEmbeddingsItemNet,
-    ItemNetBase,
-    LearnableInversePositionalEncoding,
-    PointWiseFeedForward,
-    PositionalEncodingBase,
-    SessionEncoderDataPreparatorBase,
+from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
+from .transformer_base import (
+    PADDING_VALUE,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
-    TransformerLayersBase,
     TransformerModelBase,
 )
+from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_net_blocks import (
+    LearnableInversePositionalEncoding,
+    PositionalEncodingBase,
+    PreLNTransformerLayers,
+    TransformerLayersBase,
+)
 
-PADDING_VALUE = "PAD"
 MASKING_VALUE = "MASK"
 
 
 class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
-    """TODO"""
+    """Data Preparator for BERT4RecModel."""
 
     def __init__(
         self,
@@ -81,7 +94,6 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len + 1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        # TODO: we are sampling negatives for paddings
         if self.n_negatives is not None:
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
@@ -101,56 +113,81 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
-class BERT4RecTransformerLayers(TransformerLayersBase):
-    """TODO"""
-
-    def __init__(
-        self,
-        n_blocks: int,
-        n_factors: int,
-        n_heads: int,
-        dropout_rate: float,
-    ):
-        super().__init__()
-        self.n_blocks = n_blocks
-        self.multi_head_attn = nn.ModuleList(
-            [nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
-        )
-        self.layer_norm1 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.dropout1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        self.layer_norm2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors * 4, dropout_rate, torch.nn.GELU()) for _ in range(n_blocks)]
-        )
-        self.dropout2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        self.dropout3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-
-    def forward(
-        self, seqs: torch.Tensor, timeline_mask: torch.Tensor, attn_mask: torch.Tensor, key_padding_mask: torch.Tensor
-    ) -> torch.Tensor:
-        """TODO"""
-        for i in range(self.n_blocks):
-            mha_input = self.layer_norm1[i](seqs)
-            mha_output, _ = self.multi_head_attn[i](
-                mha_input,
-                mha_input,
-                mha_input,
-                attn_mask=attn_mask,
-                key_padding_mask=key_padding_mask,
-                need_weights=False,
-            )
-            seqs = seqs + self.dropout1[i](mha_output)
-            ff_input = self.layer_norm2[i](seqs)
-            ff_output = self.feed_forward[i](ff_input)
-            seqs = seqs + self.dropout2[i](ff_output)
-            seqs = self.dropout3[i](seqs)
-        # TODO: test with torch.nn.Linear and cross-entropy loss as in
-        # https://github.com/jaywonchung/BERT4Rec-VAE-Pytorch/blob/f66f2534ebfd937778c7174b5f9f216efdebe5de/models/bert.py#L11C1-L11C67
-        return seqs
-
-
 class BERT4RecModel(TransformerModelBase):
-    """TODO"""
+    """
+    BERT4Rec model.
+
+    n_blocks : int, default 1
+        Number of transformer blocks.
+    n_heads : int, default 1
+        Number of attention heads.
+    n_factors : int, default 128
+        Latent embeddings size.
+    use_pos_emb : bool, default ``True``
+        If ``True``, learnable positional encoding will be added to session item embeddings.
+    use_causal_attn : bool, default ``False``
+        If ``True``, causal mask will be added as attn_mask in Multi-head Attention. Please note that default
+        BERT4Rec training task (MLM) does not match well with causal masking. Set this parameter to
+        ``True`` only when you change the training task with custom `data_preparator_type` or if you
+        are absolutely sure of what you are doing.
+    use_key_padding_mask : bool, default ``False``
+        If ``True``, key_padding_mask will be added in Multi-head Attention.
+    dropout_rate : float, default 0.2
+        Probability of a hidden unit to be zeroed.
+    session_max_len : int, default 32
+        Maximum length of user sequence that model will accept during inference.
+    train_min_user_interactions : int, default 2
+        Minimum number of interactions user should have to be used for training. Should be greater than 1.
+    mask_prob : float, default 0.15
+        Probability of masking an item in interactions sequence.
+    dataloader_num_workers : int, default 0
+        Number of loader worker processes.
+    batch_size : int, default 128
+        How many samples per batch to load.
+    loss : {"softmax", "BCE", "gBCE"}, default "softmax"
+        Loss function.
+    n_negatives : int, default 1
+        Number of negatives for BCE and gBCE losses.
+    gbce_t : float, default 0.2
+        Calibration parameter for gBCE loss.
+    lr : float, default 0.01
+        Learning rate.
+    epochs : int, default 3
+        Number of training epochs.
+    verbose : int, default 0
+        Verbosity level.
+    deterministic : bool, default ``False``
+        If ``True``, set deterministic algorithms for PyTorch operations.
+        Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
+    recommend_device : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or Accelerator, default "auto"
+        Device for recommend. Used at predict_step of lightning module.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_device` attribute.
+    recommend_n_threads : int, default 0
+        Number of threads to use in ranker if GPU ranking is turned off or unavailable.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking : bool, default ``True``
+        If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
+    trainer : Trainer, optional, default ``None``
+        Which trainer to use for training.
+        If trainer is None, default pytorch_lightning Trainer is created.
+    item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
+        Type of network returning item embeddings.
+        (IdEmbeddingsItemNet,) - item embeddings based on ids.
+        (, CatFeaturesItemNet) - item embeddings based on categorical features.
+        (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
+    pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
+        Type of positional encoding.
+    transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
+        Type of transformer layers architecture.
+    data_preparator_type : type(SessionEncoderDataPreparatorBase), default `BERT4RecDataPreparator`
+        Type of data preparator used for dataset processing and dataloader creation.
+    lightning_module_type : type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
+        Type of lightning module defining training procedure.
+    """
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
@@ -174,12 +211,12 @@ class BERT4RecModel(TransformerModelBase):
         gbce_t: float = 0.2,
         lr: float = 0.01,
         dataloader_num_workers: int = 0,
-        train_min_user_interaction: int = 2,
+        train_min_user_interactions: int = 2,
         mask_prob: float = 0.15,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = BERT4RecTransformerLayers,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
@@ -213,7 +250,7 @@ class BERT4RecModel(TransformerModelBase):
             n_negatives=n_negatives if loss != "softmax" else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
-            train_min_user_interactions=train_min_user_interaction,
+            train_min_user_interactions=train_min_user_interactions,
             item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
             mask_prob=mask_prob,
         )
