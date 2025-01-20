@@ -742,7 +742,7 @@ class SessionEncoderDataPreparatorBase:
         interactions = raw_interactions
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(raw_interactions)
-        interactions = raw_interactions[~val_mask]
+            interactions = raw_interactions[~val_mask]
 
         # Filter train interactions
         user_stats = interactions[Columns.User].value_counts()
