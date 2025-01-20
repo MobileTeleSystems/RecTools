@@ -1,6 +1,7 @@
 import typing as tp
 import warnings
 from copy import deepcopy
+from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -24,7 +25,6 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase,
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
-from rectools.utils.serialization import FileLike
 
 PADDING_VALUE = "PAD"
 
@@ -1168,6 +1168,12 @@ class SessionEncoderLightningModuleBase(LightningModule):
         """Prediction step."""
         raise NotImplementedError()
 
+    def get_item_embs(self) -> torch.Tensor:
+        """Return full catalog embeddings."""
+        if self.item_embs is None:
+            self.item_embs = self.torch_model.item_model.get_all_embeddings()
+        return self.item_embs
+
 
 class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     """Lightning module to train SASRec model."""
@@ -1580,8 +1586,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             pos_encoding_type=self.pos_encoding_type,
         )
 
+    def save_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
+        """TODO."""
+        self.fit_trainer.save_checkpoint(checkpoint_path)
+
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: FileLike) -> tpe.Self:
+    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
         """TODO."""
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         hyper_parameters = checkpoint["hyper_parameters"]
@@ -1654,7 +1664,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if session_embs is not None:
             user_embs = np.concatenate(session_embs, axis=0)
             user_embs = user_embs[user_ids]
-            item_embs = self.lightning_model.item_embs
+            item_embs = self.lightning_model.get_item_embs()
             item_embs_np = item_embs.detach().cpu().numpy()
 
             ranker = ImplicitRanker(
