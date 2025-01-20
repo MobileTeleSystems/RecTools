@@ -624,6 +624,11 @@ class TestSASRecModel:
             """
         )
 
+    def test_raises_when_loss_is_not_supported(self, dataset: Dataset) -> None:
+        model = SASRecModel(loss="gbce")
+        with pytest.raises(ValueError):
+            model.fit(dataset=dataset)
+
 
 class TestSASRecDataPreparator:
 

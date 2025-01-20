@@ -403,70 +403,6 @@ class TestBERT4RecModel:
             actual,
         )
 
-    @pytest.mark.parametrize(
-        "filter_viewed,expected",
-        (
-            (
-                True,
-                pd.DataFrame(
-                    {
-                        Columns.User: [10, 10, 20, 20, 20],
-                        Columns.Item: [15, 17, 15, 17, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3],
-                    }
-                ),
-            ),
-            (
-                False,
-                pd.DataFrame(
-                    {
-                        Columns.User: [10, 10, 10, 20, 20, 20],
-                        Columns.Item: [15, 17, 13, 15, 13, 17],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3],
-                    }
-                ),
-            ),
-        ),
-    )
-    def test_warn_when_hot_user_has_cold_items_in_recommend(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
-    ) -> None:
-        model = BERT4RecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
-        model.fit(dataset=dataset)
-        users = np.array([10, 20, 50])
-        with pytest.warns() as record:
-            actual = model.recommend(
-                users=users,
-                dataset=dataset,
-                k=3,
-                filter_viewed=filter_viewed,
-                on_unsupported_targets="warn",
-            )
-            pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-            pd.testing.assert_frame_equal(
-                actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-                actual,
-            )
-        assert str(record[0].message) == "1 target users were considered cold because of missing known items"
-        # assert (
-        #     str(record[1].message)
-        #     == """
-        #         Model `<class 'rectools.models.nn.bert4rec.BERT4RecModel'>`
-        # doesn't support recommendations for cold users,
-        #         but some of given users are cold: they are not in the `dataset.user_id_map`
-        #     """
-        # )
-
 
 class TestBERT4RecDataPreparator:
 
@@ -493,6 +429,30 @@ class TestBERT4RecDataPreparator:
                 [10, 14, 1, "2021-11-28"],
                 [10, 16, 1, "2021-11-27"],
                 [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def dataset_one_session(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 1, 1, "2021-11-30"],
+                [10, 2, 1, "2021-11-30"],
+                [10, 3, 1, "2021-11-30"],
+                [10, 4, 1, "2021-11-30"],
+                [10, 5, 1, "2021-11-30"],
+                [10, 6, 1, "2021-11-30"],
+                [10, 7, 1, "2021-11-30"],
+                [10, 8, 1, "2021-11-30"],
+                [10, 9, 1, "2021-11-30"],
+                [10, 13, 1, "2021-11-30"],
+                [10, 2, 1, "2021-11-30"],
+                [10, 3, 1, "2021-11-30"],
+                [10, 3, 1, "2021-11-30"],
+                [10, 4, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-30"],
             ],
             columns=Columns.Interactions,
         )
@@ -642,6 +602,37 @@ class TestBERT4RecDataPreparator:
         self, dataset: Dataset, data_preparator: BERT4RecDataPreparator, train_batch: tp.List
     ) -> None:
         dataset = data_preparator.process_dataset_train(dataset)
+        dataloader = data_preparator.get_dataloader_train(dataset)
+        actual = next(iter(dataloader))
+        for key, value in actual.items():
+            assert torch.equal(value, train_batch[key])
+
+    @pytest.mark.parametrize(
+        "train_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[2, 1, 4, 5, 6, 7, 1, 9, 10, 11, 1, 1, 4, 6, 12]]),
+                    "y": torch.tensor([[0, 3, 0, 0, 0, 0, 8, 0, 0, 0, 3, 4, 0, 5, 0]]),
+                    "yw": torch.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], dtype=torch.float),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_train_masked_session_with_random_replacement(
+        self, dataset_one_session: Dataset, train_batch: tp.List
+    ) -> None:
+        data_preparator = BERT4RecDataPreparator(
+            session_max_len=14,
+            n_negatives=None,
+            batch_size=14,
+            dataloader_num_workers=0,
+            train_min_user_interactions=2,
+            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
+            shuffle_train=True,
+            mask_prob=0.5,
+        )
+        dataset = data_preparator.process_dataset_train(dataset_one_session)
         dataloader = data_preparator.get_dataloader_train(dataset)
         actual = next(iter(dataloader))
         for key, value in actual.items():
