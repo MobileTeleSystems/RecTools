@@ -40,7 +40,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         mask_prob: float,
         item_extra_tokens: tp.Sequence[tp.Hashable],
         shuffle_train: bool = True,
-        get_val_mask_func: tp.Optional[tp.Callable] = None
+        get_val_mask_func: tp.Optional[tp.Callable] = None,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -50,7 +50,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             train_min_user_interactions=train_min_user_interactions,
             item_extra_tokens=item_extra_tokens,
             shuffle_train=shuffle_train,
-            get_val_mask_func=get_val_mask_func
+            get_val_mask_func=get_val_mask_func,
         )
         self.mask_prob = mask_prob
 
@@ -232,7 +232,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
 
     def _init_data_preparator(self) -> None:
         self.data_preparator = self.data_preparator_type(
-            session_max_len=self.session_max_len,
+            session_max_len=self.session_max_len - 1,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,

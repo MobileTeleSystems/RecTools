@@ -779,6 +779,14 @@ class SessionEncoderDataPreparatorBase:
         """Return number of padding elements"""
         return len(self.item_extra_tokens)
 
+    @property
+    def extra_token_ids(self) -> dict:
+        """Return extra token ids mapping"""
+        if self.item_id_map is not None:
+            extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
+            return dict(zip(self.item_extra_tokens, extra_token_ids))
+        return {}
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """TODO"""
         raw_interactions = dataset.get_raw_interactions()
@@ -833,8 +841,6 @@ class SessionEncoderDataPreparatorBase:
         self.train_dataset = Dataset(user_id_map, item_id_map, dataset_interactions, item_features=item_features)
 
         self.item_id_map = self.train_dataset.item_id_map
-        extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
-        self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
 
         # Define val interactions
         if self.get_val_mask_func is not None:
@@ -1559,7 +1565,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             enable_model_summary=self.verbose > 0,
             logger=self.verbose > 0,
             enable_checkpointing=False,
-            devices=1
+            devices=1,
         )
 
     def _init_torch_model(self) -> None:

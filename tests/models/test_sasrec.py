@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import SparseFeatures
-from rectools.models import SASRecModel, BERT4RecModel
+from rectools.models import BERT4RecModel, SASRecModel
 from rectools.models.sasrec import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -24,7 +24,7 @@ from rectools.models.sasrec import (
     SASRecTransformerLayers,
     SequenceDataset,
     SessionEncoderLightningModule,
-    TransformerModelBase
+    TransformerModelBase,
 )
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
