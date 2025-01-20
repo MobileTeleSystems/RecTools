@@ -1399,16 +1399,6 @@ TransformerLayersType = tpe.Annotated[
     ),
 ]
 
-# ModuleType = tpe.Annotated[
-#     tp.Type[nn.Module],
-#     BeforeValidator(_get_class_obj),
-#     PlainSerializer(
-#         func=get_class_or_function_full_path,
-#         return_type=str,
-#         when_used="json",
-#     ),
-# ]
-
 SessionEncoderLightningModuleType = tpe.Annotated[
     tp.Type[SessionEncoderLightningModuleBase],
     BeforeValidator(_get_class_obj),
@@ -1588,6 +1578,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def save_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
         """TODO."""
+        # TODO: handle the case when model was loaded from checkpoint but not fitted
         self.fit_trainer.save_checkpoint(checkpoint_path)
 
     @classmethod
@@ -1607,7 +1598,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         model.lightning_model = model.lightning_module_type.load_from_checkpoint(
             checkpoint_path, torch_model=model._torch_model
         )
-        # TODO: check that weights were updated
         # TODO: check that trainer things were updated
         model.lightning_model.load_state_dict(checkpoint["state_dict"])  # do we need this?
         model.is_fitted = True
