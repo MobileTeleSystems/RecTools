@@ -408,7 +408,7 @@ class SparseFeatures:
         n_objects: int,
     ) -> tp.Tuple[sparse.csr_matrix, tp.List[SparseFeatureName]]:
         df = df.query("feature == @feature")
-        unq_feature_values = df["value"].unique()  # (list(set....tolist()))
+        unq_feature_values = df["value"].unique()
         n_unq_values = len(unq_feature_values)
         ids = np.arange(n_unq_values)
         value_map = pd.Series(ids, index=unq_feature_values)

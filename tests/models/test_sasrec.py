@@ -1,5 +1,8 @@
 import typing as tp
 from typing import List
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from pathlib import Path
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 import numpy as np
 import pandas as pd
@@ -464,6 +467,37 @@ class TestSASRecModel:
                 but some of given users are cold: they are not in the `dataset.user_id_map`
             """
         )
+    
+    def test_checkpoint(self, dataset: Dataset):
+        with TemporaryDirectory() as dirname:
+            checkpoint_callback = ModelCheckpoint(dirpath=dirname, filename="last_state", save_on_train_epoch_end=True)
+            trainer = Trainer(
+                max_epochs=2,
+                min_epochs=2,
+                deterministic=True,
+                accelerator="cpu",
+                callbacks=[checkpoint_callback],
+                devices=1,
+            )
+            model = SASRecModel(
+                n_factors=32,
+                n_blocks=2,
+                session_max_len=3,
+                lr=0.001,
+                batch_size=4,
+                epochs=2,
+                deterministic=True,
+                item_net_block_types=(IdEmbeddingsItemNet,),
+                trainer=trainer,
+            )
+            model.fit(dataset=dataset)
+            users = np.array([10, 30, 40])
+            expected = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
+
+            loaded = SASRecModel.load_from_checkpoint(Path(dirname) / "last_state.ckpt")
+            actual = loaded.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
+            pd.testing.assert_frame_equal(actual, expected)
+
 
 
 class TestSequenceDataset:

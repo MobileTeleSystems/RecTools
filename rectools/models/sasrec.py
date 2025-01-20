@@ -1199,6 +1199,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             data_preparator=data_preparator,
             model_config=model_config,
         )
+        self.item_embs: tp.Optional[torch.Tensor] = None
 
         if self.top_k_saved_val_reco is not None:
             self.epoch_val_recos: tp.List[tp.List[int]] = []
@@ -1343,6 +1344,8 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         Prediction step.
         Encode user sessions.
         """
+        if self.item_embs is None:
+            self.item_embs = self.torch_model.item_model.get_all_embeddings()
         encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs.to(self.device))[:, -1, :]
         return encoded_sessions
 
@@ -1547,7 +1550,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataset_schema = hyper_parameters["dataset_schema"]
         model = cls.from_config(model_config)
         model._init_torch_model()
-        model.data_preparator.item_id_map = IdMap(np.asarray(dataset_schema["item_id_map_external_ids"]))
+        model.data_preparator.item_id_map = IdMap(np.array(dataset_schema["item_id_map_external_ids"], dtype = dataset_schema["item_id_map_dtype"]))
         model._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
         model._init_trainer()
         model.lightning_model = model.lightning_module_type.load_from_checkpoint(
@@ -1574,14 +1577,14 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             loss=self.loss,
             gbce_t=self.gbce_t,
             n_item_extra_tokens=self.data_preparator.n_item_extra_tokens,
-            dataset_schema=self.data_preparator.train_dataset.get_schema(simple_types=True),
+            dataset_schema=self.data_preparator.train_dataset.get_schema(simple_types=True, add_item_id_map=True),
             verbose=self.verbose,
             top_k_saved_val_reco=self.top_k_saved_val_reco,
             data_preparator=self.data_preparator,
             model_config=self.get_config(simple_types=True),
         )
 
-        self.fit_trainer = deepcopy(self._trainer)
+        self.fit_trainer = self._trainer # deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(

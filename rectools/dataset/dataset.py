@@ -48,13 +48,15 @@ class DatasetSchema(BaseConfig):
     """Dataset schema."""
 
     n_hot_users: int
-    user_id_map_external_ids: tp.List[ExternalId]
+    user_id_map_external_ids: tp.Optional[tp.List[ExternalId]] = None
+    user_id_map_dtype: str
     has_user_features: bool
     make_dense_user_features: tp.Optional[bool] = None
     user_feature_names: tp.Optional[tp.Tuple[FeatureName, ...]] = None
     user_feature_cat_cols: tp.Optional[tp.List[int]] = None
     n_hot_items: int
-    item_id_map_external_ids: tp.List[ExternalId]
+    item_id_map_external_ids: tp.Optional[tp.List[ExternalId]] = None
+    item_id_map_dtype: str
     has_item_features: bool
     make_dense_item_features: tp.Optional[bool] = None
     item_feature_names: tp.Optional[tp.Tuple[FeatureName, ...]] = None
@@ -93,12 +95,16 @@ class Dataset:
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
 
-    def get_schema(self, simple_types=True) -> DatasetSchema:
+    def get_schema(self, simple_types=True, add_user_id_map: bool = False, add_item_id_map: bool = False) -> DatasetSchema:
         """TODO."""
         has_user_features = self.user_features is not None
+
         dense_user_features = None
         user_feature_cat_cols = None
         user_feature_names = None
+        user_id_map_external_ids = None
+        if add_user_id_map:
+            user_id_map_external_ids = self.user_id_map.external_ids.tolist()
 
         if has_user_features:
             user_feature_names = self.user_features.names
@@ -110,6 +116,9 @@ class Dataset:
         dense_item_features = None
         item_feature_cat_cols = None
         item_feature_names = None
+        item_id_map_external_ids = None
+        if add_item_id_map:
+            item_id_map_external_ids = self.item_id_map.external_ids.tolist()
 
         if has_item_features:
             item_feature_names = self.item_features.names
@@ -119,13 +128,15 @@ class Dataset:
 
         schema = DatasetSchema(
             n_hot_users=self.n_hot_users,
-            user_id_map_external_ids=self.user_id_map.external_ids.tolist(),
+            user_id_map_external_ids=user_id_map_external_ids,
+            user_id_map_dtype = self.user_id_map.external_dtype.str,
             has_user_features=has_user_features,
             make_dense_user_features=dense_user_features,
             user_feature_names=user_feature_names,
             user_feature_cat_cols=user_feature_cat_cols,
             n_hot_items=self.n_hot_items,
-            item_id_map_external_ids=self.item_id_map.external_ids.tolist(),
+            item_id_map_external_ids=item_id_map_external_ids,
+            item_id_map_dtype = self.item_id_map.external_dtype.str,
             has_item_features=has_item_features,
             make_dense_item_features=dense_item_features,
             item_feature_names=item_feature_names,

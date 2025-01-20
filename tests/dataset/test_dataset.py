@@ -64,12 +64,14 @@ class TestDataset:
         self.expected_schema = {
             "n_hot_users": 3,
             "user_id_map_external_ids": ["u1", "u2", "u3"],
+            "user_id_map_dtype": "|O",
             "has_user_features": False,
             "make_dense_user_features": None,
             "user_feature_names": None,
             "user_feature_cat_cols": None,
             "n_hot_items": 3,
             "item_id_map_external_ids": ["i1", "i2", "i5"],
+            "item_id_map_dtype": "|O",
             "has_item_features": False,
             "make_dense_item_features": None,
             "item_feature_names": None,
@@ -100,14 +102,16 @@ class TestDataset:
         expected = self.expected_interactions
         expected.df["extra_col"] = self.interactions_df["extra_col"]
         assert_interactions_set_equal(actual, expected)
-        assert dataset.get_schema() == self.expected_schema
+        actual_schema = dataset.get_schema(simple_types=True, add_item_id_map=True, add_user_id_map=True)
+        assert actual_schema == self.expected_schema
 
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
         self.assert_dataset_equal_to_expected(dataset, None, None)
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
-        assert dataset.get_schema() == self.expected_schema
+        actual_schema = dataset.get_schema(simple_types=True, add_item_id_map=True, add_user_id_map=True)
+        assert actual_schema == self.expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -153,18 +157,21 @@ class TestDataset:
         expected_schema = {
             "n_hot_users": 3,
             "user_id_map_external_ids": ["u1", "u2", "u3"],
+            "user_id_map_dtype": "|O",
             "has_user_features": True,
             "make_dense_user_features": True,
             "user_feature_names": ["f1", "f2"],
             "user_feature_cat_cols": None,
             "n_hot_items": 3,
             "item_id_map_external_ids": ["i1", "i2", "i5"],
+            "item_id_map_dtype": "|O",
             "has_item_features": True,
             "make_dense_item_features": False,
             "item_feature_names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
             "item_feature_cat_cols": [1, 2],
         }
-        assert dataset.get_schema() == expected_schema
+        actual_schema = dataset.get_schema(simple_types=True, add_item_id_map=True, add_user_id_map=True)
+        assert actual_schema == expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
