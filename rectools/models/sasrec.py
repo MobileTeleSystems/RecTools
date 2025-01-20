@@ -17,13 +17,14 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
 from rectools import Columns, ExternalIds
-from rectools.dataset import Dataset, DatasetSchema, Interactions
+from rectools.dataset.dataset import Dataset, DatasetSchemaDict, Interactions
 from rectools.dataset.features import SparseFeatures
 from rectools.dataset.identifiers import IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.serialization import FileLike
 
 PADDING_VALUE = "PAD"
 
@@ -44,9 +45,7 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_dataset_schema(
-        cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any
-    ) -> tp.Optional[tpe.Self]:
+    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
         """Construct ItemNet."""
         raise NotImplementedError()
 
@@ -190,9 +189,10 @@ class CatFeaturesItemNet(ItemNetBase):
         return cls(item_cat_features, n_factors, dropout_rate)
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float) -> tpe.Self:
+    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
-        return None
+        # TODO: implement
+        return None  # type: ignore
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
@@ -245,7 +245,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float) -> tpe.Self:
+    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, n_factors: int, dropout_rate: float) -> tpe.Self:
         """TODO"""
         n_items = dataset_schema["n_hot_items"]
         return cls(n_factors, n_items, dropout_rate)
@@ -343,7 +343,7 @@ class ItemNetConstructor(ItemNetBase):
     @classmethod
     def from_dataset_schema(
         cls,
-        dataset_schema: DatasetSchema,
+        dataset_schema: DatasetSchemaDict,
         n_factors: int,
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
@@ -601,7 +601,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
-    def construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> None:
+    def construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchemaDict) -> None:
         """TODO."""
         self.item_model = ItemNetConstructor.from_dataset_schema(
             dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
@@ -1122,7 +1122,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         lr: float,
         gbce_t: float,
         n_item_extra_tokens: int,
-        dataset_schema: DatasetSchema,
+        dataset_schema: DatasetSchemaDict,
         model_config: tp.Dict[str, tp.Any],
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
@@ -1141,7 +1141,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.verbose = verbose
         self.top_k_saved_val_reco = top_k_saved_val_reco
         self.data_preparator = data_preparator
-        self.item_embs: torch.Tensor
+        self.item_embs: tp.Optional[torch.Tensor] = None
         self.model_config = model_config
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
@@ -1178,7 +1178,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         lr: float,
         gbce_t: float,
         n_item_extra_tokens: int,
-        dataset_schema: DatasetSchema,
+        dataset_schema: DatasetSchemaDict,
         model_config: tp.Dict[str, tp.Any],
         loss: str = "softmax",
         adam_betas: Tuple[float, float] = (0.9, 0.98),
@@ -1199,7 +1199,6 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             data_preparator=data_preparator,
             model_config=model_config,
         )
-        self.item_embs: tp.Optional[torch.Tensor] = None
 
         if self.top_k_saved_val_reco is not None:
             self.epoch_val_recos: tp.List[tp.List[int]] = []
@@ -1374,8 +1373,8 @@ def _serialize_type_sequence(obj: tp.Sequence[tp.Type]) -> tp.Sequence[str]:
     return tuple(map(get_class_or_function_full_path, obj))
 
 
-ModuleType = tpe.Annotated[
-    tp.Type[tp.Union[nn.Module, SessionEncoderDataPreparatorBase, SessionEncoderLightningModuleBase],],
+PositionalEncodingType = tpe.Annotated[
+    tp.Type[PositionalEncodingBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -1384,8 +1383,48 @@ ModuleType = tpe.Annotated[
     ),
 ]
 
-ModuleTypeSequence = tpe.Annotated[
-    tp.Sequence[tp.Type[nn.Module]],
+TransformerLayersType = tpe.Annotated[
+    tp.Type[TransformerLayersBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+# ModuleType = tpe.Annotated[
+#     tp.Type[nn.Module],
+#     BeforeValidator(_get_class_obj),
+#     PlainSerializer(
+#         func=get_class_or_function_full_path,
+#         return_type=str,
+#         when_used="json",
+#     ),
+# ]
+
+SessionEncoderLightningModuleType = tpe.Annotated[
+    tp.Type[SessionEncoderLightningModuleBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+SessionEncoderDataPreparatorType = tpe.Annotated[
+    tp.Type[SessionEncoderDataPreparatorBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+ItemNetBlockTypes = tpe.Annotated[
+    tp.Sequence[tp.Type[ItemNetBase]],
     BeforeValidator(_get_class_obj_sequence),
     PlainSerializer(
         func=_serialize_type_sequence,
@@ -1419,11 +1458,11 @@ class TransformerModelConfig(ModelConfig):
     recommend_n_threads: int = 0
     recommend_use_gpu_ranking: bool = True
     train_min_user_interactions: int = 2
-    item_net_block_types: ModuleTypeSequence = (IdEmbeddingsItemNet, CatFeaturesItemNet)
-    pos_encoding_type: ModuleType = LearnableInversePositionalEncoding
-    transformer_layers_type: ModuleType = SASRecTransformerLayers
-    data_preparator_type: ModuleType = SASRecDataPreparator
-    lightning_module_type: ModuleType = SessionEncoderLightningModule
+    item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
+    pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
+    transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
+    data_preparator_type: SessionEncoderDataPreparatorType = SASRecDataPreparator
+    lightning_module_type: SessionEncoderLightningModuleType = SessionEncoderLightningModule
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -1512,7 +1551,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         else:
             self._trainer = trainer
 
-    def _init_data_preparator(self):
+    def _init_data_preparator(self) -> None:
         raise NotImplementedError()
 
     def _init_trainer(self) -> None:
@@ -1542,7 +1581,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         )
 
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: str) -> tpe.Self:
+    def load_from_checkpoint(cls, checkpoint_path: FileLike) -> tpe.Self:
         """TODO."""
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         hyper_parameters = checkpoint["hyper_parameters"]
@@ -1550,7 +1589,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataset_schema = hyper_parameters["dataset_schema"]
         model = cls.from_config(model_config)
         model._init_torch_model()
-        model.data_preparator.item_id_map = IdMap(np.array(dataset_schema["item_id_map_external_ids"], dtype = dataset_schema["item_id_map_dtype"]))
+        model.data_preparator.item_id_map = IdMap(
+            np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
+        )
         model._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
         model._init_trainer()
         model.lightning_model = model.lightning_module_type.load_from_checkpoint(
@@ -1558,8 +1599,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         )
         # TODO: check that weights were updated
         # TODO: check that trainer things were updated
-        # TODO: check recommend
-        model.lightning_model.load_state_dict(checkpoint["state_dict"])  # do wee need this?
+        model.lightning_model.load_state_dict(checkpoint["state_dict"])  # do we need this?
         model.is_fitted = True
         return model
 
@@ -1577,7 +1617,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             loss=self.loss,
             gbce_t=self.gbce_t,
             n_item_extra_tokens=self.data_preparator.n_item_extra_tokens,
-            dataset_schema=self.data_preparator.train_dataset.get_schema(simple_types=True, add_item_id_map=True),
+            dataset_schema=self.data_preparator.train_dataset.get_schema(add_item_id_map=True),
             verbose=self.verbose,
             top_k_saved_val_reco=self.top_k_saved_val_reco,
             data_preparator=self.data_preparator,
@@ -1817,7 +1857,7 @@ class SASRecModel(TransformerModelBase):
             get_val_mask_func=get_val_mask_func,
         )
 
-    def _init_data_preparator(self):
+    def _init_data_preparator(self) -> None:
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
@@ -1829,6 +1869,7 @@ class SASRecModel(TransformerModelBase):
 
     def _get_config(self) -> TransformerModelConfig:
         return TransformerModelConfig(
+            cls=self.__class__,
             n_blocks=self.n_blocks,
             n_heads=self.n_heads,
             n_factors=self.n_factors,

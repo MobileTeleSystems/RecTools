@@ -27,6 +27,7 @@ Models
 ------
 `models.DSSMModel`
 `models.EASEModel`
+`models.SASRecModel`
 `models.ImplicitALSWrapperModel`
 `models.ImplicitItemKNNWrapperModel`
 `models.LightFMWrapperModel`
@@ -55,8 +56,14 @@ try:
 except ImportError:  # pragma: no cover
     from ..compat import DSSMModel  # type: ignore
 
+try:
+    from .sasrec import SASRecModel
+except ImportError:  # pragma: no cover
+    from ..compat import SASRecModel  # type: ignore
+
 
 __all__ = (
+    "SASRecModel",
     "EASEModel",
     "ImplicitALSWrapperModel",
     "ImplicitItemKNNWrapperModel",

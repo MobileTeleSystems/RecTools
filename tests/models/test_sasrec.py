@@ -1,18 +1,19 @@
 import typing as tp
-from typing import List
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 from pathlib import Path
-from pytorch_lightning.callbacks import ModelCheckpoint
+from tempfile import TemporaryDirectory
+from typing import List
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import SparseFeatures
+from rectools.models import SASRecModel
 from rectools.models.sasrec import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -20,7 +21,6 @@ from rectools.models.sasrec import (
     ItemNetConstructor,
     LearnableInversePositionalEncoding,
     SASRecDataPreparator,
-    SASRecModel,
     SASRecTransformerLayers,
     SequenceDataset,
     SessionEncoderLightningModule,
@@ -467,8 +467,8 @@ class TestSASRecModel:
                 but some of given users are cold: they are not in the `dataset.user_id_map`
             """
         )
-    
-    def test_checkpoint(self, dataset: Dataset):
+
+    def test_checkpoint(self, dataset: Dataset) -> None:
         with TemporaryDirectory() as dirname:
             checkpoint_callback = ModelCheckpoint(dirpath=dirname, filename="last_state", save_on_train_epoch_end=True)
             trainer = Trainer(
@@ -497,7 +497,6 @@ class TestSASRecModel:
             loaded = SASRecModel.load_from_checkpoint(Path(dirname) / "last_state.ckpt")
             actual = loaded.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
             pd.testing.assert_frame_equal(actual, expected)
-
 
 
 class TestSequenceDataset:
@@ -1171,7 +1170,8 @@ class TestSASRecModelConfiguration:
         assert model.data_preparator_type == SASRecDataPreparator
         assert model.lightning_module_type == SessionEncoderLightningModule
 
-    def test_get_config(self) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool) -> None:
         model = SASRecModel(
             n_blocks=2,
             n_heads=4,
@@ -1200,9 +1200,9 @@ class TestSASRecModelConfiguration:
             data_preparator_type=SASRecDataPreparator,
             lightning_module_type=SessionEncoderLightningModule,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
-            "cls": None,
+            "cls": "SASRecModel" if simple_types else SASRecModel,
             "n_blocks": 2,
             "n_heads": 4,
             "n_factors": 64,
@@ -1224,11 +1224,25 @@ class TestSASRecModelConfiguration:
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 5,
-            "item_net_block_types": (IdEmbeddingsItemNet,),
-            "pos_encoding_type": LearnableInversePositionalEncoding,
-            "transformer_layers_type": SASRecTransformerLayers,
-            "data_preparator_type": SASRecDataPreparator,
-            "lightning_module_type": SessionEncoderLightningModule,
+            "item_net_block_types": (
+                ["rectools.models.sasrec.IdEmbeddingsItemNet"] if simple_types else (IdEmbeddingsItemNet,)
+            ),
+            "pos_encoding_type": (
+                "rectools.models.sasrec.LearnableInversePositionalEncoding"
+                if simple_types
+                else LearnableInversePositionalEncoding
+            ),
+            "transformer_layers_type": (
+                "rectools.models.sasrec.SASRecTransformerLayers" if simple_types else SASRecTransformerLayers
+            ),
+            "data_preparator_type": (
+                "rectools.models.sasrec.SASRecDataPreparator" if simple_types else SASRecDataPreparator
+            ),
+            "lightning_module_type": (
+                "rectools.models.sasrec.SessionEncoderLightningModule"
+                if simple_types
+                else SessionEncoderLightningModule
+            ),
         }
         assert config == expected
 
