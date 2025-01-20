@@ -1584,7 +1584,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             model_config=self.get_config(simple_types=True),
         )
 
-        self.fit_trainer = self._trainer # deepcopy(self._trainer)
+        self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
