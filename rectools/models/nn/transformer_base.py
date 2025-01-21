@@ -247,6 +247,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
         Loss function.
     adam_betas : Tuple[float, float], default (0.9, 0.98)
         Coefficients for running averages of gradient and its square.
+    data_preparator : SessionEncoderDataPreparatorBase
+        Data preparator.
+    verbose : int, default 0
+        Verbosity level.
     """
 
     def __init__(
@@ -254,9 +258,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
         torch_model: TransformerBasedSessionEncoder,
         lr: float,
         gbce_t: float,
-        n_item_extra_tokens: int,
+        data_preparator: SessionEncoderDataPreparatorBase,
         loss: str = "softmax",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        verbose: int = 0,
     ):
         super().__init__()
         self.lr = lr
@@ -264,7 +269,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.torch_model = torch_model
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
-        self.n_item_extra_tokens = n_item_extra_tokens
+        self.data_preparator = data_preparator
+        self.verbose = verbose
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -274,6 +280,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
+        raise NotImplementedError()
+
+    def validation_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> tp.Dict[str, torch.Tensor]:
+        """Validate step."""
         raise NotImplementedError()
 
     def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -294,17 +304,51 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
             logits = self._get_full_catalog_logits(x)
-            return self._calc_softmax_loss(logits, y, w)
-        if self.loss == "BCE":
+            loss = self._calc_softmax_loss(logits, y, w)
+        elif self.loss == "BCE":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
-            return self._calc_bce_loss(logits, y, w)
-        if self.loss == "gBCE":
+            loss = self._calc_bce_loss(logits, y, w)
+        elif self.loss == "gBCE":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
-            return self._calc_gbce_loss(logits, y, w, negatives)
+            loss = self._calc_gbce_loss(logits, y, w, negatives)
+        else:
+            raise ValueError(f"loss {self.loss} is not supported")
 
-        raise ValueError(f"loss {self.loss} is not supported")
+        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        return loss
+
+    def on_validation_epoch_start(self) -> None:
+        """Get item embeddings before validation epoch."""
+        self.item_embs = self.torch_model.item_model.get_all_embeddings()
+
+    def validation_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> tp.Dict[str, torch.Tensor]:
+        """Validate step."""
+        # x: [batch_size, session_max_len]
+        # y: [batch_size, 1]
+        # yw: [batch_size, 1]
+        x, y, w = batch["x"], batch["y"], batch["yw"]
+        outputs = {}
+        if self.loss == "softmax":
+            logits = self._get_full_catalog_logits(x)[:, -1:, :]
+            outputs["loss"] = self._calc_softmax_loss(logits, y, w)
+            outputs["logits"] = logits.squeeze()
+        elif self.loss == "BCE":
+            negatives = batch["negatives"]
+            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
+            outputs["loss"] = self._calc_bce_loss(pos_neg_logits, y, w)
+            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
+        elif self.loss == "gBCE":
+            negatives = batch["negatives"]
+            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
+            outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
+            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
+        else:
+            raise ValueError(f"loss {self.loss} is not supported")
+
+        self.log("val/loss", outputs["loss"], on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        return outputs
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
@@ -374,7 +418,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def _calc_gbce_loss(
         self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
     ) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - self.n_item_extra_tokens
+        n_actual_items = self.torch_model.item_model.n_items - self.data_preparator.n_item_extra_tokens
         n_negatives = negatives.shape[2]
         logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
         loss = self._calc_bce_loss(logits, y, w)
@@ -436,7 +480,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
         **kwargs: tp.Any,
     ) -> None:
-        super().__init__(verbose)
+        super().__init__(verbose=verbose)
         self.recommend_n_threads = recommend_n_threads
         self.recommend_device = recommend_device
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
@@ -478,23 +522,24 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         self,
         dataset: Dataset,
     ) -> None:
-        processed_dataset = self.data_preparator.process_dataset_train(dataset)
-        train_dataloader = self.data_preparator.get_dataloader_train(processed_dataset)
+        self.data_preparator.process_dataset_train(dataset)
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
 
         torch_model = deepcopy(self._torch_model)
-        torch_model.construct_item_net(processed_dataset)
+        torch_model.construct_item_net(self.data_preparator.train_dataset)
 
-        n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             lr=self.lr,
             loss=self.loss,
             gbce_t=self.gbce_t,
-            n_item_extra_tokens=n_item_extra_tokens,
+            data_preparator=self.data_preparator,
+            verbose=self.verbose,
         )
 
         self.fit_trainer = deepcopy(self._trainer)
-        self.fit_trainer.fit(self.lightning_model, train_dataloader)
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour

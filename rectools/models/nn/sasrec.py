@@ -68,6 +68,35 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             batch_dict["negatives"] = negatives
         return batch_dict
 
+    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+        batch_size = len(batch)
+        max_target_size = max(sum(1 for weight in ses_weights if weight != 0) for _, ses_weights in batch)
+        x = np.zeros((batch_size, self.session_max_len))
+        y = np.zeros((batch_size, max_target_size))
+        yw = np.zeros((batch_size, max_target_size))
+        for i, (ses, ses_weights) in enumerate(batch):
+            input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
+            target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0]
+
+            targets = list(map(ses.__getitem__, target_idx))
+            targets_weights = list(map(ses_weights.__getitem__, target_idx))
+
+            # ses: [session_len] -> x[i]: [session_max_len]
+            x[i, -len(input_session) :] = input_session[-self.session_max_len :]
+            y[i, -len(targets) :] = targets  # y[i]: [val_k_out]
+            yw[i, -len(targets_weights) :] = targets_weights  # yw[i]: [val_k_out]
+
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        # TODO: we are sampling negatives for paddings
+        if self.n_negatives is not None:
+            negatives = torch.randint(
+                low=self.n_item_extra_tokens,
+                high=self.item_id_map.size,
+                size=(batch_size, max_target_size, self.n_negatives),
+            )  # [batch_size, session_max_len, n_negatives]
+            batch_dict["negatives"] = negatives
+        return batch_dict
+
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
@@ -260,6 +289,7 @@ class SASRecModel(TransformerModelBase):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        get_val_mask_func: tp.Optional[tp.Callable] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -293,4 +323,5 @@ class SASRecModel(TransformerModelBase):
             dataloader_num_workers=dataloader_num_workers,
             item_extra_tokens=(PADDING_VALUE,),
             train_min_user_interactions=train_min_user_interactions,
+            get_val_mask_func=get_val_mask_func,
         )

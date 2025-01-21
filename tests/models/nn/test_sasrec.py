@@ -12,7 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 import typing as tp
+from functools import partial
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,6 +23,7 @@ import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
 
+from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
@@ -466,6 +470,30 @@ class TestSASRecModel:
             """
         )
 
+    @pytest.mark.parametrize("verbose", (0, 1))
+    def test_log_metrics(self, dataset: Dataset, trainer: Trainer, verbose: int) -> None:
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+            verbose=verbose,
+        )
+        model.fit(dataset=dataset)
+
+        if model.fit_trainer.logger is not None:
+            log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
+            assert os.path.isfile(log_path)
+
+            actual_log_df = pd.read_csv(log_path)
+            expected_columns = ["epoch", "step", "train/loss"]
+            assert list(actual_log_df.columns) == expected_columns
+
 
 class TestSASRecDataPreparator:
 
@@ -503,6 +531,30 @@ class TestSASRecDataPreparator:
             session_max_len=3, batch_size=4, dataloader_num_workers=0, item_extra_tokens=(PADDING_VALUE,)
         )
 
+    @pytest.fixture
+    def data_preparator_val_mask(self) -> SASRecDataPreparator:
+        val_k_out = 1
+        val_users = [10, 30]
+
+        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> pd.Series:
+            rank = (
+                interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+                .groupby(Columns.User, sort=False)
+                .cumcount()
+                + 1
+            )
+            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= val_k_out)
+            return val_mask
+
+        get_val_mask_func = partial(get_val_mask, val_users=val_users)
+        return SASRecDataPreparator(
+            session_max_len=3,
+            batch_size=4,
+            dataloader_num_workers=0,
+            item_extra_tokens=(PADDING_VALUE,),
+            get_val_mask_func=get_val_mask_func,
+        )
+
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_interactions",
         (
@@ -536,10 +588,62 @@ class TestSASRecDataPreparator:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        actual = data_preparator.process_dataset_train(dataset)
+        data_preparator.process_dataset_train(dataset)
+        actual = data_preparator.train_dataset
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, expected_interactions)
+
+    @pytest.mark.parametrize(
+        "expected_user_id_map, expected_item_id_map, expected_train_interactions, expected_val_interactions",
+        (
+            (
+                IdMap.from_values([30, 40, 10]),
+                IdMap.from_values(["PAD", 15, 11, 12, 17, 16, 14]),
+                Interactions(
+                    pd.DataFrame(
+                        [
+                            [0, 1, 1.0, "2021-11-25"],
+                            [1, 2, 1.0, "2021-11-25"],
+                            [0, 3, 2.0, "2021-11-26"],
+                            [1, 4, 1.0, "2021-11-26"],
+                            [2, 5, 1.0, "2021-11-27"],
+                            [2, 6, 1.0, "2021-11-28"],
+                            [2, 2, 1.0, "2021-11-29"],
+                            [2, 3, 1.0, "2021-11-29"],
+                        ],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                    ),
+                ),
+                Interactions(
+                    pd.DataFrame(
+                        [
+                            [0, 1, 0.0, "2021-11-25"],
+                            [0, 3, 0.0, "2021-11-26"],
+                            [0, 2, 1.0, "2021-11-27"],
+                        ],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                    ),
+                ),
+            ),
+        ),
+    )
+    def test_process_dataset_train_val(
+        self,
+        dataset: Dataset,
+        data_preparator_val_mask: SASRecDataPreparator,
+        expected_train_interactions: Interactions,
+        expected_val_interactions: Interactions,
+        expected_item_id_map: IdMap,
+        expected_user_id_map: IdMap,
+    ) -> None:
+        data_preparator_val_mask.process_dataset_train(dataset)
+        actual_train_dataset = data_preparator_val_mask.train_dataset
+        actual_val_interactions = data_preparator_val_mask.val_interactions
+        assert_id_map_equal(actual_train_dataset.user_id_map, expected_user_id_map)
+        assert_id_map_equal(actual_train_dataset.item_id_map, expected_item_id_map)
+        assert_interactions_set_equal(actual_train_dataset.interactions, expected_train_interactions)
+        pd.testing.assert_frame_equal(actual_val_interactions, expected_val_interactions.df)
 
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_interactions",
@@ -632,11 +736,33 @@ class TestSASRecDataPreparator:
     def test_get_dataloader_train(
         self, dataset: Dataset, data_preparator: SASRecDataPreparator, train_batch: tp.List
     ) -> None:
-        dataset = data_preparator.process_dataset_train(dataset)
-        dataloader = data_preparator.get_dataloader_train(dataset)
+        data_preparator.process_dataset_train(dataset)
+        dataloader = data_preparator.get_dataloader_train()
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, train_batch[key])
+
+    @pytest.mark.parametrize(
+        "val_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[0, 1, 3]]),
+                    "y": torch.tensor([[2]]),
+                    "yw": torch.tensor([[1.0]]),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_val(
+        self, dataset: Dataset, data_preparator_val_mask: SASRecDataPreparator, val_batch: tp.List
+    ) -> None:
+        data_preparator_val_mask.process_dataset_train(dataset)
+        dataloader = data_preparator_val_mask.get_dataloader_val()
+        if dataloader is not None:
+            actual = next(iter(dataloader))
+            for key, value in actual.items():
+                assert torch.equal(value, val_batch[key])
 
     @pytest.mark.parametrize(
         "recommend_batch",
