@@ -16,12 +16,14 @@ import os
 import typing as tp
 from functools import partial
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import CSVLogger
 
 from rectools import ExternalIds
 from rectools.columns import Columns
@@ -81,6 +83,22 @@ class TestSASRecModel:
             deterministic=True,
             accelerator="cpu",
         )
+
+    @pytest.fixture
+    def get_val_mask_func(self) -> partial:
+        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> pd.Series:
+            rank = (
+                interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+                .groupby(Columns.User, sort=False)
+                .cumcount()
+                + 1
+            )
+            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
+            return val_mask
+
+        val_users = [10, 30]
+        get_val_mask_func = partial(get_val_mask, val_users=val_users)
+        return get_val_mask_func
 
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_device",
@@ -470,29 +488,45 @@ class TestSASRecModel:
             """
         )
 
-    @pytest.mark.parametrize("verbose", (0, 1))
-    def test_log_metrics(self, dataset: Dataset, trainer: Trainer, verbose: int) -> None:
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-            verbose=verbose,
-        )
-        model.fit(dataset=dataset)
+    @pytest.mark.parametrize(
+        "verbose, is_val_mask_func, expected_columns",
+        (
+            (0, False, ["epoch", "step", "train/loss"]),
+            (1, True, ["epoch", "step", "train/loss", "val/loss"]),
+        ),
+    )
+    def test_log_metrics(
+        self,
+        dataset: Dataset,
+        trainer: Trainer,
+        verbose: int,
+        get_val_mask_func: partial,
+        is_val_mask_func: bool,
+        expected_columns: tp.List[str],
+    ) -> None:
+        with TemporaryDirectory() as dirname:
+            trainer.logger = CSVLogger(save_dir=dirname)
+            model = SASRecModel(
+                n_factors=32,
+                n_blocks=2,
+                session_max_len=3,
+                lr=0.001,
+                batch_size=4,
+                epochs=2,
+                deterministic=True,
+                item_net_block_types=(IdEmbeddingsItemNet,),
+                trainer=trainer,
+                verbose=verbose,
+                get_val_mask_func=get_val_mask_func if is_val_mask_func else None,
+            )
+            model.fit(dataset=dataset)
 
-        if model.fit_trainer.logger is not None:
-            log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
-            assert os.path.isfile(log_path)
+            if model.fit_trainer.logger is not None:
+                log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
+                assert os.path.isfile(log_path)
 
-            actual_log_df = pd.read_csv(log_path)
-            expected_columns = ["epoch", "step", "train/loss"]
-            assert list(actual_log_df.columns) == expected_columns
+                actual_columns = list(pd.read_csv(log_path).columns)
+                assert actual_columns == expected_columns
 
 
 class TestSASRecDataPreparator:
@@ -533,9 +567,6 @@ class TestSASRecDataPreparator:
 
     @pytest.fixture
     def data_preparator_val_mask(self) -> SASRecDataPreparator:
-        val_k_out = 1
-        val_users = [10, 30]
-
         def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> pd.Series:
             rank = (
                 interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
@@ -543,9 +574,10 @@ class TestSASRecDataPreparator:
                 .cumcount()
                 + 1
             )
-            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= val_k_out)
+            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
             return val_mask
 
+        val_users = [10, 30]
         get_val_mask_func = partial(get_val_mask, val_users=val_users)
         return SASRecDataPreparator(
             session_max_len=3,
@@ -627,7 +659,7 @@ class TestSASRecDataPreparator:
             ),
         ),
     )
-    def test_process_dataset_train_val(
+    def test_process_dataset_with_val_mask(
         self,
         dataset: Dataset,
         data_preparator_val_mask: SASRecDataPreparator,
@@ -758,10 +790,9 @@ class TestSASRecDataPreparator:
     ) -> None:
         data_preparator_val_mask.process_dataset_train(dataset)
         dataloader = data_preparator_val_mask.get_dataloader_val()
-        if dataloader is not None:
-            actual = next(iter(dataloader))
-            for key, value in actual.items():
-                assert torch.equal(value, val_batch[key])
+        actual = next(iter(dataloader))  # type: ignore
+        for key, value in actual.items():
+            assert torch.equal(value, val_batch[key])
 
     @pytest.mark.parametrize(
         "recommend_batch",

@@ -251,6 +251,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
         Data preparator.
     verbose : int, default 0
         Verbosity level.
+    train_loss_name : str, default "train/loss"
+        Name of the training loss.
+    val_loss_name : str, default "val/loss"
+        Name of the training loss.
     """
 
     def __init__(
@@ -262,6 +266,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         loss: str = "softmax",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
         verbose: int = 0,
+        train_loss_name: str = "train/loss",
+        val_loss_name: str = "val/loss",
     ):
         super().__init__()
         self.lr = lr
@@ -271,6 +277,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.gbce_t = gbce_t
         self.data_preparator = data_preparator
         self.verbose = verbose
+        self.train_loss_name = train_loss_name
+        self.val_loss_name = val_loss_name
         self.item_embs: torch.Tensor
 
     def configure_optimizers(self) -> torch.optim.Adam:
@@ -316,7 +324,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         else:
             raise ValueError(f"loss {self.loss} is not supported")
 
-        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        self.log(self.train_loss_name, loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return loss
 
     def on_validation_epoch_start(self) -> None:
@@ -347,7 +355,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         else:
             raise ValueError(f"loss {self.loss} is not supported")
 
-        self.log("val/loss", outputs["loss"], on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+        self.log(self.val_loss_name, outputs["loss"], on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return outputs
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
@@ -521,6 +529,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
     def _fit(
         self,
         dataset: Dataset,
+        train_loss_name: str = "train/loss",
+        val_loss_name: str = "val/loss",
     ) -> None:
         self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train()
@@ -536,6 +546,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             gbce_t=self.gbce_t,
             data_preparator=self.data_preparator,
             verbose=self.verbose,
+            train_loss_name=train_loss_name,
+            val_loss_name=val_loss_name,
         )
 
         self.fit_trainer = deepcopy(self._trainer)

@@ -120,8 +120,8 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 
             # ses: [session_len] -> x[i]: [session_max_len + 1]
             x[i, -len(input_session) - 1 :] = session[-self.session_max_len - 1 :]
-            y[i, -1 :] = ses[target_idx]  # y[i]: [1]
-            yw[i, -1 :] = ses_weights[target_idx]  # yw[i]: [1]
+            y[i, -1:] = ses[target_idx]  # y[i]: [1]
+            yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         # TODO: we are sampling negatives for paddings
