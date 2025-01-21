@@ -51,6 +51,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         mask_prob: float,
         item_extra_tokens: tp.Sequence[tp.Hashable],
         shuffle_train: bool = True,
+        get_val_mask_func: tp.Optional[tp.Callable] = None,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -60,6 +61,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             train_min_user_interactions=train_min_user_interactions,
             item_extra_tokens=item_extra_tokens,
             shuffle_train=shuffle_train,
+            get_val_mask_func=get_val_mask_func,
         )
         self.mask_prob = mask_prob
 
@@ -100,6 +102,35 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
                 high=self.item_id_map.size,
                 size=(batch_size, self.session_max_len, self.n_negatives),
             )  # [batch_size, session_max_len, n_negatives]
+            batch_dict["negatives"] = negatives
+        return batch_dict
+
+    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+        batch_size = len(batch)
+        x = np.zeros((batch_size, self.session_max_len + 1))
+        y = np.zeros((batch_size, 1))  # until only leave-one-strategy
+        yw = np.zeros((batch_size, 1))  # until only leave-one-strategy
+        for i, (ses, ses_weights) in enumerate(batch):
+            input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
+            session = input_session.copy()
+
+            # take only first target for leave-one-strategy
+            session = session + [self.extra_token_ids[MASKING_VALUE]]
+            target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
+
+            # ses: [session_len] -> x[i]: [session_max_len + 1]
+            x[i, -len(input_session) - 1 :] = session[-self.session_max_len - 1 :]
+            y[i, -1 :] = ses[target_idx]  # y[i]: [1]
+            yw[i, -1 :] = ses_weights[target_idx]  # yw[i]: [1]
+
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        # TODO: we are sampling negatives for paddings
+        if self.n_negatives is not None:
+            negatives = torch.randint(
+                low=self.n_item_extra_tokens,
+                high=self.item_id_map.size,
+                size=(batch_size, 1, self.n_negatives),
+            )  # [batch_size, 1, n_negatives]
             batch_dict["negatives"] = negatives
         return batch_dict
 
@@ -187,6 +218,8 @@ class BERT4RecModel(TransformerModelBase):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
         Type of lightning module defining training procedure.
+    get_val_mask_func : Callable, default None
+        Function to get validation mask.
     """
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
@@ -219,6 +252,7 @@ class BERT4RecModel(TransformerModelBase):
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        get_val_mask_func: tp.Optional[tp.Callable] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -253,4 +287,5 @@ class BERT4RecModel(TransformerModelBase):
             train_min_user_interactions=train_min_user_interactions,
             item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
             mask_prob=mask_prob,
+            get_val_mask_func=get_val_mask_func,
         )
