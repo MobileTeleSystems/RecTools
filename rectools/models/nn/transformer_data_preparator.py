@@ -111,7 +111,6 @@ class SessionEncoderDataPreparatorBase:
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
     ) -> None:
-        """TODO"""
         self.item_id_map: IdMap
         self.extra_token_ids: tp.Dict
         self.session_max_len = session_max_len
@@ -213,7 +212,19 @@ class SessionEncoderDataPreparatorBase:
         return train_dataloader
 
     def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
-        """TODO"""
+        """
+        Construct recommend dataloader from processed dataset.
+
+        Parameters
+        ----------
+        processed_dataset : Dataset
+            RecTools dataset prepared for generating recommendations.
+
+        Returns
+        -------
+        DataLoader
+            Recommend dataloader.
+        """
         # Recommend dataloader should return interactions sorted by user ids.
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix

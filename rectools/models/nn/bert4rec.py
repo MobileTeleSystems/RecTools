@@ -82,7 +82,13 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         self,
         batch: List[Tuple[List[int], List[float]]],
     ) -> Dict[str, torch.Tensor]:
-        """TODO"""
+        """
+        Mask session elements to receive `x`.
+        Get target by replacing session elements with 0 with probability 1 - `mask_prob`.
+        Truncate each session and target from right to keep (`session_max_len` + 1) last items.
+        Do left padding until  (session_max_len + 1) is reached.
+        If `n_negatives` is not None, generate negative items from uniform distribution.
+        """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len + 1))
         y = np.zeros((batch_size, self.session_max_len + 1))

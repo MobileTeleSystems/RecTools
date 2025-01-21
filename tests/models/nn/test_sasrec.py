@@ -25,8 +25,11 @@ from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator
+from rectools.models.nn.transformer_base import TransformerBasedSessionEncoder
 from tests.models.utils import assert_second_fit_refits_model
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
+
+from ..data import INTERACTIONS
 
 # TODO: add tests with BCE and GBCE
 
@@ -629,6 +632,11 @@ class TestSASRecModel:
         with pytest.raises(ValueError):
             model.fit(dataset=dataset)
 
+    def test_torch_model(self, dataset: Dataset) -> None:
+        model = SASRecModel()
+        model.fit(dataset)
+        assert isinstance(model.torch_model, TransformerBasedSessionEncoder)
+
 
 class TestSASRecDataPreparator:
 
@@ -659,6 +667,27 @@ class TestSASRecDataPreparator:
             columns=Columns.Interactions,
         )
         return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def dataset_dense_item_features(self) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [11, 1, 1],
+                [12, 1, 2],
+                [13, 1, 3],
+                [14, 2, 1],
+                [15, 2, 2],
+                [17, 2, 3],
+            ],
+            columns=[Columns.Item, "f1", "f2"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            cat_item_features=["f1", "f2"],
+            make_dense_item_features=True,
+        )
+        return ds
 
     @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
@@ -707,6 +736,14 @@ class TestSASRecDataPreparator:
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, expected_interactions)
+
+    def test_raises_process_dataset_train_when_dense_item_features(
+        self,
+        dataset_dense_item_features: Dataset,
+        data_preparator: SASRecDataPreparator,
+    ) -> None:
+        with pytest.raises(ValueError):
+            data_preparator.process_dataset_train(dataset_dense_item_features)
 
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_interactions",
