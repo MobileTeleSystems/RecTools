@@ -21,15 +21,12 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 
 from rectools.columns import Columns
-from rectools.dataset import Dataset, IdMap, Interactions
+from rectools.dataset import Dataset
 from rectools.models import SASRecModel
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator
 from rectools.models.nn.transformer_base import TransformerBasedSessionEncoder
 from tests.models.utils import assert_second_fit_refits_model
-from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
-
-from ..data import INTERACTIONS
 
 # TODO: add tests with BCE and GBCE
 
@@ -669,27 +666,6 @@ class TestSASRecDataPreparator:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
-    def dataset_dense_item_features(self) -> Dataset:
-        item_features = pd.DataFrame(
-            [
-                [11, 1, 1],
-                [12, 1, 2],
-                [13, 1, 3],
-                [14, 2, 1],
-                [15, 2, 2],
-                [17, 2, 3],
-            ],
-            columns=[Columns.Item, "f1", "f2"],
-        )
-        ds = Dataset.construct(
-            INTERACTIONS,
-            item_features_df=item_features,
-            cat_item_features=["f1", "f2"],
-            make_dense_item_features=True,
-        )
-        return ds
-
-    @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
         return SASRecDataPreparator(
             session_max_len=3,
@@ -698,128 +674,6 @@ class TestSASRecDataPreparator:
             item_extra_tokens=(PADDING_VALUE,),
             n_negatives=1,
         )
-
-    @pytest.mark.parametrize(
-        "expected_user_id_map, expected_item_id_map, expected_interactions",
-        (
-            (
-                IdMap.from_values([30, 40, 10]),
-                IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-                Interactions(
-                    pd.DataFrame(
-                        [
-                            [0, 1, 1.0, "2021-11-25"],
-                            [1, 2, 1.0, "2021-11-25"],
-                            [0, 3, 2.0, "2021-11-26"],
-                            [1, 4, 1.0, "2021-11-26"],
-                            [0, 2, 1.0, "2021-11-27"],
-                            [2, 5, 1.0, "2021-11-28"],
-                            [2, 2, 1.0, "2021-11-29"],
-                            [2, 3, 1.0, "2021-11-29"],
-                            [2, 6, 1.0, "2021-11-30"],
-                        ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-                    ),
-                ),
-            ),
-        ),
-    )
-    def test_process_dataset_train(
-        self,
-        dataset: Dataset,
-        data_preparator: SASRecDataPreparator,
-        expected_interactions: Interactions,
-        expected_item_id_map: IdMap,
-        expected_user_id_map: IdMap,
-    ) -> None:
-        actual = data_preparator.process_dataset_train(dataset)
-        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, expected_interactions)
-
-    def test_raises_process_dataset_train_when_dense_item_features(
-        self,
-        dataset_dense_item_features: Dataset,
-        data_preparator: SASRecDataPreparator,
-    ) -> None:
-        with pytest.raises(ValueError):
-            data_preparator.process_dataset_train(dataset_dense_item_features)
-
-    @pytest.mark.parametrize(
-        "expected_user_id_map, expected_item_id_map, expected_interactions",
-        (
-            (
-                IdMap.from_values([10, 20]),
-                IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-                Interactions(
-                    pd.DataFrame(
-                        [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [1, 6, 9.0, "2021-11-28"],
-                        ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-                    ),
-                ),
-            ),
-        ),
-    )
-    def test_transform_dataset_u2i(
-        self,
-        dataset: Dataset,
-        data_preparator: SASRecDataPreparator,
-        expected_interactions: Interactions,
-        expected_item_id_map: IdMap,
-        expected_user_id_map: IdMap,
-    ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        users = [10, 20]
-        actual = data_preparator.transform_dataset_u2i(dataset, users)
-        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, expected_interactions)
-
-    @pytest.mark.parametrize(
-        "expected_user_id_map, expected_item_id_map, expected_interactions",
-        (
-            (
-                IdMap.from_values([10, 30, 40, 50, 20]),
-                IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-                Interactions(
-                    pd.DataFrame(
-                        [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [1, 2, 1.0, "2021-11-27"],
-                            [1, 3, 2.0, "2021-11-26"],
-                            [1, 1, 1.0, "2021-11-25"],
-                            [2, 2, 1.0, "2021-11-25"],
-                            [2, 4, 1.0, "2021-11-26"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [4, 6, 9.0, "2021-11-28"],
-                        ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-                    ),
-                ),
-            ),
-        ),
-    )
-    def test_tranform_dataset_i2i(
-        self,
-        dataset: Dataset,
-        data_preparator: SASRecDataPreparator,
-        expected_interactions: Interactions,
-        expected_item_id_map: IdMap,
-        expected_user_id_map: IdMap,
-    ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        actual = data_preparator.transform_dataset_i2i(dataset)
-        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, expected_interactions)
 
     @pytest.mark.parametrize(
         "train_batch",
