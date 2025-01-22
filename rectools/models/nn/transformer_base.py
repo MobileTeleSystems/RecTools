@@ -17,15 +17,17 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+import typing_extensions as tpe
 from implicit.gpu import HAS_CUDA
+from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.accelerators import Accelerator
 
 from rectools import ExternalIds
 from rectools.dataset import Dataset
-from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
+from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
+from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
@@ -399,20 +401,126 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
                 torch.nn.init.xavier_normal_(param.data)
 
 
+# ####  --------------  Transformer Config  --------------  #### #
+
+
+def _get_class_obj(spec: tp.Any) -> tp.Any:
+    if not isinstance(spec, str):
+        return spec
+    return import_object(spec)
+
+
+def _get_class_obj_sequence(spec: tp.Sequence[tp.Any]) -> tp.Any:
+    return tuple(map(_get_class_obj, spec))
+
+
+def _serialize_type_sequence(obj: tp.Sequence[tp.Type]) -> tp.Sequence[str]:
+    return tuple(map(get_class_or_function_full_path, obj))
+
+
+PositionalEncodingType = tpe.Annotated[
+    tp.Type[PositionalEncodingBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+TransformerLayersType = tpe.Annotated[
+    tp.Type[TransformerLayersBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+SessionEncoderLightningModuleType = tpe.Annotated[
+    tp.Type[SessionEncoderLightningModuleBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+SessionEncoderDataPreparatorType = tpe.Annotated[
+    tp.Type[SessionEncoderDataPreparatorBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+ItemNetBlockTypes = tpe.Annotated[
+    tp.Sequence[tp.Type[ItemNetBase]],
+    BeforeValidator(_get_class_obj_sequence),
+    PlainSerializer(
+        func=_serialize_type_sequence,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+
+class TransformerModelConfig(ModelConfig):
+    """Transformer model base config."""
+
+    data_preparator_type: SessionEncoderDataPreparatorType
+    n_blocks: int = 1
+    n_heads: int = 1
+    n_factors: int = 128
+    use_pos_emb: bool = True
+    use_causal_attn: bool = True
+    use_key_padding_mask: bool = False
+    dropout_rate: float = 0.2
+    session_max_len: int = 32
+    dataloader_num_workers: int = 0
+    batch_size: int = 128
+    loss: str = "softmax"
+    n_negatives: int = 1
+    gbce_t: float = 0.2
+    lr: float = 0.01
+    epochs: int = 3
+    verbose: int = 0
+    deterministic: bool = False
+    recommend_device: str = "auto"  # custom accelerators not supported
+    recommend_n_threads: int = 0
+    recommend_use_gpu_ranking: bool = True
+    train_min_user_interactions: int = 2
+    item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
+    pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
+    transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
+    lightning_module_type: SessionEncoderLightningModuleType = SessionEncoderLightningModule
+
+
+TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
+
+
 # ####  --------------  Transformer Model Base  --------------  #### #
 
 
-class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attributes
+class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disable=too-many-instance-attributes
     """
     Base model for all recommender algorithms that work on transformer architecture (e.g. SASRec, Bert4Rec).
     To create a custom transformer model it is necessary to inherit from this class
     and write self.data_preparator initialization logic.
     """
 
+    config_class: tp.Type[TransformerModelConfig_T]
+    u2i_dist = Distance.DOT
+    i2i_dist = Distance.COSINE
+
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        transformer_layers_type: tp.Type[TransformerLayersBase],
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase],
+        transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         n_blocks: int = 1,
         n_heads: int = 1,
         n_factors: int = 128,
@@ -421,58 +529,101 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,
+        dataloader_num_workers: int = 0,
+        batch_size: int = 128,
         loss: str = "softmax",
+        n_negatives: int = 1,
         gbce_t: float = 0.5,
         lr: float = 0.01,
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: tp.Union[str, Accelerator] = "auto",
+        recommend_device: str = "auto",
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
+        train_min_user_interactions: int = 2,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
         **kwargs: tp.Any,
     ) -> None:
-        super().__init__(verbose)
-        self.recommend_n_threads = recommend_n_threads
+        super().__init__(verbose=verbose)
+        self.transformer_layers_type = transformer_layers_type
+        self.data_preparator_type = data_preparator_type
+        self.n_blocks = n_blocks
+        self.n_heads = n_heads
+        self.n_factors = n_factors
+        self.use_pos_emb = use_pos_emb
+        self.use_causal_attn = use_causal_attn
+        self.use_key_padding_mask = use_key_padding_mask
+        self.dropout_rate = dropout_rate
+        self.session_max_len = session_max_len
+        self.dataloader_num_workers = dataloader_num_workers
+        self.batch_size = batch_size
+        self.loss = loss
+        self.n_negatives = n_negatives
+        self.gbce_t = gbce_t
+        self.lr = lr
+        self.epochs = epochs
+        self.deterministic = deterministic
         self.recommend_device = recommend_device
+        self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
-        self._torch_model = TransformerBasedSessionEncoder(
-            n_blocks=n_blocks,
-            n_factors=n_factors,
-            n_heads=n_heads,
-            session_max_len=session_max_len,
-            dropout_rate=dropout_rate,
-            use_pos_emb=use_pos_emb,
-            use_causal_attn=use_causal_attn,
-            use_key_padding_mask=use_key_padding_mask,
-            transformer_layers_type=transformer_layers_type,
-            item_net_block_types=item_net_block_types,
-            pos_encoding_type=pos_encoding_type,
-        )
-        self.lightning_model: SessionEncoderLightningModuleBase
+        self.train_min_user_interactions = train_min_user_interactions
+        self.item_net_block_types = item_net_block_types
+        self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
-        self.fit_trainer: Trainer
+
+        self._init_torch_model()
+        self._init_data_preparator()
         if trainer is None:
-            self._trainer = Trainer(
-                max_epochs=epochs,
-                min_epochs=epochs,
-                deterministic=deterministic,
-                enable_progress_bar=verbose > 0,
-                enable_model_summary=verbose > 0,
-                logger=verbose > 0,
-            )
+            self._init_trainer()
         else:
             self._trainer = trainer
+
+        self.lightning_model: SessionEncoderLightningModuleBase
         self.data_preparator: SessionEncoderDataPreparatorBase
-        self.u2i_dist = Distance.DOT
-        self.i2i_dist = Distance.COSINE
-        self.lr = lr
-        self.loss = loss
-        self.gbce_t = gbce_t
+        self.fit_trainer: Trainer
+
+    def _init_data_preparator(self) -> None:
+        raise NotImplementedError()
+
+    def _init_trainer(self) -> None:
+        self._trainer = Trainer(
+            max_epochs=self.epochs,
+            min_epochs=self.epochs,
+            deterministic=self.deterministic,
+            enable_progress_bar=self.verbose > 0,
+            enable_model_summary=self.verbose > 0,
+            logger=self.verbose > 0,
+            enable_checkpointing=False,
+            devices=1,
+        )
+
+    def _init_torch_model(self) -> None:
+        self._torch_model = TransformerBasedSessionEncoder(
+            n_blocks=self.n_blocks,
+            n_factors=self.n_factors,
+            n_heads=self.n_heads,
+            session_max_len=self.session_max_len,
+            dropout_rate=self.dropout_rate,
+            use_pos_emb=self.use_pos_emb,
+            use_causal_attn=self.use_causal_attn,
+            use_key_padding_mask=self.use_key_padding_mask,
+            transformer_layers_type=self.transformer_layers_type,
+            item_net_block_types=self.item_net_block_types,
+            pos_encoding_type=self.pos_encoding_type,
+        )
+
+    def _init_lightning_model(self, torch_model: TransformerBasedSessionEncoder, n_item_extra_tokens: int) -> None:
+        self.lightning_model = self.lightning_module_type(
+            torch_model=torch_model,
+            lr=self.lr,
+            loss=self.loss,
+            gbce_t=self.gbce_t,
+            n_item_extra_tokens=n_item_extra_tokens,
+        )
 
     def _fit(
         self,
@@ -484,14 +635,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         torch_model = deepcopy(self._torch_model)
         torch_model.construct_item_net(processed_dataset)
 
-        n_item_extra_tokens = self.data_preparator.n_item_extra_tokens
-        self.lightning_model = self.lightning_module_type(
-            torch_model=torch_model,
-            lr=self.lr,
-            loss=self.loss,
-            gbce_t=self.gbce_t,
-            n_item_extra_tokens=n_item_extra_tokens,
-        )
+        self._init_lightning_model(torch_model, self.data_preparator.n_item_extra_tokens)
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader)
@@ -562,8 +706,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
         item_embs = self.lightning_model.item_embs.detach().cpu().numpy()
-        # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
-        # Should we use torch dot and topk? Should be faster
+        # TODO: i2i reco do not need filtering viewed and user most of the times has GPU
+        # We should test if torch `topk`` is be faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,

@@ -13,20 +13,23 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
+import typing_extensions as tpe
 
 import numpy as np
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators import Accelerator
 from torch import nn
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
     PADDING_VALUE,
+    SessionEncoderDataPreparatorType,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
+    TransformerLayersType,
     TransformerModelBase,
+    TransformerModelConfig,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
@@ -157,7 +160,14 @@ class SASRecTransformerLayers(TransformerLayersBase):
         return seqs
 
 
-class SASRecModel(TransformerModelBase):
+class SASRecModelConfig(TransformerModelConfig):
+    """SASRecModel config."""
+
+    data_preparator_type: SessionEncoderDataPreparatorType = SASRecDataPreparator
+    transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
+
+
+class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     """
     SASRec model.
 
@@ -231,6 +241,8 @@ class SASRecModel(TransformerModelBase):
         Type of lightning module defining training procedure.
     """
 
+    config_class = SASRecModelConfig
+
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         n_blocks: int = 1,
@@ -250,7 +262,7 @@ class SASRecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_device: str = "auto",
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
         train_min_user_interactions: int = 2,
@@ -272,7 +284,10 @@ class SASRecModel(TransformerModelBase):
             use_key_padding_mask=use_key_padding_mask,
             dropout_rate=dropout_rate,
             session_max_len=session_max_len,
+            dataloader_num_workers=dataloader_num_workers,
+            batch_size=batch_size,
             loss=loss,
+            n_negatives=n_negatives,
             gbce_t=gbce_t,
             lr=lr,
             epochs=epochs,
@@ -281,16 +296,82 @@ class SASRecModel(TransformerModelBase):
             recommend_device=recommend_device,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
+            train_min_user_interactions=train_min_user_interactions,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
         )
-        self.data_preparator = data_preparator_type(
-            session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
-            batch_size=batch_size,
-            dataloader_num_workers=dataloader_num_workers,
+
+    def _init_data_preparator(self) -> None:
+        self.data_preparator = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
             item_extra_tokens=(PADDING_VALUE,),
-            train_min_user_interactions=train_min_user_interactions,
+            train_min_user_interactions=self.train_min_user_interactions,
+        )
+
+    def _get_config(self) -> TransformerModelConfig:
+        return SASRecModelConfig(
+            cls=self.__class__,
+            n_blocks=self.n_blocks,
+            n_heads=self.n_heads,
+            n_factors=self.n_factors,
+            use_pos_emb=self.use_pos_emb,
+            use_causal_attn=self.use_causal_attn,
+            use_key_padding_mask=self.use_key_padding_mask,
+            dropout_rate=self.dropout_rate,
+            session_max_len=self.session_max_len,
+            dataloader_num_workers=self.dataloader_num_workers,
+            batch_size=self.batch_size,
+            loss=self.loss,
+            n_negatives=self.n_negatives,
+            gbce_t=self.gbce_t,
+            lr=self.lr,
+            epochs=self.epochs,
+            verbose=self.verbose,
+            deterministic=self.deterministic,
+            recommend_device=self.recommend_device,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            train_min_user_interactions=self.train_min_user_interactions,
+            item_net_block_types=self.item_net_block_types,
+            pos_encoding_type=self.pos_encoding_type,
+            transformer_layers_type=self.transformer_layers_type,
+            data_preparator_type=self.data_preparator_type,
+            lightning_module_type=self.lightning_module_type,
+        )
+
+    @classmethod
+    def _from_config(cls, config: TransformerModelConfig) -> tpe.Self:
+        return cls(
+            trainer=None,
+            n_blocks=config.n_blocks,
+            n_heads=config.n_heads,
+            n_factors=config.n_factors,
+            use_pos_emb=config.use_pos_emb,
+            use_causal_attn=config.use_causal_attn,
+            use_key_padding_mask=config.use_key_padding_mask,
+            dropout_rate=config.dropout_rate,
+            session_max_len=config.session_max_len,
+            dataloader_num_workers=config.dataloader_num_workers,
+            batch_size=config.batch_size,
+            loss=config.loss,
+            n_negatives=config.n_negatives,
+            gbce_t=config.gbce_t,
+            lr=config.lr,
+            epochs=config.epochs,
+            verbose=config.verbose,
+            deterministic=config.deterministic,
+            recommend_device=config.recommend_device,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+            train_min_user_interactions=config.train_min_user_interactions,
+            item_net_block_types=config.item_net_block_types,
+            pos_encoding_type=config.pos_encoding_type,
+            transformer_layers_type=config.transformer_layers_type,
+            data_preparator_type=config.data_preparator_type,
+            lightning_module_type=config.lightning_module_type,
         )
