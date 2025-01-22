@@ -18,20 +18,17 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import torch
 import typing_extensions as tpe
-from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import Accelerator
 
-from rectools.utils.misc import get_class_or_function_full_path
-
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
-from .transformer_base import (  # SessionEncoderDataPreparatorType_T,
+from .transformer_base import (
     PADDING_VALUE,
+    SessionEncoderDataPreparatorType,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
     TransformerModelBase,
     TransformerModelConfig,
-    _get_class_obj,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
@@ -119,21 +116,10 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
-BERT4RecDataPreparatorType = tpe.Annotated[
-    tp.Type[BERT4RecDataPreparator],
-    BeforeValidator(_get_class_obj),
-    PlainSerializer(
-        func=get_class_or_function_full_path,
-        return_type=str,
-        when_used="json",
-    ),
-]
-
-
 class BERT4RecModelConfig(TransformerModelConfig):
     """BERT4RecModel config."""
 
-    data_preparator_type: BERT4RecDataPreparatorType = BERT4RecDataPreparator
+    data_preparator_type: SessionEncoderDataPreparatorType = BERT4RecDataPreparator
     use_key_padding_mask: bool = True
     mask_prob: float = 0.15
 
@@ -244,7 +230,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
-        data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
         self.mask_prob = mask_prob

@@ -476,7 +476,7 @@ SessionEncoderDataPreparatorType_T = tp.TypeVar(
 class TransformerModelConfig(ModelConfig):
     """Transformer model base config."""
 
-    data_preparator_type: SessionEncoderDataPreparatorType_T
+    data_preparator_type: SessionEncoderDataPreparatorType
     n_blocks: int = 1
     n_heads: int = 1
     n_factors: int = 128
@@ -523,7 +523,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase],
+        data_preparator_type: SessionEncoderDataPreparatorType,  # tp.Type[SessionEncoderDataPreparatorBase],
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         n_blocks: int = 1,
         n_heads: int = 1,
@@ -581,6 +581,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         self._init_torch_model()
         self._init_data_preparator()
+
         if trainer is None:
             self._init_trainer()
         else:

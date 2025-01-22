@@ -94,7 +94,7 @@ class TestBERT4RecModelConfiguration:
         assert model.recommend_n_threads == 0
         assert model.recommend_use_gpu_ranking is True
         assert model.train_min_user_interactions == 5
-        assert model._trainer is not None
+        assert model._trainer is not None  # pylint: disable = protected-access
         assert model.item_net_block_types == (IdEmbeddingsItemNet,)
         assert model.pos_encoding_type == LearnableInversePositionalEncoding
         assert model.transformer_layers_type == PreLNTransformerLayers
