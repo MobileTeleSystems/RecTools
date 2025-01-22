@@ -401,7 +401,7 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
                 torch.nn.init.xavier_normal_(param.data)
 
 
-# ####  --------------  Transformer Config  --------------  #### #
+# ####  --------------  Transformer Model Config  --------------  #### #
 
 
 def _get_class_obj(spec: tp.Any) -> tp.Any:
@@ -468,16 +468,20 @@ ItemNetBlockTypes = tpe.Annotated[
     ),
 ]
 
+SessionEncoderDataPreparatorType_T = tp.TypeVar(
+    "SessionEncoderDataPreparatorType_T", bound=SessionEncoderDataPreparatorType
+)
+
 
 class TransformerModelConfig(ModelConfig):
     """Transformer model base config."""
 
-    data_preparator_type: SessionEncoderDataPreparatorType
+    data_preparator_type: SessionEncoderDataPreparatorType_T
     n_blocks: int = 1
     n_heads: int = 1
     n_factors: int = 128
     use_pos_emb: bool = True
-    use_causal_attn: bool = True
+    use_causal_attn: bool = False
     use_key_padding_mask: bool = False
     dropout_rate: float = 0.2
     session_max_len: int = 32
@@ -525,7 +529,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         n_heads: int = 1,
         n_factors: int = 128,
         use_pos_emb: bool = True,
-        use_causal_attn: bool = True,
+        use_causal_attn: bool = False,
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 32,

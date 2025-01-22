@@ -17,15 +17,21 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import torch
+import typing_extensions as tpe
+from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import Accelerator
 
+from rectools.utils.misc import get_class_or_function_full_path
+
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
-from .transformer_base import (
+from .transformer_base import (  # SessionEncoderDataPreparatorType_T,
     PADDING_VALUE,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
     TransformerModelBase,
+    TransformerModelConfig,
+    _get_class_obj,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
@@ -113,7 +119,26 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
-class BERT4RecModel(TransformerModelBase):
+BERT4RecDataPreparatorType = tpe.Annotated[
+    tp.Type[BERT4RecDataPreparator],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+
+class BERT4RecModelConfig(TransformerModelConfig):
+    """BERT4RecModel config."""
+
+    data_preparator_type: BERT4RecDataPreparatorType = BERT4RecDataPreparator
+    use_key_padding_mask: bool = True
+    mask_prob: float = 0.15
+
+
+class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     """
     BERT4Rec model.
 
@@ -189,6 +214,8 @@ class BERT4RecModel(TransformerModelBase):
         Type of lightning module defining training procedure.
     """
 
+    config_class = BERT4RecModelConfig
+
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         n_blocks: int = 1,
@@ -220,6 +247,8 @@ class BERT4RecModel(TransformerModelBase):
         data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
     ):
+        self.mask_prob = mask_prob
+
         super().__init__(
             transformer_layers_type=transformer_layers_type,
             data_preparator_type=data_preparator_type,
@@ -230,27 +259,98 @@ class BERT4RecModel(TransformerModelBase):
             use_causal_attn=use_causal_attn,
             use_key_padding_mask=use_key_padding_mask,
             dropout_rate=dropout_rate,
+            session_max_len=session_max_len,
+            dataloader_num_workers=dataloader_num_workers,
+            batch_size=batch_size,
+            loss=loss,
+            n_negatives=n_negatives,
+            gbce_t=gbce_t,
+            lr=lr,
             epochs=epochs,
             verbose=verbose,
             deterministic=deterministic,
             recommend_device=recommend_device,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
-            loss=loss,
-            gbce_t=gbce_t,
-            lr=lr,
-            session_max_len=session_max_len + 1,
+            train_min_user_interactions=train_min_user_interactions,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
         )
-        self.data_preparator = data_preparator_type(
-            session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
-            batch_size=batch_size,
-            dataloader_num_workers=dataloader_num_workers,
-            train_min_user_interactions=train_min_user_interactions,
+
+    def _init_data_preparator(self) -> None:  # TODO: negative losses are not working now
+        self.data_preparator: SessionEncoderDataPreparatorBase = self.data_preparator_type(
+            session_max_len=self.session_max_len,  # -1
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
             item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
-            mask_prob=mask_prob,
+            mask_prob=self.mask_prob,
+        )
+
+    def _get_config(self) -> BERT4RecModelConfig:
+        return BERT4RecModelConfig(
+            cls=self.__class__,
+            n_blocks=self.n_blocks,
+            n_heads=self.n_heads,
+            n_factors=self.n_factors,
+            use_pos_emb=self.use_pos_emb,
+            use_causal_attn=self.use_causal_attn,
+            use_key_padding_mask=self.use_key_padding_mask,
+            dropout_rate=self.dropout_rate,
+            session_max_len=self.session_max_len,
+            dataloader_num_workers=self.dataloader_num_workers,
+            batch_size=self.batch_size,
+            loss=self.loss,
+            n_negatives=self.n_negatives,
+            gbce_t=self.gbce_t,
+            lr=self.lr,
+            epochs=self.epochs,
+            verbose=self.verbose,
+            deterministic=self.deterministic,
+            recommend_device=self.recommend_device,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            train_min_user_interactions=self.train_min_user_interactions,
+            item_net_block_types=self.item_net_block_types,
+            pos_encoding_type=self.pos_encoding_type,
+            transformer_layers_type=self.transformer_layers_type,
+            data_preparator_type=self.data_preparator_type,
+            lightning_module_type=self.lightning_module_type,
+            mask_prob=self.mask_prob,
+        )
+
+    @classmethod
+    def _from_config(cls, config: BERT4RecModelConfig) -> tpe.Self:
+        return cls(
+            trainer=None,
+            n_blocks=config.n_blocks,
+            n_heads=config.n_heads,
+            n_factors=config.n_factors,
+            use_pos_emb=config.use_pos_emb,
+            use_causal_attn=config.use_causal_attn,
+            use_key_padding_mask=config.use_key_padding_mask,
+            dropout_rate=config.dropout_rate,
+            session_max_len=config.session_max_len,
+            dataloader_num_workers=config.dataloader_num_workers,
+            batch_size=config.batch_size,
+            loss=config.loss,
+            n_negatives=config.n_negatives,
+            gbce_t=config.gbce_t,
+            lr=config.lr,
+            epochs=config.epochs,
+            verbose=config.verbose,
+            deterministic=config.deterministic,
+            recommend_device=config.recommend_device,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+            train_min_user_interactions=config.train_min_user_interactions,
+            item_net_block_types=config.item_net_block_types,
+            pos_encoding_type=config.pos_encoding_type,
+            transformer_layers_type=config.transformer_layers_type,
+            data_preparator_type=config.data_preparator_type,
+            lightning_module_type=config.lightning_module_type,
+            mask_prob=config.mask_prob,
         )

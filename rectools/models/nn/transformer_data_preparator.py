@@ -110,6 +110,7 @@ class SessionEncoderDataPreparatorBase:
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
+        **kwargs: tp.Any,
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap

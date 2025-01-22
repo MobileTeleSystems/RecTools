@@ -14,10 +14,10 @@
 
 import typing as tp
 from typing import Dict, List, Tuple
-import typing_extensions as tpe
 
 import numpy as np
 import torch
+import typing_extensions as tpe
 from pytorch_lightning import Trainer
 from torch import nn
 
@@ -165,6 +165,7 @@ class SASRecModelConfig(TransformerModelConfig):
 
     data_preparator_type: SessionEncoderDataPreparatorType = SASRecDataPreparator
     transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
+    use_causal_attn: bool = True
 
 
 class SASRecModel(TransformerModelBase[SASRecModelConfig]):
@@ -313,7 +314,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
         )
 
-    def _get_config(self) -> TransformerModelConfig:
+    def _get_config(self) -> SASRecModelConfig:
         return SASRecModelConfig(
             cls=self.__class__,
             n_blocks=self.n_blocks,
@@ -345,7 +346,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         )
 
     @classmethod
-    def _from_config(cls, config: TransformerModelConfig) -> tpe.Self:
+    def _from_config(cls, config: SASRecModelConfig) -> tpe.Self:
         return cls(
             trainer=None,
             n_blocks=config.n_blocks,
