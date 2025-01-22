@@ -477,20 +477,20 @@ class TransformerModelConfig(ModelConfig):
     """Transformer model base config."""
 
     data_preparator_type: SessionEncoderDataPreparatorType
-    n_blocks: int = 1
-    n_heads: int = 1
-    n_factors: int = 128
+    n_blocks: int = 2
+    n_heads: int = 4
+    n_factors: int = 256
     use_pos_emb: bool = True
     use_causal_attn: bool = False
     use_key_padding_mask: bool = False
     dropout_rate: float = 0.2
-    session_max_len: int = 32
+    session_max_len: int = 100
     dataloader_num_workers: int = 0
     batch_size: int = 128
     loss: str = "softmax"
     n_negatives: int = 1
     gbce_t: float = 0.2
-    lr: float = 0.01
+    lr: float = 0.001
     epochs: int = 3
     verbose: int = 0
     deterministic: bool = False
@@ -525,20 +525,20 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self,
         data_preparator_type: SessionEncoderDataPreparatorType,  # tp.Type[SessionEncoderDataPreparatorBase],
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
-        n_blocks: int = 1,
-        n_heads: int = 1,
-        n_factors: int = 128,
+        n_blocks: int = 2,
+        n_heads: int = 4,
+        n_factors: int = 256,
         use_pos_emb: bool = True,
         use_causal_attn: bool = False,
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
-        session_max_len: int = 32,
+        session_max_len: int = 100,
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
         n_negatives: int = 1,
         gbce_t: float = 0.5,
-        lr: float = 0.01,
+        lr: float = 0.001,
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
