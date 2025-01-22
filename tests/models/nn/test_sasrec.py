@@ -25,6 +25,7 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
 
+from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
@@ -520,14 +521,15 @@ class TestSASRecModel:
             )
             model.fit(dataset=dataset)
 
-            if model.fit_trainer.logger is not None:
-                log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
-                assert os.path.isfile(log_path)
+            assert model.fit_trainer.logger is not None
 
-                actual_columns = list(pd.read_csv(log_path).columns)
-                assert actual_columns == expected_columns
+            log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
+            assert os.path.isfile(log_path)
 
-                
+            actual_columns = list(pd.read_csv(log_path).columns)
+            assert actual_columns == expected_columns
+
+
 class TestSASRecDataPreparator:
 
     def setup_method(self) -> None:
@@ -619,7 +621,8 @@ class TestSASRecDataPreparator:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        actual = data_preparator.process_dataset_train(dataset)
+        data_preparator.process_dataset_train(dataset)
+        actual = data_preparator.train_dataset
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, expected_interactions)
@@ -766,8 +769,8 @@ class TestSASRecDataPreparator:
     def test_get_dataloader_train(
         self, dataset: Dataset, data_preparator: SASRecDataPreparator, train_batch: tp.List
     ) -> None:
-        dataset = data_preparator.process_dataset_train(dataset)
-        dataloader = data_preparator.get_dataloader_train(dataset)
+        data_preparator.process_dataset_train(dataset)
+        dataloader = data_preparator.get_dataloader_train()
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, train_batch[key])

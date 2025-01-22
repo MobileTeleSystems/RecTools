@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from collections.abc import Hashable
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -49,7 +50,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         dataloader_num_workers: int,
         train_min_user_interactions: int,
         mask_prob: float,
-        item_extra_tokens: tp.Sequence[tp.Hashable],
+        item_extra_tokens: tp.Sequence[Hashable],
         shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
     ) -> None:
@@ -133,7 +134,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             )  # [batch_size, 1, n_negatives]
             batch_dict["negatives"] = negatives
         return batch_dict
-      
+
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len + 1))

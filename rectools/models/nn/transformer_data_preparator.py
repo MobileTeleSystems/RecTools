@@ -14,6 +14,7 @@
 
 import typing as tp
 import warnings
+from collections.abc import Hashable
 
 import numpy as np
 import pandas as pd
@@ -108,7 +109,7 @@ class SessionEncoderDataPreparatorBase:
         session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
-        item_extra_tokens: tp.Sequence[tp.Hashable],
+        item_extra_tokens: tp.Sequence[Hashable],
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
