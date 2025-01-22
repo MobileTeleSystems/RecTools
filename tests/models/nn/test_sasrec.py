@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
 import typing as tp
 from functools import partial
 from pathlib import Path
@@ -529,7 +528,7 @@ class TestSASRecModel:
             assert model.fit_trainer.logger is not None
 
             log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
-            assert os.path.isfile(log_path)
+            assert log_path.exists()
 
             actual_columns = list(pd.read_csv(log_path).columns)
             assert actual_columns == expected_columns
