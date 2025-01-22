@@ -133,7 +133,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             )  # [batch_size, 1, n_negatives]
             batch_dict["negatives"] = negatives
         return batch_dict
-
+      
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len + 1))

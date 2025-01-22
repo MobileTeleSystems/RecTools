@@ -25,7 +25,6 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
 
-from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
@@ -528,7 +527,7 @@ class TestSASRecModel:
                 actual_columns = list(pd.read_csv(log_path).columns)
                 assert actual_columns == expected_columns
 
-
+                
 class TestSASRecDataPreparator:
 
     def setup_method(self) -> None:
