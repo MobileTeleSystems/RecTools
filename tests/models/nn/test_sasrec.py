@@ -498,14 +498,19 @@ class TestSASRecModel:
     def test_log_metrics(
         self,
         dataset: Dataset,
-        trainer: Trainer,
         verbose: int,
         get_val_mask_func: partial,
         is_val_mask_func: bool,
         expected_columns: tp.List[str],
     ) -> None:
         with TemporaryDirectory() as dirname:
-            trainer.logger = CSVLogger(save_dir=dirname)
+            trainer = Trainer(
+                max_epochs=2,
+                min_epochs=2,
+                deterministic=True,
+                accelerator="cpu",
+                logger=CSVLogger(save_dir=dirname),
+            )
             model = SASRecModel(
                 n_factors=32,
                 n_blocks=2,
