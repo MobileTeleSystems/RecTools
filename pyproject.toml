@@ -84,7 +84,7 @@ pytorch-lightning = {version = ">=1.6.0, <3.0.0", optional = true}
 ipywidgets = {version = ">=7.7,<8.2", optional = true}
 plotly = {version="^5.22.0", optional = true}
 nbformat = {version = ">=4.2.0", optional = true}
-cupy-cuda12x = {version = "^13.3.0", python = "<3.13", extras = ["cupy"], optional = true}
+cupy-cuda12x = {version = "^13.3.0", python = "<3.13", optional = true}
 
 
 [tool.poetry.extras]
@@ -92,6 +92,7 @@ lightfm = ["rectools-lightfm"]
 nmslib = ["nmslib", "nmslib-metabrainz"]
 torch = ["torch", "pytorch-lightning"]
 visuals = ["ipywidgets", "plotly", "nbformat"]
+cupy = ["cupy-cuda12x"]
 all = [
     "rectools-lightfm",
     "nmslib", "nmslib-metabrainz",

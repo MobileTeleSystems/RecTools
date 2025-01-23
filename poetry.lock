@@ -3753,6 +3753,7 @@ type = ["pytest-mypy"]
 
 [extras]
 all = ["cupy-cuda12x", "ipywidgets", "nbformat", "nmslib", "nmslib-metabrainz", "plotly", "pytorch-lightning", "rectools-lightfm", "torch", "torch"]
+cupy = ["cupy-cuda12x"]
 lightfm = ["rectools-lightfm"]
 nmslib = ["nmslib", "nmslib-metabrainz"]
 torch = ["pytorch-lightning", "torch", "torch"]
@@ -3761,4 +3762,4 @@ visuals = ["ipywidgets", "nbformat", "plotly"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9, <3.13"
-content-hash = "e1ec05f65b7b2545815b4f56dbe5f9f65786281771f9e792640efd721c8db6aa"
+content-hash = "894765cd6220c87dd20ad10a0926b39298bfbc2d215ef0091dbf0849a468b349"
