@@ -382,10 +382,16 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss = self._calc_bce_loss(logits, y, w)
         return loss
 
-    def on_train_end(self) -> None:
+    def on_predict_epoch_start(self) -> None:
         """Save item embeddings"""
         self.eval()
-        self.item_embs = self.torch_model.item_model.get_all_embeddings()
+        with torch.no_grad():
+            self.item_embs = self.torch_model.item_model.get_all_embeddings()
+
+    def on_predict_epoch_end(self) -> None:
+        """Clear item embeddings"""
+        del self.item_embs
+        torch.cuda.empty_cache()
 
     def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """
@@ -674,13 +680,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             raise ValueError(explanation)
         user_embs = np.concatenate(session_embs, axis=0)
         user_embs = user_embs[user_ids]
-        item_embs = self.lightning_model.item_embs
-        item_embs_np = item_embs.detach().cpu().numpy()
+
+        item_embs = self.get_item_vectors()
 
         ranker = ImplicitRanker(
             self.u2i_dist,
             user_embs,  # [n_rec_users, n_factors]
-            item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
         )
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -688,7 +694,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         else:
             ui_csr_for_filter = None
 
-        # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
+        # TODO: We should test if torch `topk`` is faster when `filter_viewed`` is ``False``
         user_ids_indices, all_reco_ids, all_scores = ranker.rank(
             subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
             k=k,
@@ -698,7 +704,21 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
         all_target_ids = user_ids[user_ids_indices]
-        return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
+        return all_target_ids, all_reco_ids, all_scores
+
+    def get_item_vectors(self) -> np.ndarray:
+        """
+        Compute catalog item embeddings through torch model.
+
+        Returns
+        -------
+        np.ndarray
+            Full catalog item embeddings including extra tokens.
+        """
+        self.torch_model.eval()
+        with torch.no_grad():
+            item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()
+        return item_embs
 
     def _recommend_i2i(
         self,
@@ -710,9 +730,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        item_embs = self.lightning_model.item_embs.detach().cpu().numpy()
-        # TODO: i2i reco do not need filtering viewed and user most of the times has GPU
-        # We should test if torch `topk`` is be faster
+        item_embs = self.get_item_vectors()
+        # TODO: i2i recommendations do not need filtering viewed and user most of the times has GPU
+        # We should test if torch `topk`` is faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,
