@@ -213,7 +213,7 @@ class SessionEncoderDataPreparatorBase:
         )
         return train_dataloader
 
-    def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
+    def get_dataloader_recommend(self, dataset: Dataset, batch_size: int) -> DataLoader:
         """TODO"""
         # Recommend dataloader should return interactions sorted by user ids.
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
@@ -222,7 +222,7 @@ class SessionEncoderDataPreparatorBase:
         sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
-            batch_size=self.batch_size,
+            batch_size=batch_size,
             collate_fn=self._collate_fn_recommend,
             num_workers=self.dataloader_num_workers,
             shuffle=False,

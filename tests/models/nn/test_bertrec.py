@@ -61,7 +61,9 @@ class TestBERT4RecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_device": "auto",
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 5,
@@ -90,7 +92,9 @@ class TestBERT4RecModelConfiguration:
         assert model.epochs == 10
         assert model.verbose == 1
         assert model.deterministic is True
-        assert model.recommend_device == "auto"
+        assert model.recommend_accelerator == "auto"
+        assert model.recommend_devices == 1
+        assert model.recommend_batch_size == 256
         assert model.recommend_n_threads == 0
         assert model.recommend_use_gpu_ranking is True
         assert model.train_min_user_interactions == 5
@@ -122,7 +126,9 @@ class TestBERT4RecModelConfiguration:
             epochs=10,
             verbose=1,
             deterministic=True,
-            recommend_device="auto",
+            recommend_accelerator="auto",
+            recommend_devices=1,
+            recommend_batch_size=256,
             recommend_n_threads=0,
             recommend_use_gpu_ranking=True,
             train_min_user_interactions=5,
@@ -153,7 +159,9 @@ class TestBERT4RecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_device": "auto",
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 5,
@@ -202,7 +210,9 @@ class TestBERT4RecModelConfiguration:
             "epochs": 1,
             "verbose": 0,
             "deterministic": True,
-            "recommend_device": "auto",
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 2,

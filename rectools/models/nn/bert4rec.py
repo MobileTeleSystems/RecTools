@@ -13,13 +13,12 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
 import typing_extensions as tpe
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators import Accelerator
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
@@ -170,10 +169,21 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     deterministic : bool, default ``False``
         If ``True``, set deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or Accelerator, default "auto"
-        Device for recommend. Used at predict_step of lightning module.
+    recommend_batch_size : int, default 256
+        How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_device` attribute.
+        you can manually assign new value to model `recommend_batch_size` attribute.
+    recommend_accelerator : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"}, default "auto"
+        Accelerator type for `recommend`. Used at predict_step of lightning module.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_accelerator` attribute.
+    recommend_devices : int | List[int], default 1
+        Devices for `recommend`. Please note that multi-device inference is not supported!
+        Do not specify more then one device. For ``gpu`` accelerator you can pass which device to
+        use, e.g. ``[1]``.
+        Used at predict_step of lightning module.
+        Multi-device recommendations are not supported.
+        If you want to change this parameter after model is initialized,
     recommend_n_threads : int, default 0
         Number of threads to use in ranker if GPU ranking is turned off or unavailable.
         If you want to change this parameter after model is initialized,
@@ -214,7 +224,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_batch_size: int = 256,
+        recommend_accelerator: str = "auto",
+        recommend_devices: tp.Union[int, tp.List[int]] = 1,
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
         session_max_len: int = 100,
@@ -255,7 +267,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             epochs=epochs,
             verbose=verbose,
             deterministic=deterministic,
-            recommend_device=recommend_device,
+            recommend_batch_size=recommend_batch_size,
+            recommend_accelerator=recommend_accelerator,
+            recommend_devices=recommend_devices,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             train_min_user_interactions=train_min_user_interactions,
@@ -296,7 +310,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             epochs=self.epochs,
             verbose=self.verbose,
             deterministic=self.deterministic,
-            recommend_device=self.recommend_device,
+            recommend_devices=self.recommend_devices,
+            recommend_accelerator=self.recommend_accelerator,
+            recommend_batch_size=self.recommend_batch_size,
             recommend_n_threads=self.recommend_n_threads,
             recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
             train_min_user_interactions=self.train_min_user_interactions,
@@ -329,7 +345,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             epochs=config.epochs,
             verbose=config.verbose,
             deterministic=config.deterministic,
-            recommend_device=config.recommend_device,
+            recommend_devices=config.recommend_devices,
+            recommend_accelerator=config.recommend_accelerator,
+            recommend_batch_size=config.recommend_batch_size,
             recommend_n_threads=config.recommend_n_threads,
             recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
             train_min_user_interactions=config.train_min_user_interactions,

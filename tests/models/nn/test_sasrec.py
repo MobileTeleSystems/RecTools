@@ -196,7 +196,7 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_device=recommend_device,
+            recommend_accelerator=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
@@ -652,7 +652,7 @@ class TestSASRecDataPreparator:
     ) -> None:
         data_preparator.process_dataset_train(dataset)
         dataset = data_preparator.transform_dataset_i2i(dataset)
-        dataloader = data_preparator.get_dataloader_recommend(dataset)
+        dataloader = data_preparator.get_dataloader_recommend(dataset, 4)
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, recommend_batch[key])
@@ -685,7 +685,9 @@ class TestSASRecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_device": "auto",
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 5,
@@ -713,7 +715,9 @@ class TestSASRecModelConfiguration:
         assert model.epochs == 10
         assert model.verbose == 1
         assert model.deterministic is True
-        assert model.recommend_device == "auto"
+        assert model.recommend_accelerator == "auto"
+        assert model.recommend_devices == 1
+        assert model.recommend_batch_size == 256
         assert model.recommend_n_threads == 0
         assert model.recommend_use_gpu_ranking is True
         assert model.train_min_user_interactions == 5
@@ -744,7 +748,9 @@ class TestSASRecModelConfiguration:
             epochs=10,
             verbose=1,
             deterministic=True,
-            recommend_device="auto",
+            recommend_accelerator="auto",
+            recommend_devices=1,
+            recommend_batch_size=256,
             recommend_n_threads=0,
             recommend_use_gpu_ranking=True,
             train_min_user_interactions=5,
@@ -774,7 +780,9 @@ class TestSASRecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_device": "auto",
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 5,
@@ -820,7 +828,9 @@ class TestSASRecModelConfiguration:
             "epochs": 1,
             "verbose": 0,
             "deterministic": True,
-            "recommend_device": "auto",
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 2,

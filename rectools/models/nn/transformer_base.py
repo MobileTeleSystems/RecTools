@@ -500,7 +500,9 @@ class TransformerModelConfig(ModelConfig):
     epochs: int = 3
     verbose: int = 0
     deterministic: bool = False
-    recommend_device: str = "auto"  # custom accelerators not supported
+    recommend_batch_size: int = 256
+    recommend_accelerator: str = "auto"
+    recommend_devices: tp.Union[int, tp.List[int]] = 1
     recommend_n_threads: int = 0
     recommend_use_gpu_ranking: bool = True
     train_min_user_interactions: int = 2
@@ -548,7 +550,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: str = "auto",
+        recommend_batch_size: int = 256,
+        recommend_accelerator: str = "auto",
+        recommend_devices: tp.Union[int, tp.List[int]] = 1,
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
         train_min_user_interactions: int = 2,
@@ -559,6 +563,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
+
+        self._check_devices(recommend_devices)
+
         self.transformer_layers_type = transformer_layers_type
         self.data_preparator_type = data_preparator_type
         self.n_blocks = n_blocks
@@ -577,7 +584,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lr = lr
         self.epochs = epochs
         self.deterministic = deterministic
-        self.recommend_device = recommend_device
+        self.recommend_batch_size = recommend_batch_size
+        self.recommend_accelerator = recommend_accelerator
+        self.recommend_devices = recommend_devices
         self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
         self.train_min_user_interactions = train_min_user_interactions
@@ -596,6 +605,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_model: SessionEncoderLightningModuleBase
         self.data_preparator: SessionEncoderDataPreparatorBase
         self.fit_trainer: Trainer
+
+    def _check_devices(self, recommend_devices: tp.Union[int, tp.List[int]]) -> None:
+        if isinstance(recommend_devices, int) and recommend_devices != 1:
+            raise ValueError("Only single device is supported for inference")
+        if isinstance(recommend_devices, list) and len(recommend_devices) > 1:
+            raise ValueError("Only single device is supported for inference")
 
     def _init_data_preparator(self) -> None:
         raise NotImplementedError()
@@ -661,6 +676,10 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
 
+    def _init_recommend_trainer(self) -> Trainer:
+        self._check_devices(self.recommend_devices)
+        return Trainer(devices=self.recommend_devices, accelerator=self.recommend_accelerator)
+
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
@@ -672,8 +691,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        recommend_trainer = Trainer(devices=1, accelerator=self.recommend_device)
-        recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
+        recommend_trainer = self._init_recommend_trainer()
+        recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
+
         session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
         if session_embs is None:
             explanation = """Received empty recommendations."""
