@@ -203,7 +203,7 @@ class TestBERT4RecModel:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -265,7 +265,7 @@ class TestBERT4RecModel:
             n_negatives=2,
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -314,7 +314,7 @@ class TestBERT4RecModel:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -387,7 +387,7 @@ class TestBERT4RecModel:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -414,7 +414,7 @@ class TestBERT4RecModel:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             deterministic=True,
@@ -454,7 +454,7 @@ class TestBERT4RecModel:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,

@@ -248,14 +248,14 @@ class BERT4RecModel(TransformerModelBase):
             loss=loss,
             gbce_t=gbce_t,
             lr=lr,
-            session_max_len=session_max_len + 1,
+            session_max_len=session_max_len,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
         )
         self.data_preparator = data_preparator_type(
-            session_max_len=session_max_len,
+            session_max_len=session_max_len - 1,
             n_negatives=n_negatives if loss != "softmax" else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
