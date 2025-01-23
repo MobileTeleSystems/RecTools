@@ -82,7 +82,18 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         self,
         batch: List[Tuple[List[int], List[float]]],
     ) -> Dict[str, torch.Tensor]:
-        """TODO"""
+        """
+        Mask session elements to receive `x`.
+        Get target by replacing session elements with a MASK token with probability `mask_prob`.
+        Truncate each session and target from right to keep (`session_max_len` + 1) last items.
+        Do left padding until  (`session_max_len` + 1) is reached.
+        If `n_negatives` is not None, generate negative items from uniform distribution.
+        (`session_max_len` + 1) is used here to keep the logic that `session_max_len` passed by the user
+        is maximum sessions length that model will process during train.
+        During inference model will use (`session_max_len` - 1) interactions
+        and one extra "MASK" token will be added for making predictions.
+        Thus we need to see (session_max_len + 1) elements during training.
+        """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len + 1))
         y = np.zeros((batch_size, self.session_max_len + 1))
@@ -98,7 +109,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
                 high=self.item_id_map.size,
-                size=(batch_size, self.session_max_len, self.n_negatives),
+                size=(batch_size, self.session_max_len + 1, self.n_negatives),
             )  # [batch_size, session_max_len, n_negatives]
             batch_dict["negatives"] = negatives
         return batch_dict
@@ -177,7 +188,7 @@ class BERT4RecModel(TransformerModelBase):
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
-        (, CatFeaturesItemNet) - item embeddings based on categorical features.
+        (CatFeaturesItemNet,) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
@@ -239,14 +250,14 @@ class BERT4RecModel(TransformerModelBase):
             loss=loss,
             gbce_t=gbce_t,
             lr=lr,
-            session_max_len=session_max_len + 1,
+            session_max_len=session_max_len,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
         )
         self.data_preparator = data_preparator_type(
-            session_max_len=session_max_len,
+            session_max_len=session_max_len - 1,
             n_negatives=n_negatives if loss != "softmax" else None,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,

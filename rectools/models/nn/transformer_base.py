@@ -286,7 +286,6 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
-        # TODO: init padding embedding with zeros
         self._xavier_normal_init()
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -464,6 +463,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
                 enable_progress_bar=verbose > 0,
                 enable_model_summary=verbose > 0,
                 logger=verbose > 0,
+                enable_checkpointing=False,
+                devices=1,
             )
         else:
             self._trainer = trainer
@@ -520,8 +521,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         recommend_trainer = Trainer(devices=1, accelerator=self.recommend_device)
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
         session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
-        if session_embs is None:
-            explanation = """Received empty recommendations."""
+        if session_embs is None:  # pragma: no cover
+            explanation = """Received empty recommendations. Used to solve incompatible type linter error."""
             raise ValueError(explanation)
         user_embs = np.concatenate(session_embs, axis=0)
         user_embs = user_embs[user_ids]

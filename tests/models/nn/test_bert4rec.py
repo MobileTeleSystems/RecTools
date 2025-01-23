@@ -1,17 +1,3 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
-#
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
-
 import typing as tp
 
 import numpy as np
@@ -22,16 +8,13 @@ from pytorch_lightning import Trainer, seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.models import SASRecModel
-from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
-from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator
-from rectools.models.nn.transformer_base import TransformerBasedSessionEncoder
+from rectools.models import BERT4RecModel
+from rectools.models.nn.bert4rec import MASKING_VALUE, PADDING_VALUE, BERT4RecDataPreparator
+from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from tests.models.utils import assert_second_fit_refits_model
 
-# TODO: add tests with BCE and GBCE
 
-
-class TestSASRecModel:
+class TestBERT4RecModel:
     def setup_method(self) -> None:
         self._seed_everything()
 
@@ -65,6 +48,10 @@ class TestSASRecModel:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
+    def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
+        return Dataset.construct(interactions_df[:-4])
+
+    @pytest.fixture
     def dataset_devices(self) -> Dataset:
         interactions_df = pd.DataFrame(
             [
@@ -74,59 +61,13 @@ class TestSASRecModel:
                 [30, 11, 1, "2021-11-27"],
                 [30, 13, 2, "2021-11-26"],
                 [40, 11, 1, "2021-11-25"],
-                [40, 14, 1, "2021-11-26"],
-                [50, 16, 1, "2021-11-25"],
-                [10, 14, 1, "2021-11-28"],
-                [10, 16, 1, "2021-11-27"],
+                [50, 13, 1, "2021-11-25"],
+                [10, 13, 1, "2021-11-27"],
                 [20, 13, 9, "2021-11-28"],
             ],
             columns=Columns.Interactions,
         )
         return Dataset.construct(interactions_df)
-
-    @pytest.fixture
-    def dataset_item_features(self) -> Dataset:
-        interactions_df = pd.DataFrame(
-            [
-                [10, 13, 1, "2021-11-30"],
-                [10, 11, 1, "2021-11-29"],
-                [10, 12, 1, "2021-11-29"],
-                [30, 11, 1, "2021-11-27"],
-                [30, 13, 2, "2021-11-26"],
-                [40, 11, 1, "2021-11-25"],
-                [40, 14, 1, "2021-11-26"],
-                [50, 16, 1, "2021-11-25"],
-                [10, 14, 1, "2021-11-28"],
-                [10, 16, 1, "2021-11-27"],
-                [20, 13, 9, "2021-11-28"],
-            ],
-            columns=Columns.Interactions,
-        )
-        item_features = pd.DataFrame(
-            [
-                [11, "f1", "f1val1"],
-                [11, "f2", "f2val1"],
-                [12, "f1", "f1val1"],
-                [12, "f2", "f2val2"],
-                [13, "f1", "f1val1"],
-                [13, "f2", "f2val3"],
-                [11, "f3", 0],
-                [12, "f3", 1],
-                [13, "f3", 2],
-                [16, "f3", 6],
-            ],
-            columns=["id", "feature", "value"],
-        )
-        ds = Dataset.construct(
-            interactions_df,
-            item_features_df=item_features,
-            cat_item_features=["f1", "f2"],
-        )
-        return ds
-
-    @pytest.fixture
-    def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
-        return Dataset.construct(interactions_df[:-4])
 
     @pytest.fixture
     def trainer(self) -> Trainer:
@@ -163,7 +104,7 @@ class TestSASRecModel:
             ),
             pytest.param(
                 "gpu",
-                [0, 1],
+                2,
                 "cpu",
                 marks=pytest.mark.skipif(
                     torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
@@ -173,29 +114,36 @@ class TestSASRecModel:
         ],
     )
     @pytest.mark.parametrize(
-        "filter_viewed,expected_cpu_1,expected_cpu_2,expected_gpu",
+        "filter_viewed,expected_cpu_1,expected_cpu_2,expected_gpu_1,expected_gpu_2",
         (
             (
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [30, 30, 40, 40],
-                        Columns.Item: [12, 14, 12, 13],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [30, 30, 40, 40],
-                        Columns.Item: [14, 12, 13, 12],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [30, 30, 40, 40],
-                        Columns.Item: [14, 12, 12, 13],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -204,21 +152,28 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 12, 13, 11, 12, 14, 12, 13],
+                        Columns.Item: [13, 11, 12, 13, 11, 12, 13, 11, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 14, 11, 11, 14, 12, 14, 11, 13],
+                        Columns.Item: [11, 12, 13, 11, 13, 12, 11, 13, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 14, 13, 11, 14, 13, 14, 11, 12],
+                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -234,7 +189,8 @@ class TestSASRecModel:
         recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
-        expected_gpu: pd.DataFrame,
+        expected_gpu_1: pd.DataFrame,
+        expected_gpu_2: pd.DataFrame,
     ) -> None:
         trainer = Trainer(
             max_epochs=2,
@@ -244,10 +200,10 @@ class TestSASRecModel:
             accelerator=accelerator,
             enable_checkpointing=False,
         )
-        model = SASRecModel(
+        model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -263,8 +219,10 @@ class TestSASRecModel:
             expected = expected_cpu_1
         elif accelerator == "cpu" and n_devices == 2:
             expected = expected_cpu_2
+        elif accelerator == "gpu" and n_devices == 1:
+            expected = expected_gpu_1
         else:
-            expected = expected_gpu
+            expected = expected_gpu_2
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -279,7 +237,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [15, 17, 13, 17, 14, 13, 15, 12],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -289,7 +247,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [15, 17, 13, 17, 14, 13, 15, 12],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -303,11 +261,11 @@ class TestSASRecModel:
         trainer: Trainer,
         expected: pd.DataFrame,
     ) -> None:
-        model = SASRecModel(
+        model = BERT4RecModel(
             n_negatives=2,
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -326,93 +284,15 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "expected",
-        (
-            pd.DataFrame(
-                {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
-                }
-            ),
-        ),
-    )
-    def test_u2i_with_key_and_attn_masks(
-        self,
-        dataset: Dataset,
-        trainer: Trainer,
-        expected: pd.DataFrame,
-    ) -> None:
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-            use_key_padding_mask=True,
-        )
-        model.fit(dataset=dataset)
-        users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
-        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-        pd.testing.assert_frame_equal(
-            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-            actual,
-        )
-
-    @pytest.mark.parametrize(
-        "expected",
-        (
-            pd.DataFrame(
-                {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 11, 14, 11, 13, 14, 14, 12, 13],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
-                }
-            ),
-        ),
-    )
-    def test_u2i_with_item_features(
-        self,
-        dataset_item_features: Dataset,
-        trainer: Trainer,
-        expected: pd.DataFrame,
-    ) -> None:
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
-            trainer=trainer,
-            use_key_padding_mask=True,
-        )
-        model.fit(dataset=dataset_item_features)
-        users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset_item_features, k=3, filter_viewed=False)
-        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-        pd.testing.assert_frame_equal(
-            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-            actual,
-        )
-
-    @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
             (
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 30, 30, 40],
-                        Columns.Item: [17, 13, 17, 13],
-                        Columns.Rank: [1, 1, 2, 1],
+                        Columns.User: [40],
+                        Columns.Item: [13],
+                        Columns.Rank: [1],
                     }
                 ),
             ),
@@ -420,21 +300,21 @@ class TestSASRecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 17, 11, 11, 13, 17, 17, 11, 13],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [10, 10, 30, 30, 40, 40],
+                        Columns.Item: [13, 11, 13, 11, 13, 11],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
         ),
     )
     def test_with_whitelist(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset_devices: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
-        model = SASRecModel(
+        model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -442,12 +322,12 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
         items_to_recommend = np.array([11, 13, 17])
         actual = model.recommend(
             users=users,
-            dataset=dataset,
+            dataset=dataset_devices,
             k=3,
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
@@ -467,7 +347,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 17, 11, 14, 11, 13, 17, 12, 14],
+                        Columns.Item: [12, 13, 14, 14, 11, 13, 17, 13, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -478,7 +358,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [17, 11, 14, 11, 13, 17, 12, 14, 11],
+                        Columns.Item: [13, 14, 15, 11, 13, 12, 13, 15, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -489,7 +369,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 13, 15, 13, 15, 14, 15, 13],
+                        Columns.Item: [13, 14, 15, 13, 15, 13, 15, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -504,10 +384,10 @@ class TestSASRecModel:
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
     ) -> None:
-        model = SASRecModel(
+        model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -531,10 +411,10 @@ class TestSASRecModel:
         )
 
     def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, trainer: Trainer) -> None:
-        model = SASRecModel(
+        model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             deterministic=True,
@@ -550,9 +430,9 @@ class TestSASRecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [20, 20, 20],
-                        Columns.Item: [14, 12, 17],
-                        Columns.Rank: [1, 2, 3],
+                        Columns.User: [20, 20],
+                        Columns.Item: [11, 12],
+                        Columns.Rank: [1, 2],
                     }
                 ),
             ),
@@ -561,7 +441,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 14, 12],
+                        Columns.Item: [13, 11, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -569,12 +449,12 @@ class TestSASRecModel:
         ),
     )
     def test_recommend_for_cold_user_with_hot_item(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset_devices: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
-        model = SASRecModel(
+        model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
-            session_max_len=3,
+            session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
@@ -582,11 +462,11 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([20])
         actual = model.recommend(
             users=users,
-            dataset=dataset,
+            dataset=dataset_devices,
             k=3,
             filter_viewed=filter_viewed,
         )
@@ -596,81 +476,8 @@ class TestSASRecModel:
             actual,
         )
 
-    @pytest.mark.parametrize(
-        "filter_viewed,expected",
-        (
-            (
-                True,
-                pd.DataFrame(
-                    {
-                        Columns.User: [10, 10, 20, 20, 20],
-                        Columns.Item: [17, 15, 14, 12, 17],
-                        Columns.Rank: [1, 2, 1, 2, 3],
-                    }
-                ),
-            ),
-            (
-                False,
-                pd.DataFrame(
-                    {
-                        Columns.User: [10, 10, 10, 20, 20, 20],
-                        Columns.Item: [13, 12, 14, 13, 14, 12],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3],
-                    }
-                ),
-            ),
-        ),
-    )
-    def test_warn_when_hot_user_has_cold_items_in_recommend(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
-    ) -> None:
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-        )
-        model.fit(dataset=dataset)
-        users = np.array([10, 20, 50])
-        with pytest.warns() as record:
-            actual = model.recommend(
-                users=users,
-                dataset=dataset,
-                k=3,
-                filter_viewed=filter_viewed,
-                on_unsupported_targets="warn",
-            )
-            pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
-            pd.testing.assert_frame_equal(
-                actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
-                actual,
-            )
-        assert str(record[0].message) == "1 target users were considered cold because of missing known items"
-        assert (
-            str(record[1].message)
-            == """
-                Model `<class 'rectools.models.nn.sasrec.SASRecModel'>` doesn't support recommendations for cold users,
-                but some of given users are cold: they are not in the `dataset.user_id_map`
-            """
-        )
 
-    def test_raises_when_loss_is_not_supported(self, dataset: Dataset) -> None:
-        model = SASRecModel(loss="gbce")
-        with pytest.raises(ValueError):
-            model.fit(dataset=dataset)
-
-    def test_torch_model(self, dataset: Dataset) -> None:
-        model = SASRecModel()
-        model.fit(dataset)
-        assert isinstance(model.torch_model, TransformerBasedSessionEncoder)
-
-
-class TestSASRecDataPreparator:
+class TestBERT4RecDataPreparator:
 
     def setup_method(self) -> None:
         self._seed_everything()
@@ -701,13 +508,40 @@ class TestSASRecDataPreparator:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
-    def data_preparator(self) -> SASRecDataPreparator:
-        return SASRecDataPreparator(
+    def dataset_one_session(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 1, 1, "2021-11-30"],
+                [10, 2, 1, "2021-11-30"],
+                [10, 3, 1, "2021-11-30"],
+                [10, 4, 1, "2021-11-30"],
+                [10, 5, 1, "2021-11-30"],
+                [10, 6, 1, "2021-11-30"],
+                [10, 7, 1, "2021-11-30"],
+                [10, 8, 1, "2021-11-30"],
+                [10, 9, 1, "2021-11-30"],
+                [10, 13, 1, "2021-11-30"],
+                [10, 2, 1, "2021-11-30"],
+                [10, 3, 1, "2021-11-30"],
+                [10, 3, 1, "2021-11-30"],
+                [10, 4, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-30"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def data_preparator(self) -> BERT4RecDataPreparator:
+        return BERT4RecDataPreparator(
             session_max_len=3,
+            n_negatives=1,
             batch_size=4,
             dataloader_num_workers=0,
-            item_extra_tokens=(PADDING_VALUE,),
-            n_negatives=1,
+            train_min_user_interactions=2,
+            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
+            shuffle_train=True,
+            mask_prob=0.5,
         )
 
     @pytest.mark.parametrize(
@@ -715,16 +549,16 @@ class TestSASRecDataPreparator:
         (
             (
                 {
-                    "x": torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
-                    "y": torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
-                    "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 2.0, 1.0], [0.0, 0.0, 1.0]]),
-                    "negatives": torch.tensor([[[5], [1], [1]], [[6], [3], [4]], [[5], [2], [4]]]),
+                    "x": torch.tensor([[6, 1, 4, 7], [0, 2, 4, 1], [0, 0, 3, 5]]),
+                    "y": torch.tensor([[0, 3, 0, 0], [0, 0, 0, 3], [0, 0, 0, 0]]),
+                    "yw": torch.tensor([[1, 1, 1, 1], [0, 1, 2, 1], [0, 0, 1, 1]], dtype=torch.float),
+                    "negatives": torch.tensor([[[6], [2], [2], [7]], [[4], [5], [6], [3]], [[5], [3], [6], [7]]]),
                 }
             ),
         ),
     )
     def test_get_dataloader_train(
-        self, dataset: Dataset, data_preparator: SASRecDataPreparator, train_batch: tp.List
+        self, dataset: Dataset, data_preparator: BERT4RecDataPreparator, train_batch: tp.List
     ) -> None:
         dataset = data_preparator.process_dataset_train(dataset)
         dataloader = data_preparator.get_dataloader_train(dataset)
@@ -733,11 +567,42 @@ class TestSASRecDataPreparator:
             assert torch.equal(value, train_batch[key])
 
     @pytest.mark.parametrize(
+        "train_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[2, 1, 4, 5, 6, 7, 1, 9, 10, 11, 1, 1, 4, 6, 12]]),
+                    "y": torch.tensor([[0, 3, 0, 0, 0, 0, 8, 0, 0, 0, 3, 4, 0, 5, 0]]),
+                    "yw": torch.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], dtype=torch.float),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_train_for_masked_session_with_random_replacement(
+        self, dataset_one_session: Dataset, train_batch: tp.List
+    ) -> None:
+        data_preparator = BERT4RecDataPreparator(
+            session_max_len=14,
+            n_negatives=None,
+            batch_size=14,
+            dataloader_num_workers=0,
+            train_min_user_interactions=2,
+            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
+            shuffle_train=True,
+            mask_prob=0.5,
+        )
+        dataset = data_preparator.process_dataset_train(dataset_one_session)
+        dataloader = data_preparator.get_dataloader_train(dataset)
+        actual = next(iter(dataloader))
+        for key, value in actual.items():
+            assert torch.equal(value, train_batch[key])
+
+    @pytest.mark.parametrize(
         "recommend_batch",
-        (({"x": torch.tensor([[2, 3, 6], [1, 3, 2], [0, 2, 4], [0, 0, 6]])}),),
+        (({"x": torch.tensor([[3, 4, 7, 1], [2, 4, 3, 1], [0, 3, 5, 1], [0, 0, 7, 1]])}),),
     )
     def test_get_dataloader_recommend(
-        self, dataset: Dataset, data_preparator: SASRecDataPreparator, recommend_batch: torch.Tensor
+        self, dataset: Dataset, data_preparator: BERT4RecDataPreparator, recommend_batch: torch.Tensor
     ) -> None:
         data_preparator.process_dataset_train(dataset)
         dataset = data_preparator.transform_dataset_i2i(dataset)
