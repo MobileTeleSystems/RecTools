@@ -52,6 +52,24 @@ class TestBERT4RecModel:
         return Dataset.construct(interactions_df[:-4])
 
     @pytest.fixture
+    def dataset_devices(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 13, 2, "2021-11-26"],
+                [40, 11, 1, "2021-11-25"],
+                [50, 13, 1, "2021-11-25"],
+                [10, 13, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
     def trainer(self) -> Trainer:
         return Trainer(
             max_epochs=2,
@@ -101,30 +119,30 @@ class TestBERT4RecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 13, 17, 14, 15, 13, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 14, 13, 17, 14, 12, 13],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 17, 13, 14, 13, 14, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 17, 13, 14, 13, 14, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -133,28 +151,28 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 13, 15, 13, 17, 15, 13, 11],
+                        Columns.Item: [13, 11, 12, 13, 11, 12, 13, 11, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 14, 12, 11, 14, 12, 11, 14, 12],
+                        Columns.Item: [11, 12, 13, 11, 13, 12, 11, 13, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 13, 11, 17, 13, 11, 13, 11, 17],
+                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 13, 11, 17, 11, 13, 17, 11, 13],
+                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -163,7 +181,7 @@ class TestBERT4RecModel:
     )
     def test_u2i(
         self,
-        dataset: Dataset,
+        dataset_devices: Dataset,
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
@@ -192,9 +210,9 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
         if accelerator == "cpu" and n_devices == 1:
             expected = expected_cpu_1
         elif accelerator == "cpu" and n_devices == 2:
@@ -216,9 +234,9 @@ class TestBERT4RecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 30, 30, 40],
-                        Columns.Item: [17, 13, 17, 13],
-                        Columns.Rank: [1, 1, 2, 1],
+                        Columns.User: [40],
+                        Columns.Item: [13],
+                        Columns.Rank: [1],
                     }
                 ),
             ),
@@ -226,16 +244,16 @@ class TestBERT4RecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 13, 11, 13, 17, 11, 13, 11, 17],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [10, 10, 30, 30, 40, 40],
+                        Columns.Item: [13, 11, 13, 11, 13, 11],
+                        Columns.Rank: [1, 2, 1, 2, 1, 2],
                     }
                 ),
             ),
         ),
     )
     def test_with_whitelist(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset_devices: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -248,12 +266,12 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
         items_to_recommend = np.array([11, 13, 17])
         actual = model.recommend(
             users=users,
-            dataset=dataset,
+            dataset=dataset_devices,
             k=3,
             filter_viewed=filter_viewed,
             items_to_recommend=items_to_recommend,
@@ -356,9 +374,9 @@ class TestBERT4RecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [20, 20, 20],
-                        Columns.Item: [15, 17, 12],
-                        Columns.Rank: [1, 2, 3],
+                        Columns.User: [20, 20],
+                        Columns.Item: [11, 12],
+                        Columns.Rank: [1, 2],
                     }
                 ),
             ),
@@ -367,7 +385,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [15, 13, 17],
+                        Columns.Item: [13, 11, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -375,7 +393,7 @@ class TestBERT4RecModel:
         ),
     )
     def test_recommend_for_cold_user_with_hot_item(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset_devices: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -388,11 +406,11 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([20])
         actual = model.recommend(
             users=users,
-            dataset=dataset,
+            dataset=dataset_devices,
             k=3,
             filter_viewed=filter_viewed,
         )

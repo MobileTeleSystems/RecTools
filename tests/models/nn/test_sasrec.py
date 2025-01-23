@@ -65,7 +65,43 @@ class TestSASRecModel:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
-    def dataset_item_features(self, interactions_df: pd.DataFrame) -> Dataset:
+    def dataset_devices(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 13, 2, "2021-11-26"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 14, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def dataset_item_features(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 13, 2, "2021-11-26"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 14, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
         item_features = pd.DataFrame(
             [
                 [11, "f1", "f1val1"],
@@ -74,12 +110,9 @@ class TestSASRecModel:
                 [12, "f2", "f2val2"],
                 [13, "f1", "f1val1"],
                 [13, "f2", "f2val3"],
-                [14, "f1", "f1val2"],
                 [11, "f3", 0],
                 [12, "f3", 1],
                 [13, "f3", 2],
-                [14, "f3", 3],
-                [15, "f3", 4],
                 [16, "f3", 6],
             ],
             columns=["id", "feature", "value"],
@@ -145,23 +178,23 @@ class TestSASRecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [12, 14, 12, 13],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 17, 13, 14, 15, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [14, 12, 13, 12],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [14, 12, 12, 13],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -170,21 +203,21 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                        Columns.Item: [13, 11, 12, 13, 11, 12, 14, 12, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 14, 13, 11, 12, 14, 17, 14, 15],
+                        Columns.Item: [13, 14, 11, 11, 14, 12, 14, 11, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
+                        Columns.Item: [11, 14, 13, 11, 14, 13, 14, 11, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -193,7 +226,7 @@ class TestSASRecModel:
     )
     def test_u2i(
         self,
-        dataset: Dataset,
+        dataset_devices: Dataset,
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
@@ -221,9 +254,9 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
         if accelerator == "cpu" and n_devices == 1:
             expected = expected_cpu_1
         elif accelerator == "cpu" and n_devices == 2:
@@ -335,7 +368,7 @@ class TestSASRecModel:
             pd.DataFrame(
                 {
                     Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 12, 14, 11, 15, 14, 17, 14, 15],
+                    Columns.Item: [13, 11, 14, 11, 13, 14, 14, 12, 13],
                     Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                 }
             ),
