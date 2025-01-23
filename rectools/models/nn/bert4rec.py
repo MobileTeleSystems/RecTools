@@ -84,10 +84,13 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     ) -> Dict[str, torch.Tensor]:
         """
         Mask session elements to receive `x`.
-        Get target by replacing session elements with 0 with probability 1 - `mask_prob`.
+        Get target by replacing session elements with a MASK token with probability `mask_prob`.
         Truncate each session and target from right to keep (`session_max_len` + 1) last items.
         Do left padding until  (session_max_len + 1) is reached.
         If `n_negatives` is not None, generate negative items from uniform distribution.
+        (session_max_len + 1) is used here to keep the logic that session_max_len is maximum sessions length
+        that model will process during inference. But one extra "MASK" token will be added for making predictions.
+        Thus we need to see (session_max_len + 1) elements during training.
         """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len + 1))
@@ -104,7 +107,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
                 high=self.item_id_map.size,
-                size=(batch_size, self.session_max_len, self.n_negatives),
+                size=(batch_size, self.session_max_len + 1, self.n_negatives),
             )  # [batch_size, session_max_len, n_negatives]
             batch_dict["negatives"] = negatives
         return batch_dict
@@ -183,7 +186,7 @@ class BERT4RecModel(TransformerModelBase):
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
-        (, CatFeaturesItemNet) - item embeddings based on categorical features.
+        (CatFeaturesItemNet,) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.

@@ -16,8 +16,6 @@ import typing as tp
 
 import pandas as pd
 import pytest
-import torch
-from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
@@ -69,13 +67,6 @@ class TestSequenceDataset:
 
 
 class TestSessionEncoderDataPreparatorBase:
-
-    def setup_method(self) -> None:
-        self._seed_everything()
-
-    def _seed_everything(self) -> None:
-        torch.use_deterministic_algorithms(True)
-        seed_everything(32, workers=True)
 
     @pytest.fixture
     def dataset(self) -> Dataset:

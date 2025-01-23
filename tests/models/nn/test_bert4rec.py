@@ -76,6 +76,7 @@ class TestBERT4RecModel:
             min_epochs=2,
             deterministic=True,
             accelerator="cpu",
+            enable_checkpointing=False,
         )
 
     @pytest.mark.parametrize(
@@ -197,6 +198,7 @@ class TestBERT4RecModel:
             deterministic=True,
             devices=n_devices,
             accelerator=accelerator,
+            enable_checkpointing=False,
         )
         model = BERT4RecModel(
             n_factors=32,
@@ -221,6 +223,60 @@ class TestBERT4RecModel:
             expected = expected_gpu_1
         else:
             expected = expected_gpu_2
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "loss,expected",
+        (
+            (
+                "BCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [15, 17, 13, 17, 14, 13, 15, 12],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+            (
+                "gBCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [15, 17, 13, 17, 14, 13, 15, 12],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+        ),
+    )
+    def test_u2i_losses(
+        self,
+        dataset: Dataset,
+        loss: str,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = BERT4RecModel(
+            n_negatives=2,
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+            loss=loss,
+        )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -496,7 +552,7 @@ class TestBERT4RecDataPreparator:
                     "x": torch.tensor([[6, 1, 4, 7], [0, 2, 4, 1], [0, 0, 3, 5]]),
                     "y": torch.tensor([[0, 3, 0, 0], [0, 0, 0, 3], [0, 0, 0, 0]]),
                     "yw": torch.tensor([[1, 1, 1, 1], [0, 1, 2, 1], [0, 0, 1, 1]], dtype=torch.float),
-                    "negatives": torch.tensor([[[6], [2], [2]], [[7], [4], [5]], [[6], [3], [5]]]),
+                    "negatives": torch.tensor([[[6], [2], [2], [7]], [[4], [5], [6], [3]], [[5], [3], [6], [7]]]),
                 }
             ),
         ),

@@ -213,11 +213,11 @@ class SessionEncoderDataPreparatorBase:
 
     def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
         """
-        Construct recommend dataloader from processed dataset.
+        Construct recommend dataloader from dataset.
 
         Parameters
         ----------
-        processed_dataset : Dataset
+        dataset : Dataset
             RecTools dataset prepared for generating recommendations.
 
         Returns

@@ -135,6 +135,7 @@ class TestSASRecModel:
             min_epochs=2,
             deterministic=True,
             accelerator="cpu",
+            enable_checkpointing=False,
         )
 
     @pytest.mark.parametrize(
@@ -241,6 +242,7 @@ class TestSASRecModel:
             deterministic=True,
             devices=n_devices,
             accelerator=accelerator,
+            enable_checkpointing=False,
         )
         model = SASRecModel(
             n_factors=32,

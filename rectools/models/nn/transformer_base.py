@@ -463,6 +463,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
                 enable_progress_bar=verbose > 0,
                 enable_model_summary=verbose > 0,
                 logger=verbose > 0,
+                enable_checkpointing=False,
+                devices=1,
             )
         else:
             self._trainer = trainer
