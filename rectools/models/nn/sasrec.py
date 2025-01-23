@@ -85,7 +85,6 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        # TODO: we are sampling negatives for paddings
         if self.n_negatives is not None:
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,

@@ -486,6 +486,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        train_loss_name: str = "train/loss",
+        val_loss_name: str = "val/loss",
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -525,12 +527,12 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         self.lr = lr
         self.loss = loss
         self.gbce_t = gbce_t
+        self.train_loss_name = train_loss_name
+        self.val_loss_name = val_loss_name
 
     def _fit(
         self,
         dataset: Dataset,
-        train_loss_name: str = "train/loss",
-        val_loss_name: str = "val/loss",
     ) -> None:
         self.data_preparator.process_dataset_train(dataset)
         train_dataloader = self.data_preparator.get_dataloader_train()
@@ -546,8 +548,8 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             gbce_t=self.gbce_t,
             data_preparator=self.data_preparator,
             verbose=self.verbose,
-            train_loss_name=train_loss_name,
-            val_loss_name=val_loss_name,
+            train_loss_name=self.train_loss_name,
+            val_loss_name=self.val_loss_name,
         )
 
         self.fit_trainer = deepcopy(self._trainer)
