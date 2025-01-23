@@ -88,8 +88,8 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         Truncate each session and target from right to keep (`session_max_len` + 1) last items.
         Do left padding until  (`session_max_len` + 1) is reached.
         If `n_negatives` is not None, generate negative items from uniform distribution.
-        (`session_max_len` + 1) is used here to keep the logic that `session_max_len` passed by the user 
-        is maximum sessions length that model will process during train. 
+        (`session_max_len` + 1) is used here to keep the logic that `session_max_len` passed by the user
+        is maximum sessions length that model will process during train.
         During inference model will use (`session_max_len` - 1) interactions
         and one extra "MASK" token will be added for making predictions.
         Thus we need to see (session_max_len + 1) elements during training.
