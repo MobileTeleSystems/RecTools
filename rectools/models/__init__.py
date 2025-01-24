@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ Models
 
 from .ease import EASEModel
 from .implicit_als import ImplicitALSWrapperModel
+from .implicit_bpr import ImplicitBPRWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
 from .nn.bert4rec import BERT4RecModel
 from .nn.sasrec import SASRecModel
@@ -63,6 +64,7 @@ __all__ = (
     "BERT4RecModel",
     "EASEModel",
     "ImplicitALSWrapperModel",
+    "ImplicitBPRWrapperModel",
     "ImplicitItemKNNWrapperModel",
     "LightFMWrapperModel",
     "PopularModel",
