@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -174,6 +174,48 @@ class TestImplicitALSWrapperModel:
             actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
             np.testing.assert_equal(actual_internal_ids, expected_ids)
             np.testing.assert_allclose(actual_scores, expected_scores, atol=0.01)
+
+    @pytest.mark.skipif(not implicit.gpu.HAS_CUDA, reason="implicit cannot find CUDA for gpu ranking")
+    @pytest.mark.parametrize("fit_features_together", (False, True))
+    @pytest.mark.parametrize("init_model_before_fit", (False, True))
+    def test_gpu_ranking_consistent_with_pure_implicit(
+        self, dataset: Dataset, fit_features_together: bool, use_gpu: bool, init_model_before_fit: bool
+    ) -> None:
+        base_model = AlternatingLeastSquares(factors=10, num_threads=2, iterations=30, use_gpu=False, random_state=32)
+        if init_model_before_fit:
+            self._init_model_factors_inplace(base_model, dataset)
+        users = np.array([10, 20, 30, 40])
+
+        ui_csr = dataset.get_user_item_matrix(include_weights=True)
+        base_model.fit(ui_csr)
+        gpu_model = base_model.to_gpu()
+
+        wrapped_model = ImplicitALSWrapperModel(
+            model=gpu_model, fit_features_together=fit_features_together, recommend_use_gpu_ranking=True
+        )
+        wrapped_model.is_fitted = True
+        wrapped_model.model = wrapped_model._model  # pylint: disable=protected-access
+
+        actual_reco = wrapped_model.recommend(
+            users=users,
+            dataset=dataset,
+            k=3,
+            filter_viewed=False,
+        )
+
+        for user_id in users:
+            internal_id = dataset.user_id_map.convert_to_internal([user_id])[0]
+            expected_ids, expected_scores = gpu_model.recommend(
+                userid=internal_id,
+                user_items=ui_csr[internal_id],
+                N=3,
+                filter_already_liked_items=False,
+            )
+            actual_ids = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Item].values
+            actual_internal_ids = dataset.item_id_map.convert_to_internal(actual_ids)
+            actual_scores = actual_reco.loc[actual_reco[Columns.User] == user_id, Columns.Score].values
+            np.testing.assert_equal(actual_internal_ids, expected_ids)
+            np.testing.assert_allclose(actual_scores, expected_scores, atol=0.00001)
 
     @pytest.mark.parametrize(
         "filter_viewed,expected",
@@ -435,7 +477,11 @@ class TestImplicitALSWrapperModelConfiguration:
 
     @pytest.mark.parametrize("use_gpu", (False, True))
     @pytest.mark.parametrize("cls", (None, "AlternatingLeastSquares", "implicit.als.AlternatingLeastSquares"))
-    def test_from_config(self, use_gpu: bool, cls: tp.Any) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (None, False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_from_config(
+        self, use_gpu: bool, cls: tp.Any, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
+    ) -> None:
         config: tp.Dict = {
             "model": {
                 "factors": 16,
@@ -444,14 +490,26 @@ class TestImplicitALSWrapperModelConfiguration:
                 "use_gpu": use_gpu,
             },
             "fit_features_together": True,
+            "recommend_n_threads": recommend_n_threads,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
             "verbose": 1,
         }
         if cls is not None:
             config["model"]["cls"] = cls
         model = ImplicitALSWrapperModel.from_config(config)
-        assert model.fit_features_together is True
-        assert model.verbose == 1
         inner_model = model._model  # pylint: disable=protected-access
+        assert model.fit_features_together is True
+        if recommend_n_threads is not None:
+            assert model.recommend_n_threads == recommend_n_threads
+        elif not use_gpu:
+            assert model.recommend_n_threads == inner_model.num_threads
+        else:
+            assert model.recommend_n_threads == 0
+        if recommend_use_gpu is not None:
+            assert model.recommend_use_gpu_ranking == recommend_use_gpu
+        else:
+            assert model.recommend_use_gpu_ranking == use_gpu
+        assert model.verbose == 1
         assert inner_model.factors == 16
         assert inner_model.iterations == 100
         if not use_gpu:
@@ -462,10 +520,21 @@ class TestImplicitALSWrapperModelConfiguration:
     @pytest.mark.parametrize("use_gpu", (False, True))
     @pytest.mark.parametrize("random_state", (None, 42))
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_to_config(self, use_gpu: bool, random_state: tp.Optional[int], simple_types: bool) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (None, False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_to_config(
+        self,
+        use_gpu: bool,
+        random_state: tp.Optional[int],
+        simple_types: bool,
+        recommend_use_gpu: tp.Optional[bool],
+        recommend_n_threads: tp.Optional[int],
+    ) -> None:
         model = ImplicitALSWrapperModel(
             model=AlternatingLeastSquares(factors=16, num_threads=2, use_gpu=use_gpu, random_state=random_state),
             fit_features_together=True,
+            recommend_n_threads=recommend_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu,
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
@@ -493,6 +562,8 @@ class TestImplicitALSWrapperModelConfiguration:
             "model": expected_inner_model_config,
             "fit_features_together": True,
             "verbose": 1,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
+            "recommend_n_threads": recommend_n_threads,
         }
         assert config == expected
 
@@ -522,9 +593,15 @@ class TestImplicitALSWrapperModelConfiguration:
         assert model.get_config()["model"]["cls"] == CustomALS  # pylint: disable=unsubscriptable-object
 
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (None, False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_get_config_and_from_config_compatibility(
+        self, simple_types: bool, recommend_use_gpu: tp.Optional[bool], recommend_n_threads: tp.Optional[int]
+    ) -> None:
         initial_config = {
             "model": {"factors": 16, "num_threads": 2, "iterations": 3, "random_state": 42},
+            "recommend_use_gpu_ranking": recommend_use_gpu,
+            "recommend_n_threads": recommend_n_threads,
             "verbose": 1,
         }
         assert_get_config_and_from_config_compatibility(ImplicitALSWrapperModel, DATASET, initial_config, simple_types)

@@ -18,15 +18,17 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import torch
+import typing_extensions as tpe
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators import Accelerator
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
     PADDING_VALUE,
+    SessionEncoderDataPreparatorType,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
     TransformerModelBase,
+    TransformerModelConfig,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
@@ -144,7 +146,15 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
-class BERT4RecModel(TransformerModelBase):
+class BERT4RecModelConfig(TransformerModelConfig):
+    """BERT4RecModel config."""
+
+    data_preparator_type: SessionEncoderDataPreparatorType = BERT4RecDataPreparator
+    use_key_padding_mask: bool = True
+    mask_prob: float = 0.15
+
+
+class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     """
     BERT4Rec model.
 
@@ -190,10 +200,21 @@ class BERT4RecModel(TransformerModelBase):
     deterministic : bool, default ``False``
         If ``True``, set deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or Accelerator, default "auto"
-        Device for recommend. Used at predict_step of lightning module.
+    recommend_batch_size : int, default 256
+        How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_device` attribute.
+        you can manually assign new value to model `recommend_batch_size` attribute.
+    recommend_accelerator : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"}, default "auto"
+        Accelerator type for `recommend`. Used at predict_step of lightning module.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_accelerator` attribute.
+    recommend_devices : int | List[int], default 1
+        Devices for `recommend`. Please note that multi-device inference is not supported!
+        Do not specify more then one device. For ``gpu`` accelerator you can pass which device to
+        use, e.g. ``[1]``.
+        Used at predict_step of lightning module.
+        Multi-device recommendations are not supported.
+        If you want to change this parameter after model is initialized,
     recommend_n_threads : int, default 0
         Number of threads to use in ranker if GPU ranking is turned off or unavailable.
         If you want to change this parameter after model is initialized,
@@ -222,11 +243,13 @@ class BERT4RecModel(TransformerModelBase):
         Function to get validation mask.
     """
 
+    config_class = BERT4RecModelConfig
+
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        n_blocks: int = 1,
-        n_heads: int = 1,
-        n_factors: int = 128,
+        n_blocks: int = 2,
+        n_heads: int = 4,
+        n_factors: int = 256,
         use_pos_emb: bool = True,
         use_causal_attn: bool = False,
         use_key_padding_mask: bool = True,
@@ -234,15 +257,17 @@ class BERT4RecModel(TransformerModelBase):
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_batch_size: int = 256,
+        recommend_accelerator: str = "auto",
+        recommend_devices: tp.Union[int, tp.List[int]] = 1,
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
-        session_max_len: int = 32,
+        session_max_len: int = 100,
         n_negatives: int = 1,
         batch_size: int = 128,
         loss: str = "softmax",
         gbce_t: float = 0.2,
-        lr: float = 0.01,
+        lr: float = 0.001,
         dataloader_num_workers: int = 0,
         train_min_user_interactions: int = 2,
         mask_prob: float = 0.15,
@@ -250,10 +275,12 @@ class BERT4RecModel(TransformerModelBase):
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
-        data_preparator_type: tp.Type[BERT4RecDataPreparator] = BERT4RecDataPreparator,
+        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
     ):
+        self.mask_prob = mask_prob
+
         super().__init__(
             transformer_layers_type=transformer_layers_type,
             data_preparator_type=data_preparator_type,
@@ -264,28 +291,108 @@ class BERT4RecModel(TransformerModelBase):
             use_causal_attn=use_causal_attn,
             use_key_padding_mask=use_key_padding_mask,
             dropout_rate=dropout_rate,
+            session_max_len=session_max_len,
+            dataloader_num_workers=dataloader_num_workers,
+            batch_size=batch_size,
+            loss=loss,
+            n_negatives=n_negatives,
+            gbce_t=gbce_t,
+            lr=lr,
             epochs=epochs,
             verbose=verbose,
             deterministic=deterministic,
-            recommend_device=recommend_device,
+            recommend_batch_size=recommend_batch_size,
+            recommend_accelerator=recommend_accelerator,
+            recommend_devices=recommend_devices,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
-            loss=loss,
-            gbce_t=gbce_t,
-            lr=lr,
-            session_max_len=session_max_len + 1,
+            train_min_user_interactions=train_min_user_interactions,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
-        )
-        self.data_preparator = data_preparator_type(
-            session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
-            batch_size=batch_size,
-            dataloader_num_workers=dataloader_num_workers,
-            train_min_user_interactions=train_min_user_interactions,
-            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
-            mask_prob=mask_prob,
             get_val_mask_func=get_val_mask_func,
+        )
+
+    def _init_data_preparator(self) -> None:  # TODO: negative losses are not working now
+        self.data_preparator: SessionEncoderDataPreparatorBase = self.data_preparator_type(
+            session_max_len=self.session_max_len,  # -1
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
+            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
+            mask_prob=self.mask_prob,
+            get_val_mask_func=self.get_val_mask_func,
+        )
+
+    def _get_config(self) -> BERT4RecModelConfig:
+        return BERT4RecModelConfig(
+            cls=self.__class__,
+            n_blocks=self.n_blocks,
+            n_heads=self.n_heads,
+            n_factors=self.n_factors,
+            use_pos_emb=self.use_pos_emb,
+            use_causal_attn=self.use_causal_attn,
+            use_key_padding_mask=self.use_key_padding_mask,
+            dropout_rate=self.dropout_rate,
+            session_max_len=self.session_max_len,
+            dataloader_num_workers=self.dataloader_num_workers,
+            batch_size=self.batch_size,
+            loss=self.loss,
+            n_negatives=self.n_negatives,
+            gbce_t=self.gbce_t,
+            lr=self.lr,
+            epochs=self.epochs,
+            verbose=self.verbose,
+            deterministic=self.deterministic,
+            recommend_devices=self.recommend_devices,
+            recommend_accelerator=self.recommend_accelerator,
+            recommend_batch_size=self.recommend_batch_size,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            train_min_user_interactions=self.train_min_user_interactions,
+            item_net_block_types=self.item_net_block_types,
+            pos_encoding_type=self.pos_encoding_type,
+            transformer_layers_type=self.transformer_layers_type,
+            data_preparator_type=self.data_preparator_type,
+            lightning_module_type=self.lightning_module_type,
+            mask_prob=self.mask_prob,
+            get_val_mask_func=self.get_val_mask_func,
+        )
+
+    @classmethod
+    def _from_config(cls, config: BERT4RecModelConfig) -> tpe.Self:
+        return cls(
+            trainer=None,
+            n_blocks=config.n_blocks,
+            n_heads=config.n_heads,
+            n_factors=config.n_factors,
+            use_pos_emb=config.use_pos_emb,
+            use_causal_attn=config.use_causal_attn,
+            use_key_padding_mask=config.use_key_padding_mask,
+            dropout_rate=config.dropout_rate,
+            session_max_len=config.session_max_len,
+            dataloader_num_workers=config.dataloader_num_workers,
+            batch_size=config.batch_size,
+            loss=config.loss,
+            n_negatives=config.n_negatives,
+            gbce_t=config.gbce_t,
+            lr=config.lr,
+            epochs=config.epochs,
+            verbose=config.verbose,
+            deterministic=config.deterministic,
+            recommend_devices=config.recommend_devices,
+            recommend_accelerator=config.recommend_accelerator,
+            recommend_batch_size=config.recommend_batch_size,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+            train_min_user_interactions=config.train_min_user_interactions,
+            item_net_block_types=config.item_net_block_types,
+            pos_encoding_type=config.pos_encoding_type,
+            transformer_layers_type=config.transformer_layers_type,
+            data_preparator_type=config.data_preparator_type,
+            lightning_module_type=config.lightning_module_type,
+            mask_prob=config.mask_prob,
+            get_val_mask_func=config.get_val_mask_func,
         )
