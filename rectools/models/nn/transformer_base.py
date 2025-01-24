@@ -305,7 +305,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
             return self._calc_gbce_loss(logits, y, w, negatives)
+        return self._calc_custom_loss(batch, batch_idx)
 
+    def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         raise ValueError(f"loss {self.loss} is not supported")
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
