@@ -461,6 +461,9 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
     and write self.data_preparator initialization logic.
     """
 
+    train_loss_name: str = "train/loss"
+    val_loss_name: str = "val/loss"
+
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         transformer_layers_type: tp.Type[TransformerLayersBase],
@@ -522,8 +525,6 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         self.data_preparator: SessionEncoderDataPreparatorBase
         self.u2i_dist = Distance.DOT
         self.i2i_dist = Distance.COSINE
-        self.train_loss_name = "train/loss"
-        self.val_loss_name = "val/loss"
         self.lr = lr
         self.loss = loss
         self.gbce_t = gbce_t
