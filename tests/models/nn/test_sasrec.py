@@ -12,10 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 import typing as tp
 from functools import partial
-from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
@@ -497,41 +496,46 @@ class TestSASRecModel:
     def test_log_metrics(
         self,
         dataset: Dataset,
+        tmp_path: str,
         verbose: int,
         get_val_mask_func: partial,
         is_val_mask_func: bool,
         expected_columns: tp.List[str],
     ) -> None:
-        with TemporaryDirectory() as dirname:
-            trainer = Trainer(
-                max_epochs=2,
-                min_epochs=2,
-                deterministic=True,
-                accelerator="cpu",
-                logger=CSVLogger(save_dir=dirname),
-            )
-            model = SASRecModel(
-                n_factors=32,
-                n_blocks=2,
-                session_max_len=3,
-                lr=0.001,
-                batch_size=4,
-                epochs=2,
-                deterministic=True,
-                item_net_block_types=(IdEmbeddingsItemNet,),
-                trainer=trainer,
-                verbose=verbose,
-                get_val_mask_func=get_val_mask_func if is_val_mask_func else None,
-            )
-            model.fit(dataset=dataset)
+        logger = CSVLogger(save_dir=tmp_path)
+        trainer = Trainer(
+            default_root_dir=tmp_path,
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator="cpu",
+            logger=logger,
+            log_every_n_steps=1,
+            enable_checkpointing=False,
+        )
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+            verbose=verbose,
+            get_val_mask_func=get_val_mask_func if is_val_mask_func else None,
+        )
+        model.fit(dataset=dataset)
 
-            assert model.fit_trainer.logger is not None
+        assert model.fit_trainer.logger is not None
+        assert model.fit_trainer.log_dir is not None
 
-            log_path = Path(model.fit_trainer.logger.log_dir) / "metrics.csv"
-            assert log_path.exists()
+        metrics_path = os.path.join(model.fit_trainer.log_dir, "metrics.csv")
+        assert os.path.isfile(metrics_path)
 
-            actual_columns = list(pd.read_csv(log_path).columns)
-            assert actual_columns == expected_columns
+        actual_columns = list(pd.read_csv(metrics_path).columns)
+        assert actual_columns == expected_columns
 
 
 class TestSASRecDataPreparator:
