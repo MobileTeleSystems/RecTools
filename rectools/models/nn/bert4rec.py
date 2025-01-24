@@ -13,10 +13,8 @@
 #  limitations under the License.
 
 import typing as tp
-
 from collections.abc import Hashable
 from typing import Dict, List, Tuple, Union
-
 
 import numpy as np
 import torch
@@ -359,7 +357,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             transformer_layers_type=self.transformer_layers_type,
             data_preparator_type=self.data_preparator_type,
             lightning_module_type=self.lightning_module_type,
-            mask_prob=self.mask_prob
+            mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
         )
 
@@ -396,5 +394,5 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             data_preparator_type=config.data_preparator_type,
             lightning_module_type=config.lightning_module_type,
             mask_prob=config.mask_prob,
-            get_val_mask_func=self.get_val_mask_func,
+            get_val_mask_func=config.get_val_mask_func,
         )

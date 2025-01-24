@@ -347,7 +347,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
-            get_val_mask_func=get_val_mask_func
+            get_val_mask_func=get_val_mask_func,
         )
 
     def _init_data_preparator(self) -> None:
@@ -392,7 +392,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             transformer_layers_type=self.transformer_layers_type,
             data_preparator_type=self.data_preparator_type,
             lightning_module_type=self.lightning_module_type,
-            get_val_mask_func=self.get_val_mask_func
+            get_val_mask_func=self.get_val_mask_func,
         )
 
     @classmethod
@@ -425,6 +425,5 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             transformer_layers_type=config.transformer_layers_type,
             data_preparator_type=config.data_preparator_type,
             lightning_module_type=config.lightning_module_type,
-            train_min_user_interactions=config.train_min_user_interactions,
             get_val_mask_func=config.get_val_mask_func,
         )

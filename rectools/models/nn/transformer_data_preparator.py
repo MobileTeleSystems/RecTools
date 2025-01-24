@@ -231,7 +231,6 @@ class SessionEncoderDataPreparatorBase:
         )
         return train_dataloader
 
-
     def get_dataloader_val(self) -> tp.Optional[DataLoader]:
         """
         Construct validation dataloader from processed dataset.

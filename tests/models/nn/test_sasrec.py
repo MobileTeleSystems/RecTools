@@ -862,6 +862,7 @@ class TestSASRecModelConfiguration:
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
             "lightning_module_type": SessionEncoderLightningModule,
+            "get_val_mask_func": None,
         }
         model = SASRecModel.from_config(config)
         assert model.n_blocks == 2
@@ -893,6 +894,7 @@ class TestSASRecModelConfiguration:
         assert model.transformer_layers_type == SASRecTransformerLayers
         assert model.data_preparator_type == SASRecDataPreparator
         assert model.lightning_module_type == SessionEncoderLightningModule
+        assert model.get_val_mask_func is None
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config(self, simple_types: bool) -> None:
@@ -925,6 +927,7 @@ class TestSASRecModelConfiguration:
             transformer_layers_type=SASRecTransformerLayers,
             data_preparator_type=SASRecDataPreparator,
             lightning_module_type=SessionEncoderLightningModule,
+            get_val_mask_func=None,
         )
         config = model.get_config(simple_types=simple_types)
         expected = {
@@ -971,6 +974,7 @@ class TestSASRecModelConfiguration:
                 if simple_types
                 else SessionEncoderLightningModule
             ),
+            "get_val_mask_func": None,
         }
         assert config == expected
 
@@ -1005,6 +1009,7 @@ class TestSASRecModelConfiguration:
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
             "lightning_module_type": SessionEncoderLightningModule,
+            "get_val_mask_func": None,
         }
 
         dataset = DATASET

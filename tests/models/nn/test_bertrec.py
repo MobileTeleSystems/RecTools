@@ -73,6 +73,7 @@ class TestBERT4RecModelConfiguration:
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": SessionEncoderLightningModule,
             "mask_prob": 0.15,
+            "get_val_mask_func": None,
         }
         model = BERT4RecModel.from_config(config)
         assert model.n_blocks == 2
@@ -105,6 +106,7 @@ class TestBERT4RecModelConfiguration:
         assert model.data_preparator_type == BERT4RecDataPreparator
         assert model.lightning_module_type == SessionEncoderLightningModule
         assert model.mask_prob == 0.15
+        assert model.get_val_mask_func is None
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config(self, simple_types: bool) -> None:
@@ -138,6 +140,7 @@ class TestBERT4RecModelConfiguration:
             data_preparator_type=BERT4RecDataPreparator,
             lightning_module_type=SessionEncoderLightningModule,
             mask_prob=0.15,
+            get_val_mask_func=None,
         )
         config = model.get_config(simple_types=simple_types)
         expected = {
@@ -187,6 +190,7 @@ class TestBERT4RecModelConfiguration:
                 else SessionEncoderLightningModule
             ),
             "mask_prob": 0.15,
+            "get_val_mask_func": None,
         }
         assert config == expected
 
@@ -222,6 +226,7 @@ class TestBERT4RecModelConfiguration:
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": SessionEncoderLightningModule,
             "mask_prob": 0.15,
+            "get_val_mask_func": None,
         }
 
         dataset = DATASET
@@ -246,3 +251,6 @@ class TestBERT4RecModelConfiguration:
         default_config: tp.Dict[str, int] = {}
         model = BERT4RecModel()
         assert_default_config_and_default_model_params_are_the_same(model, default_config)
+
+
+# TODO: test with passed custom callable as `get_val_mask_func`

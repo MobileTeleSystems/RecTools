@@ -327,9 +327,9 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             loss = self._calc_custom_loss(batch, batch_idx)
 
         self.log(self.train_loss_name, loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
-        
+
         return loss
-      
+
     def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         raise ValueError(f"loss {self.loss} is not supported")
 
@@ -534,6 +534,16 @@ SessionEncoderDataPreparatorType_T = tp.TypeVar(
     "SessionEncoderDataPreparatorType_T", bound=SessionEncoderDataPreparatorType
 )
 
+CallableSerialized = tpe.Annotated[
+    tp.Callable,
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
 
 class TransformerModelConfig(ModelConfig):
     """Transformer model base config."""
@@ -566,6 +576,7 @@ class TransformerModelConfig(ModelConfig):
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: SessionEncoderLightningModuleType = SessionEncoderLightningModule
+    get_val_mask_func: tp.Optional[CallableSerialized] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -618,6 +629,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        get_val_mask_func: tp.Optional[tp.Callable] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -651,6 +663,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_block_types = item_net_block_types
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
+        self.get_val_mask_func = get_val_mask_func
 
         self._init_torch_model()
         self._init_data_preparator()
@@ -722,7 +735,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         torch_model = deepcopy(self._torch_model)
         torch_model.construct_item_net(self.data_preparator.train_dataset)
-
 
         self._init_lightning_model(torch_model, self.data_preparator.n_item_extra_tokens)
 
