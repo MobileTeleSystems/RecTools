@@ -152,7 +152,8 @@ class TestSessionEncoderDataPreparatorBase:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        actual = data_preparator.process_dataset_train(dataset)
+        data_preparator.process_dataset_train(dataset)
+        actual = data_preparator.train_dataset
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, expected_interactions)

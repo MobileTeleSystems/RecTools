@@ -561,8 +561,8 @@ class TestBERT4RecDataPreparator:
     def test_get_dataloader_train(
         self, dataset: Dataset, data_preparator: BERT4RecDataPreparator, train_batch: tp.List
     ) -> None:
-        dataset = data_preparator.process_dataset_train(dataset)
-        dataloader = data_preparator.get_dataloader_train(dataset)
+        data_preparator.process_dataset_train(dataset)
+        dataloader = data_preparator.get_dataloader_train()
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, train_batch[key])
@@ -592,8 +592,8 @@ class TestBERT4RecDataPreparator:
             shuffle_train=True,
             mask_prob=0.5,
         )
-        dataset = data_preparator.process_dataset_train(dataset_one_session)
-        dataloader = data_preparator.get_dataloader_train(dataset)
+        data_preparator.process_dataset_train(dataset_one_session)
+        dataloader = data_preparator.get_dataloader_train()
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, train_batch[key])
