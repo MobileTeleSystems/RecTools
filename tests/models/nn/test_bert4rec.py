@@ -236,9 +236,9 @@ class TestBERT4RecModel:
                 "BCE",
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 13, 17, 14, 13, 15, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -246,9 +246,9 @@ class TestBERT4RecModel:
                 "gBCE",
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 13, 17, 14, 13, 15, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -256,7 +256,7 @@ class TestBERT4RecModel:
     )
     def test_u2i_losses(
         self,
-        dataset: Dataset,
+        dataset_devices: Dataset,
         loss: str,
         trainer: Trainer,
         expected: pd.DataFrame,
@@ -270,13 +270,14 @@ class TestBERT4RecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
+            mask_prob=0.6,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
             loss=loss,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=True)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
