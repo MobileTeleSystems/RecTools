@@ -14,7 +14,7 @@
 
 import typing as tp
 from collections.abc import Hashable
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
