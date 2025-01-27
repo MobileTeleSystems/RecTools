@@ -34,6 +34,8 @@ Models
 `models.PopularInCategoryModel`
 `models.PureSVDModel`
 `models.RandomModel`
+`models.nn.bert4rec.BERT4RecModel`
+`models.nn.sasrec.SASRecModel`
 """
 
 from .ease import EASEModel
