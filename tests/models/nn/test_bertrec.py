@@ -20,6 +20,7 @@ import pytest
 import torch
 from pytorch_lightning import seed_everything
 
+from rectools import Columns
 from rectools.models import BERT4RecModel
 from rectools.models.nn.bert4rec import BERT4RecDataPreparator
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
@@ -34,6 +35,15 @@ from tests.models.utils import assert_default_config_and_default_model_params_ar
 # TODO: add tests with BCE and GBCE (they can be broken for the model when softmax is ok => we need happy path test)
 
 
+def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
+    rank = (
+        interactions
+        .sort_values(Columns.Datetime, ascending=False, kind="stable")
+        .groupby(Columns.User, sort=False)
+        .cumcount()
+    )
+    return rank == 0
+
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -43,6 +53,7 @@ class TestBERT4RecModelConfiguration:
         seed_everything(32, workers=True)
 
     def test_from_config(self) -> None:
+    
         config = {
             "n_blocks": 2,
             "n_heads": 4,
@@ -73,7 +84,7 @@ class TestBERT4RecModelConfiguration:
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": SessionEncoderLightningModule,
             "mask_prob": 0.15,
-            "get_val_mask_func": None,
+            "get_val_mask_func": leave_one_out_mask,
         }
         model = BERT4RecModel.from_config(config)
         assert model.n_blocks == 2
@@ -106,7 +117,7 @@ class TestBERT4RecModelConfiguration:
         assert model.data_preparator_type == BERT4RecDataPreparator
         assert model.lightning_module_type == SessionEncoderLightningModule
         assert model.mask_prob == 0.15
-        assert model.get_val_mask_func is None
+        assert model.get_val_mask_func == leave_one_out_mask  # is None
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config(self, simple_types: bool) -> None:
@@ -140,7 +151,7 @@ class TestBERT4RecModelConfiguration:
             data_preparator_type=BERT4RecDataPreparator,
             lightning_module_type=SessionEncoderLightningModule,
             mask_prob=0.15,
-            get_val_mask_func=None,
+            get_val_mask_func=leave_one_out_mask,
         )
         config = model.get_config(simple_types=simple_types)
         expected = {
@@ -190,7 +201,11 @@ class TestBERT4RecModelConfiguration:
                 else SessionEncoderLightningModule
             ),
             "mask_prob": 0.15,
-            "get_val_mask_func": None,
+            "get_val_mask_func": (
+                "tests.models.nn.test_bertrec.leave_one_out_mask"
+                if simple_types
+                else leave_one_out_mask
+            )
         }
         assert config == expected
 
@@ -226,7 +241,7 @@ class TestBERT4RecModelConfiguration:
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": SessionEncoderLightningModule,
             "mask_prob": 0.15,
-            "get_val_mask_func": None,
+            "get_val_mask_func": leave_one_out_mask,
         }
 
         dataset = DATASET

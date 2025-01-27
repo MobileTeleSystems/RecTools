@@ -600,7 +600,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        data_preparator_type: SessionEncoderDataPreparatorType,  # tp.Type[SessionEncoderDataPreparatorBase],
+        data_preparator_type: SessionEncoderDataPreparatorType,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         n_blocks: int = 2,
         n_heads: int = 4,
