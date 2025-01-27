@@ -5,19 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 16.01.2025
 
-## Unreleased
+### Added
+- `ImplicitBPRWrapperModel` model with algorithm description in extended baselines tutorial ([#232](https://github.com/MobileTeleSystems/RecTools/pull/232), [#239](https://github.com/MobileTeleSystems/RecTools/pull/239))
+- All vector models and `EASEModel` support for enabling ranking on GPU and selecting number of threads for CPU ranking. Added `recommend_n_threads` and `recommend_use_gpu_ranking` parameters to `EASEModel`, `ImplicitALSWrapperModel`, `ImplicitBPRWrapperModel`, `PureSVDModel` and `DSSMModel`. Added `recommend_use_gpu_ranking` to `LightFMWrapperModel`. GPU and CPU ranking may provide different ordering of items with identical scores in recommendation table, so this could change ordering items in recommendations since GPU ranking is now used as a default one. ([#218](https://github.com/MobileTeleSystems/RecTools/pull/218))
+
+## [0.9.0] - 11.12.2024
 
 ### Added
 - `from_config`, `get_config` and `get_params` methods to all models except neural-net-based ([#170](https://github.com/MobileTeleSystems/RecTools/pull/170))
-- `fit_partial` implementation for `ImplicitALSWrapperModel` that allows to fit model for a specific number of epochs and continue training from the previous point ([#203](https://github.com/MobileTeleSystems/RecTools/pull/203), [#210](https://github.com/MobileTeleSystems/RecTools/pull/210))
+- `fit_partial` implementation for `ImplicitALSWrapperModel` and `LightFMWrapperModel` ([#203](https://github.com/MobileTeleSystems/RecTools/pull/203), [#210](https://github.com/MobileTeleSystems/RecTools/pull/210), [#223](https://github.com/MobileTeleSystems/RecTools/pull/223))
 - `save` and `load` methods to all of the models ([#206](https://github.com/MobileTeleSystems/RecTools/pull/206))
-- Model configs example ([#207](https://github.com/MobileTeleSystems/RecTools/pull/207))
+- Model configs example ([#207](https://github.com/MobileTeleSystems/RecTools/pull/207),[#219](https://github.com/MobileTeleSystems/RecTools/pull/219))
 - `use_gpu` argument to `ImplicitRanker.rank` method ([#201](https://github.com/MobileTeleSystems/RecTools/pull/201))
 - `keep_extra_cols` argument to `Dataset.construct` and `Interactions.from_raw` methods. `include_extra_cols` argument to `Dataset.get_raw_interactions` and `Interactions.to_external` methods ([#208](https://github.com/MobileTeleSystems/RecTools/pull/208))
 - dtype adjustment to `recommend`, `recommend_to_items` methods of `ModelBase` ([#211](https://github.com/MobileTeleSystems/RecTools/pull/211))
 - `load_model` function ([#213](https://github.com/MobileTeleSystems/RecTools/pull/213))
 - `model_from_config` function ([#214](https://github.com/MobileTeleSystems/RecTools/pull/214))
+- `get_cat_features` method to `SparseFeatures` ([#221](https://github.com/MobileTeleSystems/RecTools/pull/221))
+- LightFM Python 3.12+ support ([#224](https://github.com/MobileTeleSystems/RecTools/pull/224))
+
+### Fixed
+- Implicit ALS matrix zero assignment size ([#228](https://github.com/MobileTeleSystems/RecTools/pull/228))
+
+### Removed
+- Python 3.8 support ([#222](https://github.com/MobileTeleSystems/RecTools/pull/222))
 
 
 ## [0.8.0] - 28.08.2024

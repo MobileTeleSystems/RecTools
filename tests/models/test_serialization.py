@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2024-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 
 import pytest
 from implicit.als import AlternatingLeastSquares
+from implicit.bpr import BayesianPersonalizedRanking
 from implicit.nearest_neighbours import ItemItemRecommender
 from pydantic import ValidationError
 
@@ -33,6 +33,7 @@ from rectools.models import (
     DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
+    ImplicitBPRWrapperModel,
     ImplicitItemKNNWrapperModel,
     LightFMWrapperModel,
     PopularInCategoryModel,
@@ -52,11 +53,7 @@ INTERMEDIATE_MODEL_CLASSES = (VectorModel, TransformerModelBase)
 EXPOSABLE_MODEL_CLASSES = tuple(
     cls
     for cls in get_successors(ModelBase)
-    if (
-        cls.__module__.startswith("rectools.models")
-        and cls not in INTERMEDIATE_MODEL_CLASSES
-        and not (sys.version_info >= (3, 12) and cls is LightFMWrapperModel)
-    )
+    if (cls.__module__.startswith("rectools.models") and cls not in INTERMEDIATE_MODEL_CLASSES)
 )
 CONFIGURABLE_MODEL_CLASSES = tuple(
     cls
@@ -74,6 +71,7 @@ def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
     mandatory_params = {
         ImplicitItemKNNWrapperModel: {"model": ItemItemRecommender()},
         ImplicitALSWrapperModel: {"model": AlternatingLeastSquares()},
+        ImplicitBPRWrapperModel: {"model": BayesianPersonalizedRanking()},
         LightFMWrapperModel: {"model": LightFM()},
         PopularInCategoryModel: {"category_feature": "some_feature"},
     }
