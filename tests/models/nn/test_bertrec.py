@@ -32,17 +32,15 @@ from rectools.models.nn.transformer_base import (
 from tests.models.data import DATASET
 from tests.models.utils import assert_default_config_and_default_model_params_are_the_same
 
-# TODO: add tests with BCE and GBCE (they can be broken for the model when softmax is ok => we need happy path test)
-
 
 def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
     rank = (
-        interactions
-        .sort_values(Columns.Datetime, ascending=False, kind="stable")
+        interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
         .groupby(Columns.User, sort=False)
         .cumcount()
     )
     return rank == 0
+
 
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
@@ -53,7 +51,7 @@ class TestBERT4RecModelConfiguration:
         seed_everything(32, workers=True)
 
     def test_from_config(self) -> None:
-    
+
         config = {
             "n_blocks": 2,
             "n_heads": 4,
@@ -117,7 +115,7 @@ class TestBERT4RecModelConfiguration:
         assert model.data_preparator_type == BERT4RecDataPreparator
         assert model.lightning_module_type == SessionEncoderLightningModule
         assert model.mask_prob == 0.15
-        assert model.get_val_mask_func == leave_one_out_mask  # is None
+        assert model.get_val_mask_func is leave_one_out_mask
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config(self, simple_types: bool) -> None:
@@ -202,10 +200,8 @@ class TestBERT4RecModelConfiguration:
             ),
             "mask_prob": 0.15,
             "get_val_mask_func": (
-                "tests.models.nn.test_bertrec.leave_one_out_mask"
-                if simple_types
-                else leave_one_out_mask
-            )
+                "tests.models.nn.test_bertrec.leave_one_out_mask" if simple_types else leave_one_out_mask
+            ),
         }
         assert config == expected
 
@@ -266,6 +262,3 @@ class TestBERT4RecModelConfiguration:
         default_config: tp.Dict[str, int] = {}
         model = BERT4RecModel()
         assert_default_config_and_default_model_params_are_the_same(model, default_config)
-
-
-# TODO: test with passed custom callable as `get_val_mask_func`
