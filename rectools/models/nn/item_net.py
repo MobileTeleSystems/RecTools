@@ -88,7 +88,6 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
 
         feature_embs = self.category_embeddings(self.feature_catalog.to(self.device))
@@ -252,7 +251,6 @@ class ItemNetConstructor(ItemNetBase):
             Item embeddings.
         """
         item_embs = []
-        # TODO: Add functionality for parallel computing.
         for idx_block in range(self.n_item_blocks):
             item_emb = self.item_net_blocks[idx_block](items)
             item_embs.append(item_emb)

@@ -164,7 +164,7 @@ class SessionEncoderDataPreparatorBase:
         )
 
         # Construct dataset
-        # TODO: user features are dropped for now
+        # User features are dropped for now because model doesn't support them
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
@@ -314,7 +314,7 @@ class SessionEncoderDataPreparatorBase:
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
         # Construct dataset
-        # TODO: For now features are dropped because model doesn't support them
+        # For now features are dropped because model doesn't support them on inference
         n_filtered = len(users) - rec_user_id_map.size
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""

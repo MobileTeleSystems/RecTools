@@ -306,7 +306,6 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
-        # TODO: init padding embedding with zeros
         self._xavier_normal_init()
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:

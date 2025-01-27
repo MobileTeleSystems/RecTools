@@ -314,9 +314,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             get_val_mask_func=get_val_mask_func,
         )
 
-    def _init_data_preparator(self) -> None:  # TODO: negative losses are not working now
+    def _init_data_preparator(self) -> None:
         self.data_preparator: SessionEncoderDataPreparatorBase = self.data_preparator_type(
-            session_max_len=self.session_max_len,  # -1
+            session_max_len=self.session_max_len,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
