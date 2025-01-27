@@ -62,6 +62,7 @@ class TestDataset:
             ),
         )
         self.expected_schema = {
+            "n_interactions": 6,
             "n_hot_users": 3,
             "user_id_map_external_ids": ["u1", "u2", "u3"],
             "user_id_map_dtype": "|O",
@@ -69,6 +70,7 @@ class TestDataset:
             "make_dense_user_features": None,
             "user_feature_names": None,
             "user_feature_cat_cols": None,
+            "user_cat_features_n_stored_values": None,
             "n_hot_items": 3,
             "item_id_map_external_ids": ["i1", "i2", "i5"],
             "item_id_map_dtype": "|O",
@@ -76,6 +78,7 @@ class TestDataset:
             "make_dense_item_features": None,
             "item_feature_names": None,
             "item_feature_cat_cols": None,
+            "item_cat_features_n_stored_values": None,
         }
 
     def assert_dataset_equal_to_expected(
@@ -155,6 +158,7 @@ class TestDataset:
         assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features)
 
         expected_schema = {
+            "n_interactions": 6,
             "n_hot_users": 3,
             "user_id_map_external_ids": ["u1", "u2", "u3"],
             "user_id_map_dtype": "|O",
@@ -162,6 +166,7 @@ class TestDataset:
             "make_dense_user_features": True,
             "user_feature_names": ["f1", "f2"],
             "user_feature_cat_cols": None,
+            "user_cat_features_n_stored_values": None,
             "n_hot_items": 3,
             "item_id_map_external_ids": ["i1", "i2", "i5"],
             "item_id_map_dtype": "|O",
@@ -169,6 +174,7 @@ class TestDataset:
             "make_dense_item_features": False,
             "item_feature_names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
             "item_feature_cat_cols": [1, 2],
+            "item_cat_features_n_stored_values": 3,
         }
         actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
         assert actual_schema == expected_schema
