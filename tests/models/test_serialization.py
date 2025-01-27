@@ -29,7 +29,6 @@ except ImportError:
 
 from rectools.metrics import NDCG
 from rectools.models import (
-    BERT4RecModel,
     DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
@@ -38,7 +37,6 @@ from rectools.models import (
     LightFMWrapperModel,
     PopularInCategoryModel,
     PopularModel,
-    SASRecModel,
     load_model,
     model_from_config,
 )
@@ -55,16 +53,7 @@ EXPOSABLE_MODEL_CLASSES = tuple(
     for cls in get_successors(ModelBase)
     if (cls.__module__.startswith("rectools.models") and cls not in INTERMEDIATE_MODEL_CLASSES)
 )
-CONFIGURABLE_MODEL_CLASSES = tuple(
-    cls
-    for cls in EXPOSABLE_MODEL_CLASSES
-    if cls
-    not in (
-        DSSMModel,
-        SASRecModel,
-        BERT4RecModel,
-    )
-)
+CONFIGURABLE_MODEL_CLASSES = tuple(cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel,))
 
 
 def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
