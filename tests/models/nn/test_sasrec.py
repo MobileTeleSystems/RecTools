@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# pylint: ignore = too-many-lines
+# pylint: disable=too-many-lines
 
 import os
 import typing as tp
