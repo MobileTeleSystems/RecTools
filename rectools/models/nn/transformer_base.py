@@ -19,9 +19,7 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 import torch
 import typing_extensions as tpe
-import typing_extensions as tpe
 from implicit.gpu import HAS_CUDA
-from pydantic import BeforeValidator, PlainSerializer
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import LightningModule, Trainer
 
@@ -31,7 +29,6 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase,
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.models.serialization import model_from_config
 from rectools.types import InternalIdsArray
-from rectools.utils.misc import get_class_or_function_full_path, import_object
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
@@ -863,9 +860,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_embs = self.get_item_vectors()
         # TODO: i2i recommendations do not need filtering viewed and user most of the times has GPU
         # We should test if torch `topk`` is faster
-        item_embs = self.get_item_vectors()
-        # TODO: i2i recommendations do not need filtering viewed and user most of the times has GPU
-        # We should test if torch `topk`` is faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,
@@ -918,9 +912,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             config.pop("cls")
             config["trainer"] = None
             self.__dict__.update(config)
-
-            self.u2i_dist = Distance.DOT
-            self.i2i_dist = Distance.COSINE
 
             self._init_data_preparator()
             self.data_preparator.item_id_map = IdMap(
