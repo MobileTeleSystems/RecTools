@@ -849,3 +849,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         params.pop("cls")
         params["trainer"] = None
         return cls(**params)
+
+    def _get_config(self) -> TransformerModelConfig_T:
+        attrs = self.config_class.model_json_schema(mode="serialization")["properties"].keys()
+        params = {attr: getattr(self, attr) for attr in attrs if attr != "cls"}
+        params["cls"] = self.__class__
+        return self.config_class(**params)
