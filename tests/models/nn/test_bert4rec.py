@@ -20,7 +20,6 @@ import pytest
 import torch
 from pytorch_lightning import seed_everything
 
-from rectools import Columns
 from rectools.models import BERT4RecModel
 from rectools.models.nn.bert4rec import BERT4RecDataPreparator
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
@@ -32,14 +31,7 @@ from rectools.models.nn.transformer_base import (
 from tests.models.data import DATASET
 from tests.models.utils import assert_default_config_and_default_model_params_are_the_same
 
-
-def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
-    rank = (
-        interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
-        .groupby(Columns.User, sort=False)
-        .cumcount()
-    )
-    return rank == 0
+from .utils import leave_one_out_mask
 
 
 class TestBERT4RecModelConfiguration:
@@ -50,8 +42,8 @@ class TestBERT4RecModelConfiguration:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
 
-    def test_from_config(self) -> None:
-
+    @pytest.fixture
+    def initial_config(self) -> tp.Dict[str, tp.Any]:
         config = {
             "n_blocks": 2,
             "n_heads": 4,
@@ -61,7 +53,7 @@ class TestBERT4RecModelConfiguration:
             "use_key_padding_mask": True,
             "dropout_rate": 0.5,
             "session_max_len": 10,
-            "dataloader_num_workers": 5,
+            "dataloader_num_workers": 0,
             "batch_size": 1024,
             "loss": "softmax",
             "n_negatives": 10,
@@ -69,161 +61,6 @@ class TestBERT4RecModelConfiguration:
             "lr": 0.001,
             "epochs": 10,
             "verbose": 1,
-            "deterministic": True,
-            "recommend_accelerator": "auto",
-            "recommend_devices": 1,
-            "recommend_batch_size": 256,
-            "recommend_n_threads": 0,
-            "recommend_use_gpu_ranking": True,
-            "train_min_user_interactions": 5,
-            "item_net_block_types": (IdEmbeddingsItemNet,),
-            "pos_encoding_type": LearnableInversePositionalEncoding,
-            "transformer_layers_type": PreLNTransformerLayers,
-            "data_preparator_type": BERT4RecDataPreparator,
-            "lightning_module_type": SessionEncoderLightningModule,
-            "mask_prob": 0.15,
-            "get_val_mask_func": leave_one_out_mask,
-        }
-        model = BERT4RecModel.from_config(config)
-        assert model.n_blocks == 2
-        assert model.n_heads == 4
-        assert model.n_factors == 64
-        assert model.use_pos_emb is False
-        assert model.use_causal_attn is False
-        assert model.use_key_padding_mask is True
-        assert model.dropout_rate == 0.5
-        assert model.session_max_len == 10
-        assert model.dataloader_num_workers == 5
-        assert model.batch_size == 1024
-        assert model.loss == "softmax"
-        assert model.n_negatives == 10
-        assert model.gbce_t == 0.5
-        assert model.lr == 0.001
-        assert model.epochs == 10
-        assert model.verbose == 1
-        assert model.deterministic is True
-        assert model.recommend_accelerator == "auto"
-        assert model.recommend_devices == 1
-        assert model.recommend_batch_size == 256
-        assert model.recommend_n_threads == 0
-        assert model.recommend_use_gpu_ranking is True
-        assert model.train_min_user_interactions == 5
-        assert model._trainer is not None  # pylint: disable = protected-access
-        assert model.item_net_block_types == (IdEmbeddingsItemNet,)
-        assert model.pos_encoding_type == LearnableInversePositionalEncoding
-        assert model.transformer_layers_type == PreLNTransformerLayers
-        assert model.data_preparator_type == BERT4RecDataPreparator
-        assert model.lightning_module_type == SessionEncoderLightningModule
-        assert model.mask_prob == 0.15
-        assert model.get_val_mask_func is leave_one_out_mask
-
-    @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config(self, simple_types: bool) -> None:
-        model = BERT4RecModel(
-            n_blocks=2,
-            n_heads=4,
-            n_factors=64,
-            use_pos_emb=False,
-            use_causal_attn=False,
-            use_key_padding_mask=True,
-            dropout_rate=0.5,
-            session_max_len=10,
-            dataloader_num_workers=5,
-            batch_size=1024,
-            loss="softmax",
-            n_negatives=10,
-            gbce_t=0.5,
-            lr=0.001,
-            epochs=10,
-            verbose=1,
-            deterministic=True,
-            recommend_accelerator="auto",
-            recommend_devices=1,
-            recommend_batch_size=256,
-            recommend_n_threads=0,
-            recommend_use_gpu_ranking=True,
-            train_min_user_interactions=5,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            pos_encoding_type=LearnableInversePositionalEncoding,
-            transformer_layers_type=PreLNTransformerLayers,
-            data_preparator_type=BERT4RecDataPreparator,
-            lightning_module_type=SessionEncoderLightningModule,
-            mask_prob=0.15,
-            get_val_mask_func=leave_one_out_mask,
-        )
-        config = model.get_config(simple_types=simple_types)
-        expected = {
-            "cls": "BERT4RecModel" if simple_types else BERT4RecModel,
-            "n_blocks": 2,
-            "n_heads": 4,
-            "n_factors": 64,
-            "use_pos_emb": False,
-            "use_causal_attn": False,
-            "use_key_padding_mask": True,
-            "dropout_rate": 0.5,
-            "session_max_len": 10,
-            "dataloader_num_workers": 5,
-            "batch_size": 1024,
-            "loss": "softmax",
-            "n_negatives": 10,
-            "gbce_t": 0.5,
-            "lr": 0.001,
-            "epochs": 10,
-            "verbose": 1,
-            "deterministic": True,
-            "recommend_accelerator": "auto",
-            "recommend_devices": 1,
-            "recommend_batch_size": 256,
-            "recommend_n_threads": 0,
-            "recommend_use_gpu_ranking": True,
-            "train_min_user_interactions": 5,
-            "item_net_block_types": (
-                ["rectools.models.nn.item_net.IdEmbeddingsItemNet"] if simple_types else (IdEmbeddingsItemNet,)
-            ),
-            "pos_encoding_type": (
-                "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding"
-                if simple_types
-                else LearnableInversePositionalEncoding
-            ),
-            "transformer_layers_type": (
-                "rectools.models.nn.transformer_net_blocks.PreLNTransformerLayers"
-                if simple_types
-                else PreLNTransformerLayers
-            ),
-            "data_preparator_type": (
-                "rectools.models.nn.bert4rec.BERT4RecDataPreparator" if simple_types else BERT4RecDataPreparator
-            ),
-            "lightning_module_type": (
-                "rectools.models.nn.transformer_base.SessionEncoderLightningModule"
-                if simple_types
-                else SessionEncoderLightningModule
-            ),
-            "mask_prob": 0.15,
-            "get_val_mask_func": (
-                "tests.models.nn.test_bertrec.leave_one_out_mask" if simple_types else leave_one_out_mask
-            ),
-        }
-        assert config == expected
-
-    @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
-        initial_config = {
-            "n_blocks": 1,
-            "n_heads": 1,
-            "n_factors": 10,
-            "use_pos_emb": False,
-            "use_causal_attn": False,
-            "use_key_padding_mask": True,
-            "dropout_rate": 0.5,
-            "session_max_len": 5,
-            "dataloader_num_workers": 1,
-            "batch_size": 100,
-            "loss": "softmax",
-            "n_negatives": 4,
-            "gbce_t": 0.5,
-            "lr": 0.001,
-            "epochs": 1,
-            "verbose": 0,
             "deterministic": True,
             "recommend_accelerator": "auto",
             "recommend_devices": 1,
@@ -239,9 +76,53 @@ class TestBERT4RecModelConfiguration:
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
         }
+        return config
 
+    def test_from_config(self, initial_config: tp.Dict[str, tp.Any]) -> None:
+        model = BERT4RecModel.from_config(initial_config)
+
+        for key, config_value in initial_config.items():
+            assert getattr(model, key) == config_value
+
+        assert model._trainer is not None  # pylint: disable = protected-access
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool, initial_config: tp.Dict[str, tp.Any]) -> None:
+        model = BERT4RecModel(**initial_config)
+        config = model.get_config(simple_types=simple_types)
+
+        expected = initial_config.copy()
+        expected["cls"] = BERT4RecModel
+
+        if simple_types:
+            simple_types_params = {
+                "cls": "BERT4RecModel",
+                "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
+                "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
+                "transformer_layers_type": "rectools.models.nn.transformer_net_blocks.PreLNTransformerLayers",
+                "data_preparator_type": "rectools.models.nn.bert4rec.BERT4RecDataPreparator",
+                "lightning_module_type": "rectools.models.nn.transformer_base.SessionEncoderLightningModule",
+                "get_val_mask_func": "tests.models.nn.test_bert4rec.leave_one_out_mask",
+            }
+            expected.update(simple_types_params)
+
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(
+        self, simple_types: bool, initial_config: tp.Dict[str, tp.Any]
+    ) -> None:
         dataset = DATASET
         model = BERT4RecModel
+        updated_params = {
+            "n_blocks": 1,
+            "n_heads": 1,
+            "n_factors": 10,
+            "session_max_len": 5,
+            "epochs": 1,
+        }
+        config = initial_config.copy()
+        config.update(updated_params)
 
         def get_reco(model: BERT4RecModel) -> pd.DataFrame:
             return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)
