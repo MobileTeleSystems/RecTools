@@ -278,6 +278,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         torch_model: TransformerBasedSessionEncoder,
         model_config: tp.Dict[str, tp.Any],
         dataset_schema: DatasetSchemaDict,
+        data_preparator: SessionEncoderDataPreparatorBase,
         lr: float,
         gbce_t: float,
         loss: str = "softmax",
@@ -285,7 +286,6 @@ class SessionEncoderLightningModuleBase(LightningModule):
         verbose: int = 0,
         train_loss_name: str = "train/loss",
         val_loss_name: str = "val/loss",
-        data_preparator: tp.Optional[SessionEncoderDataPreparatorBase] = None,
     ):
         super().__init__()
         self.torch_model = torch_model
@@ -299,7 +299,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
-        self.item_embs: tp.Optional[torch.Tensor] = None
+        self.item_embs: torch.Tensor
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
@@ -353,8 +353,15 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         raise ValueError(f"loss {self.loss} is not supported")
 
     def on_validation_epoch_start(self) -> None:
-        """Get item embeddings before validation epoch."""
-        self.item_embs = self.torch_model.item_model.get_all_embeddings()
+        """Save item embeddings"""
+        self.eval()
+        with torch.no_grad():
+            self.item_embs = self.torch_model.item_model.get_all_embeddings()
+
+    def on_validation_epoch_end(self) -> None:
+        """Clear item embeddings"""
+        del self.item_embs
+        torch.cuda.empty_cache()
 
     def validation_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> tp.Dict[str, torch.Tensor]:
         """Validate step."""
@@ -883,11 +890,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
                 state = torch.load(f.name, weights_only=False)
+                state["is_fitted"] = True
             return state
         raise NotImplementedError()  # We can't save checkpoint for model that wasn'f fitted
 
-    def __setstate__(self, state: object) -> object:
-
+    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
         model_config = state["hyper_parameters"]["model_config"]
         config = self.config_class.model_validate(model_config).model_dump(mode="pydantic")
         dataset_schema = state["hyper_parameters"]["dataset_schema"]
@@ -911,13 +918,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         self.lightning_model = self.lightning_module_type(
             torch_model=self._torch_model,
+            dataset_schema=dataset_schema,
+            model_config=model_config,
+            data_preparator=self.data_preparator,
             lr=self.lr,
             loss=self.loss,
             gbce_t=self.gbce_t,
-            dataset_schema=dataset_schema,
             verbose=self.verbose,
-            data_preparator=self.data_preparator,
-            model_config=model_config,
         )
 
         self.lightning_model.load_state_dict(state["state_dict"])
