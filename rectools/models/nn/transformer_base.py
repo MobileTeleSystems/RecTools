@@ -14,6 +14,7 @@
 
 import typing as tp
 from copy import deepcopy
+from tempfile import NamedTemporaryFile
 
 import numpy as np
 import torch
@@ -23,7 +24,7 @@ from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import LightningModule, Trainer
 
 from rectools import ExternalIds
-from rectools.dataset import Dataset
+from rectools.dataset.dataset import Dataset, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
@@ -113,6 +114,19 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         """
         self.item_model = ItemNetConstructor.from_dataset(
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
+
+    def construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchemaDict) -> None:
+        """
+        Construct network for item embeddings from dataset schema.
+
+        Parameters
+        ----------
+        dataset_schema : DatasetSchemaDict
+            RecTools schema with dataset statistics.
+        """
+        self.item_model = ItemNetConstructor.from_dataset_schema(
+            dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
     @staticmethod
@@ -262,26 +276,32 @@ class SessionEncoderLightningModuleBase(LightningModule):
     def __init__(
         self,
         torch_model: TransformerBasedSessionEncoder,
+        model_config: tp.Dict[str, tp.Any],
+        dataset_schema: DatasetSchemaDict,
         lr: float,
         gbce_t: float,
-        data_preparator: SessionEncoderDataPreparatorBase,
         loss: str = "softmax",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
         verbose: int = 0,
         train_loss_name: str = "train/loss",
         val_loss_name: str = "val/loss",
+        data_preparator: tp.Optional[SessionEncoderDataPreparatorBase] = None,
     ):
         super().__init__()
+        self.torch_model = torch_model
+        self.model_config = model_config
+        self.dataset_schema = dataset_schema
         self.lr = lr
         self.loss = loss
-        self.torch_model = torch_model
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
         self.data_preparator = data_preparator
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
-        self.item_embs: torch.Tensor
+        self.item_embs: tp.Optional[torch.Tensor] = None
+
+        self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
@@ -711,6 +731,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def _init_lightning_model(self, torch_model: TransformerBasedSessionEncoder) -> None:
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
+            dataset_schema=self.data_preparator.train_dataset.get_schema(add_item_id_map=True),
+            model_config=self.get_config(simple_types=True),
             lr=self.lr,
             loss=self.loss,
             gbce_t=self.gbce_t,
@@ -855,3 +877,48 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         params = {attr: getattr(self, attr) for attr in attrs if attr != "cls"}
         params["cls"] = self.__class__
         return self.config_class(**params)
+
+    def __getstate__(self) -> object:
+        if self.is_fitted:
+            with NamedTemporaryFile() as f:
+                self.fit_trainer.save_checkpoint(f.name)
+                state = torch.load(f.name, weights_only=False)
+            return state
+        raise NotImplementedError()  # We can't save checkpoint for model that wasn'f fitted
+
+    def __setstate__(self, state: object) -> object:
+
+        model_config = state["hyper_parameters"]["model_config"]
+        config = self.config_class.model_validate(model_config).model_dump(mode="pydantic")
+        dataset_schema = state["hyper_parameters"]["dataset_schema"]
+
+        config.pop("cls")
+        config["trainer"] = None
+        self.__dict__.update(config)
+
+        self.u2i_dist = Distance.DOT
+        self.i2i_dist = Distance.COSINE
+
+        self._init_data_preparator()
+        self.data_preparator.item_id_map = IdMap(
+            np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
+        )
+
+        self._init_torch_model()
+        self._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+
+        self._init_trainer()
+
+        self.lightning_model = self.lightning_module_type(
+            torch_model=self._torch_model,
+            lr=self.lr,
+            loss=self.loss,
+            gbce_t=self.gbce_t,
+            dataset_schema=dataset_schema,
+            verbose=self.verbose,
+            data_preparator=self.data_preparator,
+            model_config=model_config,
+        )
+
+        self.lightning_model.load_state_dict(state["state_dict"])
+        self.is_fitted = True  # We can't save checkpoint for model that wasn'f fitted

@@ -19,7 +19,7 @@ import torch
 import typing_extensions as tpe
 from torch import nn
 
-from rectools.dataset import Dataset
+from rectools.dataset.dataset import Dataset, DatasetSchemaDict
 from rectools.dataset.features import SparseFeatures
 
 
@@ -33,6 +33,11 @@ class ItemNetBase(nn.Module):
     @classmethod
     def from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tp.Optional[tpe.Self]:
         """Construct ItemNet from Dataset."""
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """Construct ItemNet."""
         raise NotImplementedError()
 
     def get_all_embeddings(self) -> torch.Tensor:
@@ -208,6 +213,12 @@ class IdEmbeddingsItemNet(ItemNetBase):
         n_items = dataset.item_id_map.size
         return cls(n_factors, n_items, dropout_rate)
 
+    @classmethod
+    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, n_factors: int, dropout_rate: float) -> tpe.Self:
+        """TODO"""
+        n_items = dataset_schema["n_hot_items"]
+        return cls(n_factors, n_items, dropout_rate)
+
 
 class ItemNetConstructor(ItemNetBase):
     """
@@ -292,6 +303,25 @@ class ItemNetConstructor(ItemNetBase):
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
             item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
+            if item_net_block is not None:
+                item_net_blocks.append(item_net_block)
+
+        return cls(n_items, item_net_blocks)
+
+    @classmethod
+    def from_dataset_schema(
+        cls,
+        dataset_schema: DatasetSchemaDict,
+        n_factors: int,
+        dropout_rate: float,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+    ) -> tpe.Self:
+        """TODO."""
+        n_items = dataset_schema["n_hot_items"]
+
+        item_net_blocks: tp.List[ItemNetBase] = []
+        for item_net in item_net_block_types:
+            item_net_block = item_net.from_dataset_schema(dataset_schema, n_factors, dropout_rate)
             if item_net_block is not None:
                 item_net_blocks.append(item_net_block)
 
