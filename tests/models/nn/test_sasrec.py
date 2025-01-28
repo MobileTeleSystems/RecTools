@@ -889,10 +889,10 @@ class TestSASRecModelConfiguration:
                 "cls": "SASRecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
-                "transformer_layers_type": "rectools.models.nn.transformer_net_blocks.SASRecTransformerLayers",
-                "data_preparator_type": "rectools.models.nn.bert4rec.SASRecDataPreparator",
+                "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
+                "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformer_base.SessionEncoderLightningModule",
-                "get_val_mask_func": "tests.models.nn.test_bert4rec.leave_one_out_mask",
+                "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
 

@@ -102,7 +102,7 @@ class TestBERT4RecModelConfiguration:
                 "transformer_layers_type": "rectools.models.nn.transformer_net_blocks.PreLNTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.bert4rec.BERT4RecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformer_base.SessionEncoderLightningModule",
-                "get_val_mask_func": "tests.models.nn.test_bert4rec.leave_one_out_mask",
+                "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
 
