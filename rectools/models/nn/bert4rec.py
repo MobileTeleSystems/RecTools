@@ -18,7 +18,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import typing_extensions as tpe
 from pytorch_lightning import Trainer
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
@@ -360,10 +359,3 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
         )
-
-    @classmethod
-    def _from_config(cls, config: BERT4RecModelConfig) -> tpe.Self:
-        params = config.model_dump()
-        params.pop("cls")
-        params["trainer"] = None
-        return cls(**params)

@@ -17,7 +17,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import typing_extensions as tpe
 from pytorch_lightning import Trainer
 from torch import nn
 
@@ -394,10 +393,3 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lightning_module_type=self.lightning_module_type,
             get_val_mask_func=self.get_val_mask_func,
         )
-
-    @classmethod
-    def _from_config(cls, config: SASRecModelConfig) -> tpe.Self:
-        params = config.model_dump()
-        params.pop("cls")
-        params["trainer"] = None
-        return cls(**params)

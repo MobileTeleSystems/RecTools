@@ -842,3 +842,10 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def torch_model(self) -> TransformerBasedSessionEncoder:
         """Pytorch model."""
         return self.lightning_model.torch_model
+
+    @classmethod
+    def _from_config(cls, config: TransformerModelConfig_T) -> tpe.Self:
+        params = config.model_dump()
+        params.pop("cls")
+        params["trainer"] = None
+        return cls(**params)
