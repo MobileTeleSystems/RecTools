@@ -708,7 +708,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             pos_encoding_type=self.pos_encoding_type,
         )
 
-    def _init_lightning_model(self, torch_model: TransformerBasedSessionEncoder, n_item_extra_tokens: int) -> None:
+    def _init_lightning_model(self, torch_model: TransformerBasedSessionEncoder) -> None:
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             lr=self.lr,
@@ -731,7 +731,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         torch_model = deepcopy(self._torch_model)
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
-        self._init_lightning_model(torch_model, self.data_preparator.n_item_extra_tokens)
+        self._init_lightning_model(torch_model)
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)

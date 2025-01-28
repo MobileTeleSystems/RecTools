@@ -105,7 +105,7 @@ class TestSASRecModel:
         return get_val_mask_func
 
     @pytest.mark.parametrize(
-        "accelerator,n_devices,recommend_device",
+        "accelerator,devices,recommend_accelerator",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
@@ -196,8 +196,8 @@ class TestSASRecModel:
         dataset: Dataset,
         filter_viewed: bool,
         accelerator: str,
-        n_devices: int,
-        recommend_device: str,
+        devices: tp.Union[int, tp.List[int]],
+        recommend_accelerator: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
@@ -206,7 +206,7 @@ class TestSASRecModel:
             max_epochs=2,
             min_epochs=2,
             deterministic=True,
-            devices=n_devices,
+            devices=devices,
             accelerator=accelerator,
         )
         model = SASRecModel(
@@ -217,16 +217,16 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_accelerator=recommend_device,
+            recommend_accelerator=recommend_accelerator,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
-        if accelerator == "cpu" and n_devices == 1:
+        if accelerator == "cpu" and devices == 1:
             expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
+        elif accelerator == "cpu" and devices == 2:
             expected = expected_cpu_2
         else:
             expected = expected_gpu
