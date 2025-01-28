@@ -315,7 +315,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
 
     def _init_data_preparator(self) -> None:
         self.data_preparator: SessionEncoderDataPreparatorBase = self.data_preparator_type(
-            session_max_len=self.session_max_len,
+            session_max_len=self.session_max_len - 1,  # TODO: remove `-1`
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
