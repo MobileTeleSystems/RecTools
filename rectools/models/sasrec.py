@@ -3,6 +3,7 @@ import warnings
 from copy import deepcopy
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
+from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pandas as pd
@@ -750,7 +751,7 @@ class SessionEncoderDataPreparatorBase:
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        get_val_mask_func: tp.Optional[str] = None,
     ) -> None:
         """TODO"""
         self.item_id_map: IdMap
@@ -794,8 +795,9 @@ class SessionEncoderDataPreparatorBase:
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
         if self.get_val_mask_func is not None:
-            val_mask = self.get_val_mask_func(raw_interactions)
-            interactions = raw_interactions[~val_mask]
+            raise NotImplementedError()
+            # val_mask = self.get_val_mask_func(raw_interactions)
+            # interactions = raw_interactions[~val_mask]
 
         # Filter train interactions
         user_stats = interactions[Columns.User].value_counts()
@@ -844,15 +846,16 @@ class SessionEncoderDataPreparatorBase:
 
         # Define val interactions
         if self.get_val_mask_func is not None:
-            val_targets = raw_interactions[val_mask]
-            val_targets = val_targets[
-                (val_targets[Columns.User].isin(user_id_map.external_ids))
-                & (val_targets[Columns.Item].isin(item_id_map.external_ids))
-            ]
-            val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
-            val_interactions[Columns.Weight] = 0
-            val_interactions = pd.concat([val_interactions, val_targets], axis=0)
-            self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+            raise NotImplementedError()
+            # val_targets = raw_interactions[val_mask]
+            # val_targets = val_targets[
+            #     (val_targets[Columns.User].isin(user_id_map.external_ids))
+            #     & (val_targets[Columns.Item].isin(item_id_map.external_ids))
+            # ]
+            # val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
+            # val_interactions[Columns.Weight] = 0
+            # val_interactions = pd.concat([val_interactions, val_targets], axis=0)
+            # self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
 
     def get_dataloader_train(self) -> DataLoader:
         """
@@ -1023,7 +1026,7 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
         item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE,),
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        get_val_mask_func: tp.Optional[str] = None,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -1465,6 +1468,7 @@ class TransformerModelConfig(ModelConfig):
     transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
     data_preparator_type: SessionEncoderDataPreparatorType = SASRecDataPreparator
     lightning_module_type: SessionEncoderLightningModuleType = SessionEncoderLightningModule
+    get_val_mask_func: tp.Optional[str] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -1508,7 +1512,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
         top_k_saved_val_reco: tp.Optional[int] = None,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        get_val_mask_func: tp.Optional[str] = None,
     ) -> None:
         super().__init__(verbose=verbose)
         self.recommend_n_threads = recommend_n_threads
@@ -1609,6 +1613,54 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         model.lightning_model.load_state_dict(checkpoint["state_dict"])  # do we need this?
         model.is_fitted = True
         return model
+    
+    def __getstate__(self) -> object:
+        if self.is_fitted:
+            with NamedTemporaryFile() as f:
+                self.save_checkpoint(f.name)
+                state = torch.load(f.name, weights_only=False)
+            return state
+        else:
+            raise NotImplementedError()  # we can't save checkpoints for models that weren't trained
+        
+    def __setstate__(self, state: object) -> object:
+        
+        model_config = state["hyper_parameters"]["model_config"]
+        config = self.config_class.parse_obj(model_config).model_dump(mode="pydantic")
+        dataset_schema = state["hyper_parameters"]["dataset_schema"]
+        
+        config.pop("cls")
+        config["trainer"] = None
+        self.__dict__.update(config)
+        
+        self.u2i_dist = Distance.DOT
+        self.i2i_dist = Distance.COSINE
+        
+        self._init_data_preparator()
+        self.data_preparator.item_id_map = IdMap(
+            np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
+        )
+        
+        self._init_torch_model()
+        self._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+        
+        self._init_trainer()
+        
+        self.lightning_model = self.lightning_module_type(
+            torch_model=self._torch_model,
+            lr=self.lr,
+            loss=self.loss,
+            gbce_t=self.gbce_t,
+            n_item_extra_tokens=self.data_preparator.n_item_extra_tokens,
+            dataset_schema=dataset_schema,
+            verbose=self.verbose,
+            data_preparator=self.data_preparator,
+            model_config=model_config,
+        )
+        
+        self.lightning_model.load_state_dict(state["state_dict"])
+        self.is_fitted = True  # TODO: think about it
+    
 
     def _fit(self, dataset: Dataset) -> None:
         self.data_preparator.process_dataset_train(dataset)
@@ -1830,7 +1882,7 @@ class SASRecModel(TransformerModelBase):
         data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
         top_k_saved_val_reco: tp.Optional[int] = None,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        get_val_mask_func: tp.Optional[str] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -1903,6 +1955,7 @@ class SASRecModel(TransformerModelBase):
             transformer_layers_type=self.transformer_layers_type,
             data_preparator_type=self.data_preparator_type,
             lightning_module_type=self.lightning_module_type,
+            get_val_mask_func=self.get_val_mask_func,
         )
 
     @classmethod
@@ -1935,4 +1988,5 @@ class SASRecModel(TransformerModelBase):
             transformer_layers_type=config.transformer_layers_type,
             data_preparator_type=config.data_preparator_type,
             lightning_module_type=config.lightning_module_type,
+            get_val_mask_func=config.get_val_mask_func,
         )
