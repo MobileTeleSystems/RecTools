@@ -76,6 +76,7 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
         model.save(f.name)
         loaded_model = load_model(f.name)
     assert isinstance(loaded_model, model_cls)
+    assert not loaded_model.is_fitted
 
 
 class CustomModelConfig(ModelConfig):

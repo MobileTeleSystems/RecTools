@@ -27,6 +27,7 @@ from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
+from rectools.models.serialization import model_from_config
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
@@ -735,15 +736,20 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             pos_encoding_type=self.pos_encoding_type,
         )
 
-    def _init_lightning_model(self, torch_model: TransformerBasedSessionEncoder) -> None:
+    def _init_lightning_model(
+        self,
+        torch_model: TransformerBasedSessionEncoder,
+        dataset_schema: DatasetSchemaDict,
+        model_config: tp.Dict[str, tp.Any],
+    ) -> None:
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
-            dataset_schema=self.data_preparator.train_dataset.get_schema(add_item_id_map=True),
-            model_config=self.get_config(simple_types=True),
+            dataset_schema=dataset_schema,
+            model_config=model_config,
+            data_preparator=self.data_preparator,
             lr=self.lr,
             loss=self.loss,
             gbce_t=self.gbce_t,
-            data_preparator=self.data_preparator,
             verbose=self.verbose,
             train_loss_name=self.train_loss_name,
             val_loss_name=self.val_loss_name,
@@ -760,7 +766,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         torch_model = deepcopy(self._torch_model)
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
-        self._init_lightning_model(torch_model)
+        dataset_schema = self.data_preparator.train_dataset.get_schema(add_item_id_map=True)
+        model_config = self.get_config(simple_types=True)
+        self._init_lightning_model(torch_model, dataset_schema, model_config)
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
@@ -892,40 +900,41 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 state = torch.load(f.name, weights_only=False)
                 state["is_fitted"] = True
             return state
-        raise NotImplementedError()  # We can't save checkpoint for model that wasn'f fitted
+        state = {"model_config": self.get_config(simple_types=True), "is_fitted": False, "trainer": self._trainer}
+        return state
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
-        model_config = state["hyper_parameters"]["model_config"]
-        config = self.config_class.model_validate(model_config).model_dump(mode="pydantic")
-        dataset_schema = state["hyper_parameters"]["dataset_schema"]
+        if state["is_fitted"] is True:
+            model_config = state["hyper_parameters"]["model_config"]
+            config = self.config_class.model_validate(model_config).model_dump(mode="pydantic")
+            dataset_schema = state["hyper_parameters"]["dataset_schema"]
 
-        config.pop("cls")
-        config["trainer"] = None
-        self.__dict__.update(config)
+            config.pop("cls")
+            config["trainer"] = None
+            self.__dict__.update(config)
 
-        self.u2i_dist = Distance.DOT
-        self.i2i_dist = Distance.COSINE
+            self.u2i_dist = Distance.DOT
+            self.i2i_dist = Distance.COSINE
 
-        self._init_data_preparator()
-        self.data_preparator.item_id_map = IdMap(
-            np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
-        )
+            self._init_data_preparator()
+            self.data_preparator.item_id_map = IdMap(
+                np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
+            )
 
-        self._init_torch_model()
-        self._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+            self._init_torch_model()
+            self._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
 
-        self._init_trainer()
+            self._init_trainer()
 
-        self.lightning_model = self.lightning_module_type(
-            torch_model=self._torch_model,
-            dataset_schema=dataset_schema,
-            model_config=model_config,
-            data_preparator=self.data_preparator,
-            lr=self.lr,
-            loss=self.loss,
-            gbce_t=self.gbce_t,
-            verbose=self.verbose,
-        )
+            self._init_lightning_model(self._torch_model, dataset_schema, model_config)
+            self.lightning_model.load_state_dict(state["state_dict"])
+            # TODO: We didn't load trainer staff here
 
-        self.lightning_model.load_state_dict(state["state_dict"])
-        self.is_fitted = True  # We can't save checkpoint for model that wasn'f fitted
+            self.is_fitted = True
+
+        else:
+            loaded = model_from_config(state["model_config"])
+            if loaded.__class__ is not self.__class__:
+                raise TypeError(f"Loaded object is not a direct instance of `{self.__class__.__name__}`")
+            self.__dict__.update(loaded.__dict__)
+            self._trainer = state["trainer"]

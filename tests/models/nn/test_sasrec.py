@@ -17,7 +17,6 @@
 import os
 import typing as tp
 from functools import partial
-from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pandas as pd
@@ -29,7 +28,7 @@ from pytorch_lightning.loggers import CSVLogger
 from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-from rectools.models import SASRecModel, load_model
+from rectools.models import SASRecModel
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformer_base import LearnableInversePositionalEncoding, SessionEncoderLightningModule
@@ -543,29 +542,6 @@ class TestSASRecModel:
 
         actual_columns = list(pd.read_csv(metrics_path).columns)
         assert actual_columns == expected_columns
-
-    # TODO: add dataset with category features support
-    def test_load_fitted_model(
-        self,
-        dataset: Dataset,
-    ) -> None:
-        model = SASRecModel(
-            n_factors=10,
-            n_heads=1,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=1,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-        )
-        model.fit(dataset=dataset)
-
-        with NamedTemporaryFile() as f:
-            model.save(f.name)
-            loaded_model = load_model(f.name)
-        assert isinstance(loaded_model, SASRecModel)
 
 
 class TestSASRecDataPreparator:

@@ -14,12 +14,14 @@
 
 import typing as tp
 from copy import deepcopy
+from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pandas as pd
 
 from rectools.dataset import Dataset
 from rectools.models.base import ModelBase
+from rectools.models.serialization import load_model
 
 
 def _dummy_func() -> None:
@@ -61,6 +63,32 @@ def assert_dumps_loads_do_not_change_model(
 
     dumped = model.dumps()
     recovered_model = model.__class__.loads(dumped)
+
+    original_model_reco = get_reco(model)
+    recovered_model_reco = get_reco(recovered_model)
+    pd.testing.assert_frame_equal(recovered_model_reco, original_model_reco)
+
+    if check_configs:
+        original_model_config = model.get_config()
+        recovered_model_config = recovered_model.get_config()
+        assert recovered_model_config == original_model_config
+
+
+def assert_save_load_do_not_change_model(
+    model: ModelBase,
+    dataset: Dataset,
+    check_configs: bool = True,
+) -> None:
+
+    def get_reco(model: ModelBase) -> pd.DataFrame:
+        users = dataset.user_id_map.external_ids[:2]
+        return model.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
+
+    with NamedTemporaryFile() as f:
+        model.save(f.name)
+        recovered_model = load_model(f.name)
+
+    assert isinstance(recovered_model, model.__class__)
 
     original_model_reco = get_reco(model)
     recovered_model_reco = get_reco(recovered_model)
