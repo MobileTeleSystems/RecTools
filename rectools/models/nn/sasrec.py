@@ -397,33 +397,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
 
     @classmethod
     def _from_config(cls, config: SASRecModelConfig) -> tpe.Self:
-        return cls(
-            trainer=None,
-            n_blocks=config.n_blocks,
-            n_heads=config.n_heads,
-            n_factors=config.n_factors,
-            use_pos_emb=config.use_pos_emb,
-            use_causal_attn=config.use_causal_attn,
-            use_key_padding_mask=config.use_key_padding_mask,
-            dropout_rate=config.dropout_rate,
-            session_max_len=config.session_max_len,
-            dataloader_num_workers=config.dataloader_num_workers,
-            batch_size=config.batch_size,
-            loss=config.loss,
-            n_negatives=config.n_negatives,
-            gbce_t=config.gbce_t,
-            lr=config.lr,
-            epochs=config.epochs,
-            verbose=config.verbose,
-            deterministic=config.deterministic,
-            recommend_devices=config.recommend_devices,
-            recommend_n_threads=config.recommend_n_threads,
-            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
-            train_min_user_interactions=config.train_min_user_interactions,
-            item_net_block_types=config.item_net_block_types,
-            pos_encoding_type=config.pos_encoding_type,
-            transformer_layers_type=config.transformer_layers_type,
-            data_preparator_type=config.data_preparator_type,
-            lightning_module_type=config.lightning_module_type,
-            get_val_mask_func=config.get_val_mask_func,
-        )
+        params = config.model_dump()
+        params.pop("cls")
+        params["trainer"] = None
+        return cls(**params)

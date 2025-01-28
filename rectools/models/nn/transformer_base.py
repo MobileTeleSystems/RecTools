@@ -471,11 +471,11 @@ def _get_class_obj(spec: tp.Any) -> tp.Any:
     return import_object(spec)
 
 
-def _get_class_obj_sequence(spec: tp.Sequence[tp.Any]) -> tp.Any:
+def _get_class_obj_sequence(spec: tp.Sequence[tp.Any]) -> tp.Tuple[tp.Any, ...]:
     return tuple(map(_get_class_obj, spec))
 
 
-def _serialize_type_sequence(obj: tp.Sequence[tp.Type]) -> tp.Sequence[str]:
+def _serialize_type_sequence(obj: tp.Sequence[tp.Type]) -> tp.Tuple[str, ...]:
     return tuple(map(get_class_or_function_full_path, obj))
 
 
@@ -528,10 +528,6 @@ ItemNetBlockTypes = tpe.Annotated[
         when_used="json",
     ),
 ]
-
-SessionEncoderDataPreparatorType_T = tp.TypeVar(
-    "SessionEncoderDataPreparatorType_T", bound=SessionEncoderDataPreparatorType
-)
 
 CallableSerialized = tpe.Annotated[
     tp.Callable,
