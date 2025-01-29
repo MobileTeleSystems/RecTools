@@ -88,22 +88,6 @@ class TestSASRecModel:
             accelerator="cpu",
         )
 
-    @pytest.fixture
-    def get_val_mask_func(self) -> partial:
-        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> pd.Series:
-            rank = (
-                interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
-                .groupby(Columns.User, sort=False)
-                .cumcount()
-                + 1
-            )
-            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
-            return val_mask
-
-        val_users = [10, 30]
-        get_val_mask_func = partial(get_val_mask, val_users=val_users)
-        return get_val_mask_func
-
     @pytest.mark.parametrize(
         "accelerator,devices,recommend_accelerator",
         [
@@ -504,7 +488,7 @@ class TestSASRecModel:
         dataset: Dataset,
         tmp_path: str,
         verbose: int,
-        get_val_mask_func: partial,
+        get_val_mask_func: tp.Callable,
         is_val_mask_func: bool,
         expected_columns: tp.List[str],
     ) -> None:
@@ -530,7 +514,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
             verbose=verbose,
-            get_val_mask_func=get_val_mask_func if is_val_mask_func else None,
+            get_val_mask_func=leave_one_out_mask if is_val_mask_func else None,
         )
         model.fit(dataset=dataset)
 

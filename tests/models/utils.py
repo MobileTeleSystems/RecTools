@@ -34,10 +34,14 @@ def assert_second_fit_refits_model(
     pre_fit_callback = pre_fit_callback or _dummy_func
 
     pre_fit_callback()
-    model_1 = deepcopy(model).fit(dataset)
+    model_1 = deepcopy(model)
+    pre_fit_callback()
+    model_1.fit(dataset)
 
     pre_fit_callback()
-    model_2 = deepcopy(model).fit(dataset)
+    model_2 = deepcopy(model)
+    pre_fit_callback()
+    model_2.fit(dataset)
     pre_fit_callback()
     model_2.fit(dataset)
 
