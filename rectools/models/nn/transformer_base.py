@@ -765,8 +765,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
 
         session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
-        if session_embs is None:
-            explanation = """Received empty recommendations."""
+        if session_embs is None:  # pragma: no cover
+            explanation = """Received empty recommendations. Used to solve incompatible type linter error."""
             raise ValueError(explanation)
         user_embs = np.concatenate(session_embs, axis=0)
         user_embs = user_embs[user_ids]
