@@ -278,6 +278,7 @@ class TestSASRecModel:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=3,
             lr=0.001,
             batch_size=4,
@@ -377,6 +378,7 @@ class TestSASRecModel:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=3,
             lr=0.001,
             batch_size=4,
@@ -416,6 +418,7 @@ class TestSASRecModel:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=3,
             lr=0.001,
             batch_size=4,

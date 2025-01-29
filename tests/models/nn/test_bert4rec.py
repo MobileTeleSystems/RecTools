@@ -105,7 +105,7 @@ class TestBERT4RecModelConfiguration:
         )
 
     @pytest.mark.parametrize(
-        "accelerator,n_devices,recommend_device",
+        "accelerator,n_devices,recommend_accelerator",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
@@ -211,7 +211,7 @@ class TestBERT4RecModelConfiguration:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
-        recommend_device: str,
+        recommend_accelerator: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
@@ -228,12 +228,13 @@ class TestBERT4RecModelConfiguration:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=4,
             lr=0.001,
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_devices=recommend_device,
+            recommend_accelerator=recommend_accelerator,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
@@ -290,6 +291,7 @@ class TestBERT4RecModelConfiguration:
             n_negatives=2,
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=4,
             lr=0.001,
             batch_size=4,
@@ -340,6 +342,7 @@ class TestBERT4RecModelConfiguration:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=4,
             lr=0.001,
             batch_size=4,
@@ -413,6 +416,7 @@ class TestBERT4RecModelConfiguration:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=4,
             lr=0.001,
             batch_size=4,
@@ -480,6 +484,7 @@ class TestBERT4RecModelConfiguration:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=4,
             lr=0.001,
             batch_size=4,
@@ -632,11 +637,12 @@ class TestBERT4RecDataPreparator:
     ) -> None:
         data_preparator.process_dataset_train(dataset)
         dataset = data_preparator.transform_dataset_i2i(dataset)
-        dataloader = data_preparator.get_dataloader_recommend(dataset)
+        dataloader = data_preparator.get_dataloader_recommend(dataset, 4)
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, recommend_batch[key])
 
+    @pytest.fixture
     def initial_config(self) -> tp.Dict[str, tp.Any]:
         config = {
             "n_blocks": 2,
