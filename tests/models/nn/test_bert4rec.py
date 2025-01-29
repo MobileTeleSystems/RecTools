@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer, seed_everything
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
-from rectools.models.nn.bert4rec import MASKING_VALUE, PADDING_VALUE, BERT4RecDataPreparator
+from rectools.models.nn.bert4rec import BERT4RecDataPreparator
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from rectools.models.nn.transformer_base import (
     LearnableInversePositionalEncoding,
@@ -39,7 +39,7 @@ from tests.models.utils import (
 from .utils import leave_one_out_mask
 
 
-class TestBERT4RecModelConfiguration:
+class TestBERT4RecModel:
     def setup_method(self) -> None:
         self._seed_everything()
 
@@ -570,7 +570,6 @@ class TestBERT4RecDataPreparator:
             batch_size=4,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
-            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
             shuffle_train=True,
             mask_prob=0.5,
         )
@@ -618,7 +617,6 @@ class TestBERT4RecDataPreparator:
             batch_size=14,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
-            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
             shuffle_train=True,
             mask_prob=0.5,
         )
@@ -641,6 +639,15 @@ class TestBERT4RecDataPreparator:
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, recommend_batch[key])
+
+
+class TestBERT4RecModelConfiguration:
+    def setup_method(self) -> None:
+        self._seed_everything()
+        
+    def _seed_everything(self) -> None:
+        torch.use_deterministic_algorithms(True)
+        seed_everything(32, workers=True)
 
     @pytest.fixture
     def initial_config(self) -> tp.Dict[str, tp.Any]:

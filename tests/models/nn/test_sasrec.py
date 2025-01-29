@@ -153,7 +153,6 @@ class TestSASRecModel:
             enable_checkpointing=False,
         )
 
-
     @pytest.mark.parametrize(
         "accelerator,devices,recommend_accelerator",
         [

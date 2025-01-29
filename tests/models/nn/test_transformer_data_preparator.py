@@ -19,7 +19,6 @@ import pytest
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-from rectools.models.nn.sasrec import PADDING_VALUE
 from rectools.models.nn.transformer_data_preparator import SequenceDataset, SessionEncoderDataPreparatorBase
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
@@ -116,7 +115,6 @@ class TestSessionEncoderDataPreparatorBase:
             session_max_len=4,
             batch_size=4,
             dataloader_num_workers=0,
-            item_extra_tokens=(PADDING_VALUE,),
         )
 
     @pytest.mark.parametrize(
