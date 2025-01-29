@@ -113,7 +113,7 @@ class TestSessionEncoderDataPreparatorBase:
     @pytest.fixture
     def data_preparator(self) -> SessionEncoderDataPreparatorBase:
         return SessionEncoderDataPreparatorBase(
-            session_max_len=3,
+            session_max_len=4,
             batch_size=4,
             dataloader_num_workers=0,
             item_extra_tokens=(PADDING_VALUE,),

@@ -535,7 +535,7 @@ class TestBERT4RecDataPreparator:
     @pytest.fixture
     def data_preparator(self) -> BERT4RecDataPreparator:
         return BERT4RecDataPreparator(
-            session_max_len=3,
+            session_max_len=4,
             n_negatives=1,
             batch_size=4,
             dataloader_num_workers=0,
@@ -583,7 +583,7 @@ class TestBERT4RecDataPreparator:
         self, dataset_one_session: Dataset, train_batch: tp.List
     ) -> None:
         data_preparator = BERT4RecDataPreparator(
-            session_max_len=14,
+            session_max_len=15,
             n_negatives=None,
             batch_size=14,
             dataloader_num_workers=0,

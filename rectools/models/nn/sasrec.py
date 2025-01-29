@@ -40,13 +40,15 @@ from .transformer_net_blocks import (
 class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     """Data preparator for SASRecModel."""
 
+    train_session_max_len_addition: int = 1
+
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
     ) -> Dict[str, torch.Tensor]:
         """
-        Truncate each session from right to keep (session_max_len+1) last items.
-        Do left padding until  (session_max_len+1) is reached.
+        Truncate each session from right to keep `session_max_len` items.
+        Do left padding until `session_max_len` is reached.
         Split to `x`, `y`, and `yw`.
         """
         batch_size = len(batch)
