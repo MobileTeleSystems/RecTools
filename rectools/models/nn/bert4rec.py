@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from collections.abc import Hashable
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -41,7 +42,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 
     train_session_max_len_addition: int = 0
 
-    item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE, MASKING_VALUE)
+    item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE, MASKING_VALUE)
 
     def __init__(
         self,
