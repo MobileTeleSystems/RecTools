@@ -351,13 +351,13 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
     def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         raise ValueError(f"loss {self.loss} is not supported")
 
-    def on_validation_epoch_start(self) -> None:
+    def on_validation_start(self) -> None:
         """Save item embeddings"""
         self.eval()
         with torch.no_grad():
             self.item_embs = self.torch_model.item_model.get_all_embeddings()
 
-    def on_validation_epoch_end(self) -> None:
+    def on_validation_end(self) -> None:
         """Clear item embeddings"""
         del self.item_embs
         torch.cuda.empty_cache()
@@ -463,13 +463,13 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss = self._calc_bce_loss(logits, y, w)
         return loss
 
-    def on_predict_epoch_start(self) -> None:
+    def on_predict_start(self) -> None:
         """Save item embeddings"""
         self.eval()
         with torch.no_grad():
             self.item_embs = self.torch_model.item_model.get_all_embeddings()
 
-    def on_predict_epoch_end(self) -> None:
+    def on_predict_end(self) -> None:
         """Clear item embeddings"""
         del self.item_embs
         torch.cuda.empty_cache()
