@@ -16,39 +16,144 @@ from rectools.models.base import ErrorBehaviour, ModelBase
 
 @tp.runtime_checkable
 class ClassifierBase(tp.Protocol):
-    """TODO: Documentation"""
+    """
+    A protocol that defines the interface for a classifier model. Classes implementing this protocol
+    should provide methods for fitting the model and predicting class probabilities.
+
+    Methods
+    -------
+    fit(*args: tp.Any, **kwargs: tp.Any) -> tpe.Self
+        Fit the classifier to the training data.
+
+    predict_proba(*args: tp.Any, **kwargs: tp.Any) -> np.ndarray
+        Predict class probabilities for the given input data. The implementation should return
+        an array where each element is a probability distribution over the classes.
+    """
 
     def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
-        """TODO: Documentation"""
+        """
+        Fit the classifier to the training data.
+
+        Parameters
+        ----------
+        *args : tp.Any
+            Positional arguments for fitting the classifier.
+        **kwargs : tp.Any
+            Keyword arguments for fitting the classifier.
+
+        Returns
+        -------
+        tpe.Self
+            The fitted classifier instance.
+        """
 
     def predict_proba(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray:
-        """TODO: Documentation"""
+        """
+        Predict class probabilities for the given input data.
+
+        Parameters
+        ----------
+        *args : tp.Any
+            Positional arguments for predicting probabilities.
+        **kwargs : tp.Any
+            Keyword arguments for predicting probabilities.
+
+        Returns
+        -------
+        np.ndarray
+            An array of predicted probabilities, where each element is a distribution over the classes.
+        """
 
 
 @tp.runtime_checkable
 class RankerBase(tp.Protocol):
-    """TODO: Documentation"""
+    """
+    A protocol that defines the interface for a ranker model. Classes implementing this protocol
+    should provide methods for fitting the model and predicting scores for ranking.
+
+    Methods
+    -------
+    fit(*args: tp.Any, **kwargs: tp.Any) -> tpe.Self
+        Fit the ranker to the training data.
+
+    predict(*args: tp.Any, **kwargs: tp.Any) -> np.ndarray
+        Predict scores for the given input data. The implementation should return an array of
+        scores that can be used for ranking items.
+    """
 
     def fit(self, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
-        """TODO: Documentation"""
+        """
+        Fit the ranker to the training data.
+
+        Parameters
+        ----------
+        *args : tp.Any
+            Positional arguments for fitting the ranker.
+        **kwargs : tp.Any
+            Keyword arguments for fitting the ranker.
+
+        Returns
+        -------
+        tpe.Self
+            The fitted ranker instance.
+        """
 
     def predict(self, *args: tp.Any, **kwargs: tp.Any) -> np.ndarray:
-        """TODO: Documentation"""
+        """
+        Predict scores for the given input data.
+
+        Parameters
+        ----------
+        *args : tp.Any
+            Positional arguments for predicting scores.
+        **kwargs : tp.Any
+            Keyword arguments for predicting scores.
+
+        Returns
+        -------
+        np.ndarray
+            An array of predicted scores, which can be used for ranking items.
+        """
 
 
 class Reranker:
-    """TODO: Documentation"""
+    """
+    A class used to re-rank candidates from first stage using ranking model.
+    The model can be either a classifier or a ranker.
+    """
 
     def __init__(
         self,
         model: tp.Union[ClassifierBase, RankerBase],
         fit_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ):
+        """
+        Initialize the Reranker with `model` and `fit_kwargs`.
+
+        Parameters
+        ----------
+        model : tp.Union[ClassifierBase, RankerBase]
+            Ranking model. It must implement `fit` and `predict` or `predict_proba`.
+        fit_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional
+            Additional keyword arguments to pass to the model's fit method, by default None.
+        """
         self.model = model
         self.fit_kwargs = fit_kwargs
 
     def prepare_fit_kwargs(self, candidates_with_target: pd.DataFrame) -> tp.Dict[str, tp.Any]:
-        """TODO: Documentation"""
+        """
+        Prepare the keyword arguments for fitting the model, based on the provided candidates with targets.
+
+        Parameters
+        ----------
+        candidates_with_target : pd.DataFrame
+            A DataFrame containing the features and target labels for the candidates.
+
+        Returns
+        -------
+        tp.Dict[str, tp.Any]
+            A dictionary containing the features (`X`) and target labels (`y`) for fitting the model.
+        """
         candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
 
         fit_kwargs = {
@@ -62,12 +167,32 @@ class Reranker:
         return fit_kwargs
 
     def fit(self, candidates_with_target: pd.DataFrame) -> None:
-        """TODO: Documentation"""
+        """
+        Fit the model using the provided candidates with target labels.
+
+        Parameters
+        ----------
+        candidates_with_target : pd.DataFrame
+            A DataFrame containing the features and target labels for the candidates.
+        """
         fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
         self.model.fit(**fit_kwargs)
 
     def predict_scores(self, candidates: pd.DataFrame) -> pd.Series:
-        """TODO: Documentation"""
+        """
+        Predict scores for the provided candidates using the fitted model.
+
+        Parameters
+        ----------
+        candidates : pd.DataFrame
+            A DataFrame containing the features for the candidates.
+
+        Returns
+        -------
+        pd.Series
+            A series containing the predicted scores for each candidate. If the model is a classifier, the scores
+            represent probabilities for the positive class.
+        """
         x_full = candidates.drop(columns=Columns.UserItem)
 
         if isinstance(self.model, ClassifierBase):
@@ -77,7 +202,26 @@ class Reranker:
 
     @classmethod
     def recommend(cls, scored_pairs: pd.DataFrame, k: int, add_rank_col: bool = True) -> pd.DataFrame:
-        """TODO: Documentation"""
+        """
+        Generate top-k recommendations for each user based on the provided scores.
+
+        Parameters
+        ----------
+        scored_pairs : pd.DataFrame
+            A DataFrame containing user-item pairs with associated scores.
+            The DataFrame must have columns `Columns.User` and `Columns.Score`.
+        k : int
+            The number of top items to recommend for each user.
+        add_rank_col : bool, optional
+            Whether to add a rank column to the resulting DataFrame, indicating the rank
+            of each item within the user's recommendations, by default True.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the top-k recommended items for each user. If `add_rank_col` is True, the DataFrame
+            will include an additional column `Columns.Score` for the rank of each item.
+        """
         # TODO: optimize computations and introduce polars
         # Discussion here: https://github.com/MobileTeleSystems/RecTools/pull/209
         # Branch here: https://github.com/blondered/RecTools/tree/feature/polars
@@ -152,26 +296,65 @@ class CandidateFeatureCollector:
 
 
 class NegativeSamplerBase:
-    """TODO: Documentation"""
+    """A base class for negative sampling."""
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
-        """TODO: Documentation"""
+        """
+        Sample negative examples from the given training data.
+
+        Parameters
+        ----------
+        train : pd.DataFrame
+            A DataFrame containing the training data from which negative examples will be sampled.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the sampled negative examples.
+        """
         raise NotImplementedError()
 
 
 class PerUserNegativeSampler(NegativeSamplerBase):
-    """TODO: Documentation"""
+    """
+    A negative sampler that samples a specified number of negative examples per user from the training data.
+    This class implements a per-user negative sampling strategy, where a fixed number of negative examples are
+    randomly selected for each user.
+    """
 
     def __init__(
         self,
         n_negatives: int = 3,
         random_state: tp.Optional[int] = None,
     ):
+        """
+        Initialize the PerUserNegativeSampler with `n_negatives` and `random_state`.
+
+        Parameters
+        ----------
+        n_negatives : int, optional
+            The number of negative examples to sample for each user, by default 3.
+        random_state : tp.Optional[int], optional
+            An optional random seed for reproducibility of the sampling process, by default None.
+        """
         self.n_negatives = n_negatives
         self.random_state = random_state
 
     def sample_negatives(self, train: pd.DataFrame) -> pd.DataFrame:
-        """TODO: Documentation"""
+        """
+        Sample negative examples from the given training data for each user.
+
+        Parameters
+        ----------
+        train : pd.DataFrame
+            A DataFrame containing the training data with user-item interactions.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the sampled training data, which includes the specified number of negative
+            examples per user along with all positive examples. The resulting DataFrame is shuffled.
+        """
         # train: user_id, item_id, scores, ranks, target(1/0)
 
         # TODO: refactor for faster computations: avoid shuffle and apply
@@ -199,7 +382,11 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
 
 class CandidateGenerator:
-    """TODO: Documentation"""
+    """
+    A class responsible for generating recommendation candidates using a specified model. The generator
+    can be configured to retain or discard ranks and scores, and it supports both training and recommendation
+    modes.
+    """
 
     def __init__(
         self,
@@ -210,6 +397,25 @@ class CandidateGenerator:
         scores_fillna_value: tp.Optional[float] = None,
         ranks_fillna_value: tp.Optional[float] = None,
     ):
+        """
+        Initialize the CandidateGenerator with model, num_candidates, keep_ranks, keep_scores,
+        scores_fillna_value and ranks_fillna_value.
+
+        Parameters
+        ----------
+        model : ModelBase
+            The model used for generating recommendation candidates.
+        num_candidates : int
+            The number of candidates to generate for each user.
+        keep_ranks : bool
+            Whether to include rank information in the generated candidates.
+        keep_scores : bool
+            Whether to include score information in the generated candidates.
+        scores_fillna_value : tp.Optional[float], optional
+            The value to fill missing scores with, if any. If None, missing scores are not filled, by default None.
+        ranks_fillna_value : tp.Optional[float], optional
+            The value to fill missing ranks with, if any. If None, missing ranks are not filled, by default None.
+        """
         self.model = model
         self.num_candidates = num_candidates
         self.keep_ranks = keep_ranks
@@ -220,7 +426,16 @@ class CandidateGenerator:
         self.is_fitted_for_recommend = False
 
     def fit(self, dataset: Dataset, for_train: bool) -> None:
-        """TODO: Documentation"""
+        """
+        Fit the model using the provided dataset, configuring the generator for either training or recommendation.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            The dataset to fit the model with. This should contain the necessary data for training or recommending.
+        for_train : bool
+            If True, configure the generator for training; otherwise, configure it for recommendation.
+        """
         self.model.fit(dataset)
         if for_train:
             self.is_fitted_for_train = True  # TODO: keep multiple fitted instances?
@@ -238,7 +453,29 @@ class CandidateGenerator:
         items_to_recommend: tp.Optional[ExternalIds] = None,
         on_unsupported_targets: ErrorBehaviour = "raise",
     ) -> pd.DataFrame:
-        """TODO: Documentation"""
+        """
+        Generate candidates for recommendations.
+
+        Parameters
+        ----------
+        users : ExternalIds
+            The users for whom to generate recommendation candidates.
+        dataset : Dataset
+            The dataset containing user-item interactions and additional data needed for recommendation.
+        filter_viewed : bool
+            Whether to filter out items that have already been viewed by the user.
+        for_train : bool
+            Whether the candidates are being generated for training purposes.
+        items_to_recommend : tp.Optional[ExternalIds], optional
+            Specific items to recommend. If None, recommend from all available items, by default None.
+        on_unsupported_targets : ErrorBehaviour, optional
+            Behavior when encountering unsupported targets. Can be "raise" to raise an error, by default "raise".
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the generated recommendation candidates.
+        """
         if for_train and not self.is_fitted_for_train:
             raise NotFittedForStageError(self.model.__class__.__name__, "train")
         if not for_train and not self.is_fitted_for_recommend:
@@ -556,7 +793,38 @@ class CandidateRankingModel(ModelBase):
         on_unsupported_targets: ErrorBehaviour = "raise",
         force_fit_candidate_generators: bool = False,
     ) -> pd.DataFrame:
-        """TODO: Documentation"""
+        """
+        Generate k recommendations for specified users using the dataset.
+
+        Parameters
+        ----------
+        users : ExternalIds
+            List of user ids for whom recommendations are generated.
+        dataset : Dataset
+            Dataset containing user-item interaction data and possibly additional features.
+        k : int
+            The number of recommendations to generate for each user.
+        filter_viewed : bool
+            If true, viewed items will be excluded from the recommendations.
+        items_to_recommend : ExternalIds, default None
+            List of item ids from which recommendations should be generated.
+            If not provided, it will include all items available in the dataset.
+        add_rank_col : bool, default True
+            If true, a rank column is added to the returned DataFrame.
+            The rank column shows the position of the item in the sorted order of predictions.
+        on_unsupported_targets : ErrorBehaviour, default raise
+            Controls the behavior when a target is encountered during prediction,
+            for which the Model makes no prediction.
+            If "raise", a ValueError is raised. If "warn", it outputs a warning,
+            and if "ignore", it silently continues.
+        force_fit_candidate_generators : bool, default False
+            If true, the candidate generators are fitted even if they are already fitted.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with the recommended items for users.
+        """
         self._check_is_fitted()
         self._check_k(k)
 
