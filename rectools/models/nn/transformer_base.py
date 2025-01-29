@@ -686,8 +686,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
 
-        # TODO: why do we need to init them here? Why not during fit?
-        self._init_torch_model()
         self._init_data_preparator()
 
         if trainer is None:
@@ -720,8 +718,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             devices=1,
         )
 
-    def _init_torch_model(self) -> None:
-        self._torch_model = TransformerBasedSessionEncoder(
+    def _init_torch_model(self) -> TransformerBasedSessionEncoder:
+        return TransformerBasedSessionEncoder(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
@@ -762,7 +760,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        torch_model = deepcopy(self._torch_model)
+        torch_model = self._init_torch_model()
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
         dataset_schema = self.data_preparator.train_dataset.get_schema(add_item_id_map=True)
@@ -918,12 +916,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             )
             self.data_preparator._init_extra_token_ids()
 
-            self._init_torch_model()
-            self._torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+            torch_model = self._init_torch_model()
+            torch_model.construct_item_net_from_dataset_schema(dataset_schema)
 
             self._init_trainer()
 
-            self._init_lightning_model(self._torch_model, dataset_schema, model_config)
+            self._init_lightning_model(torch_model, dataset_schema, model_config)
             self.lightning_model.load_state_dict(state["state_dict"])
             # TODO: We didn't load trainer staff here
 

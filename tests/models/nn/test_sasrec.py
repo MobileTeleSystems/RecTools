@@ -488,7 +488,6 @@ class TestSASRecModel:
         dataset: Dataset,
         tmp_path: str,
         verbose: int,
-        get_val_mask_func: tp.Callable,
         is_val_mask_func: bool,
         expected_columns: tp.List[str],
     ) -> None:
