@@ -1,3 +1,4 @@
+import os
 import typing as tp
 from tempfile import NamedTemporaryFile
 
@@ -5,6 +6,7 @@ import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -77,9 +79,12 @@ class TestTransformerModelBase:
         seed_everything(32, workers=True)
         recovered_model.fit(dataset)
 
+        self._assert_same_reco(model, recovered_model, dataset)
+
+    def _assert_same_reco(self, model_1: TransformerModelBase, model_2: TransformerModelBase, dataset: Dataset) -> None:
         users = dataset.user_id_map.external_ids[:2]
-        original_reco = model.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
-        recovered_reco = recovered_model.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
+        original_reco = model_1.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
+        recovered_reco = model_2.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
         pd.testing.assert_frame_equal(original_reco, recovered_reco)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
@@ -97,3 +102,34 @@ class TestTransformerModelBase:
             model._trainer = trainer  # pylint: disable=protected-access
         model.fit(dataset)
         assert_save_load_do_not_change_model(model, dataset)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_load_from_checkpoint(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+    ) -> None:
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+            }
+        )
+        model._trainer = Trainer(  # pylint: disable=protected-access
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator="cpu",
+            devices=1,
+            callbacks=ModelCheckpoint(filename="last_epoch"),
+        )
+        model.fit(dataset)
+
+        if model.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
+        assert os.path.isfile(ckpt_path)
+        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
+        assert isinstance(recovered_model, model_cls)
+
+        self._assert_same_reco(model, recovered_model, dataset)

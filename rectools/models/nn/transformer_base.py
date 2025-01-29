@@ -14,6 +14,7 @@
 
 import typing as tp
 from copy import deepcopy
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import numpy as np
@@ -923,7 +924,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
             self._init_lightning_model(torch_model, dataset_schema, model_config)
             self.lightning_model.load_state_dict(state["state_dict"])
-            # TODO: We didn't load trainer staff here
+            # Note that we didn't load trainer staff here
 
             self.is_fitted = True
 
@@ -932,4 +933,30 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             if loaded.__class__ is not self.__class__:
                 raise TypeError(f"Loaded object is not a direct instance of `{self.__class__.__name__}`")
             self.__dict__.update(loaded.__dict__)
-            self._trainer = state["trainer"]
+            self._trainer = state["trainer"]  # pylint: disable=protected-access
+
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
+        """Load model from Lightning checkpoint."""
+        state = torch.load(checkpoint_path, weights_only=False)
+        dataset_schema = state["hyper_parameters"]["dataset_schema"]
+
+        loaded = cls.from_config(state["hyper_parameters"]["model_config"])
+
+        loaded._init_data_preparator()
+        loaded.data_preparator.item_id_map = IdMap(
+            np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
+        )
+        loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
+
+        torch_model = loaded._init_torch_model()
+        torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+
+        loaded._init_trainer()
+
+        loaded.lightning_model = loaded.lightning_module_type.load_from_checkpoint(
+            checkpoint_path, torch_model=torch_model, data_preparator=loaded.data_preparator
+        )
+
+        loaded.is_fitted = True
+        return loaded
