@@ -616,8 +616,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     config_class: tp.Type[TransformerModelConfig_T]
     u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
-    train_loss_name: str = "train/loss"
-    val_loss_name: str = "val/loss"
+    train_loss_name: str = "train_loss"
+    val_loss_name: str = "val_loss"
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
