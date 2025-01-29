@@ -25,7 +25,9 @@ class TestTransformerModelBase:
 
     @pytest.fixture
     def trainer(self) -> Trainer:
-        return Trainer(max_epochs=2, min_epochs=2, deterministic=True, accelerator="cpu", enable_checkpointing=False)
+        return Trainer(
+            max_epochs=3, min_epochs=3, deterministic=True, accelerator="cpu", enable_checkpointing=False, devices=1
+        )
 
     @pytest.fixture
     def interactions_df(self) -> pd.DataFrame:
