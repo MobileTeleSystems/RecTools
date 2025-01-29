@@ -479,8 +479,8 @@ class TestSASRecModel:
     @pytest.mark.parametrize(
         "verbose, is_val_mask_func, expected_columns",
         (
-            (0, False, ["epoch", "step", "train/loss"]),
-            (1, True, ["epoch", "step", "train/loss", "val/loss"]),
+            (0, False, ["epoch", "step", "train_loss"]),
+            (1, True, ["epoch", "step", "train_loss", "val_loss"]),
         ),
     )
     def test_log_metrics(

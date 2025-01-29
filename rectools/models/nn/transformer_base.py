@@ -266,9 +266,9 @@ class SessionEncoderLightningModuleBase(LightningModule):
         Data preparator.
     verbose : int, default 0
         Verbosity level.
-    train_loss_name : str, default "train/loss"
+    train_loss_name : str, default "train_loss"
         Name of the training loss.
-    val_loss_name : str, default "val/loss"
+    val_loss_name : str, default "val_loss"
         Name of the training loss.
     """
 
@@ -280,11 +280,11 @@ class SessionEncoderLightningModuleBase(LightningModule):
         data_preparator: SessionEncoderDataPreparatorBase,
         lr: float,
         gbce_t: float,
-        loss: str = "softmax",
-        adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        loss: str,
         verbose: int = 0,
-        train_loss_name: str = "train/loss",
-        val_loss_name: str = "val/loss",
+        train_loss_name: str = "train_loss",
+        val_loss_name: str = "val_loss",
+        adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
     ):
         super().__init__()
         self.torch_model = torch_model
