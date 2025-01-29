@@ -644,7 +644,7 @@ class TestBERT4RecDataPreparator:
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
         self._seed_everything()
-        
+
     def _seed_everything(self) -> None:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)

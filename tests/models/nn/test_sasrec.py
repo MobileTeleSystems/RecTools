@@ -14,7 +14,6 @@
 
 # pylint: disable=too-many-lines
 
-import os
 import typing as tp
 from functools import partial
 
@@ -23,7 +22,6 @@ import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import CSVLogger
 
 from rectools import ExternalIds
 from rectools.columns import Columns
@@ -686,56 +684,6 @@ class TestSASRecModel:
         model = SASRecModel()
         model.fit(dataset)
         assert isinstance(model.torch_model, TransformerBasedSessionEncoder)
-
-    @pytest.mark.parametrize(
-        "verbose, is_val_mask_func, expected_columns",
-        (
-            (0, False, ["epoch", "step", "train_loss"]),
-            (1, True, ["epoch", "step", "train_loss", "val_loss"]),
-        ),
-    )
-    def test_log_metrics(
-        self,
-        dataset: Dataset,
-        tmp_path: str,
-        verbose: int,
-        is_val_mask_func: bool,
-        expected_columns: tp.List[str],
-    ) -> None:
-        logger = CSVLogger(save_dir=tmp_path)
-        trainer = Trainer(
-            default_root_dir=tmp_path,
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            accelerator="cpu",
-            logger=logger,
-            log_every_n_steps=1,
-            enable_checkpointing=False,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-            verbose=verbose,
-            get_val_mask_func=leave_one_out_mask if is_val_mask_func else None,
-        )
-        model.fit(dataset=dataset)
-
-        assert model.fit_trainer.logger is not None
-        assert model.fit_trainer.log_dir is not None
-
-        metrics_path = os.path.join(model.fit_trainer.log_dir, "metrics.csv")
-        assert os.path.isfile(metrics_path)
-
-        actual_columns = list(pd.read_csv(metrics_path).columns)
-        assert actual_columns == expected_columns
 
 
 class TestSASRecDataPreparator:

@@ -7,6 +7,7 @@ import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import CSVLogger
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -14,6 +15,8 @@ from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from rectools.models.nn.transformer_base import TransformerModelBase
 from tests.models.utils import assert_save_load_do_not_change_model
+
+from .utils import leave_one_out_mask
 
 
 class TestTransformerModelBase:
@@ -133,3 +136,51 @@ class TestTransformerModelBase:
         assert isinstance(recovered_model, model_cls)
 
         self._assert_same_reco(model, recovered_model, dataset)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    @pytest.mark.parametrize("verbose", (1, 0))
+    @pytest.mark.parametrize(
+        "is_val_mask_func, expected_columns",
+        (
+            (False, ["epoch", "step", "train_loss"]),
+            (True, ["epoch", "step", "train_loss", "val_loss"]),
+        ),
+    )
+    def test_log_metrics(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+        tmp_path: str,
+        verbose: int,
+        is_val_mask_func: bool,
+        expected_columns: tp.List[str],
+    ) -> None:
+        logger = CSVLogger(save_dir=tmp_path)
+        trainer = Trainer(
+            default_root_dir=tmp_path,
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator="cpu",
+            devices=1,
+            logger=logger,
+            enable_checkpointing=False,
+        )
+        get_val_mask_func = leave_one_out_mask if is_val_mask_func else None
+        model = model_cls.from_config(
+            {
+                "verbose": verbose,
+                "get_val_mask_func": get_val_mask_func,
+            }
+        )
+        model._trainer = trainer  # pylint: disable=protected-access
+        model.fit(dataset=dataset)
+
+        assert model.fit_trainer.logger is not None
+        assert model.fit_trainer.log_dir is not None
+
+        metrics_path = os.path.join(model.fit_trainer.log_dir, "metrics.csv")
+        assert os.path.isfile(metrics_path)
+
+        actual_columns = list(pd.read_csv(metrics_path).columns)
+        assert actual_columns == expected_columns
