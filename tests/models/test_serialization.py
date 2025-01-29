@@ -41,11 +41,12 @@ from rectools.models import (
     model_from_config,
 )
 from rectools.models.base import ModelBase, ModelConfig
+from rectools.models.nn.transformer_base import TransformerModelBase
 from rectools.models.vector import VectorModel
 
 from .utils import get_successors
 
-INTERMEDIATE_MODEL_CLASSES = (VectorModel,)
+INTERMEDIATE_MODEL_CLASSES = (VectorModel, TransformerModelBase)
 
 EXPOSABLE_MODEL_CLASSES = tuple(
     cls
