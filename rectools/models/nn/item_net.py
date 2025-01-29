@@ -209,7 +209,18 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
-        """TODO"""
+        """
+        Create IdEmbeddingsItemNet from RecTools dataset.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            RecTools dataset.
+        n_factors : int
+            Latent embedding size of item embeddings.
+        dropout_rate : float
+            Probability of a hidden unit of item embedding to be zeroed.
+        """
         n_items = dataset.item_id_map.size
         return cls(n_factors, n_items, dropout_rate)
 
@@ -237,7 +248,6 @@ class ItemNetConstructor(ItemNetBase):
         n_items: int,
         item_net_blocks: tp.Sequence[ItemNetBase],
     ) -> None:
-        """TODO"""
         super().__init__()
 
         if len(item_net_blocks) == 0:

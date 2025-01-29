@@ -41,13 +41,15 @@ from .transformer_net_blocks import (
 class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     """Data preparator for SASRecModel."""
 
+    train_session_max_len_addition: int = 1
+
     def _collate_fn_train(
         self,
         batch: List[Tuple[List[int], List[float]]],
     ) -> Dict[str, torch.Tensor]:
         """
-        Truncate each session from right to keep (session_max_len+1) last items.
-        Do left padding until  (session_max_len+1) is reached.
+        Truncate each session from right to keep `session_max_len` items.
+        Do left padding until `session_max_len` is reached.
         Split to `x`, `y`, and `yw`.
         """
         batch_size = len(batch)
@@ -266,7 +268,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
-        (, CatFeaturesItemNet) - item embeddings based on categorical features.
+        (CatFeaturesItemNet,) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.

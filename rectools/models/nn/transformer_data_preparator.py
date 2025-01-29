@@ -107,6 +107,8 @@ class SessionEncoderDataPreparatorBase:
         Function to get validation mask.
     """
 
+    train_session_max_len_addition: int = 0
+
     item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE,)
 
     def __init__(
@@ -120,7 +122,6 @@ class SessionEncoderDataPreparatorBase:
         get_val_mask_func: tp.Optional[tp.Callable] = None,
         **kwargs: tp.Any,
     ) -> None:
-        """TODO"""
         self.item_id_map: IdMap
         self.extra_token_ids: tp.Dict
         self.train_dataset: Dataset
@@ -163,7 +164,7 @@ class SessionEncoderDataPreparatorBase:
         interactions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
             .groupby(Columns.User, sort=False)
-            .tail(self.session_max_len + 1)
+            .tail(self.session_max_len + self.train_session_max_len_addition)
         )
 
         # Construct dataset

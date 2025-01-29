@@ -39,6 +39,8 @@ from .transformer_net_blocks import (
 class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     """Data Preparator for BERT4RecModel."""
 
+    train_session_max_len_addition: int = 0
+
     item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE, MASKING_VALUE)
 
     def __init__(
@@ -82,16 +84,22 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         self,
         batch: List[Tuple[List[int], List[float]]],
     ) -> Dict[str, torch.Tensor]:
-        """TODO"""
+        """
+        Mask session elements to receive `x`.
+        Get target by replacing session elements with a MASK token with probability `mask_prob`.
+        Truncate each session and target from right to keep `session_max_len` last items.
+        Do left padding until `session_max_len` is reached.
+        If `n_negatives` is not None, generate negative items from uniform distribution.
+        """
         batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len + 1))
-        y = np.zeros((batch_size, self.session_max_len + 1))
-        yw = np.zeros((batch_size, self.session_max_len + 1))
+        x = np.zeros((batch_size, self.session_max_len))
+        y = np.zeros((batch_size, self.session_max_len))
+        yw = np.zeros((batch_size, self.session_max_len))
         for i, (ses, ses_weights) in enumerate(batch):
             masked_session, target = self._mask_session(ses)
-            x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len + 1]
-            y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len + 1]
-            yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len + 1]
+            x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len]
+            y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len]
+            yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.n_negatives is not None:
@@ -105,7 +113,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 
     def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len + 1))
+        x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # until only leave-one-strategy
         yw = np.zeros((batch_size, 1))  # until only leave-one-strategy
         for i, (ses, ses_weights) in enumerate(batch):
@@ -116,8 +124,8 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             session = session + [self.extra_token_ids[MASKING_VALUE]]
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
 
-            # ses: [session_len] -> x[i]: [session_max_len + 1]
-            x[i, -len(input_session) - 1 :] = session[-self.session_max_len - 1 :]
+            # ses: [session_len] -> x[i]: [session_max_len]
+            x[i, -len(input_session) - 1 :] = session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
@@ -132,12 +140,16 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         return batch_dict
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
-        """Right truncation, left padding to session_max_len"""
-        x = np.zeros((len(batch), self.session_max_len + 1))
+        """
+        Right truncation, left padding to `session_max_len`
+        During inference model will use (`session_max_len` - 1) interactions
+        and one extra "MASK" token will be added for making predictions.
+        """
+        x = np.zeros((len(batch), self.session_max_len))
         for i, (ses, _) in enumerate(batch):
             session = ses.copy()
             session = session + [self.extra_token_ids[MASKING_VALUE]]
-            x[i, -len(ses) - 1 :] = session[-self.session_max_len - 1 :]
+            x[i, -len(ses) - 1 :] = session[-self.session_max_len :]
         return {"x": torch.LongTensor(x)}
 
 
@@ -224,7 +236,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
-        (, CatFeaturesItemNet) - item embeddings based on categorical features.
+        (CatFeaturesItemNet,) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
@@ -311,7 +323,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
 
     def _init_data_preparator(self) -> None:
         self.data_preparator: SessionEncoderDataPreparatorBase = self.data_preparator_type(
-            session_max_len=self.session_max_len - 1,  # TODO: remove `-1`
+            session_max_len=self.session_max_len,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,

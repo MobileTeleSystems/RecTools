@@ -29,9 +29,13 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.sasrec import SASRecDataPreparator, SASRecTransformerLayers
-from rectools.models.nn.transformer_base import LearnableInversePositionalEncoding, SessionEncoderLightningModule
+from rectools.models.nn.transformer_base import (
+    LearnableInversePositionalEncoding,
+    SessionEncoderLightningModule,
+    TransformerBasedSessionEncoder,
+)
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -76,6 +80,66 @@ class TestSASRecModel:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
+    def dataset_devices(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 13, 2, "2021-11-26"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 14, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def dataset_item_features(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 13, 2, "2021-11-26"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 14, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+            ],
+            columns=Columns.Interactions,
+        )
+        item_features = pd.DataFrame(
+            [
+                [11, "f1", "f1val1"],
+                [11, "f2", "f2val1"],
+                [12, "f1", "f1val1"],
+                [12, "f2", "f2val2"],
+                [13, "f1", "f1val1"],
+                [13, "f2", "f2val3"],
+                [11, "f3", 0],
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        ds = Dataset.construct(
+            interactions_df,
+            item_features_df=item_features,
+            cat_item_features=["f1", "f2"],
+        )
+        return ds
+
+    @pytest.fixture
     def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
         return Dataset.construct(interactions_df[:-4])
 
@@ -86,7 +150,9 @@ class TestSASRecModel:
             min_epochs=2,
             deterministic=True,
             accelerator="cpu",
+            enable_checkpointing=False,
         )
+
 
     @pytest.mark.parametrize(
         "accelerator,devices,recommend_accelerator",
@@ -129,23 +195,23 @@ class TestSASRecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [12, 14, 12, 13],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 17, 13, 14, 15, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [14, 12, 13, 12],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [15, 17, 14, 13, 17, 12, 14, 13],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [14, 12, 12, 13],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -154,21 +220,21 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                        Columns.Item: [13, 11, 12, 13, 11, 12, 14, 12, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 14, 13, 11, 12, 14, 17, 14, 15],
+                        Columns.Item: [13, 14, 11, 11, 14, 12, 14, 11, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 14, 15, 14, 13, 12, 12, 17, 14],
+                        Columns.Item: [11, 14, 13, 11, 14, 13, 14, 11, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -177,7 +243,7 @@ class TestSASRecModel:
     )
     def test_u2i(
         self,
-        dataset: Dataset,
+        dataset_devices: Dataset,
         filter_viewed: bool,
         accelerator: str,
         devices: tp.Union[int, tp.List[int]],
@@ -192,10 +258,12 @@ class TestSASRecModel:
             deterministic=True,
             devices=devices,
             accelerator=accelerator,
+            enable_checkpointing=False,
         )
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
+            n_heads=1,
             session_max_len=3,
             lr=0.001,
             batch_size=4,
@@ -205,15 +273,149 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
-        model.fit(dataset=dataset)
+        model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
         if accelerator == "cpu" and devices == 1:
             expected = expected_cpu_1
         elif accelerator == "cpu" and devices == 2:
             expected = expected_cpu_2
         else:
             expected = expected_gpu
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "loss,expected",
+        (
+            (
+                "BCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+            (
+                "gBCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+        ),
+    )
+    def test_u2i_losses(
+        self,
+        dataset: Dataset,
+        loss: str,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = SASRecModel(
+            n_negatives=2,
+            n_factors=32,
+            n_blocks=2,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+            loss=loss,
+        )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=True)
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "expected",
+        (
+            pd.DataFrame(
+                {
+                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                    Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                }
+            ),
+        ),
+    )
+    def test_u2i_with_key_and_attn_masks(
+        self,
+        dataset: Dataset,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            n_heads=1,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            trainer=trainer,
+            use_key_padding_mask=True,
+        )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    @pytest.mark.parametrize(
+        "expected",
+        (
+            pd.DataFrame(
+                {
+                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                    Columns.Item: [13, 11, 14, 11, 13, 14, 14, 12, 13],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                }
+            ),
+        ),
+    )
+    def test_u2i_with_item_features(
+        self,
+        dataset_item_features: Dataset,
+        trainer: Trainer,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = SASRecModel(
+            n_factors=32,
+            n_blocks=2,
+            n_heads=1,
+            session_max_len=3,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
+            trainer=trainer,
+            use_key_padding_mask=True,
+        )
+        model.fit(dataset=dataset_item_features)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset_item_features, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -476,6 +678,16 @@ class TestSASRecModel:
             """
         )
 
+    def test_raises_when_loss_is_not_supported(self, dataset: Dataset) -> None:
+        model = SASRecModel(loss="gbce")
+        with pytest.raises(ValueError):
+            model.fit(dataset=dataset)
+
+    def test_torch_model(self, dataset: Dataset) -> None:
+        model = SASRecModel()
+        model.fit(dataset)
+        assert isinstance(model.torch_model, TransformerBasedSessionEncoder)
+
     @pytest.mark.parametrize(
         "verbose, is_val_mask_func, expected_columns",
         (
@@ -583,45 +795,6 @@ class TestSASRecDataPreparator:
         )
 
     @pytest.mark.parametrize(
-        "expected_user_id_map, expected_item_id_map, expected_interactions",
-        (
-            (
-                IdMap.from_values([30, 40, 10]),
-                IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-                Interactions(
-                    pd.DataFrame(
-                        [
-                            [0, 1, 1.0, "2021-11-25"],
-                            [1, 2, 1.0, "2021-11-25"],
-                            [0, 3, 2.0, "2021-11-26"],
-                            [1, 4, 1.0, "2021-11-26"],
-                            [0, 2, 1.0, "2021-11-27"],
-                            [2, 5, 1.0, "2021-11-28"],
-                            [2, 2, 1.0, "2021-11-29"],
-                            [2, 3, 1.0, "2021-11-29"],
-                            [2, 6, 1.0, "2021-11-30"],
-                        ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-                    ),
-                ),
-            ),
-        ),
-    )
-    def test_process_dataset_train(
-        self,
-        dataset: Dataset,
-        data_preparator: SASRecDataPreparator,
-        expected_interactions: Interactions,
-        expected_item_id_map: IdMap,
-        expected_user_id_map: IdMap,
-    ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        actual = data_preparator.train_dataset
-        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, expected_interactions)
-
-    @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_train_interactions, expected_val_interactions",
         (
             (
@@ -673,82 +846,6 @@ class TestSASRecDataPreparator:
         pd.testing.assert_frame_equal(actual_val_interactions, expected_val_interactions.df)
 
     @pytest.mark.parametrize(
-        "expected_user_id_map, expected_item_id_map, expected_interactions",
-        (
-            (
-                IdMap.from_values([10, 20]),
-                IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-                Interactions(
-                    pd.DataFrame(
-                        [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [1, 6, 9.0, "2021-11-28"],
-                        ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-                    ),
-                ),
-            ),
-        ),
-    )
-    def test_transform_dataset_u2i(
-        self,
-        dataset: Dataset,
-        data_preparator: SASRecDataPreparator,
-        expected_interactions: Interactions,
-        expected_item_id_map: IdMap,
-        expected_user_id_map: IdMap,
-    ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        users = [10, 20]
-        actual = data_preparator.transform_dataset_u2i(dataset, users)
-        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, expected_interactions)
-
-    @pytest.mark.parametrize(
-        "expected_user_id_map, expected_item_id_map, expected_interactions",
-        (
-            (
-                IdMap.from_values([10, 30, 40, 50, 20]),
-                IdMap.from_values(["PAD", 15, 11, 12, 17, 14, 13]),
-                Interactions(
-                    pd.DataFrame(
-                        [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [1, 2, 1.0, "2021-11-27"],
-                            [1, 3, 2.0, "2021-11-26"],
-                            [1, 1, 1.0, "2021-11-25"],
-                            [2, 2, 1.0, "2021-11-25"],
-                            [2, 4, 1.0, "2021-11-26"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [4, 6, 9.0, "2021-11-28"],
-                        ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
-                    ),
-                ),
-            ),
-        ),
-    )
-    def test_tranform_dataset_i2i(
-        self,
-        dataset: Dataset,
-        data_preparator: SASRecDataPreparator,
-        expected_interactions: Interactions,
-        expected_item_id_map: IdMap,
-        expected_user_id_map: IdMap,
-    ) -> None:
-        data_preparator.process_dataset_train(dataset)
-        actual = data_preparator.transform_dataset_i2i(dataset)
-        assert_id_map_equal(actual.user_id_map, expected_user_id_map)
-        assert_id_map_equal(actual.item_id_map, expected_item_id_map)
-        assert_interactions_set_equal(actual.interactions, expected_interactions)
-
-    @pytest.mark.parametrize(
         "train_batch",
         (
             (
@@ -756,6 +853,7 @@ class TestSASRecDataPreparator:
                     "x": torch.tensor([[5, 2, 3], [0, 1, 3], [0, 0, 2]]),
                     "y": torch.tensor([[2, 3, 6], [0, 3, 2], [0, 0, 4]]),
                     "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 2.0, 1.0], [0.0, 0.0, 1.0]]),
+                    "negatives": torch.tensor([[[5], [1], [1]], [[6], [3], [4]], [[5], [2], [4]]]),
                 }
             ),
         ),
