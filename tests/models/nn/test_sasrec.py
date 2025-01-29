@@ -149,6 +149,7 @@ class TestSASRecModel:
             deterministic=True,
             accelerator="cpu",
             enable_checkpointing=False,
+            devices=1,
         )
 
     @pytest.mark.parametrize(
