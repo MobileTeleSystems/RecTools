@@ -28,6 +28,9 @@ from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
+PADDING_VALUE = "PAD"
+MASKING_VALUE = "MASK"
+
 
 class SequenceDataset(TorchDataset):
     """
@@ -104,12 +107,13 @@ class SessionEncoderDataPreparatorBase:
         Function to get validation mask.
     """
 
+    item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE,)
+
     def __init__(
         self,
         session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
-        item_extra_tokens: tp.Sequence[Hashable],
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
@@ -126,7 +130,6 @@ class SessionEncoderDataPreparatorBase:
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
         self.train_min_user_interactions = train_min_user_interactions
-        self.item_extra_tokens = item_extra_tokens
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
 
@@ -197,8 +200,7 @@ class SessionEncoderDataPreparatorBase:
         self.train_dataset = Dataset(user_id_map, item_id_map, dataset_interactions, item_features=item_features)
 
         self.item_id_map = self.train_dataset.item_id_map
-        extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
-        self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
+        self._init_extra_token_ids()
 
         # Define val interactions
         if self.get_val_mask_func is not None:
@@ -211,6 +213,10 @@ class SessionEncoderDataPreparatorBase:
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+
+    def _init_extra_token_ids(self) -> None:
+        extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
+        self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
 
     def get_dataloader_train(self) -> DataLoader:
         """

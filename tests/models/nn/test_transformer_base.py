@@ -52,14 +52,16 @@ class TestTransformerModelBase:
     def test_save_load_for_unfitted_model(
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
     ) -> None:
-        if default_trainer:
-            trainer = None
         seed_everything(32, workers=True)
-        model = model_cls(
-            trainer=trainer,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+            }
         )
+        if not default_trainer:
+            model._trainer = trainer  # pylint: disable=protected-access
+
         with NamedTemporaryFile() as f:
             model.save(f.name)
             seed_everything(32, workers=True)
@@ -85,12 +87,13 @@ class TestTransformerModelBase:
     def test_save_load_for_fitted_model(
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
     ) -> None:
-        if default_trainer:
-            trainer = None
-        model = model_cls(
-            trainer=trainer,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+            }
         )
+        if not default_trainer:
+            model._trainer = trainer  # pylint: disable=protected-access
         model.fit(dataset)
         assert_save_load_do_not_change_model(model, dataset)

@@ -30,7 +30,7 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
 from rectools.models.nn.item_net import IdEmbeddingsItemNet
-from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator, SASRecTransformerLayers
+from rectools.models.nn.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformer_base import LearnableInversePositionalEncoding, SessionEncoderLightningModule
 from tests.models.data import DATASET
 from tests.models.utils import (
@@ -576,9 +576,7 @@ class TestSASRecDataPreparator:
 
     @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
-        return SASRecDataPreparator(
-            session_max_len=3, batch_size=4, dataloader_num_workers=0, item_extra_tokens=(PADDING_VALUE,)
-        )
+        return SASRecDataPreparator(session_max_len=3, batch_size=4, dataloader_num_workers=0)
 
     @pytest.fixture
     def data_preparator_val_mask(self) -> SASRecDataPreparator:
@@ -598,7 +596,6 @@ class TestSASRecDataPreparator:
             session_max_len=3,
             batch_size=4,
             dataloader_num_workers=0,
-            item_extra_tokens=(PADDING_VALUE,),
             get_val_mask_func=get_val_mask_func,
         )
 

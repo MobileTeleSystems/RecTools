@@ -40,8 +40,6 @@ from .transformer_net_blocks import (
     TransformerLayersBase,
 )
 
-PADDING_VALUE = "PAD"
-
 
 class TransformerBasedSessionEncoder(torch.nn.Module):
     """
@@ -688,6 +686,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
 
+        # TODO: why do we need to init them here? Why not during fit?
         self._init_torch_model()
         self._init_data_preparator()
 
@@ -917,6 +916,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self.data_preparator.item_id_map = IdMap(
                 np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
             )
+            self.data_preparator._init_extra_token_ids()
 
             self._init_torch_model()
             self._torch_model.construct_item_net_from_dataset_schema(dataset_schema)

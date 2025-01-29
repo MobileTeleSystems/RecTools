@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import typing as tp
-from collections.abc import Hashable
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -22,14 +21,13 @@ from pytorch_lightning import Trainer
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
-    PADDING_VALUE,
     SessionEncoderDataPreparatorType,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
     TransformerModelBase,
     TransformerModelConfig,
 )
-from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_data_preparator import MASKING_VALUE, PADDING_VALUE, SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
@@ -37,11 +35,11 @@ from .transformer_net_blocks import (
     TransformerLayersBase,
 )
 
-MASKING_VALUE = "MASK"
-
 
 class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
     """Data Preparator for BERT4RecModel."""
+
+    item_extra_tokens: tp.Sequence[tp.Hashable] = (PADDING_VALUE, MASKING_VALUE)
 
     def __init__(
         self,
@@ -51,7 +49,6 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         dataloader_num_workers: int,
         train_min_user_interactions: int,
         mask_prob: float,
-        item_extra_tokens: tp.Sequence[Hashable],
         shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
     ) -> None:
@@ -61,7 +58,6 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interactions,
-            item_extra_tokens=item_extra_tokens,
             shuffle_train=shuffle_train,
             get_val_mask_func=get_val_mask_func,
         )
@@ -320,7 +316,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
-            item_extra_tokens=(PADDING_VALUE, MASKING_VALUE),
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
         )

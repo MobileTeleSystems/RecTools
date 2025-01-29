@@ -22,7 +22,6 @@ from torch import nn
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
-    PADDING_VALUE,
     SessionEncoderDataPreparatorType,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
@@ -73,8 +72,8 @@ class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
     def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
-        y = np.zeros((batch_size, 1))  # until only leave-one-strategy
-        yw = np.zeros((batch_size, 1))  # until only leave-one-strategy
+        y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
+        yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         for i, (ses, ses_weights) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
@@ -355,7 +354,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
-            item_extra_tokens=(PADDING_VALUE,),
             train_min_user_interactions=self.train_min_user_interactions,
             get_val_mask_func=self.get_val_mask_func,
         )
