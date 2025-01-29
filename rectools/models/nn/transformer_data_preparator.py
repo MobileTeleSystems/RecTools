@@ -116,6 +116,7 @@ class SessionEncoderDataPreparatorBase:
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+        **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
         self.extra_token_ids: tp.Dict
@@ -164,7 +165,7 @@ class SessionEncoderDataPreparatorBase:
         )
 
         # Construct dataset
-        # TODO: user features are dropped for now
+        # User features are dropped for now because model doesn't support them
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
@@ -237,7 +238,7 @@ class SessionEncoderDataPreparatorBase:
 
         Returns
         -------
-        Optional(Dataset)
+        Optional(DataLoader)
             Validation dataloader.
         """
         if self.val_interactions is None:
@@ -253,14 +254,9 @@ class SessionEncoderDataPreparatorBase:
         )
         return val_dataloader
 
-    def get_dataloader_recommend(self, dataset: Dataset) -> DataLoader:
+    def get_dataloader_recommend(self, dataset: Dataset, batch_size: int) -> DataLoader:
         """
-        Construct recommend dataloader from dataset.
-
-        Parameters
-        ----------
-        dataset : Dataset
-            RecTools dataset prepared for generating recommendations.
+        Construct recommend dataloader from processed dataset.
 
         Returns
         -------
@@ -274,7 +270,7 @@ class SessionEncoderDataPreparatorBase:
         sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
-            batch_size=self.batch_size,
+            batch_size=batch_size,
             collate_fn=self._collate_fn_recommend,
             num_workers=self.dataloader_num_workers,
             shuffle=False,
@@ -319,7 +315,7 @@ class SessionEncoderDataPreparatorBase:
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
         # Construct dataset
-        # TODO: For now features are dropped because model doesn't support them
+        # For now features are dropped because model doesn't support them on inference
         n_filtered = len(users) - rec_user_id_map.size
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""

@@ -13,20 +13,22 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators import Accelerator
 from torch import nn
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
     PADDING_VALUE,
+    SessionEncoderDataPreparatorType,
     SessionEncoderLightningModule,
     SessionEncoderLightningModuleBase,
+    TransformerLayersType,
     TransformerModelBase,
+    TransformerModelConfig,
 )
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
@@ -185,7 +187,15 @@ class SASRecTransformerLayers(TransformerLayersBase):
         return seqs
 
 
-class SASRecModel(TransformerModelBase):
+class SASRecModelConfig(TransformerModelConfig):
+    """SASRecModel config."""
+
+    data_preparator_type: SessionEncoderDataPreparatorType = SASRecDataPreparator
+    transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
+    use_causal_attn: bool = True
+
+
+class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     """
     SASRec model.
 
@@ -229,8 +239,20 @@ class SASRecModel(TransformerModelBase):
     deterministic : bool, default ``False``
         If ``True``, set deterministic algorithms for PyTorch operations.
         Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
-    recommend_device : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"} or Accelerator, default "auto"
-        Device for recommend. Used at predict_step of lightning module.
+    recommend_batch_size : int, default 256
+        How many samples per batch to load during `recommend`.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_batch_size` attribute.
+    recommend_accelerator : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"}, default "auto"
+        Accelerator type for `recommend`. Used at predict_step of lightning module.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_accelerator` attribute.
+    recommend_devices : int | List[int], default 1
+        Devices for `recommend`. Please note that multi-device inference is not supported!
+        Do not specify more then one device. For ``gpu`` accelerator you can pass which device to
+        use, e.g. ``[1]``.
+        Used at predict_step of lightning module.
+        Multi-device recommendations are not supported.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
     recommend_n_threads : int, default 0
@@ -261,26 +283,30 @@ class SASRecModel(TransformerModelBase):
         Function to get validation mask.
     """
 
+    config_class = SASRecModelConfig
+
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        n_blocks: int = 1,
-        n_heads: int = 1,
-        n_factors: int = 128,
+        n_blocks: int = 2,
+        n_heads: int = 4,
+        n_factors: int = 256,
         use_pos_emb: bool = True,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
-        session_max_len: int = 32,
+        session_max_len: int = 100,
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
-        lr: float = 0.01,
+        lr: float = 0.001,
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: Union[str, Accelerator] = "auto",
+        recommend_batch_size: int = 256,
+        recommend_accelerator: str = "auto",
+        recommend_devices: tp.Union[int, tp.List[int]] = 1,
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
         train_min_user_interactions: int = 2,
@@ -303,26 +329,35 @@ class SASRecModel(TransformerModelBase):
             use_key_padding_mask=use_key_padding_mask,
             dropout_rate=dropout_rate,
             session_max_len=session_max_len,
+            dataloader_num_workers=dataloader_num_workers,
+            batch_size=batch_size,
             loss=loss,
+            n_negatives=n_negatives,
             gbce_t=gbce_t,
             lr=lr,
             epochs=epochs,
             verbose=verbose,
             deterministic=deterministic,
-            recommend_device=recommend_device,
+            recommend_batch_size=recommend_batch_size,
+            recommend_accelerator=recommend_accelerator,
+            recommend_devices=recommend_devices,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
+            train_min_user_interactions=train_min_user_interactions,
             trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
-        )
-        self.data_preparator = data_preparator_type(
-            session_max_len=session_max_len,
-            n_negatives=n_negatives if loss != "softmax" else None,
-            batch_size=batch_size,
-            dataloader_num_workers=dataloader_num_workers,
-            item_extra_tokens=(PADDING_VALUE,),
-            train_min_user_interactions=train_min_user_interactions,
             get_val_mask_func=get_val_mask_func,
+        )
+
+    def _init_data_preparator(self) -> None:
+        self.data_preparator = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            item_extra_tokens=(PADDING_VALUE,),
+            train_min_user_interactions=self.train_min_user_interactions,
+            get_val_mask_func=self.get_val_mask_func,
         )

@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,4 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-VERSION = "0.10.0"
+import pandas as pd
+
+from rectools import Columns
+
+
+def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
+    rank = (
+        interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+        .groupby(Columns.User, sort=False)
+        .cumcount()
+    )
+    return rank == 0

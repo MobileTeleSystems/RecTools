@@ -3,7 +3,7 @@ Security Policy
 
 **Supported Python versions**
 
-3.8 or above
+3.9 or above
 
 **Product development security recommendations**
 

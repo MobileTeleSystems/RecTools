@@ -17,15 +17,17 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+import typing_extensions as tpe
 from implicit.gpu import HAS_CUDA
+from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.accelerators import Accelerator
 
 from rectools import ExternalIds
 from rectools.dataset import Dataset
-from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase
+from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
+from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
 from .transformer_data_preparator import SessionEncoderDataPreparatorBase
@@ -321,10 +323,14 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
             logits = self._get_pos_neg_logits(x, y, negatives)
             loss = self._calc_gbce_loss(logits, y, w, negatives)
         else:
-            raise ValueError(f"loss {self.loss} is not supported")
+            loss = self._calc_custom_loss(batch, batch_idx)
 
         self.log(self.train_loss_name, loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
+
         return loss
+
+    def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        raise ValueError(f"loss {self.loss} is not supported")
 
     def on_validation_epoch_start(self) -> None:
         """Get item embeddings before validation epoch."""
@@ -431,10 +437,16 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
         loss = self._calc_bce_loss(logits, y, w)
         return loss
 
-    def on_train_end(self) -> None:
+    def on_predict_epoch_start(self) -> None:
         """Save item embeddings"""
         self.eval()
-        self.item_embs = self.torch_model.item_model.get_all_embeddings()
+        with torch.no_grad():
+            self.item_embs = self.torch_model.item_model.get_all_embeddings()
+
+    def on_predict_epoch_end(self) -> None:
+        """Clear item embeddings"""
+        del self.item_embs
+        torch.cuda.empty_cache()
 
     def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """
@@ -450,85 +462,263 @@ class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
                 torch.nn.init.xavier_normal_(param.data)
 
 
+# ####  --------------  Transformer Model Config  --------------  #### #
+
+
+def _get_class_obj(spec: tp.Any) -> tp.Any:
+    if not isinstance(spec, str):
+        return spec
+    return import_object(spec)
+
+
+def _get_class_obj_sequence(spec: tp.Sequence[tp.Any]) -> tp.Tuple[tp.Any, ...]:
+    return tuple(map(_get_class_obj, spec))
+
+
+def _serialize_type_sequence(obj: tp.Sequence[tp.Type]) -> tp.Tuple[str, ...]:
+    return tuple(map(get_class_or_function_full_path, obj))
+
+
+PositionalEncodingType = tpe.Annotated[
+    tp.Type[PositionalEncodingBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+TransformerLayersType = tpe.Annotated[
+    tp.Type[TransformerLayersBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+SessionEncoderLightningModuleType = tpe.Annotated[
+    tp.Type[SessionEncoderLightningModuleBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+SessionEncoderDataPreparatorType = tpe.Annotated[
+    tp.Type[SessionEncoderDataPreparatorBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+ItemNetBlockTypes = tpe.Annotated[
+    tp.Sequence[tp.Type[ItemNetBase]],
+    BeforeValidator(_get_class_obj_sequence),
+    PlainSerializer(
+        func=_serialize_type_sequence,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+CallableSerialized = tpe.Annotated[
+    tp.Callable,
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+
+class TransformerModelConfig(ModelConfig):
+    """Transformer model base config."""
+
+    data_preparator_type: SessionEncoderDataPreparatorType
+    n_blocks: int = 2
+    n_heads: int = 4
+    n_factors: int = 256
+    use_pos_emb: bool = True
+    use_causal_attn: bool = False
+    use_key_padding_mask: bool = False
+    dropout_rate: float = 0.2
+    session_max_len: int = 100
+    dataloader_num_workers: int = 0
+    batch_size: int = 128
+    loss: str = "softmax"
+    n_negatives: int = 1
+    gbce_t: float = 0.2
+    lr: float = 0.001
+    epochs: int = 3
+    verbose: int = 0
+    deterministic: bool = False
+    recommend_batch_size: int = 256
+    recommend_accelerator: str = "auto"
+    recommend_devices: tp.Union[int, tp.List[int]] = 1
+    recommend_n_threads: int = 0
+    recommend_use_gpu_ranking: bool = True
+    train_min_user_interactions: int = 2
+    item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
+    pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
+    transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
+    lightning_module_type: SessionEncoderLightningModuleType = SessionEncoderLightningModule
+    get_val_mask_func: tp.Optional[CallableSerialized] = None
+
+
+TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
+
+
 # ####  --------------  Transformer Model Base  --------------  #### #
 
 
-class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attributes
+class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disable=too-many-instance-attributes
     """
     Base model for all recommender algorithms that work on transformer architecture (e.g. SASRec, Bert4Rec).
     To create a custom transformer model it is necessary to inherit from this class
     and write self.data_preparator initialization logic.
     """
 
+    config_class: tp.Type[TransformerModelConfig_T]
+    u2i_dist = Distance.DOT
+    i2i_dist = Distance.COSINE
     train_loss_name: str = "train/loss"
     val_loss_name: str = "val/loss"
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        transformer_layers_type: tp.Type[TransformerLayersBase],
-        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase],
-        n_blocks: int = 1,
-        n_heads: int = 1,
-        n_factors: int = 128,
+        data_preparator_type: SessionEncoderDataPreparatorType,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
+        n_blocks: int = 2,
+        n_heads: int = 4,
+        n_factors: int = 256,
         use_pos_emb: bool = True,
-        use_causal_attn: bool = True,
+        use_causal_attn: bool = False,
         use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
-        session_max_len: int = 32,
+        session_max_len: int = 100,
+        dataloader_num_workers: int = 0,
+        batch_size: int = 128,
         loss: str = "softmax",
+        n_negatives: int = 1,
         gbce_t: float = 0.5,
-        lr: float = 0.01,
+        lr: float = 0.001,
         epochs: int = 3,
         verbose: int = 0,
         deterministic: bool = False,
-        recommend_device: tp.Union[str, Accelerator] = "auto",
+        recommend_batch_size: int = 256,
+        recommend_accelerator: str = "auto",
+        recommend_devices: tp.Union[int, tp.List[int]] = 1,
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
+        train_min_user_interactions: int = 2,
         trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
+        get_val_mask_func: tp.Optional[tp.Callable] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
+
+        self._check_devices(recommend_devices)
+
+        self.transformer_layers_type = transformer_layers_type
+        self.data_preparator_type = data_preparator_type
+        self.n_blocks = n_blocks
+        self.n_heads = n_heads
+        self.n_factors = n_factors
+        self.use_pos_emb = use_pos_emb
+        self.use_causal_attn = use_causal_attn
+        self.use_key_padding_mask = use_key_padding_mask
+        self.dropout_rate = dropout_rate
+        self.session_max_len = session_max_len
+        self.dataloader_num_workers = dataloader_num_workers
+        self.batch_size = batch_size
+        self.loss = loss
+        self.n_negatives = n_negatives
+        self.gbce_t = gbce_t
+        self.lr = lr
+        self.epochs = epochs
+        self.deterministic = deterministic
+        self.recommend_batch_size = recommend_batch_size
+        self.recommend_accelerator = recommend_accelerator
+        self.recommend_devices = recommend_devices
         self.recommend_n_threads = recommend_n_threads
-        self.recommend_device = recommend_device
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
-        self._torch_model = TransformerBasedSessionEncoder(
-            n_blocks=n_blocks,
-            n_factors=n_factors,
-            n_heads=n_heads,
-            session_max_len=session_max_len,
-            dropout_rate=dropout_rate,
-            use_pos_emb=use_pos_emb,
-            use_causal_attn=use_causal_attn,
-            use_key_padding_mask=use_key_padding_mask,
-            transformer_layers_type=transformer_layers_type,
-            item_net_block_types=item_net_block_types,
-            pos_encoding_type=pos_encoding_type,
-        )
-        self.lightning_model: SessionEncoderLightningModuleBase
+        self.train_min_user_interactions = train_min_user_interactions
+        self.item_net_block_types = item_net_block_types
+        self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
-        self.fit_trainer: Trainer
+        self.get_val_mask_func = get_val_mask_func
+
+        self._init_torch_model()
+        self._init_data_preparator()
+
         if trainer is None:
-            self._trainer = Trainer(
-                max_epochs=epochs,
-                min_epochs=epochs,
-                deterministic=deterministic,
-                enable_progress_bar=verbose > 0,
-                enable_model_summary=verbose > 0,
-                logger=verbose > 0,
-                enable_checkpointing=False,
-                devices=1,
-            )
+            self._init_trainer()
         else:
             self._trainer = trainer
+
+        self.lightning_model: SessionEncoderLightningModuleBase
         self.data_preparator: SessionEncoderDataPreparatorBase
-        self.u2i_dist = Distance.DOT
-        self.i2i_dist = Distance.COSINE
-        self.lr = lr
-        self.loss = loss
-        self.gbce_t = gbce_t
+        self.fit_trainer: Trainer
+
+    def _check_devices(self, recommend_devices: tp.Union[int, tp.List[int]]) -> None:
+        if isinstance(recommend_devices, int) and recommend_devices != 1:
+            raise ValueError("Only single device is supported for inference")
+        if isinstance(recommend_devices, list) and len(recommend_devices) > 1:
+            raise ValueError("Only single device is supported for inference")
+
+    def _init_data_preparator(self) -> None:
+        raise NotImplementedError()
+
+    def _init_trainer(self) -> None:
+        self._trainer = Trainer(
+            max_epochs=self.epochs,
+            min_epochs=self.epochs,
+            deterministic=self.deterministic,
+            enable_progress_bar=self.verbose > 0,
+            enable_model_summary=self.verbose > 0,
+            logger=self.verbose > 0,
+            enable_checkpointing=False,
+            devices=1,
+        )
+
+    def _init_torch_model(self) -> None:
+        self._torch_model = TransformerBasedSessionEncoder(
+            n_blocks=self.n_blocks,
+            n_factors=self.n_factors,
+            n_heads=self.n_heads,
+            session_max_len=self.session_max_len,
+            dropout_rate=self.dropout_rate,
+            use_pos_emb=self.use_pos_emb,
+            use_causal_attn=self.use_causal_attn,
+            use_key_padding_mask=self.use_key_padding_mask,
+            transformer_layers_type=self.transformer_layers_type,
+            item_net_block_types=self.item_net_block_types,
+            pos_encoding_type=self.pos_encoding_type,
+        )
+
+    def _init_lightning_model(self, torch_model: TransformerBasedSessionEncoder) -> None:
+        self.lightning_model = self.lightning_module_type(
+            torch_model=torch_model,
+            lr=self.lr,
+            loss=self.loss,
+            gbce_t=self.gbce_t,
+            data_preparator=self.data_preparator,
+            verbose=self.verbose,
+            train_loss_name=self.train_loss_name,
+            val_loss_name=self.val_loss_name,
+        )
 
     def _fit(
         self,
@@ -541,16 +731,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         torch_model = deepcopy(self._torch_model)
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
-        self.lightning_model = self.lightning_module_type(
-            torch_model=torch_model,
-            lr=self.lr,
-            loss=self.loss,
-            gbce_t=self.gbce_t,
-            data_preparator=self.data_preparator,
-            verbose=self.verbose,
-            train_loss_name=self.train_loss_name,
-            val_loss_name=self.val_loss_name,
-        )
+        self._init_lightning_model(torch_model)
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
@@ -565,6 +746,10 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
 
+    def _init_recommend_trainer(self) -> Trainer:
+        self._check_devices(self.recommend_devices)
+        return Trainer(devices=self.recommend_devices, accelerator=self.recommend_accelerator)
+
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
@@ -576,21 +761,22 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        recommend_trainer = Trainer(devices=1, accelerator=self.recommend_device)
-        recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset)
+        recommend_trainer = self._init_recommend_trainer()
+        recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
+
         session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
         if session_embs is None:  # pragma: no cover
             explanation = """Received empty recommendations. Used to solve incompatible type linter error."""
             raise ValueError(explanation)
         user_embs = np.concatenate(session_embs, axis=0)
         user_embs = user_embs[user_ids]
-        item_embs = self.lightning_model.item_embs
-        item_embs_np = item_embs.detach().cpu().numpy()
+
+        item_embs = self.get_item_vectors()
 
         ranker = ImplicitRanker(
             self.u2i_dist,
             user_embs,  # [n_rec_users, n_factors]
-            item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
         )
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
@@ -598,7 +784,7 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         else:
             ui_csr_for_filter = None
 
-        # TODO: When filter_viewed is not needed and user has GPU, torch DOT and topk should be faster
+        # TODO: We should test if torch `topk`` is faster when `filter_viewed`` is ``False``
         user_ids_indices, all_reco_ids, all_scores = ranker.rank(
             subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
             k=k,
@@ -608,7 +794,21 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
             use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
         all_target_ids = user_ids[user_ids_indices]
-        return all_target_ids, all_reco_ids, all_scores  # n_rec_users, model_internal, scores
+        return all_target_ids, all_reco_ids, all_scores
+
+    def get_item_vectors(self) -> np.ndarray:
+        """
+        Compute catalog item embeddings through torch model.
+
+        Returns
+        -------
+        np.ndarray
+            Full catalog item embeddings including extra tokens.
+        """
+        self.torch_model.eval()
+        with torch.no_grad():
+            item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()
+        return item_embs
 
     def _recommend_i2i(
         self,
@@ -620,9 +820,9 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        item_embs = self.lightning_model.item_embs.detach().cpu().numpy()
-        # TODO: i2i reco do not need filtering viewed. And user most of the times has GPU
-        # Should we use torch dot and topk? Should be faster
+        item_embs = self.get_item_vectors()
+        # TODO: i2i recommendations do not need filtering viewed and user most of the times has GPU
+        # We should test if torch `topk`` is faster
 
         ranker = ImplicitRanker(
             self.i2i_dist,
@@ -642,3 +842,16 @@ class TransformerModelBase(ModelBase):  # pylint: disable=too-many-instance-attr
     def torch_model(self) -> TransformerBasedSessionEncoder:
         """Pytorch model."""
         return self.lightning_model.torch_model
+
+    @classmethod
+    def _from_config(cls, config: TransformerModelConfig_T) -> tpe.Self:
+        params = config.model_dump()
+        params.pop("cls")
+        params["trainer"] = None
+        return cls(**params)
+
+    def _get_config(self) -> TransformerModelConfig_T:
+        attrs = self.config_class.model_json_schema(mode="serialization")["properties"].keys()
+        params = {attr: getattr(self, attr) for attr in attrs if attr != "cls"}
+        params["cls"] = self.__class__
+        return self.config_class(**params)

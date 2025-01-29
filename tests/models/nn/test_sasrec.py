@@ -12,6 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+# pylint: disable=too-many-lines
+
 import os
 import typing as tp
 from functools import partial
@@ -28,12 +30,20 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
-from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator
-from rectools.models.nn.transformer_base import TransformerBasedSessionEncoder
-from tests.models.utils import assert_second_fit_refits_model
+from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator, SASRecTransformerLayers
+from rectools.models.nn.transformer_base import (
+    LearnableInversePositionalEncoding,
+    SessionEncoderLightningModule,
+    TransformerBasedSessionEncoder,
+)
+from tests.models.data import DATASET
+from tests.models.utils import (
+    assert_default_config_and_default_model_params_are_the_same,
+    assert_second_fit_refits_model,
+)
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
-# TODO: add tests with BCE and GBCE
+from .utils import leave_one_out_mask
 
 
 class TestSASRecModel:
@@ -160,7 +170,7 @@ class TestSASRecModel:
         return get_val_mask_func
 
     @pytest.mark.parametrize(
-        "accelerator,n_devices,recommend_device",
+        "accelerator,devices,recommend_accelerator",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
@@ -251,8 +261,8 @@ class TestSASRecModel:
         dataset_devices: Dataset,
         filter_viewed: bool,
         accelerator: str,
-        n_devices: int,
-        recommend_device: str,
+        devices: tp.Union[int, tp.List[int]],
+        recommend_accelerator: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
@@ -261,7 +271,7 @@ class TestSASRecModel:
             max_epochs=2,
             min_epochs=2,
             deterministic=True,
-            devices=n_devices,
+            devices=devices,
             accelerator=accelerator,
             enable_checkpointing=False,
         )
@@ -273,16 +283,16 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_device=recommend_device,
+            recommend_accelerator=recommend_accelerator,
             item_net_block_types=(IdEmbeddingsItemNet,),
             trainer=trainer,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
         actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
-        if accelerator == "cpu" and n_devices == 1:
+        if accelerator == "cpu" and devices == 1:
             expected = expected_cpu_1
-        elif accelerator == "cpu" and n_devices == 2:
+        elif accelerator == "cpu" and devices == 2:
             expected = expected_cpu_2
         else:
             expected = expected_gpu
@@ -907,7 +917,117 @@ class TestSASRecDataPreparator:
     ) -> None:
         data_preparator.process_dataset_train(dataset)
         dataset = data_preparator.transform_dataset_i2i(dataset)
-        dataloader = data_preparator.get_dataloader_recommend(dataset)
+        dataloader = data_preparator.get_dataloader_recommend(dataset, 4)
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, recommend_batch[key])
+
+
+class TestSASRecModelConfiguration:
+    def setup_method(self) -> None:
+        self._seed_everything()
+
+    def _seed_everything(self) -> None:
+        torch.use_deterministic_algorithms(True)
+        seed_everything(32, workers=True)
+
+    @pytest.fixture
+    def initial_config(self) -> tp.Dict[str, tp.Any]:
+        config = {
+            "n_blocks": 2,
+            "n_heads": 4,
+            "n_factors": 64,
+            "use_pos_emb": True,
+            "use_causal_attn": True,
+            "use_key_padding_mask": False,
+            "dropout_rate": 0.5,
+            "session_max_len": 10,
+            "dataloader_num_workers": 0,
+            "batch_size": 1024,
+            "loss": "softmax",
+            "n_negatives": 10,
+            "gbce_t": 0.5,
+            "lr": 0.001,
+            "epochs": 10,
+            "verbose": 1,
+            "deterministic": True,
+            "recommend_accelerator": "auto",
+            "recommend_devices": 1,
+            "recommend_batch_size": 256,
+            "recommend_n_threads": 0,
+            "recommend_use_gpu_ranking": True,
+            "train_min_user_interactions": 2,
+            "item_net_block_types": (IdEmbeddingsItemNet,),
+            "pos_encoding_type": LearnableInversePositionalEncoding,
+            "transformer_layers_type": SASRecTransformerLayers,
+            "data_preparator_type": SASRecDataPreparator,
+            "lightning_module_type": SessionEncoderLightningModule,
+            "get_val_mask_func": leave_one_out_mask,
+        }
+        return config
+
+    def test_from_config(self, initial_config: tp.Dict[str, tp.Any]) -> None:
+        model = SASRecModel.from_config(initial_config)
+
+        for key, config_value in initial_config.items():
+            assert getattr(model, key) == config_value
+
+        assert model._trainer is not None  # pylint: disable = protected-access
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool, initial_config: tp.Dict[str, tp.Any]) -> None:
+        model = SASRecModel(**initial_config)
+        config = model.get_config(simple_types=simple_types)
+
+        expected = initial_config.copy()
+        expected["cls"] = SASRecModel
+
+        if simple_types:
+            simple_types_params = {
+                "cls": "SASRecModel",
+                "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
+                "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
+                "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
+                "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",
+                "lightning_module_type": "rectools.models.nn.transformer_base.SessionEncoderLightningModule",
+                "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
+            }
+            expected.update(simple_types_params)
+
+        assert config == expected
+
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config_and_from_config_compatibility(
+        self, simple_types: bool, initial_config: tp.Dict[str, tp.Any]
+    ) -> None:
+        dataset = DATASET
+        model = SASRecModel
+        updated_params = {
+            "n_blocks": 1,
+            "n_heads": 1,
+            "n_factors": 10,
+            "session_max_len": 5,
+            "epochs": 1,
+        }
+        config = initial_config.copy()
+        config.update(updated_params)
+
+        def get_reco(model: SASRecModel) -> pd.DataFrame:
+            return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)
+
+        model_1 = model.from_config(initial_config)
+        reco_1 = get_reco(model_1)
+        config_1 = model_1.get_config(simple_types=simple_types)
+
+        self._seed_everything()
+        model_2 = model.from_config(config_1)
+        reco_2 = get_reco(model_2)
+        config_2 = model_2.get_config(simple_types=simple_types)
+
+        assert config_1 == config_2
+        pd.testing.assert_frame_equal(reco_1, reco_2)
+
+    def test_default_config_and_default_model_params_are_the_same(self) -> None:
+        default_config: tp.Dict[str, int] = {}
+        model = SASRecModel()
+        assert_default_config_and_default_model_params_are_the_same(model, default_config)
