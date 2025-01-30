@@ -287,7 +287,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
-        get_trainer: tp.Optional[TrainerCallable] = None,
+        get_trainer_func: tp.Optional[TrainerCallable] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -321,7 +321,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer_func,
         )
 
     def _init_data_preparator(self) -> None:

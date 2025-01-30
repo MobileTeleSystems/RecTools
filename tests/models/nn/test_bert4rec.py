@@ -96,8 +96,8 @@ class TestBERT4RecModel:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
-    def get_trainer(self) -> TrainerCallable:
-        def get_trainer_func() -> Trainer:
+    def get_trainer_func(self) -> TrainerCallable:
+        def get_trainer() -> Trainer:
             return Trainer(
                 max_epochs=2,
                 min_epochs=2,
@@ -107,7 +107,7 @@ class TestBERT4RecModel:
                 devices=1,
             )
 
-        return get_trainer_func
+        return get_trainer
 
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_accelerator",
@@ -246,7 +246,7 @@ class TestBERT4RecModel:
             deterministic=True,
             recommend_accelerator=recommend_accelerator,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -294,7 +294,7 @@ class TestBERT4RecModel:
         self,
         dataset_devices: Dataset,
         loss: str,
-        get_trainer: TrainerCallable,
+        get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
     ) -> None:
         model = BERT4RecModel(
@@ -309,7 +309,7 @@ class TestBERT4RecModel:
             deterministic=True,
             mask_prob=0.6,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer_func,
             loss=loss,
         )
         model.fit(dataset=dataset_devices)
@@ -347,7 +347,7 @@ class TestBERT4RecModel:
         ),
     )
     def test_with_whitelist(
-        self, dataset_devices: Dataset, get_trainer: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset_devices: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -359,7 +359,7 @@ class TestBERT4RecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -418,7 +418,7 @@ class TestBERT4RecModel:
     def test_i2i(
         self,
         dataset: Dataset,
-        get_trainer: TrainerCallable,
+        get_trainer_func: TrainerCallable,
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
@@ -433,7 +433,7 @@ class TestBERT4RecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -450,7 +450,7 @@ class TestBERT4RecModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, get_trainer: TrainerCallable) -> None:
+    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, get_trainer_func: TrainerCallable) -> None:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
@@ -459,7 +459,7 @@ class TestBERT4RecModel:
             batch_size=4,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer_func,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -489,7 +489,7 @@ class TestBERT4RecModel:
         ),
     )
     def test_recommend_for_cold_user_with_hot_item(
-        self, dataset_devices: Dataset, get_trainer: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset_devices: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -501,7 +501,7 @@ class TestBERT4RecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer=get_trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([20])
@@ -692,7 +692,7 @@ class TestBERT4RecModelConfiguration:
             "lightning_module_type": TransformerLightningModule,
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
-            "get_trainer": None,
+            "get_trainer_func": None,
         }
         return config
 
@@ -700,7 +700,7 @@ class TestBERT4RecModelConfiguration:
     def test_from_config(self, initial_config: tp.Dict[str, tp.Any], use_custom_trainer: bool) -> None:
         config = initial_config
         if use_custom_trainer:
-            config["get_trainer"] = custom_trainer
+            config["get_trainer_func"] = custom_trainer
         model = BERT4RecModel.from_config(initial_config)
 
         for key, config_value in initial_config.items():
@@ -715,7 +715,7 @@ class TestBERT4RecModelConfiguration:
     ) -> None:
         config = initial_config
         if use_custom_trainer:
-            config["get_trainer"] = custom_trainer
+            config["get_trainer_func"] = custom_trainer
         model = BERT4RecModel(**config)
         actual = model.get_config(simple_types=simple_types)
 
@@ -734,7 +734,7 @@ class TestBERT4RecModelConfiguration:
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
-                expected["get_trainer"] = "tests.models.nn.utils.custom_trainer"
+                expected["get_trainer_func"] = "tests.models.nn.utils.custom_trainer"
 
         assert actual == expected
 
@@ -758,7 +758,7 @@ class TestBERT4RecModelConfiguration:
         config = initial_config.copy()
         config.update(updated_params)
         if use_custom_trainer:
-            config["get_trainer"] = custom_trainer
+            config["get_trainer_func"] = custom_trainer
 
         def get_reco(model: BERT4RecModel) -> pd.DataFrame:
             return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)

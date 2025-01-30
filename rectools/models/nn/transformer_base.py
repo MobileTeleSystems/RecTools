@@ -614,7 +614,7 @@ class TransformerModelConfig(ModelConfig):
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
-    get_trainer: tp.Optional[TrainerCallableSerialized] = None
+    get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -667,7 +667,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
-        get_trainer: tp.Optional[TrainerCallable] = None,
+        get_trainer_func: tp.Optional[TrainerCallable] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -702,7 +702,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
-        self.get_trainer = get_trainer
+        self.get_trainer_func = get_trainer_func
 
         self._init_data_preparator()
         self._init_trainer()
@@ -721,7 +721,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         raise NotImplementedError()
 
     def _init_trainer(self) -> None:
-        if self.get_trainer is None:
+        if self.get_trainer_func is None:
             self._trainer = Trainer(
                 max_epochs=self.epochs,
                 min_epochs=self.epochs,
@@ -733,7 +733,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 devices=1,
             )
         else:
-            self._trainer = self.get_trainer()
+            self._trainer = self.get_trainer_func()
 
     def _init_torch_model(self) -> TransformerTorchBackbone:
         return TransformerTorchBackbone(
