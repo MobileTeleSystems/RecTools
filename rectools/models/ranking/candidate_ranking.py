@@ -332,8 +332,8 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
         Parameters
         ----------
-        n_negatives : int, optional
-            The number of negative examples to sample for each user, by default 3.
+        n_negatives : int, default 3
+            The number of negative examples to sample for each user.
         random_state : tp.Optional[int], optional
             An optional random seed for reproducibility of the sampling process, by default None.
         """
