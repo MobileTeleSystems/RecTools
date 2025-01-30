@@ -16,7 +16,7 @@ from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from rectools.models.nn.transformer_base import TransformerModelBase
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from .utils import leave_one_out_mask
+from .utils import leave_one_out_mask, custom_trainer
 
 
 class TestTransformerModelBase:
@@ -59,19 +59,16 @@ class TestTransformerModelBase:
     def test_save_load_for_unfitted_model(
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
     ) -> None:
-        seed_everything(32, workers=True)
-        model = model_cls.from_config(
-            {
+        config = {
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
             }
-        )
         if not default_trainer:
-            model._trainer = trainer  # pylint: disable=protected-access
+            config["get_trainer_func"] = custom_trainer
+        model = model_cls.from_config(config)
 
         with NamedTemporaryFile() as f:
             model.save(f.name)
-            seed_everything(32, workers=True)
             recovered_model = load_model(f.name)
 
         assert isinstance(recovered_model, model_cls)
@@ -97,14 +94,13 @@ class TestTransformerModelBase:
     def test_save_load_for_fitted_model(
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
     ) -> None:
-        model = model_cls.from_config(
-            {
+        config = {
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
             }
-        )
         if not default_trainer:
-            model._trainer = trainer  # pylint: disable=protected-access
+            config["get_trainer_func"] = custom_trainer
+        model = model_cls.from_config(config)
         model.fit(dataset)
         assert_save_load_do_not_change_model(model, dataset)
 
@@ -112,6 +108,7 @@ class TestTransformerModelBase:
     def test_load_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
+        tmp_path: str,
         dataset: Dataset,
     ) -> None:
         model = model_cls.from_config(
@@ -121,6 +118,7 @@ class TestTransformerModelBase:
             }
         )
         model._trainer = Trainer(  # pylint: disable=protected-access
+            default_root_dir=tmp_path,
             max_epochs=2,
             min_epochs=2,
             deterministic=True,

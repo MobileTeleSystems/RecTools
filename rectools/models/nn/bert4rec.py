@@ -166,7 +166,16 @@ class BERT4RecModelConfig(TransformerModelConfig):
 
 class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     """
-    BERT4Rec model.
+    BERT4Rec model: transformer-based sequential model with bidirectional attention mechanism and
+    "MLM" (masked item in user sequence) training objective.
+    Our implementation covers multiple loss functions and a variable number of negatives for them.
+
+    See RecTools theory&practice tutorial on transformers:
+        https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
+    See RecTools advanced training guide for transformers:
+        https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_training_guide.html
+    See original BERT4Rec paper:
+        https://arxiv.org/abs/1904.06690
 
     n_blocks : int, default 1
         Number of transformer blocks.
@@ -176,27 +185,27 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Latent embeddings size.
     use_pos_emb : bool, default ``True``
         If ``True``, learnable positional encoding will be added to session item embeddings.
-    use_causal_attn : bool, default ``False``
+    use_causal_attn : bool, default ``True``
         If ``True``, causal mask will be added as attn_mask in Multi-head Attention. Please note that default
-        BERT4Rec training task (MLM) does not match well with causal masking. Set this parameter to
-        ``True`` only when you change the training task with custom `data_preparator_type` or if you
-        are absolutely sure of what you are doing.
+        SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
+        parameter to ``False`` only when you change the training task with custom
+        `data_preparator_type` or if you are absolutely sure of what you are doing.
     use_key_padding_mask : bool, default ``False``
         If ``True``, key_padding_mask will be added in Multi-head Attention.
     dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
     session_max_len : int, default 32
-        Maximum length of user sequence that model will accept during inference.
+        Maximum length of user sequence.
     train_min_user_interactions : int, default 2
-        Minimum number of interactions user should have to be used for training. Should be greater than 1.
-    mask_prob : float, default 0.15
-        Probability of masking an item in interactions sequence.
+        Minimum number of interactions user should have to be used for training. Should be greater
+        than 1.
     dataloader_num_workers : int, default 0
         Number of loader worker processes.
     batch_size : int, default 128
         How many samples per batch to load.
     loss : {"softmax", "BCE", "gBCE"}, default "softmax"
         Loss function.
+        See https://arxiv.org/pdf/2308.07192 for details on gBCE loss.
     n_negatives : int, default 1
         Number of negatives for BCE and gBCE losses.
     gbce_t : float, default 0.2
@@ -204,12 +213,21 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     lr : float, default 0.01
         Learning rate.
     epochs : int, default 3
-        Number of training epochs.
+        Exact number of training epochs.
+        Will be omitted if `get_trainer_func` is specified.
+    mask_prob : float, default 0.15
+        Probability of masking an item in interactions sequence.
     verbose : int, default 0
         Verbosity level.
+        Enables progress bar, model summary and logging in default lightning trainer when set to a
+        positive integer.
+        Enables automatic lightning checkpointing when set to 100 or higher. This will save the most
+        the most recent model to a single checkpoint after each epoch.
+        Will be omitted if `get_trainer_func` is specified.
     deterministic : bool, default ``False``
-        If ``True``, set deterministic algorithms for PyTorch operations.
-        Use `pytorch_lightning.seed_everything` together with this parameter to fix the random state.
+        `deterministic` flag passed to lightning trainer during initialization.
+        Use `pytorch_lightning.seed_everything` together with this parameter to fix the random seed.
+        Will be omitted if `get_trainer_func` is specified.
     recommend_batch_size : int, default 256
         How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
@@ -225,6 +243,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Used at predict_step of lightning module.
         Multi-device recommendations are not supported.
         If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_device` attribute.
     recommend_n_threads : int, default 0
         Number of threads to use in ranker if GPU ranking is turned off or unavailable.
         If you want to change this parameter after model is initialized,
@@ -233,9 +252,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
-    trainer : Trainer, optional, default ``None``
-        Which trainer to use for training.
-        If trainer is None, default pytorch_lightning Trainer is created.
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
@@ -243,14 +259,21 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(TransformerDataPreparatorBase), default `BERT4RecDataPreparator`
+    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
-    get_val_mask_func : Callable, default None
+    get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
+    get_trainer_func : Callable, default ``None``
+        Function for get custom lightning trainer.
+        If `get_trainer_func` is None, default trainer will be created based on `epochs`,
+        `deterministic` and `verbose` argument values. Model will be trained for the exact number of
+        epochs. Checkpointing will be disabled.
+        If you want to assign custom trainer after model is initialized, you can manually assign new
+        value to model `_trainer` attribute.
     """
 
     config_class = BERT4RecModelConfig
@@ -265,6 +288,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         use_key_padding_mask: bool = True,
         dropout_rate: float = 0.2,
         epochs: int = 3,
+        mask_prob: float = 0.15,
         verbose: int = 0,
         deterministic: bool = False,
         recommend_batch_size: int = 256,
@@ -280,7 +304,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         lr: float = 0.001,
         dataloader_num_workers: int = 0,
         train_min_user_interactions: int = 2,
-        mask_prob: float = 0.15,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,

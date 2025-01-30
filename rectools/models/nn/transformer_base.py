@@ -729,7 +729,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 enable_progress_bar=self.verbose > 0,
                 enable_model_summary=self.verbose > 0,
                 logger=self.verbose > 0,
-                enable_checkpointing=False,
+                enable_checkpointing=self.verbose > 99,
                 devices=1,
             )
         else:
