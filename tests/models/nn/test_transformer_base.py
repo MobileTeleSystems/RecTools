@@ -130,6 +130,7 @@ class TestTransformerModelBase:
         )
         model.fit(dataset)
 
+        assert model.fit_trainer is not None
         if model.fit_trainer.log_dir is None:
             raise ValueError("No log dir")
         ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
@@ -178,6 +179,7 @@ class TestTransformerModelBase:
         model._trainer = trainer  # pylint: disable=protected-access
         model.fit(dataset=dataset)
 
+        assert model.fit_trainer is not None
         assert model.fit_trainer.logger is not None
         assert model.fit_trainer.log_dir is not None
         has_val_mask_func = model.get_val_mask_func is not None

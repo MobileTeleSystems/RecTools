@@ -709,7 +709,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         self.lightning_model: TransformerLightningModuleBase
         self.data_preparator: TransformerDataPreparatorBase
-        self.fit_trainer: Trainer
+        self.fit_trainer: tp.Optional[Trainer] = None
 
     def _check_devices(self, recommend_devices: tp.Union[int, tp.List[int]]) -> None:
         if isinstance(recommend_devices, int) and recommend_devices != 1:
@@ -931,6 +931,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def __getstate__(self) -> object:
         if self.is_fitted:
             with NamedTemporaryFile() as f:
+                if self.fit_trainer is None:
+                    raise TypeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
                 self.fit_trainer.save_checkpoint(f.name)
                 # checkpoint = f.read()
                 checkpoint = torch.load(f.name, weights_only=False)
@@ -939,7 +941,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                     # TODO: trainer?
                 }
             return state
-        state = {"model_config": self.get_config(), "trainer": self._trainer}
+        state = {"model_config": self.get_config()}
         return state
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
@@ -948,9 +950,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             checkpoint = state["fitted_checkpoint"]
             loaded = self._model_from_checkpoint(checkpoint)
         else:
-            model_config = state["model_config"]
-            loaded = self.from_config(model_config)
-            loaded._trainer = state["trainer"]  # pylint: disable=protected-access
+            loaded = self.from_config(state["model_config"])
 
         self.__dict__.update(loaded.__dict__)
 
