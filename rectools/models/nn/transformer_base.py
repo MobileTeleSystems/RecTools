@@ -911,7 +911,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
 
             config.pop("cls")
-            config["trainer"] = None
             self.__dict__.update(config)
 
             self._init_data_preparator()
