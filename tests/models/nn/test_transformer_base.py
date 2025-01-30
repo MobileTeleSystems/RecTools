@@ -180,6 +180,8 @@ class TestTransformerModelBase:
 
         assert model.fit_trainer.logger is not None
         assert model.fit_trainer.log_dir is not None
+        has_val_mask_func = model.get_val_mask_func is not None
+        assert has_val_mask_func is is_val_mask_func
 
         metrics_path = os.path.join(model.fit_trainer.log_dir, "metrics.csv")
         assert os.path.isfile(metrics_path)

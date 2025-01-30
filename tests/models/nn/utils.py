@@ -18,14 +18,13 @@ from pytorch_lightning import Trainer
 from rectools import Columns
 
 
-def leave_one_out_mask(interactions: pd.DataFrame) -> np.ndarray:
+def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
     rank = (
         interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
         .groupby(Columns.User, sort=False)
         .cumcount()
     )
-    mask = rank == 0
-    return mask.values
+    return rank == 0
 
 
 def custom_trainer() -> Trainer:
