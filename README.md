@@ -21,13 +21,19 @@
   <a href="https://github.com/orgs/MobileTeleSystems/projects/1">Developers Board</a>
 </p>
 
-RecTools is an easy-to-use Python library which makes the process of building recommendation systems easier, 
-faster and more structured than ever before.
-It includes built-in toolkits for data processing and metrics calculation, 
-a variety of recommender models, some wrappers for already existing implementations of popular algorithms 
-and model selection framework.
-The aim is to collect ready-to-use solutions and best practices in one place to make processes 
-of creating your first MVP and deploying model to production as fast and easy as possible.
+RecTools is an easy-to-use Python library which makes the process of building recommender systems easier and
+faster than ever before.
+
+## ✨ Highlights: Transformer models released!
+
+**BERT4Rec and SASRec are now available in RecTools:**
+- Fully compatible with our  `fit` / `recommend` paradigm and require NO special data processing
+- Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_advanced_training_guide.ipynb): loss options, item embedding options,  category features utilization and more!
+- Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready! See our [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb)
+- We are running benchmarks with comparison of RecTools models to other open-source implementations following BERT4Rec reproducibility paper and achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
+
+
+
 
 
 
@@ -103,8 +109,8 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 | Model | Type | Description (🎏 for user/item features, 🔆 for warm inference, ❄️ for cold inference support) | Tutorials & Benchmarks |
 |----|----|---------|--------|
-| SASRec | Neural Network | `rectools.models.SASRecModel` - Transformer-based sequential model with unidirectional attention mechanism and "Shifted Sequence" training objective <br>🎏| 📕 [Transformers Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_tutorial.html)<br>  📗 [Advanced training guide](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_advanced_training_guide.html) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro) |
-| BERT4Rec | Neural Network | `rectools.models.BERT4RecModel` - Transformer-based sequential model with bidirectional attention mechanism and "MLM" (masked item) training objective <br>🎏| 📕 [Transformers Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_tutorial.html)<br>  📗 [Advanced training guide](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_advanced_training_guide.html) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro) |
+| SASRec | Neural Network | `rectools.models.SASRecModel` - Transformer-based sequential model with unidirectional attention mechanism and "Shifted Sequence" training objective <br>🎏| 📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Transformers advanced training](examples/tutorials/transformers_advanced_training_guide.ipynb) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) |
+| BERT4Rec | Neural Network | `rectools.models.BERT4RecModel` - Transformer-based sequential model with bidirectional attention mechanism and "MLM" (masked item) training objective <br>🎏| 📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Transformers advanced training](examples/tutorials/transformers_advanced_training_guide.ipynb) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) |
 | [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback. <br>🎏| 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Implicit-ALS)<br> 🚀 [50% boost to metrics with user & item features](examples/5_benchmark_iALS_with_features.ipynb) |
 | [implicit](https://github.com/benfred/implicit) BPR-MF Wrapper | Matrix Factorization | `rectools.models.ImplicitBPRWrapperModel` - Bayesian Personalized Ranking Matrix Factorization algorithm. | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Bayesian-Personalized-Ranking-Matrix-Factorization-(BPR-MF)) |
 | [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Nearest Neighbours | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#ItemKNN) |
@@ -117,52 +123,32 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 | Random |  Heuristic | `rectools.models.RandomModel` - Simple random algorithm useful to benchmark Novelty, Coverage, etc.<br>❄️| - |
 
 - All of the models follow the same interface. **No exceptions**
-- No need for manual creation of sparse matrixes or mapping ids. Preparing data for models is as simple as `dataset = Dataset.construct(interactions_df)`
+- No need for manual creation of sparse matrixes, torch dataloaders or mapping ids. Preparing data for models is as simple as `dataset = Dataset.construct(interactions_df)`
 - Fitting any model is as simple as `model.fit(dataset)`
 - For getting recommendations `filter_viewed` and `items_to_recommend` options are available
 - For item-to-item recommendations use `recommend_to_items` method
-- For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our tutorial](examples/4_dataset_with_features.ipynb)
+- For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our user guide](examples/4_dataset_with_features.ipynb)
 - For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.**
+- Our models can be initialized from configs and have useful methods like `get_config`, `get_params`, `save`, `load`. Common functions `model_from_config` and `load_model` are available. [Check our user guide](examples/9_model_configs_and_saving.ipynb)
 
 
 ## Extended validation tools
 
-### `cross_validate` for model metrics comparison
-```python
-from rectools.models import EASEModel, SASRecModel
-from rectools.model_selection import cross_validate, TimeRangeSplitter
-from rectools.metrics import Recall, MAP
-from rectools.dataset import Dataset
-  
-dataset = Dataset.construct(interactions_df)
-models = {"ease": EASEModel(), "sasrec": SASRecModel()}
-metrics = {"recall": Recall(10), "map": MAP(10)}
+### `calc_metrics` for classification, ranking, "beyond-accuracy", DQ, popularity bias and between-model metrics
 
-# Initialize splitter for cross-validation folds
-splitter = TimeRangeSplitter(
-    test_size="7D",  # 7 days in each fold
-    n_splits=3,  # 3 folds in cross-validation
-    filter_already_seen=True,
-    filter_cold_items=True,
-    filter_cold_users=True,
-)
 
-# Run cross-validation
-cv_results = cross_validate(
-    dataset=dataset,
-    splitter=splitter,
-    models=models,
-    metrics=metrics,
-    k=10,
-    filter_viewed=True,
-)
-```
+[User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/3_metrics.ipynb) | [Documentation](https://rectools.readthedocs.io/en/stable/features.html#metrics)
 
-[User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb) 
 
 ### `DebiasConfig` for debiased metrics calculation
 
 [User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/8_debiased_metrics.ipynb) | [Documentation](https://rectools.readthedocs.io/en/stable/api/rectools.metrics.debias.DebiasConfig.html)
+
+### `cross_validate` for model metrics comparison
+
+
+[User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb) 
+
 
 ### `VisualApp` for model recommendations comparison
 
