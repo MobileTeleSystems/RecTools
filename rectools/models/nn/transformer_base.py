@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import io
 import typing as tp
 from collections.abc import Callable
 from copy import deepcopy
@@ -934,20 +935,15 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 if self.fit_trainer is None:
                     raise TypeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
                 self.fit_trainer.save_checkpoint(f.name)
-                # checkpoint = f.read()
-                checkpoint = torch.load(f.name, weights_only=False)
-                state: tp.Dict[str, tp.Any] = {
-                    "fitted_checkpoint": checkpoint,
-                    # TODO: trainer?
-                }
+                checkpoint = Path(f.name).read_bytes()
+                state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
             return state
         state = {"model_config": self.get_config()}
         return state
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
         if "fitted_checkpoint" in state:
-            # checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
-            checkpoint = state["fitted_checkpoint"]
+            checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
             loaded = self._model_from_checkpoint(checkpoint)
         else:
             loaded = self.from_config(state["model_config"])
