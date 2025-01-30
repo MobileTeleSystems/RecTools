@@ -204,7 +204,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     See RecTools theory&practice tutorial on transformers:
         https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
     See RecTools advanced training guide for transformers:
-        https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_training_guide.html
+        https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
     See benchmark for RecTools transformers quality compared to other open-source implementations:
         https://github.com/blondered/bert4rec_repro
     See original SASRec paper:
