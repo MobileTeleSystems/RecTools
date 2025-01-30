@@ -134,8 +134,8 @@ class Reranker:
         ----------
         model : tp.Union[ClassifierBase, RankerBase]
             Ranking model. It must implement `fit` and `predict` or `predict_proba`.
-        fit_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional
-            Additional keyword arguments to pass to the model's fit method, by default None.
+        fit_kwargs : dict(str -> any), optional, default None
+            Additional keyword arguments to pass to the model's fit method.
         """
         self.model = model
         self.fit_kwargs = fit_kwargs
