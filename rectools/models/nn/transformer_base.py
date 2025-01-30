@@ -28,7 +28,6 @@ from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.models.serialization import model_from_config
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
@@ -895,17 +894,21 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if self.is_fitted:
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
-                state = torch.load(f.name, weights_only=False)
-                state["is_fitted"] = True
+                checkpoint = torch.load(f.name, weights_only=False)
+                state = {
+                    "fitted_checkpoint": checkpoint,
+                    # TODO: trainer?
+                }
             return state
-        state = {"model_config": self.get_config(simple_types=True), "is_fitted": False, "trainer": self._trainer}
+        state = {"model_config": self.get_config(simple_types=True), "trainer": self._trainer}
         return state
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
-        if state["is_fitted"] is True:
-            model_config = state["hyper_parameters"]["model_config"]
+        if "fitted_checkpoint" in state:
+            checkpoint = state["fitted_checkpoint"]
+            model_config = checkpoint["hyper_parameters"]["model_config"]
             config = self.config_class.model_validate(model_config).model_dump(mode="pydantic")
-            dataset_schema = state["hyper_parameters"]["dataset_schema"]
+            dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
 
             config.pop("cls")
             config["trainer"] = None
@@ -923,7 +926,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self._init_trainer()
 
             self._init_lightning_model(torch_model, dataset_schema, model_config)
-            self.lightning_model.load_state_dict(state["state_dict"])
+            self.lightning_model.load_state_dict(checkpoint["state_dict"])
             # Note that we didn't load trainer staff here
 
             self.is_fitted = True
