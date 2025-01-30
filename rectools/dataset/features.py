@@ -456,15 +456,15 @@ class SparseFeatures:
         return np.array([feature_name[1] != DIRECT_FEATURE_VALUE for feature_name in self.names])
 
     @property
-    def cat_feature_cols(self) -> np.ndarray:
-        """Category columns indexes in feature values sparse matrix."""
+    def cat_feature_indices(self) -> np.ndarray:
+        """Category columns indices in feature values sparse matrix."""
         return np.arange(len(self.names))[self.cat_col_mask]
 
     def get_cat_features(self) -> "SparseFeatures":
         """Return `SparseFeatures` only with categorical features."""
         return SparseFeatures(
-            values=self.values[:, self.cat_feature_cols],
-            names=tuple(map(self.names.__getitem__, self.cat_feature_cols)),
+            values=self.values[:, self.cat_feature_indices],
+            names=tuple(map(self.names.__getitem__, self.cat_feature_indices)),
         )
 
 

@@ -28,8 +28,7 @@ from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
-PADDING_VALUE = "PAD"
-MASKING_VALUE = "MASK"
+from .constants import PADDING_VALUE
 
 
 class SequenceDataset(TorchDataset):

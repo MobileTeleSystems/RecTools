@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from pytorch_lightning import Trainer
 
+from .constants import MASKING_VALUE, PADDING_VALUE
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
     SessionEncoderDataPreparatorType,
@@ -28,7 +29,7 @@ from .transformer_base import (
     TransformerModelBase,
     TransformerModelConfig,
 )
-from .transformer_data_preparator import MASKING_VALUE, PADDING_VALUE, SessionEncoderDataPreparatorBase
+from .transformer_data_preparator import SessionEncoderDataPreparatorBase
 from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,

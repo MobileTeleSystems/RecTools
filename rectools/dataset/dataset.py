@@ -15,6 +15,7 @@
 """Dataset - all data container."""
 
 import typing as tp
+from collections.abc import Hashable
 
 import attr
 import numpy as np
@@ -31,14 +32,14 @@ from .identifiers import ExternalId, IdMap
 from .interactions import Interactions
 
 
-def _serialize_any(spec: tp.Any) -> tp.Hashable:
+def _serialize_any(spec: tp.Any) -> Hashable:
     if isinstance(spec, tuple):
         return tuple(_serialize_any(item) for item in spec)
     if isinstance(spec, (int, float, str)):
         return spec
     if np.issubdtype(spec, np.number):
         return spec.item()
-    return "unsupported feature_name"
+    return "unsupported object"
 
 
 FeatureName = tpe.Annotated[tp.Any, PlainSerializer(_serialize_any, when_used="json")]
@@ -115,7 +116,7 @@ class Dataset:
             user_feature_names = self.user_features.names
             dense_user_features = isinstance(self.user_features, DenseFeatures)
             if isinstance(self.user_features, SparseFeatures):
-                user_feature_cat_cols = self.user_features.cat_feature_cols.tolist()
+                user_feature_cat_cols = self.user_features.cat_feature_indices.tolist()
                 user_cat_features_n_stored_values = self.user_features.get_cat_features().values.nnz
 
         has_item_features = self.item_features is not None
@@ -131,7 +132,7 @@ class Dataset:
             item_feature_names = self.item_features.names
             dense_item_features = isinstance(self.item_features, DenseFeatures)
             if isinstance(self.item_features, SparseFeatures):
-                item_feature_cat_cols = self.item_features.cat_feature_cols.tolist()
+                item_feature_cat_cols = self.item_features.cat_feature_indices.tolist()
                 item_cat_features_n_stored_values = self.item_features.get_cat_features().values.nnz
 
         schema = DatasetSchema(
