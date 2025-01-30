@@ -49,10 +49,35 @@ class TestCatBoostReranker:
                 Columns.Score: [0.1, 0.2],
                 "sex": ["M", "F"],
                 "age": ["18_24", "25_34"],
-                Columns.Target: np.array([0, 1], dtype="int32"),
+                Columns.Target: [0, 1],
             }
         )
         return candidates_with_target
+
+    @pytest.fixture
+    def dataset(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [70, 11, 1, "2021-11-30"],
+                [70, 12, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-30"],
+                [10, 12, 1, "2021-11-29"],
+                [10, 13, 9, "2021-11-28"],
+                [20, 11, 1, "2021-11-27"],
+                [20, 14, 2, "2021-11-26"],
+                [30, 11, 1, "2021-11-24"],
+                [30, 12, 1, "2021-11-23"],
+                [30, 14, 1, "2021-11-23"],
+                [30, 15, 5, "2021-11-21"],
+                [40, 11, 1, "2021-11-20"],
+                [40, 12, 1, "2021-11-19"],
+            ],
+            columns=Columns.Interactions,
+        )
+        user_id_map = IdMap.from_values([10, 20, 30, 40, 50, 60, 70, 80])
+        item_id_map = IdMap.from_values([11, 12, 13, 14, 15, 16])
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        return Dataset(user_id_map, item_id_map, interactions)
 
     def test_prepare_training_pool(
         self,
@@ -68,7 +93,7 @@ class TestCatBoostReranker:
                     "age": ["18_24", "25_34"],
                 }
             ),
-            "label": np.array([0, 1], dtype="int32"),
+            "label": [0, 1],
             "cat_features": ["age", "sex"],
         }
         expected_training_pool_classifier = Pool(**pool_kwargs)
@@ -115,31 +140,6 @@ class TestCatBoostReranker:
 
         np.testing.assert_allclose(actual_predict_scores_classifier, expected_predict_scores_classifier, atol=0.0007)
         np.testing.assert_allclose(actual_predict_scores_ranker, expected_predict_scores_ranker, atol=0.00012)
-
-    @pytest.fixture
-    def dataset(self) -> Dataset:
-        interactions_df = pd.DataFrame(
-            [
-                [70, 11, 1, "2021-11-30"],
-                [70, 12, 1, "2021-11-30"],
-                [10, 11, 1, "2021-11-30"],
-                [10, 12, 1, "2021-11-29"],
-                [10, 13, 9, "2021-11-28"],
-                [20, 11, 1, "2021-11-27"],
-                [20, 14, 2, "2021-11-26"],
-                [30, 11, 1, "2021-11-24"],
-                [30, 12, 1, "2021-11-23"],
-                [30, 14, 1, "2021-11-23"],
-                [30, 15, 5, "2021-11-21"],
-                [40, 11, 1, "2021-11-20"],
-                [40, 12, 1, "2021-11-19"],
-            ],
-            columns=Columns.Interactions,
-        )
-        user_id_map = IdMap.from_values([10, 20, 30, 40, 50, 60, 70, 80])
-        item_id_map = IdMap.from_values([11, 12, 13, 14, 15, 16])
-        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
-        return Dataset(user_id_map, item_id_map, interactions)
 
     def test_recommend_happy_path(self, dataset: Dataset) -> None:
         cangen_1 = PopularModel()
