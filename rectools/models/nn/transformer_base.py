@@ -915,7 +915,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded.data_preparator.item_id_map = IdMap(
             np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
         )
-        loaded.data_preparator._init_extra_token_ids()
+        loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model
         torch_model = loaded._init_torch_model()
