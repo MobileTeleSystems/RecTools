@@ -141,7 +141,7 @@ class TestCatBoostReranker:
         np.testing.assert_allclose(actual_predict_scores_classifier, expected_predict_scores_classifier, atol=0.0007)
         np.testing.assert_allclose(actual_predict_scores_ranker, expected_predict_scores_ranker, atol=0.00012)
 
-    def test_recommend_happy_path(self, dataset: Dataset) -> None:
+    def test_recommend(self, dataset: Dataset) -> None:
         cangen_1 = PopularModel()
         cangen_2 = ImplicitItemKNNWrapperModel(CosineRecommender())
 
