@@ -205,14 +205,16 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
     See RecTools advanced training guide for transformers:
         https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_training_guide.html
+    See benchmark for RecTools transformers quality compared to other open-source implementations:
+        https://github.com/blondered/bert4rec_repro
     See original SASRec paper:
         https://arxiv.org/abs/1808.09781
 
-    n_blocks : int, default 1
+    n_blocks : int, default 2
         Number of transformer blocks.
-    n_heads : int, default 1
+    n_heads : int, default 4
         Number of attention heads.
-    n_factors : int, default 128
+    n_factors : int, default 256
         Latent embeddings size.
     use_pos_emb : bool, default ``True``
         If ``True``, learnable positional encoding will be added to session item embeddings.
@@ -225,7 +227,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         If ``True``, key_padding_mask will be added in Multi-head Attention.
     dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
-    session_max_len : int, default 32
+    session_max_len : int, default 100
         Maximum length of user sequence.
     train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater
@@ -241,7 +243,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Number of negatives for BCE and gBCE losses.
     gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
-    lr : float, default 0.01
+    lr : float, default 0.001
         Learning rate.
     epochs : int, default 3
         Exact number of training epochs.

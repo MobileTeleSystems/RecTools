@@ -16,7 +16,7 @@ from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from rectools.models.nn.transformer_base import TransformerModelBase
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from .utils import leave_one_out_mask, custom_trainer
+from .utils import custom_trainer, leave_one_out_mask
 
 
 class TestTransformerModelBase:
@@ -60,9 +60,9 @@ class TestTransformerModelBase:
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
     ) -> None:
         config = {
-                "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
-            }
+            "deterministic": True,
+            "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+        }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
         model = model_cls.from_config(config)
@@ -95,9 +95,9 @@ class TestTransformerModelBase:
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
     ) -> None:
         config = {
-                "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
-            }
+            "deterministic": True,
+            "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+        }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
         model = model_cls.from_config(config)

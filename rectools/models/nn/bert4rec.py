@@ -174,27 +174,29 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
     See RecTools advanced training guide for transformers:
         https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_training_guide.html
+    See benchmark for RecTools transformers quality compared to other open-source implementations:
+        https://github.com/blondered/bert4rec_repro
     See original BERT4Rec paper:
         https://arxiv.org/abs/1904.06690
 
-    n_blocks : int, default 1
+    n_blocks : int, default 2
         Number of transformer blocks.
-    n_heads : int, default 1
+    n_heads : int, default 4
         Number of attention heads.
-    n_factors : int, default 128
+    n_factors : int, default 256
         Latent embeddings size.
     use_pos_emb : bool, default ``True``
         If ``True``, learnable positional encoding will be added to session item embeddings.
-    use_causal_attn : bool, default ``True``
+    use_causal_attn : bool, default ``False``
         If ``True``, causal mask will be added as attn_mask in Multi-head Attention. Please note that default
-        SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
-        parameter to ``False`` only when you change the training task with custom
+        BERT4Rec training task ("MLM") does not work with causal masking. Set this
+        parameter to ``True`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
-    use_key_padding_mask : bool, default ``False``
+    use_key_padding_mask : bool, default ``True``
         If ``True``, key_padding_mask will be added in Multi-head Attention.
     dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
-    session_max_len : int, default 32
+    session_max_len : int, default 100
         Maximum length of user sequence.
     train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater
@@ -210,7 +212,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Number of negatives for BCE and gBCE losses.
     gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
-    lr : float, default 0.01
+    lr : float, default 0.001
         Learning rate.
     epochs : int, default 3
         Exact number of training epochs.
@@ -259,9 +261,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : type(TransformerDataPreparatorBase), default `BERT4RecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.

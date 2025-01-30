@@ -652,7 +652,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         batch_size: int = 128,
         loss: str = "softmax",
         n_negatives: int = 1,
-        gbce_t: float = 0.5,
+        gbce_t: float = 0.2,
         lr: float = 0.001,
         epochs: int = 3,
         verbose: int = 0,
