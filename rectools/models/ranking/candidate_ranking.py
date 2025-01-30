@@ -134,8 +134,8 @@ class Reranker:
         ----------
         model : tp.Union[ClassifierBase, RankerBase]
             Ranking model. It must implement `fit` and `predict` or `predict_proba`.
-        fit_kwargs : tp.Optional[tp.Dict[str, tp.Any]], optional
-            Additional keyword arguments to pass to the model's fit method, by default None.
+        fit_kwargs : dict(str -> any), optional, default None
+            Additional keyword arguments to pass to the model's fit method.
         """
         self.model = model
         self.fit_kwargs = fit_kwargs
@@ -212,9 +212,9 @@ class Reranker:
             The DataFrame must have columns `Columns.User` and `Columns.Score`.
         k : int
             The number of top items to recommend for each user.
-        add_rank_col : bool, optional
+        add_rank_col : bool, default True
             Whether to add a rank column to the resulting DataFrame, indicating the rank
-            of each item within the user's recommendations, by default True.
+            of each item within the user's recommendations.
 
         Returns
         -------
@@ -332,10 +332,10 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
         Parameters
         ----------
-        n_negatives : int, optional
-            The number of negative examples to sample for each user, by default 3.
-        random_state : tp.Optional[int], optional
-            An optional random seed for reproducibility of the sampling process, by default None.
+        n_negatives : int, default 3
+            The number of negative examples to sample for each user.
+        random_state : int, optional, default None
+            An optional random seed for reproducibility of the sampling process.
         """
         self.n_negatives = n_negatives
         self.random_state = random_state
@@ -411,10 +411,10 @@ class CandidateGenerator:
             Whether to include rank information in the generated candidates.
         keep_scores : bool
             Whether to include score information in the generated candidates.
-        scores_fillna_value : tp.Optional[float], optional
-            The value to fill missing scores with, if any. If None, missing scores are not filled, by default None.
-        ranks_fillna_value : tp.Optional[float], optional
-            The value to fill missing ranks with, if any. If None, missing ranks are not filled, by default None.
+        scores_fillna_value : float, optional, default None
+            The value to fill missing scores with, if any. If None, missing scores are not filled.
+        ranks_fillna_value : float, optional, default None
+            The value to fill missing ranks with, if any. If None, missing ranks are not filled.
         """
         self.model = model
         self.num_candidates = num_candidates
@@ -466,10 +466,10 @@ class CandidateGenerator:
             Whether to filter out items that have already been viewed by the user.
         for_train : bool
             Whether the candidates are being generated for training purposes.
-        items_to_recommend : tp.Optional[ExternalIds], optional
-            Specific items to recommend. If None, recommend from all available items, by default None.
-        on_unsupported_targets : ErrorBehaviour, optional
-            Behavior when encountering unsupported targets. Can be "raise" to raise an error, by default "raise".
+        items_to_recommend : ExternalIds, optional, default None
+            Specific items to recommend. If None, recommend from all available items.
+        on_unsupported_targets : ErrorBehaviour, default "raise"
+            Behavior when encountering unsupported targets. Can be "raise" to raise an error.
 
         Returns
         -------
@@ -806,7 +806,7 @@ class CandidateRankingModel(ModelBase):
             The number of recommendations to generate for each user.
         filter_viewed : bool
             If true, viewed items will be excluded from the recommendations.
-        items_to_recommend : ExternalIds, default None
+        items_to_recommend : ExternalIds, optional, default None
             List of item ids from which recommendations should be generated.
             If not provided, it will include all items available in the dataset.
         add_rank_col : bool, default True
