@@ -903,42 +903,10 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         state = {"model_config": self.get_config(simple_types=True), "trainer": self._trainer}
         return state
 
-    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
-        if "fitted_checkpoint" in state:
-            model_config = state["fitted_checkpoint"]["hyper_parameters"]["model_config"]
-        else:
-            model_config = state["model_config"]
-
-        loaded = self.from_config(model_config)
-        loaded.is_fitted = True
-
-        if "fitted_checkpoint" in state:
-            checkpoint = state["fitted_checkpoint"]
-
-            # Update data preparator
-            dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
-            loaded.data_preparator.item_id_map = IdMap(
-                np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
-            )
-            loaded.data_preparator._init_extra_token_ids()
-
-            # Init and update torch model and lightning model
-            torch_model = loaded._init_torch_model()
-            torch_model.construct_item_net_from_dataset_schema(dataset_schema)
-            loaded._init_lightning_model(torch_model, dataset_schema, model_config)
-            loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
-
-        else:
-            loaded._trainer = state["trainer"]  # pylint: disable=protected-access
-
-        self.__dict__.update(loaded.__dict__)
-
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
-        """Load model from Lightning checkpoint."""
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
+    def _model_from_checkpoint(cls, checkpoint: tp.Dict[str, tp.Any]) -> tpe.Self:
+        """Create model from loaded Lightning checkpoint."""
         model_config = checkpoint["hyper_parameters"]["model_config"]
-        
         loaded = cls.from_config(model_config)
         loaded.is_fitted = True
 
@@ -947,11 +915,30 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded.data_preparator.item_id_map = IdMap(
             np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
         )
-        loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
+        loaded.data_preparator._init_extra_token_ids()
 
+        # Init and update torch model and lightning model
         torch_model = loaded._init_torch_model()
         torch_model.construct_item_net_from_dataset_schema(dataset_schema)
         loaded._init_lightning_model(torch_model, dataset_schema, model_config)
         loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
+        return loaded
+
+    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
+        if "fitted_checkpoint" in state:
+            checkpoint = state["fitted_checkpoint"]
+            loaded = self._model_from_checkpoint(checkpoint)
+        else:
+            model_config = state["model_config"]
+            loaded = self.from_config(model_config)
+            loaded._trainer = state["trainer"]  # pylint: disable=protected-access
+
+        self.__dict__.update(loaded.__dict__)
+
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
+        """Load model from Lightning checkpoint path."""
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
