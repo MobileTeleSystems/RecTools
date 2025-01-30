@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import io
 import typing as tp
 from copy import deepcopy
 from pathlib import Path
@@ -890,20 +891,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         params["cls"] = self.__class__
         return self.config_class(**params)
 
-    def __getstate__(self) -> object:
-        if self.is_fitted:
-            with NamedTemporaryFile() as f:
-                self.fit_trainer.save_checkpoint(f.name)
-                # checkpoint = f.read()
-                checkpoint = torch.load(f.name, weights_only=False)
-                state = {
-                    "fitted_checkpoint": checkpoint,
-                    # TODO: trainer?
-                }
-            return state
-        state = {"model_config": self.get_config(), "trainer": self._trainer}
-        return state
-
     @classmethod
     def _model_from_checkpoint(cls, checkpoint: tp.Dict[str, tp.Any]) -> tpe.Self:
         """Create model from loaded Lightning checkpoint."""
@@ -926,9 +913,24 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         return loaded
 
+    def __getstate__(self) -> object:
+        if self.is_fitted:
+            with NamedTemporaryFile() as f:
+                self.fit_trainer.save_checkpoint(f.name)
+                checkpoint = f.read()
+                # checkpoint = torch.load(f.name, weights_only=False)
+                state: tp.Dict[str, tp.Any] = {
+                    "fitted_checkpoint": checkpoint,
+                    # TODO: trainer?
+                }
+            return state
+        state = {"model_config": self.get_config(), "trainer": self._trainer}
+        return state
+
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
         if "fitted_checkpoint" in state:
-            checkpoint = state["fitted_checkpoint"]
+            checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
+            # checkpoint = state["fitted_checkpoint"]
             loaded = self._model_from_checkpoint(checkpoint)
         else:
             model_config = state["model_config"]
