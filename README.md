@@ -103,6 +103,8 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 | Model | Type | Description (🎏 for user/item features, 🔆 for warm inference, ❄️ for cold inference support) | Tutorials & Benchmarks |
 |----|----|---------|--------|
+| SASRec | Neural Network | `rectools.models.SASRecModel` - Transformer-based sequential model with unidirectional attention mechanism and "Shifted Sequence" training objective <br>🎏| 📕 [Transformers Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_tutorial.html)<br>  📗 [Advanced training guide](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_advanced_training_guide.html) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro) |
+| BERT4Rec | Neural Network | `rectools.models.BERT4RecModel` - Transformer-based sequential model with bidirectional attention mechanism and "MLM" (masked item) training objective <br>🎏| 📕 [Transformers Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_tutorial.html)<br>  📗 [Advanced training guide](https://rectools.readthedocs.io/en/latest/examples/tutorials/transformers_advanced_training_guide.html) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro) |
 | [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback. <br>🎏| 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Implicit-ALS)<br> 🚀 [50% boost to metrics with user & item features](examples/5_benchmark_iALS_with_features.ipynb) |
 | [implicit](https://github.com/benfred/implicit) BPR-MF Wrapper | Matrix Factorization | `rectools.models.ImplicitBPRWrapperModel` - Bayesian Personalized Ranking Matrix Factorization algorithm. | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Bayesian-Personalized-Ranking-Matrix-Factorization-(BPR-MF)) |
 | [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Nearest Neighbours | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#ItemKNN) |
@@ -124,6 +126,39 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 
 
 ## Extended validation tools
+
+### `cross_validate` for model metrics comparison
+```python
+from rectools.models import EASEModel, SASRecModel
+from rectools.model_selection import cross_validate, TimeRangeSplitter
+from rectools.metrics import Recall, MAP
+from rectools.dataset import Dataset
+  
+dataset = Dataset.construct(interactions_df)
+models = {"ease": EASEModel(), "sasrec": SASRecModel()}
+metrics = {"recall": Recall(10), "map": MAP(10)}
+
+# Initialize splitter for cross-validation folds
+splitter = TimeRangeSplitter(
+    test_size="7D",  # 7 days in each fold
+    n_splits=3,  # 3 folds in cross-validation
+    filter_already_seen=True,
+    filter_cold_items=True,
+    filter_cold_users=True,
+)
+
+# Run cross-validation
+cv_results = cross_validate(
+    dataset=dataset,
+    splitter=splitter,
+    models=models,
+    metrics=metrics,
+    k=10,
+    filter_viewed=True,
+)
+```
+
+[User guide](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/2_cross_validation.ipynb) 
 
 ### `DebiasConfig` for debiased metrics calculation
 
