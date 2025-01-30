@@ -929,9 +929,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self.is_fitted = True
 
         else:
-            loaded = model_from_config(state["model_config"])
-            if loaded.__class__ is not self.__class__:
-                raise TypeError(f"Loaded object is not a direct instance of `{self.__class__.__name__}`")
+            loaded = self.from_config(state["model_config"])
+
             self.__dict__.update(loaded.__dict__)
             self._trainer = state["trainer"]  # pylint: disable=protected-access
 
