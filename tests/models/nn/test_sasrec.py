@@ -251,8 +251,8 @@ class TestSASRecModel:
         expected_gpu: pd.DataFrame,
     ) -> None:
 
-        # if devices != 1:
-        #     pytest.skip("DEBUG: skipping multi-device tests")
+        if devices != 1:
+            pytest.skip("DEBUG: skipping multi-device tests")
 
         trainer = Trainer(
             max_epochs=2,

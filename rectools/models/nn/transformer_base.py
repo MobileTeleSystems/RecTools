@@ -764,7 +764,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
         dataset_schema = self.data_preparator.train_dataset.get_schema(add_item_id_map=True)
-        model_config = self.get_config(simple_types=True)
+        model_config = self.get_config()
         self._init_lightning_model(torch_model, dataset_schema, model_config)
 
         self.fit_trainer = deepcopy(self._trainer)
@@ -894,13 +894,14 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if self.is_fitted:
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
+                # checkpoint = f.read()
                 checkpoint = torch.load(f.name, weights_only=False)
                 state = {
                     "fitted_checkpoint": checkpoint,
                     # TODO: trainer?
                 }
             return state
-        state = {"model_config": self.get_config(simple_types=True), "trainer": self._trainer}
+        state = {"model_config": self.get_config(), "trainer": self._trainer}
         return state
 
     @classmethod
