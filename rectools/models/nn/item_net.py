@@ -37,7 +37,7 @@ class ItemNetBase(nn.Module):
 
     @classmethod
     def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
-        """Construct ItemNet."""
+        """Construct ItemNet from Dataset schema."""
         raise NotImplementedError()
 
     def get_all_embeddings(self) -> torch.Tensor:
@@ -226,7 +226,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     @classmethod
     def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, n_factors: int, dropout_rate: float) -> tpe.Self:
-        """TODO"""
+        """Construct ItemNet from Dataset schema."""
         n_items = dataset_schema["n_hot_items"]
         return cls(n_factors, n_items, dropout_rate)
 
@@ -326,7 +326,7 @@ class ItemNetConstructor(ItemNetBase):
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
     ) -> tpe.Self:
-        """TODO."""
+        """Construct ItemNet from Dataset schema."""
         n_items = dataset_schema["n_hot_items"]
 
         item_net_blocks: tp.List[ItemNetBase] = []

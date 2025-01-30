@@ -147,7 +147,7 @@ class TransformerDataPreparatorBase:
         return len(self.item_extra_tokens)
 
     def process_dataset_train(self, dataset: Dataset) -> None:
-        """TODO"""
+        """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
 
         # Exclude val interaction targets from train if needed
@@ -309,7 +309,7 @@ class TransformerDataPreparatorBase:
         interactions = dataset.interactions.df
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
-        interactions = interactions[interactions[Columns.User].isin(users_internal)]  # todo: fast_isin
+        interactions = interactions[interactions[Columns.User].isin(users_internal)]
         interactions = interactions[interactions[Columns.Item].isin(items_internal)]
 
         # Convert to external ids
@@ -363,7 +363,6 @@ class TransformerDataPreparatorBase:
         self,
         batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
     ) -> tp.Dict[str, torch.Tensor]:
-        """TODO"""
         raise NotImplementedError()
 
     def _collate_fn_recommend(
