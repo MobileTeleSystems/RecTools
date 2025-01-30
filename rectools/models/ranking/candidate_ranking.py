@@ -466,10 +466,10 @@ class CandidateGenerator:
             Whether to filter out items that have already been viewed by the user.
         for_train : bool
             Whether the candidates are being generated for training purposes.
-        items_to_recommend : tp.Optional[ExternalIds], optional
-            Specific items to recommend. If None, recommend from all available items, by default None.
-        on_unsupported_targets : ErrorBehaviour, optional
-            Behavior when encountering unsupported targets. Can be "raise" to raise an error, by default "raise".
+        items_to_recommend : ExternalIds, optional, default None
+            Specific items to recommend. If None, recommend from all available items.
+        on_unsupported_targets : ErrorBehaviour, default "raise"
+            Behavior when encountering unsupported targets. Can be "raise" to raise an error.
 
         Returns
         -------
