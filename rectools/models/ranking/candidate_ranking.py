@@ -806,7 +806,7 @@ class CandidateRankingModel(ModelBase):
             The number of recommendations to generate for each user.
         filter_viewed : bool
             If true, viewed items will be excluded from the recommendations.
-        items_to_recommend : ExternalIds, default None
+        items_to_recommend : ExternalIds, optional, default None
             List of item ids from which recommendations should be generated.
             If not provided, it will include all items available in the dataset.
         add_rank_col : bool, default True
