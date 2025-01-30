@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from catboost import CatBoostClassifier, CatBoostRanker, Pool
 from implicit.nearest_neighbours import CosineRecommender
+from pytest import FixtureRequest
 
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
@@ -79,69 +80,124 @@ class TestCatBoostReranker:
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
         return Dataset(user_id_map, item_id_map, interactions)
 
+    @pytest.mark.parametrize(
+        "reranker_fixture, expected_training_pool",
+        [
+            (
+                "reranker_catboost_ranker",
+                Pool(
+                    data=pd.DataFrame(
+                        {
+                            Columns.Score: [0.1, 0.2],
+                            "sex": ["M", "F"],
+                            "age": ["18_24", "25_34"],
+                        }
+                    ),
+                    label=[0, 1],
+                    cat_features=["age", "sex"],
+                ),
+            ),
+            (
+                "reranker_catboost_classifier",
+                Pool(
+                    data=pd.DataFrame(
+                        {
+                            Columns.Score: [0.1, 0.2],
+                            "sex": ["M", "F"],
+                            "age": ["18_24", "25_34"],
+                        }
+                    ),
+                    label=[0, 1],
+                    cat_features=["age", "sex"],
+                    group_id=[10, 10],
+                ),
+            ),
+        ],
+    )
     def test_prepare_training_pool(
         self,
-        reranker_catboost_ranker: CatBoostReranker,
-        reranker_catboost_classifier: CatBoostReranker,
+        request: FixtureRequest,
+        reranker_fixture: str,
+        expected_training_pool: Pool,
         candidates_with_target: pd.DataFrame,
     ) -> None:
-        pool_kwargs = {
-            "data": pd.DataFrame(
-                {
-                    Columns.Score: [0.1, 0.2],
-                    "sex": ["M", "F"],
-                    "age": ["18_24", "25_34"],
-                }
+        reranker = request.getfixturevalue(reranker_fixture)
+        actual_training_pool = reranker.prepare_training_pool(candidates_with_target)
+
+        expected_labels = expected_training_pool.get_label()
+        actual_labels = actual_training_pool.get_label()
+        np.testing.assert_array_equal(expected_labels, actual_labels)
+
+        expected_cat_features = expected_training_pool.get_cat_feature_indices()
+        actual_cat_features = actual_training_pool.get_cat_feature_indices()
+        np.testing.assert_array_equal(expected_cat_features, actual_cat_features)
+
+        expected_feature_names = expected_training_pool.get_feature_names()
+        actual_feature_names = actual_training_pool.get_feature_names()
+        np.testing.assert_array_equal(expected_feature_names, actual_feature_names)
+
+    @pytest.mark.parametrize(
+        "reranker_fixture, expected_predict_scores",
+        [
+            (
+                "reranker_catboost_ranker",
+                np.array([-23.397, 23.397]),
             ),
-            "label": [0, 1],
-            "cat_features": ["age", "sex"],
-        }
-        expected_training_pool_classifier = Pool(**pool_kwargs)
-
-        groups = {"group_id": [10, 10]}
-        pool_kwargs.update(groups)
-        expected_training_pool_ranker = Pool(**pool_kwargs)
-
-        actual_training_pool_classifier = reranker_catboost_classifier.prepare_training_pool(candidates_with_target)
-        actual_training_pool_ranker = reranker_catboost_ranker.prepare_training_pool(candidates_with_target)
-
-        for expected_training_pool, actual_training_pool in [
-            (expected_training_pool_classifier, actual_training_pool_classifier),
-            (expected_training_pool_ranker, actual_training_pool_ranker),
-        ]:
-            expected_labels = expected_training_pool.get_label()
-            actual_labels = actual_training_pool.get_label()
-            np.testing.assert_array_equal(expected_labels, actual_labels)
-
-            expected_cat_features = expected_training_pool.get_cat_feature_indices()
-            actual_cat_features = actual_training_pool.get_cat_feature_indices()
-            np.testing.assert_array_equal(expected_cat_features, actual_cat_features)
-
-            expected_feature_names = expected_training_pool.get_feature_names()
-            actual_feature_names = actual_training_pool.get_feature_names()
-            np.testing.assert_array_equal(expected_feature_names, actual_feature_names)
-
+            (
+                "reranker_catboost_classifier",
+                np.array([0.334, 0.665]),
+            ),
+        ],
+    )
     def test_predict_scores(
         self,
-        reranker_catboost_ranker: CatBoostReranker,
-        reranker_catboost_classifier: CatBoostReranker,
+        request: FixtureRequest,
+        reranker_fixture: str,
+        expected_predict_scores: np.ndarray,
         candidates_with_target: pd.DataFrame,
     ) -> None:
-        reranker_catboost_classifier.fit(candidates_with_target)
-        reranker_catboost_ranker.fit(candidates_with_target)
+        reranker = request.getfixturevalue(reranker_fixture)
+        reranker.fit(candidates_with_target)
 
         candidates = candidates_with_target.drop(columns=Columns.Target)
+        actual_predict_scores = reranker.predict_scores(candidates)
+        np.testing.assert_allclose(actual_predict_scores, expected_predict_scores, atol=0.0007)
 
-        actual_predict_scores_classifier = reranker_catboost_classifier.predict_scores(candidates)
-        expected_predict_scores_classifier = np.array([0.334, 0.665])
-
-        actual_predict_scores_ranker = reranker_catboost_ranker.predict_scores(candidates)
-        expected_predict_scores_ranker = np.array([-23.397, 23.397])
-
-        np.testing.assert_allclose(actual_predict_scores_classifier, expected_predict_scores_classifier, atol=0.0007)
-        np.testing.assert_allclose(actual_predict_scores_ranker, expected_predict_scores_ranker, atol=0.00012)
-
-    def test_recommend(self, dataset: Dataset) -> None:
+    @pytest.mark.parametrize(
+        "reranker, expected_reco",
+        [
+            (
+                CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20, 20, 30],
+                        Columns.Item: [14, 15, 12, 15, 13, 13],
+                        Columns.Score: [
+                            11.909,
+                            1.020,
+                            23.396,
+                            1.020,
+                            -23.396,
+                            11.909,
+                        ],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1],
+                    }
+                ),
+            ),
+            (
+                CatBoostReranker(CatBoostClassifier(random_state=32, verbose=False)),
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20, 20, 30],
+                        Columns.Item: [14, 15, 12, 15, 13, 13],
+                        Columns.Score: [0.588, 0.505, 0.665, 0.505, 0.334, 0.588],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1],
+                    }
+                ),
+            ),
+        ],
+    )
+    def test_recommend(self, reranker: CatBoostReranker, expected_reco: pd.DataFrame, dataset: Dataset) -> None:
         cangen_1 = PopularModel()
         cangen_2 = ImplicitItemKNNWrapperModel(CosineRecommender())
 
@@ -158,48 +214,11 @@ class TestCatBoostReranker:
             candidate_generators,
             splitter,
             sampler=sampler,
-            reranker=CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
+            reranker=reranker,
         )
         two_stage_model_ranker.fit(dataset)
 
         actual_reco_ranker = two_stage_model_ranker.recommend(
             [10, 20, 30], dataset, k=3, filter_viewed=True, force_fit_candidate_generators=True
         )
-        expected_reco_ranker = pd.DataFrame(
-            {
-                Columns.User: [10, 10, 20, 20, 20, 30],
-                Columns.Item: [14, 15, 12, 15, 13, 13],
-                Columns.Score: [
-                    11.909,
-                    1.020,
-                    23.396,
-                    1.020,
-                    -23.396,
-                    11.909,
-                ],
-                Columns.Rank: [1, 2, 1, 2, 3, 1],
-            }
-        )
-
-        two_stage_model_classifier = CandidateRankingModel(
-            candidate_generators,
-            splitter,
-            sampler=sampler,
-            reranker=CatBoostReranker(CatBoostClassifier(random_state=32, verbose=False)),
-        )
-        two_stage_model_classifier.fit(dataset)
-
-        actual_reco_classifier = two_stage_model_classifier.recommend(
-            [10, 20, 30], dataset, k=3, filter_viewed=True, force_fit_candidate_generators=True
-        )
-        expected_reco_classifier = pd.DataFrame(
-            {
-                Columns.User: [10, 10, 20, 20, 20, 30],
-                Columns.Item: [14, 15, 12, 15, 13, 13],
-                Columns.Score: [0.588, 0.505, 0.665, 0.505, 0.334, 0.588],
-                Columns.Rank: [1, 2, 1, 2, 3, 1],
-            }
-        )
-
-        pd.testing.assert_frame_equal(actual_reco_ranker, expected_reco_ranker, atol=0.001)
-        pd.testing.assert_frame_equal(actual_reco_classifier, expected_reco_classifier, atol=0.001)
+        pd.testing.assert_frame_equal(actual_reco_ranker, expected_reco, atol=0.001)

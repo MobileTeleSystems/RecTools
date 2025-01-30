@@ -220,7 +220,7 @@ class TestCandidateRankingModel:
     def model(self) -> PopularModel:
         return PopularModel()
 
-    def test_get_train_with_targets_for_reranker_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
+    def test_get_train_with_targets_for_reranker(self, model: PopularModel, dataset: Dataset) -> None:
         candidate_generators = [CandidateGenerator(model, 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
@@ -240,7 +240,7 @@ class TestCandidateRankingModel:
         )
         pd.testing.assert_frame_equal(actual, expected)
 
-    def test_recommend_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
+    def test_recommend(self, model: PopularModel, dataset: Dataset) -> None:
         cangen_1 = model
         cangen_2 = ImplicitItemKNNWrapperModel(CosineRecommender())
 
