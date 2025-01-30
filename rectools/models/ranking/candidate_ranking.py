@@ -411,10 +411,10 @@ class CandidateGenerator:
             Whether to include rank information in the generated candidates.
         keep_scores : bool
             Whether to include score information in the generated candidates.
-        scores_fillna_value : tp.Optional[float], optional
-            The value to fill missing scores with, if any. If None, missing scores are not filled, by default None.
-        ranks_fillna_value : tp.Optional[float], optional
-            The value to fill missing ranks with, if any. If None, missing ranks are not filled, by default None.
+        scores_fillna_value : float, optional, default None
+            The value to fill missing scores with, if any. If None, missing scores are not filled.
+        ranks_fillna_value : float, optional, default None
+            The value to fill missing ranks with, if any. If None, missing ranks are not filled.
         """
         self.model = model
         self.num_candidates = num_candidates
