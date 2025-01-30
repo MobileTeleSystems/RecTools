@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import pandas as pd
+from pytorch_lightning import Trainer
 
 from rectools import Columns
 
@@ -24,3 +25,14 @@ def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
         .cumcount()
     )
     return rank == 0
+
+
+def custom_trainer() -> Trainer:
+    return Trainer(
+        max_epochs=3,
+        min_epochs=3,
+        deterministic=True,
+        accelerator="cpu",
+        enable_checkpointing=False,
+        devices=1,
+    )

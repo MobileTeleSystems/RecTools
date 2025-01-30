@@ -83,7 +83,7 @@ class SequenceDataset(TorchDataset):
         return cls(sessions=sessions, weights=weights)
 
 
-class SessionEncoderDataPreparatorBase:
+class TransformerDataPreparatorBase:
     """
     Base class for data preparator. To change train/recommend dataset processing, train/recommend dataloaders inherit
     from this class and pass your custom data preparator to your model parameters.

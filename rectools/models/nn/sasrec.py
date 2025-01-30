@@ -17,19 +17,20 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from pytorch_lightning import Trainer
 from torch import nn
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
-    SessionEncoderDataPreparatorType,
-    SessionEncoderLightningModule,
-    SessionEncoderLightningModuleBase,
+    TrainerCallable,
+    TransformerDataPreparatorType,
     TransformerLayersType,
+    TransformerLightningModule,
+    TransformerLightningModuleBase,
     TransformerModelBase,
     TransformerModelConfig,
+    ValMaskCallable,
 )
-from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_data_preparator import TransformerDataPreparatorBase
 from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
     PointWiseFeedForward,
@@ -38,7 +39,7 @@ from .transformer_net_blocks import (
 )
 
 
-class SASRecDataPreparator(SessionEncoderDataPreparatorBase):
+class SASRecDataPreparator(TransformerDataPreparatorBase):
     """Data preparator for SASRecModel."""
 
     train_session_max_len_addition: int = 1
@@ -189,7 +190,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
 class SASRecModelConfig(TransformerModelConfig):
     """SASRecModel config."""
 
-    data_preparator_type: SessionEncoderDataPreparatorType = SASRecDataPreparator
+    data_preparator_type: TransformerDataPreparatorType = SASRecDataPreparator
     transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
     use_causal_attn: bool = True
 
@@ -274,9 +275,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of positional encoding.
     transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(SessionEncoderDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
-    lightning_module_type : type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
+    lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
     get_val_mask_func : Callable, default None
         Function to get validation mask.
@@ -309,13 +310,13 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
         train_min_user_interactions: int = 2,
-        trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
-        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = SASRecDataPreparator,
-        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
+        lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        get_trainer: tp.Optional[TrainerCallable] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -343,11 +344,11 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             train_min_user_interactions=train_min_user_interactions,
-            trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
+            get_trainer=get_trainer,
         )
 
     def _init_data_preparator(self) -> None:

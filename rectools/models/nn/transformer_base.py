@@ -12,8 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import io
 import typing as tp
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -33,7 +33,7 @@ from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
-from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_data_preparator import TransformerDataPreparatorBase
 from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
@@ -42,9 +42,9 @@ from .transformer_net_blocks import (
 )
 
 
-class TransformerBasedSessionEncoder(torch.nn.Module):
+class TransformerTorchBackbone(torch.nn.Module):
     """
-    Torch model for recommendations.
+    Torch model for encoding user sessions based on transformer architecture.
 
     Parameters
     ----------
@@ -248,14 +248,14 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
 # ####  --------------  Lightning Model  --------------  #### #
 
 
-class SessionEncoderLightningModuleBase(LightningModule):
+class TransformerLightningModuleBase(LightningModule):
     """
-    Base class for lightning module. To change train procedure inherit
+    Base class for transfofmers lightning module. To change train procedure inherit
     from this class and pass your custom LightningModule to your model parameters.
 
     Parameters
     ----------
-    torch_model : TransformerBasedSessionEncoder
+    torch_model : TransformerTorchBackbone
         Torch model to make recommendations.
     lr : float
         Learning rate.
@@ -263,7 +263,7 @@ class SessionEncoderLightningModuleBase(LightningModule):
         Loss function.
     adam_betas : Tuple[float, float], default (0.9, 0.98)
         Coefficients for running averages of gradient and its square.
-    data_preparator : SessionEncoderDataPreparatorBase
+    data_preparator : TransformerDataPreparatorBase
         Data preparator.
     verbose : int, default 0
         Verbosity level.
@@ -275,10 +275,10 @@ class SessionEncoderLightningModuleBase(LightningModule):
 
     def __init__(
         self,
-        torch_model: TransformerBasedSessionEncoder,
+        torch_model: TransformerTorchBackbone,
         model_config: tp.Dict[str, tp.Any],
         dataset_schema: DatasetSchemaDict,
-        data_preparator: SessionEncoderDataPreparatorBase,
+        data_preparator: TransformerDataPreparatorBase,
         lr: float,
         gbce_t: float,
         loss: str,
@@ -321,8 +321,8 @@ class SessionEncoderLightningModuleBase(LightningModule):
         raise NotImplementedError()
 
 
-class SessionEncoderLightningModule(SessionEncoderLightningModuleBase):
-    """Lightning module to train SASRec model."""
+class TransformerLightningModule(TransformerLightningModuleBase):
+    """Lightning module to train transformer models."""
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
@@ -526,8 +526,8 @@ TransformerLayersType = tpe.Annotated[
     ),
 ]
 
-SessionEncoderLightningModuleType = tpe.Annotated[
-    tp.Type[SessionEncoderLightningModuleBase],
+TransformerLightningModuleType = tpe.Annotated[
+    tp.Type[TransformerLightningModuleBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -536,8 +536,8 @@ SessionEncoderLightningModuleType = tpe.Annotated[
     ),
 ]
 
-SessionEncoderDataPreparatorType = tpe.Annotated[
-    tp.Type[SessionEncoderDataPreparatorBase],
+TransformerDataPreparatorType = tpe.Annotated[
+    tp.Type[TransformerDataPreparatorBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -556,8 +556,23 @@ ItemNetBlockTypes = tpe.Annotated[
     ),
 ]
 
-CallableSerialized = tpe.Annotated[
-    tp.Callable,
+
+ValMaskCallable = Callable[[], np.ndarray]
+
+ValMaskCallableSerialized = tpe.Annotated[
+    ValMaskCallable,
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+TrainerCallable = Callable[[], Trainer]
+
+TrainerCallableSerialized = tpe.Annotated[
+    TrainerCallable,
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -570,7 +585,7 @@ CallableSerialized = tpe.Annotated[
 class TransformerModelConfig(ModelConfig):
     """Transformer model base config."""
 
-    data_preparator_type: SessionEncoderDataPreparatorType
+    data_preparator_type: TransformerDataPreparatorType
     n_blocks: int = 2
     n_heads: int = 4
     n_factors: int = 256
@@ -597,8 +612,9 @@ class TransformerModelConfig(ModelConfig):
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
-    lightning_module_type: SessionEncoderLightningModuleType = SessionEncoderLightningModule
-    get_val_mask_func: tp.Optional[CallableSerialized] = None
+    lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
+    get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
+    get_trainer: tp.Optional[TrainerCallableSerialized] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -622,7 +638,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        data_preparator_type: SessionEncoderDataPreparatorType,
+        data_preparator_type: TransformerDataPreparatorType,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         n_blocks: int = 2,
         n_heads: int = 4,
@@ -647,11 +663,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,
         train_min_user_interactions: int = 2,
-        trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        get_trainer: tp.Optional[TrainerCallable] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -686,16 +702,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
+        self.get_trainer = get_trainer
 
         self._init_data_preparator()
+        self._init_trainer()
 
-        if trainer is None:
-            self._init_trainer()
-        else:
-            self._trainer = trainer
-
-        self.lightning_model: SessionEncoderLightningModuleBase
-        self.data_preparator: SessionEncoderDataPreparatorBase
+        self.lightning_model: TransformerLightningModuleBase
+        self.data_preparator: TransformerDataPreparatorBase
         self.fit_trainer: Trainer
 
     def _check_devices(self, recommend_devices: tp.Union[int, tp.List[int]]) -> None:
@@ -708,19 +721,22 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         raise NotImplementedError()
 
     def _init_trainer(self) -> None:
-        self._trainer = Trainer(
-            max_epochs=self.epochs,
-            min_epochs=self.epochs,
-            deterministic=self.deterministic,
-            enable_progress_bar=self.verbose > 0,
-            enable_model_summary=self.verbose > 0,
-            logger=self.verbose > 0,
-            enable_checkpointing=False,
-            devices=1,
-        )
+        if self.get_trainer is None:
+            self._trainer = Trainer(
+                max_epochs=self.epochs,
+                min_epochs=self.epochs,
+                deterministic=self.deterministic,
+                enable_progress_bar=self.verbose > 0,
+                enable_model_summary=self.verbose > 0,
+                logger=self.verbose > 0,
+                enable_checkpointing=False,
+                devices=1,
+            )
+        else:
+            self._trainer = self.get_trainer()
 
-    def _init_torch_model(self) -> TransformerBasedSessionEncoder:
-        return TransformerBasedSessionEncoder(
+    def _init_torch_model(self) -> TransformerTorchBackbone:
+        return TransformerTorchBackbone(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
@@ -736,7 +752,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _init_lightning_model(
         self,
-        torch_model: TransformerBasedSessionEncoder,
+        torch_model: TransformerTorchBackbone,
         dataset_schema: DatasetSchemaDict,
         model_config: tp.Dict[str, tp.Any],
     ) -> None:
@@ -874,7 +890,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         )
 
     @property
-    def torch_model(self) -> TransformerBasedSessionEncoder:
+    def torch_model(self) -> TransformerTorchBackbone:
         """Pytorch model."""
         return self.lightning_model.torch_model
 
@@ -882,7 +898,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def _from_config(cls, config: TransformerModelConfig_T) -> tpe.Self:
         params = config.model_dump()
         params.pop("cls")
-        params["trainer"] = None
         return cls(**params)
 
     def _get_config(self) -> TransformerModelConfig_T:
@@ -917,8 +932,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if self.is_fitted:
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
-                checkpoint = f.read()
-                # checkpoint = torch.load(f.name, weights_only=False)
+                # checkpoint = f.read()
+                checkpoint = torch.load(f.name, weights_only=False)
                 state: tp.Dict[str, tp.Any] = {
                     "fitted_checkpoint": checkpoint,
                     # TODO: trainer?
@@ -929,8 +944,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
         if "fitted_checkpoint" in state:
-            checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
-            # checkpoint = state["fitted_checkpoint"]
+            # checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
+            checkpoint = state["fitted_checkpoint"]
             loaded = self._model_from_checkpoint(checkpoint)
         else:
             model_config = state["model_config"]

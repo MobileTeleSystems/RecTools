@@ -18,18 +18,19 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from pytorch_lightning import Trainer
 
 from .constants import MASKING_VALUE, PADDING_VALUE
 from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
 from .transformer_base import (
-    SessionEncoderDataPreparatorType,
-    SessionEncoderLightningModule,
-    SessionEncoderLightningModuleBase,
+    TrainerCallable,
+    TransformerDataPreparatorType,
+    TransformerLightningModule,
+    TransformerLightningModuleBase,
     TransformerModelBase,
     TransformerModelConfig,
+    ValMaskCallable,
 )
-from .transformer_data_preparator import SessionEncoderDataPreparatorBase
+from .transformer_data_preparator import TransformerDataPreparatorBase
 from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
@@ -38,7 +39,7 @@ from .transformer_net_blocks import (
 )
 
 
-class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
+class BERT4RecDataPreparator(TransformerDataPreparatorBase):
     """Data Preparator for BERT4RecModel."""
 
     train_session_max_len_addition: int = 0
@@ -54,7 +55,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
         train_min_user_interactions: int,
         mask_prob: float,
         shuffle_train: bool = True,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        get_val_mask_func: tp.Optional[ValMaskCallable] = None,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -158,7 +159,7 @@ class BERT4RecDataPreparator(SessionEncoderDataPreparatorBase):
 class BERT4RecModelConfig(TransformerModelConfig):
     """BERT4RecModel config."""
 
-    data_preparator_type: SessionEncoderDataPreparatorType = BERT4RecDataPreparator
+    data_preparator_type: TransformerDataPreparatorType = BERT4RecDataPreparator
     use_key_padding_mask: bool = True
     mask_prob: float = 0.15
 
@@ -244,9 +245,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Type of positional encoding.
     transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(SessionEncoderDataPreparatorBase), default `BERT4RecDataPreparator`
+    data_preparator_type : type(TransformerDataPreparatorBase), default `BERT4RecDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
-    lightning_module_type : type(SessionEncoderLightningModuleBase), default `SessionEncoderLightningModule`
+    lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
     get_val_mask_func : Callable, default None
         Function to get validation mask.
@@ -280,13 +281,13 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         dataloader_num_workers: int = 0,
         train_min_user_interactions: int = 2,
         mask_prob: float = 0.15,
-        trainer: tp.Optional[Trainer] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
-        data_preparator_type: tp.Type[SessionEncoderDataPreparatorBase] = BERT4RecDataPreparator,
-        lightning_module_type: tp.Type[SessionEncoderLightningModuleBase] = SessionEncoderLightningModule,
-        get_val_mask_func: tp.Optional[tp.Callable] = None,
+        data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
+        lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        get_trainer: tp.Optional[TrainerCallable] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -316,15 +317,15 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             train_min_user_interactions=train_min_user_interactions,
-            trainer=trainer,
             item_net_block_types=item_net_block_types,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
+            get_trainer=get_trainer,
         )
 
     def _init_data_preparator(self) -> None:
-        self.data_preparator: SessionEncoderDataPreparatorBase = self.data_preparator_type(
+        self.data_preparator: TransformerDataPreparatorBase = self.data_preparator_type(
             session_max_len=self.session_max_len,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
