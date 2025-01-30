@@ -28,7 +28,7 @@ faster than ever before.
 
 **BERT4Rec and SASRec are now available in RecTools:**
 - Fully compatible with our  `fit` / `recommend` paradigm and require NO special data processing
-- Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_advanced_training_guide.ipynb): loss options, item embedding options,  category features utilization and more!
+- Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_tutorial.ipynb): loss options, item embedding options,  category features utilization and more!
 - Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready! See our [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb)
 - We are running benchmarks with comparison of RecTools models to other open-source implementations following BERT4Rec reproducibility paper and achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
 
