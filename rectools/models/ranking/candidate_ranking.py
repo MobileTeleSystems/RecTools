@@ -212,9 +212,9 @@ class Reranker:
             The DataFrame must have columns `Columns.User` and `Columns.Score`.
         k : int
             The number of top items to recommend for each user.
-        add_rank_col : bool, optional
+        add_rank_col : bool, default True
             Whether to add a rank column to the resulting DataFrame, indicating the rank
-            of each item within the user's recommendations, by default True.
+            of each item within the user's recommendations.
 
         Returns
         -------
