@@ -22,10 +22,9 @@ class ClassifierBase(tp.Protocol):
 
     Methods
     -------
-    fit(*args: tp.Any, **kwargs: tp.Any) -> tpe.Self
+    fit
         Fit the classifier to the training data.
-
-    predict_proba(*args: tp.Any, **kwargs: tp.Any) -> np.ndarray
+    predict_proba
         Predict class probabilities for the given input data. The implementation should return
         an array where each element is a probability distribution over the classes.
     """
@@ -36,9 +35,9 @@ class ClassifierBase(tp.Protocol):
 
         Parameters
         ----------
-        *args : tp.Any
+        *args : any
             Positional arguments for fitting the classifier.
-        **kwargs : tp.Any
+        **kwargs : any
             Keyword arguments for fitting the classifier.
 
         Returns
@@ -53,9 +52,9 @@ class ClassifierBase(tp.Protocol):
 
         Parameters
         ----------
-        *args : tp.Any
+        *args : any
             Positional arguments for predicting probabilities.
-        **kwargs : tp.Any
+        **kwargs : any
             Keyword arguments for predicting probabilities.
 
         Returns
@@ -73,10 +72,9 @@ class RankerBase(tp.Protocol):
 
     Methods
     -------
-    fit(*args: tp.Any, **kwargs: tp.Any) -> tpe.Self
+    fit
         Fit the ranker to the training data.
-
-    predict(*args: tp.Any, **kwargs: tp.Any) -> np.ndarray
+    predict
         Predict scores for the given input data. The implementation should return an array of
         scores that can be used for ranking items.
     """
@@ -87,9 +85,9 @@ class RankerBase(tp.Protocol):
 
         Parameters
         ----------
-        *args : tp.Any
+        *args : any
             Positional arguments for fitting the ranker.
-        **kwargs : tp.Any
+        **kwargs : any
             Keyword arguments for fitting the ranker.
 
         Returns
@@ -104,9 +102,9 @@ class RankerBase(tp.Protocol):
 
         Parameters
         ----------
-        *args : tp.Any
+        *args : any
             Positional arguments for predicting scores.
-        **kwargs : tp.Any
+        **kwargs : any
             Keyword arguments for predicting scores.
 
         Returns
@@ -132,9 +130,9 @@ class Reranker:
 
         Parameters
         ----------
-        model : tp.Union[ClassifierBase, RankerBase]
+        model : ClassifierBase | RankerBase
             Ranking model. It must implement `fit` and `predict` or `predict_proba`.
-        fit_kwargs : dict(str -> any), optional, default None
+        fit_kwargs : dict(str -> any), optional, default ``None``
             Additional keyword arguments to pass to the model's fit method.
         """
         self.model = model
@@ -151,7 +149,7 @@ class Reranker:
 
         Returns
         -------
-        tp.Dict[str, tp.Any]
+        dict(str -> any)
             A dictionary containing the features (`X`) and target labels (`y`) for fitting the model.
         """
         candidates_with_target = candidates_with_target.drop(columns=Columns.UserItem)
@@ -212,7 +210,7 @@ class Reranker:
             The DataFrame must have columns `Columns.User` and `Columns.Score`.
         k : int
             The number of top items to recommend for each user.
-        add_rank_col : bool, default True
+        add_rank_col : bool, default ``True``
             Whether to add a rank column to the resulting DataFrame, indicating the rank
             of each item within the user's recommendations.
 
@@ -274,14 +272,14 @@ class CandidateFeatureCollector:
         useritem : pd.DataFrame
             Candidates with score/rank features from first stage. Ids are either external or 1x internal
         dataset : Dataset
-            Dataset will have either external -> 2x internal id maps to internal -> 2x internal
-        fold_info : tp.Optional[tp.Dict[str, tp.Any]]
-            Fold inofo from splitter can be used for adding time-based features
+            Dataset will have either external -> 2x internal id maps to internal -> 2x internal.
+        fold_info : dict(str -> any), optional, default ``None``
+            Fold info from splitter can be used for adding time-based features.
 
         Returns
         -------
         pd.DataFrame
-            `useritem` dataframe enriched with features for users, items and useritem pairs
+            `useritem` dataframe enriched with features for users, items and useritem pairs.
         """
         user_features = self._get_user_features(useritem[Columns.User].unique(), dataset, fold_info)
         item_features = self._get_item_features(useritem[Columns.Item].unique(), dataset, fold_info)
@@ -332,9 +330,9 @@ class PerUserNegativeSampler(NegativeSamplerBase):
 
         Parameters
         ----------
-        n_negatives : int, default 3
+        n_negatives : int, default ``3``
             The number of negative examples to sample for each user.
-        random_state : int, optional, default None
+        random_state : int, optional, default ``None``
             An optional random seed for reproducibility of the sampling process.
         """
         self.n_negatives = n_negatives
@@ -411,9 +409,9 @@ class CandidateGenerator:
             Whether to include rank information in the generated candidates.
         keep_scores : bool
             Whether to include score information in the generated candidates.
-        scores_fillna_value : float, optional, default None
+        scores_fillna_value : float, optional, default ``None``
             The value to fill missing scores with, if any. If None, missing scores are not filled.
-        ranks_fillna_value : float, optional, default None
+        ranks_fillna_value : float, optional, default ``None``
             The value to fill missing ranks with, if any. If None, missing ranks are not filled.
         """
         self.model = model
@@ -466,9 +464,9 @@ class CandidateGenerator:
             Whether to filter out items that have already been viewed by the user.
         for_train : bool
             Whether the candidates are being generated for training purposes.
-        items_to_recommend : ExternalIds, optional, default None
+        items_to_recommend : ExternalIds, optional, default ``None``
             Specific items to recommend. If None, recommend from all available items.
-        on_unsupported_targets : ErrorBehaviour, default "raise"
+        on_unsupported_targets : ErrorBehaviour, default ``"raise"``
             Behavior when encountering unsupported targets. Can be "raise" to raise an error.
 
         Returns
@@ -513,18 +511,18 @@ class CandidateRankingModel(ModelBase):
 
         Parameters
         ----------
-        candidate_generators : tp.List[CandidateGenerator]
+        candidate_generators : list(CandidateGenerator)
             List of candidate generators.
         splitter : Splitter
             Splitter for dataset splitting.
         reranker : Reranker
             Reranker for reranking candidates.
-        sampler : NegativeSamplerBase, optional
-            Sampler for negative sampling. Default is PerUserNegativeSampler().
-        feature_collector : CandidateFeatureCollector, optional
-            Collector for user-item features. Default is CandidateFeatureCollector().
-        verbose : int, optional
-            Verbosity level. Default is 0.
+        sampler : NegativeSamplerBase, default ``PerUserNegativeSampler()``
+            Sampler for negative sampling.
+        feature_collector : CandidateFeatureCollector, default ``CandidateFeatureCollector()``
+            Collector for user-item features.
+        verbose : int, default ``0``
+            Verbosity level.
         """
         super().__init__(verbose=verbose)
 
@@ -544,12 +542,12 @@ class CandidateRankingModel(ModelBase):
 
         Parameters
         ----------
-        candidate_generators : tp.List[CandidateGenerator]
+        candidate_generators : list(CandidateGenerator)
             List of candidate generators.
 
         Returns
         -------
-        tp.Dict[str, CandidateGenerator]
+        dict(str -> CandidateGenerator)
             Dictionary with candidate generator identifiers as keys and candidate generators as values.
         """
         model_count: tp.Dict[str, int] = defaultdict(int)
@@ -576,7 +574,7 @@ class CandidateRankingModel(ModelBase):
 
         Returns
         -------
-        tp.Tuple[pd.DataFrame, pd.DataFrame]
+        pd.DataFrame, pd.DataFrame, dict(str -> any)
             Tuple containing the history dataset, train targets, and fold information.
         """
         split_iterator = splitter.split(dataset.interactions, collect_fold_stats=True)
@@ -721,8 +719,8 @@ class CandidateRankingModel(ModelBase):
             Whether to filter already viewed items.
         for_train : bool
             Whether the candidates are for training or not.
-        items_to_recommend : tp.Optional[ExternalIds], optional
-            List of items to recommend. Default is None.
+        items_to_recommend : ExternalIds, optional, default ``None``
+            List of items to recommend.
 
         Returns
         -------
@@ -806,18 +804,18 @@ class CandidateRankingModel(ModelBase):
             The number of recommendations to generate for each user.
         filter_viewed : bool
             If true, viewed items will be excluded from the recommendations.
-        items_to_recommend : ExternalIds, optional, default None
+        items_to_recommend : ExternalIds, optional, default ``None``
             List of item ids from which recommendations should be generated.
             If not provided, it will include all items available in the dataset.
-        add_rank_col : bool, default True
+        add_rank_col : bool, default ``True``
             If true, a rank column is added to the returned DataFrame.
             The rank column shows the position of the item in the sorted order of predictions.
-        on_unsupported_targets : ErrorBehaviour, default raise
+        on_unsupported_targets : ErrorBehaviour, default ``"raise"``
             Controls the behavior when a target is encountered during prediction,
             for which the Model makes no prediction.
             If "raise", a ValueError is raised. If "warn", it outputs a warning,
             and if "ignore", it silently continues.
-        force_fit_candidate_generators : bool, default False
+        force_fit_candidate_generators : bool, default ``False``
             If true, the candidate generators are fitted even if they are already fitted.
 
         Returns

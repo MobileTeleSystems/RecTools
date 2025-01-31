@@ -27,11 +27,11 @@ class CatBoostReranker(Reranker):
 
         Parameters
         ----------
-        model : Union[CatBoostClassifier, CatBoostRanker]
+        model : ClassifierBase | RankerBase
             A CatBoost model instance used for reranking. Can be either a classifier or a ranker.
-        fit_kwargs : dict(str -> any), optional, default None
+        fit_kwargs : dict(str -> any), optional, default ``None``
             Additional keyword arguments to be passed to the `fit` method of the CatBoost model.
-        pool_kwargs : dict(str -> any), optional, default None
+        pool_kwargs : dict(str -> any), optional, default ``None``
             Additional keyword arguments to be used when creating the CatBoost `Pool`.
         """
         super().__init__(model)
@@ -41,7 +41,7 @@ class CatBoostReranker(Reranker):
 
     def prepare_training_pool(self, candidates_with_target: pd.DataFrame) -> Pool:
         """
-        Prepare a CatBoost Pool for training from the given candidates with target.
+        Prepare a CatBoost `Pool` for training from the given candidates with target.
 
         Depending on whether the model is a classifier or a ranker, the pool is prepared differently.
         For classifiers, only data and label are used. For rankers, group information is also included.
