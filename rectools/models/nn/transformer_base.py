@@ -917,7 +917,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         # Update data preparator
         dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
         loaded.data_preparator.item_id_map = IdMap(
-            np.array(dataset_schema["item_id_map_external_ids"], dtype=dataset_schema["item_id_map_dtype"])
+            np.array(dataset_schema["items"]["id_map_external_ids"], dtype=dataset_schema["items"]["id_map_dtype"])
         )
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 

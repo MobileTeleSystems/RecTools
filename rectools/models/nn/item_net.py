@@ -227,7 +227,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
     @classmethod
     def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, n_factors: int, dropout_rate: float) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
-        n_items = dataset_schema["n_hot_items"]
+        n_items = dataset_schema["items"]["n_hot"]
         return cls(n_factors, n_items, dropout_rate)
 
 
@@ -327,7 +327,7 @@ class ItemNetConstructor(ItemNetBase):
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
     ) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
-        n_items = dataset_schema["n_hot_items"]
+        n_items = dataset_schema["items"]["n_hot"]
 
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:

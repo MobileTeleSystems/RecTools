@@ -45,27 +45,24 @@ def _serialize_any(spec: tp.Any) -> Hashable:
 FeatureName = tpe.Annotated[tp.Any, PlainSerializer(_serialize_any, when_used="json")]
 DatasetSchemaDict = tp.Dict[str, tp.Any]
 
+class EntitySchema(BaseConfig):
+    n_hot: int
+    has_features: bool = False
+    dense_features: tp.Optional[bool] = None
+    feature_names: tp.Optional[tp.Tuple[FeatureName, ...]] = None
+    feature_cat_cols: tp.Optional[tp.List[int]] = None
+    cat_features_n_stored_values: tp.Optional[int] = None
+    id_map_external_ids: tp.Optional[tp.List[ExternalId]] = None
+    id_map_dtype: tp.Optional[str] = None
+    
+
 
 class DatasetSchema(BaseConfig):
     """Dataset schema."""
 
     n_interactions: int
-    n_hot_users: int
-    user_id_map_external_ids: tp.Optional[tp.List[ExternalId]] = None
-    user_id_map_dtype: str
-    has_user_features: bool
-    make_dense_user_features: tp.Optional[bool] = None
-    user_feature_names: tp.Optional[tp.Tuple[FeatureName, ...]] = None
-    user_feature_cat_cols: tp.Optional[tp.List[int]] = None
-    user_cat_features_n_stored_values: tp.Optional[int] = None
-    n_hot_items: int
-    item_id_map_external_ids: tp.Optional[tp.List[ExternalId]] = None
-    item_id_map_dtype: str
-    has_item_features: bool
-    make_dense_item_features: tp.Optional[bool] = None
-    item_feature_names: tp.Optional[tp.Tuple[FeatureName, ...]] = None
-    item_feature_cat_cols: tp.Optional[tp.List[int]] = None
-    item_cat_features_n_stored_values: tp.Optional[int] = None
+    items: EntitySchema
+    users: EntitySchema
 
 
 @attr.s(slots=True, frozen=True)
@@ -99,60 +96,36 @@ class Dataset:
     interactions: Interactions = attr.ib()
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
-
+    
+    def _update_features_in_schema(self, schema: EntitySchema, features: Features) -> None:
+        if features is not None:
+            schema.has_features = True
+            schema.feature_names = features.names
+            schema.dense_features = isinstance(features, DenseFeatures)
+            if isinstance(features, SparseFeatures):
+                schema.feature_cat_cols = features.cat_feature_indices.tolist()
+                schema.cat_features_n_stored_values = features.get_cat_features().values.nnz
+                
+    def _update_id_map_in_schema(self, schema: EntitySchema, id_map: Features) -> None:
+        schema.id_map_external_ids = id_map.external_ids.tolist()
+        schema.id_map_dtype=id_map.external_dtype.str
+        
     def get_schema(self, add_user_id_map: bool = False, add_item_id_map: bool = False) -> DatasetSchemaDict:
         """Get dataset schema in a dict form that contains all the information about the dataset and its statistics."""
-        has_user_features = self.user_features is not None
-        dense_user_features = None
-        user_feature_cat_cols = None
-        user_cat_features_n_stored_values = None
-        user_feature_names = None
-        user_id_map_external_ids = None
+        user_schema = EntitySchema(n_hot = self.n_hot_users)
+        self._update_features_in_schema(user_schema, self.user_features)
         if add_user_id_map:
-            user_id_map_external_ids = self.user_id_map.external_ids.tolist()
-
-        if self.user_features is not None:
-            has_user_features = True
-            user_feature_names = self.user_features.names
-            dense_user_features = isinstance(self.user_features, DenseFeatures)
-            if isinstance(self.user_features, SparseFeatures):
-                user_feature_cat_cols = self.user_features.cat_feature_indices.tolist()
-                user_cat_features_n_stored_values = self.user_features.get_cat_features().values.nnz
-
-        has_item_features = self.item_features is not None
-        dense_item_features = None
-        item_feature_cat_cols = None
-        item_cat_features_n_stored_values = None
-        item_feature_names = None
-        item_id_map_external_ids = None
+            self._update_id_map_in_schema(user_schema, self.user_id_map)
+            
+        item_schema = EntitySchema(n_hot = self.n_hot_items)
+        self._update_features_in_schema(item_schema, self.item_features)
         if add_item_id_map:
-            item_id_map_external_ids = self.item_id_map.external_ids.tolist()
-
-        if self.item_features is not None:
-            item_feature_names = self.item_features.names
-            dense_item_features = isinstance(self.item_features, DenseFeatures)
-            if isinstance(self.item_features, SparseFeatures):
-                item_feature_cat_cols = self.item_features.cat_feature_indices.tolist()
-                item_cat_features_n_stored_values = self.item_features.get_cat_features().values.nnz
+            self._update_id_map_in_schema(item_schema, self.item_id_map)
 
         schema = DatasetSchema(
             n_interactions=self.interactions.df.shape[0],
-            n_hot_users=self.n_hot_users,
-            user_id_map_external_ids=user_id_map_external_ids,
-            user_id_map_dtype=self.user_id_map.external_dtype.str,
-            has_user_features=has_user_features,
-            make_dense_user_features=dense_user_features,
-            user_feature_names=user_feature_names,
-            user_feature_cat_cols=user_feature_cat_cols,
-            user_cat_features_n_stored_values=user_cat_features_n_stored_values,
-            n_hot_items=self.n_hot_items,
-            item_id_map_external_ids=item_id_map_external_ids,
-            item_id_map_dtype=self.item_id_map.external_dtype.str,
-            has_item_features=has_item_features,
-            make_dense_item_features=dense_item_features,
-            item_feature_names=item_feature_names,
-            item_feature_cat_cols=item_feature_cat_cols,
-            item_cat_features_n_stored_values=item_cat_features_n_stored_values,
+            users=user_schema,
+            items=item_schema,
         )
         return schema.model_dump(mode="json")
 
