@@ -32,17 +32,17 @@ from .identifiers import ExternalId, IdMap
 from .interactions import Interactions
 
 
-def _serialize_any(spec: tp.Any) -> Hashable:
+def _serialize_feature_name(spec: tp.Any) -> Hashable:
     if isinstance(spec, tuple):
-        return tuple(_serialize_any(item) for item in spec)
+        return tuple(_serialize_feature_name(item) for item in spec)
     if isinstance(spec, (int, float, str)):
         return spec
     if np.issubdtype(spec, np.number):
         return spec.item()
-    return "unsupported object"
+    return "unsupported feature name"
 
 
-FeatureName = tpe.Annotated[tp.Any, PlainSerializer(_serialize_any, when_used="json")]
+FeatureName = tpe.Annotated[tp.Any, PlainSerializer(_serialize_feature_name, when_used="json")]
 DatasetSchemaDict = tp.Dict[str, tp.Any]
 
 
@@ -110,7 +110,8 @@ class Dataset:
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
 
-    def _update_features_in_schema(self, schema: EntitySchema, features: Features) -> None:
+    @staticmethod
+    def _get_feature_schema(features: Features) -> FeaturesSchema:
         feature_schema = FeaturesSchema(
             names=features.names,
             dense=isinstance(features, DenseFeatures),
@@ -118,24 +119,25 @@ class Dataset:
         if isinstance(features, SparseFeatures):
             feature_schema.cat_cols = features.cat_feature_indices.tolist()
             feature_schema.cat_n_stored_values = features.get_cat_features().values.nnz
-        schema.features = feature_schema
+        return feature_schema
 
-    def _update_id_map_in_schema(self, schema: EntitySchema, id_map: IdMap) -> None:
-        schema.id_map = IdMapSchema(external_ids=id_map.external_ids.tolist(), dtype=id_map.external_dtype.str)
+    @staticmethod
+    def _get_id_map_schema(id_map: IdMap) -> IdMapSchema:
+        return IdMapSchema(external_ids=id_map.external_ids.tolist(), dtype=id_map.external_dtype.str)
 
     def get_schema(self, add_user_id_map: bool = False, add_item_id_map: bool = False) -> DatasetSchemaDict:
         """Get dataset schema in a dict form that contains all the information about the dataset and its statistics."""
         user_schema = EntitySchema(n_hot=self.n_hot_users)
         if self.user_features is not None:
-            self._update_features_in_schema(user_schema, self.user_features)
+            user_schema.features = self._get_feature_schema(self.user_features)
         if add_user_id_map:
-            self._update_id_map_in_schema(user_schema, self.user_id_map)
+            user_schema.id_map = self._get_id_map_schema(self.user_id_map)
 
         item_schema = EntitySchema(n_hot=self.n_hot_items)
         if self.item_features is not None:
-            self._update_features_in_schema(item_schema, self.item_features)
+            item_schema.features = self._get_feature_schema(self.item_features)
         if add_item_id_map:
-            self._update_id_map_in_schema(item_schema, self.item_id_map)
+            item_schema.id_map = self._get_id_map_schema(self.item_id_map)
 
         schema = DatasetSchema(
             n_interactions=self.interactions.df.shape[0],

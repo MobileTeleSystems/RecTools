@@ -127,9 +127,9 @@ See [recommender baselines extended tutorial](https://github.com/MobileTeleSyste
 - Fitting any model is as simple as `model.fit(dataset)`
 - For getting recommendations `filter_viewed` and `items_to_recommend` options are available
 - For item-to-item recommendations use `recommend_to_items` method
-- For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our user guide](examples/4_dataset_with_features.ipynb)
+- For feeding user/item features to model just specify dataframes when constructing `Dataset`. [Check our example](examples/4_dataset_with_features.ipynb)
 - For warm / cold inference just provide all required ids in `users` or `target_items` parameters of `recommend` or `recommend_to_items` methods and make sure you have features in the dataset for warm users/items. **Nothing else is needed, everything works out of the box.**
-- Our models can be initialized from configs and have useful methods like `get_config`, `get_params`, `save`, `load`. Common functions `model_from_config` and `load_model` are available. [Check our user guide](examples/9_model_configs_and_saving.ipynb)
+- Our models can be initialized from configs and have useful methods like `get_config`, `get_params`, `save`, `load`. Common functions `model_from_config` and `load_model` are available. [Check our example](examples/9_model_configs_and_saving.ipynb)
 
 
 ## Extended validation tools
