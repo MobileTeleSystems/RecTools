@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ from scipy import sparse
 
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, Features, IdMap, Interactions, SparseFeatures
+from rectools.dataset.features import DIRECT_FEATURE_VALUE
 from tests.testing_utils import (
     assert_feature_set_equal,
     assert_id_map_equal,
@@ -60,6 +61,25 @@ class TestDataset:
                 columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
             ),
         )
+        self.expected_schema = {
+            "n_interactions": 6,
+            "users": {
+                "n_hot": 3,
+                "id_map": {
+                    "external_ids": ["u1", "u2", "u3"],
+                    "dtype": "|O",
+                },
+                "features": None,
+            },
+            "items": {
+                "n_hot": 3,
+                "id_map": {
+                    "external_ids": ["i1", "i2", "i5"],
+                    "dtype": "|O",
+                },
+                "features": None,
+            },
+        }
 
     def assert_dataset_equal_to_expected(
         self,
@@ -85,12 +105,16 @@ class TestDataset:
         expected = self.expected_interactions
         expected.df["extra_col"] = self.interactions_df["extra_col"]
         assert_interactions_set_equal(actual, expected)
+        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        assert actual_schema == self.expected_schema
 
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
         self.assert_dataset_equal_to_expected(dataset, None, None)
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
+        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        assert actual_schema == self.expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -132,6 +156,38 @@ class TestDataset:
 
         assert_feature_set_equal(dataset.get_hot_user_features(), expected_user_features)
         assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features)
+
+        expected_schema = {
+            "n_interactions": 6,
+            "users": {
+                "n_hot": 3,
+                "id_map": {
+                    "external_ids": ["u1", "u2", "u3"],
+                    "dtype": "|O",
+                },
+                "features": {
+                    "dense": True,
+                    "names": ["f1", "f2"],
+                    "cat_cols": None,
+                    "cat_n_stored_values": None,
+                },
+            },
+            "items": {
+                "n_hot": 3,
+                "id_map": {
+                    "external_ids": ["i1", "i2", "i5"],
+                    "dtype": "|O",
+                },
+                "features": {
+                    "dense": False,
+                    "names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
+                    "cat_cols": [1, 2],
+                    "cat_n_stored_values": 3,
+                },
+            },
+        }
+        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        assert actual_schema == expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))

@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -15,17 +15,69 @@
 """Dataset - all data container."""
 
 import typing as tp
+from collections.abc import Hashable
 
 import attr
 import numpy as np
 import pandas as pd
+import typing_extensions as tpe
+from pydantic import PlainSerializer
 from scipy import sparse
 
 from rectools import Columns
+from rectools.utils.config import BaseConfig
 
-from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
-from .identifiers import IdMap
+from .features import AbsentIdError, DenseFeatures, Features, SparseFeatureName, SparseFeatures
+from .identifiers import ExternalId, IdMap
 from .interactions import Interactions
+
+DenseOrSparseFeatureName = tp.Union[str, SparseFeatureName]
+
+
+def _serialize_feature_name(spec: DenseOrSparseFeatureName) -> Hashable:
+    if isinstance(spec, tuple):
+        return tuple(_serialize_feature_name(item) for item in spec)
+    if isinstance(spec, (int, float, str)):
+        return spec
+    if np.issubdtype(spec, np.number):  # type:ignore[unreachable]
+        return spec.item()
+    return "unsupported feature name"
+
+
+FeatureName = tpe.Annotated[DenseOrSparseFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
+DatasetSchemaDict = tp.Dict[str, tp.Any]
+
+
+class FeaturesSchema(BaseConfig):
+    """Features schema."""
+
+    dense: bool
+    names: tp.Tuple[FeatureName, ...]
+    cat_cols: tp.Optional[tp.List[int]] = None
+    cat_n_stored_values: tp.Optional[int] = None
+
+
+class IdMapSchema(BaseConfig):
+    """IdMap schema."""
+
+    external_ids: tp.List[ExternalId]
+    dtype: str
+
+
+class EntitySchema(BaseConfig):
+    """Entity schema."""
+
+    n_hot: int
+    features: tp.Optional[FeaturesSchema] = None
+    id_map: tp.Optional[IdMapSchema] = None
+
+
+class DatasetSchema(BaseConfig):
+    """Dataset schema."""
+
+    n_interactions: int
+    items: EntitySchema
+    users: EntitySchema
 
 
 @attr.s(slots=True, frozen=True)
@@ -59,6 +111,46 @@ class Dataset:
     interactions: Interactions = attr.ib()
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
+
+    @staticmethod
+    def _get_feature_schema(features: Features) -> FeaturesSchema:
+        cat_cols = None
+        cat_n_stored_values = None
+        if isinstance(features, SparseFeatures):
+            cat_cols = features.cat_feature_indices.tolist()
+            cat_n_stored_values = features.get_cat_features().values.nnz
+        feature_schema = FeaturesSchema(
+            names=features.names,
+            dense=isinstance(features, DenseFeatures),
+            cat_cols=cat_cols,
+            cat_n_stored_values=cat_n_stored_values,
+        )
+        return feature_schema
+
+    @staticmethod
+    def _get_id_map_schema(id_map: IdMap) -> IdMapSchema:
+        return IdMapSchema(external_ids=id_map.external_ids.tolist(), dtype=id_map.external_dtype.str)
+
+    def get_schema(self, add_user_id_map: bool = False, add_item_id_map: bool = False) -> DatasetSchemaDict:
+        """Get dataset schema in a dict form that contains all the information about the dataset and its statistics."""
+        user_schema = EntitySchema(n_hot=self.n_hot_users)
+        if self.user_features is not None:
+            user_schema.features = self._get_feature_schema(self.user_features)
+        if add_user_id_map:
+            user_schema.id_map = self._get_id_map_schema(self.user_id_map)
+
+        item_schema = EntitySchema(n_hot=self.n_hot_items)
+        if self.item_features is not None:
+            item_schema.features = self._get_feature_schema(self.item_features)
+        if add_item_id_map:
+            item_schema.id_map = self._get_id_map_schema(self.item_id_map)
+
+        schema = DatasetSchema(
+            n_interactions=self.interactions.df.shape[0],
+            users=user_schema,
+            items=item_schema,
+        )
+        return schema.model_dump(mode="json")
 
     @property
     def n_hot_users(self) -> int:

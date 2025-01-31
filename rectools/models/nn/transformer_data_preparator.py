@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import SparseFeatures
 from rectools.dataset.identifiers import IdMap
+
+from .constants import PADDING_VALUE
 
 
 class SequenceDataset(TorchDataset):
@@ -81,7 +83,7 @@ class SequenceDataset(TorchDataset):
         return cls(sessions=sessions, weights=weights)
 
 
-class SessionEncoderDataPreparatorBase:
+class TransformerDataPreparatorBase:
     """
     Base class for data preparator. To change train/recommend dataset processing, train/recommend dataloaders inherit
     from this class and pass your custom data preparator to your model parameters.
@@ -106,12 +108,13 @@ class SessionEncoderDataPreparatorBase:
 
     train_session_max_len_addition: int = 0
 
+    item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE,)
+
     def __init__(
         self,
         session_max_len: int,
         batch_size: int,
         dataloader_num_workers: int,
-        item_extra_tokens: tp.Sequence[Hashable],
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
@@ -127,7 +130,6 @@ class SessionEncoderDataPreparatorBase:
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
         self.train_min_user_interactions = train_min_user_interactions
-        self.item_extra_tokens = item_extra_tokens
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
 
@@ -145,7 +147,7 @@ class SessionEncoderDataPreparatorBase:
         return len(self.item_extra_tokens)
 
     def process_dataset_train(self, dataset: Dataset) -> None:
-        """TODO"""
+        """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
 
         # Exclude val interaction targets from train if needed
@@ -198,8 +200,7 @@ class SessionEncoderDataPreparatorBase:
         self.train_dataset = Dataset(user_id_map, item_id_map, dataset_interactions, item_features=item_features)
 
         self.item_id_map = self.train_dataset.item_id_map
-        extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
-        self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
+        self._init_extra_token_ids()
 
         # Define val interactions
         if self.get_val_mask_func is not None:
@@ -212,6 +213,10 @@ class SessionEncoderDataPreparatorBase:
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+
+    def _init_extra_token_ids(self) -> None:
+        extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
+        self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
 
     def get_dataloader_train(self) -> DataLoader:
         """
@@ -304,7 +309,7 @@ class SessionEncoderDataPreparatorBase:
         interactions = dataset.interactions.df
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
-        interactions = interactions[interactions[Columns.User].isin(users_internal)]  # todo: fast_isin
+        interactions = interactions[interactions[Columns.User].isin(users_internal)]
         interactions = interactions[interactions[Columns.Item].isin(items_internal)]
 
         # Convert to external ids
@@ -358,7 +363,6 @@ class SessionEncoderDataPreparatorBase:
         self,
         batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
     ) -> tp.Dict[str, torch.Tensor]:
-        """TODO"""
         raise NotImplementedError()
 
     def _collate_fn_recommend(
