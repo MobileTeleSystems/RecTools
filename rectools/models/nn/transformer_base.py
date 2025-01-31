@@ -823,7 +823,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         user_embs = np.concatenate(session_embs, axis=0)
         user_embs = user_embs[user_ids]
 
-        item_embs = self.get_item_vectors()
+        item_embs = self.get_item_vectors_tensor().detach().cpu().numpy()
 
         ranker = ImplicitRanker(
             self.u2i_dist,
@@ -848,19 +848,18 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         all_target_ids = user_ids[user_ids_indices]
         return all_target_ids, all_reco_ids, all_scores
 
-    def get_item_vectors(self) -> np.ndarray:
+    def get_item_vectors_tensor(self) -> torch.Tensor:
         """
         Compute catalog item embeddings through torch model.
 
         Returns
         -------
-        np.ndarray
+        torch.Tensor
             Full catalog item embeddings including extra tokens.
         """
         self.torch_model.eval()
         with torch.no_grad():
-            item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()
-        return item_embs
+            return self.torch_model.item_model.get_all_embeddings()
 
     def _recommend_i2i(
         self,
@@ -872,7 +871,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        item_embs = self.get_item_vectors()
+        item_embs = self.get_item_vectors_tensor().detach().cpu().numpy()
         # TODO: i2i recommendations do not need filtering viewed and user most of the times has GPU
         # We should test if torch `topk`` is faster
 
