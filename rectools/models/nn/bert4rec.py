@@ -170,15 +170,15 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     "MLM" (masked item in user sequence) training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
 
-    See RecTools theory&practice tutorial on transformers:
-        https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
-    See RecTools advanced training guide for transformers:
-        https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
-    See benchmark for RecTools transformers quality compared to other open-source implementations:
-        https://github.com/blondered/bert4rec_repro
-    See original BERT4Rec paper:
-        https://arxiv.org/abs/1904.06690
-
+    References:
+        - RecTools theory&practice tutorial on transformers: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
+        - RecTools advanced training guide for transformers: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
+        - Benchmark for RecTools transformers quality compared to other open-source implementations: https://github.com/blondered/bert4rec_repro
+        - Original BERT4Rec paper: https://arxiv.org/abs/1904.06690
+        - gBCE loss paper:https://arxiv.org/pdf/2308.07192
+    
+    Parameters
+    ----------
     n_blocks : int, default 2
         Number of transformer blocks.
     n_heads : int, default 4
@@ -207,7 +207,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         How many samples per batch to load.
     loss : {"softmax", "BCE", "gBCE"}, default "softmax"
         Loss function.
-        See https://arxiv.org/pdf/2308.07192 for details on gBCE loss.
     n_negatives : int, default 1
         Number of negatives for BCE and gBCE losses.
     gbce_t : float, default 0.2
