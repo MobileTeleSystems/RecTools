@@ -20,6 +20,7 @@ import pytest
 from scipy import sparse
 
 from rectools.models.rank import Distance, ImplicitRanker
+from rectools.models.rank_torch import TorchRanker
 
 T = tp.TypeVar("T")
 
@@ -48,11 +49,19 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             (False),
         ),
     )
-    def test_neginf_score(self, subject_factors: np.ndarray, object_factors: np.ndarray, dense: bool) -> None:
+    def test_neginf_score(
+        self,
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+        dense: bool,
+    ) -> None:
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
-
-        implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
+        implicit_ranker = ImplicitRanker(
+            Distance.DOT,
+            subjects_factors=subject_factors,
+            objects_factors=object_factors,
+        )
         dummy_factors: np.ndarray = np.array([[1, 2]], dtype=np.float32)
         neginf = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
             items=dummy_factors,
@@ -75,7 +84,11 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
-        implicit_ranker = ImplicitRanker(Distance.DOT, subjects_factors=subject_factors, objects_factors=object_factors)
+        implicit_ranker = ImplicitRanker(
+            Distance.DOT,
+            subjects_factors=subject_factors,
+            objects_factors=object_factors,
+        )
         neginf = implicit_ranker._get_neginf_score()
         scores: np.ndarray = np.array([7, 6, 0, 0], dtype=np.float32)
 
@@ -95,7 +108,12 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         "distance, expected_recs, expected_scores, dense",
         (
             (Distance.DOT, [2, 0, 1, 2, 1, 0], [296, 25, 12, 210, 10, 6], True),
-            (Distance.COSINE, [0, 2, 1, 1, 2, 0], [1, 0.5890328, 0.5366563, 1, 0.9344414, 0.5366563], True),
+            (
+                Distance.COSINE,
+                [0, 2, 1, 1, 2, 0],
+                [1, 0.5890328, 0.5366563, 1, 0.9344414, 0.5366563],
+                True,
+            ),
             (
                 Distance.EUCLIDEAN,
                 [0, 1, 2, 1, 0, 2],
@@ -105,9 +123,11 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             (Distance.DOT, [2, 0, 1, 2, 1, 0], [296, 25, 12, 210, 10, 6], False),
         ),
     )
+    @pytest.mark.parametrize("ranker_name", ("torch", "implicit"))
     @pytest.mark.parametrize("use_gpu", (False, True))
     def test_rank(
         self,
+        ranker_name: str,
         distance: Distance,
         expected_recs: tp.List[int],
         expected_scores: tp.List[float],
@@ -119,17 +139,54 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         if not dense:
             subject_factors = sparse.csr_matrix(subject_factors)
 
-        ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, use_gpu=use_gpu)
+        if ranker_name == "torch":
+            ranker = TorchRanker(
+                distance=distance,
+                device="cuda:0" if use_gpu else "cpu",
+                batch_size=128,
+                subjects_factors=subject_factors,
+                objects_factors=object_factors,
+            )
+            _, actual_recs, actual_scores = ranker.rank(
+                subject_ids=[0, 1],
+                k=3,
+            )
+
+        elif ranker_name == "implicit":
+            ranker = ImplicitRanker(
+                distance=distance,
+                subjects_factors=subject_factors,
+                objects_factors=object_factors,
+            )
+            _, actual_recs, actual_scores = ranker.rank(
+                subject_ids=[0, 1],
+                k=3,
+                use_gpu=use_gpu,
+            )
+
+        else:
+            raise ValueError("unsupported ranker")
+
         np.testing.assert_equal(actual_recs, expected_recs)
-        np.testing.assert_almost_equal(actual_scores, expected_scores)
+        # decimal=5 due to GPU precision
+        np.testing.assert_almost_equal(actual_scores, expected_scores, decimal=5)
 
     @pytest.mark.parametrize(
         "distance, expected_recs, expected_scores, dense",
         (
             (Distance.DOT, [2, 0, 2, 1, 0], [296, 25, 210, 10, 6], True),
-            (Distance.COSINE, [0, 2, 1, 2, 0], [1, 0.5890328, 1, 0.9344414, 0.5366563], True),
-            (Distance.EUCLIDEAN, [0, 2, 1, 0, 2], [0, 97.64220399, 2.23606798, 4.24264069, 98.41747812], True),
+            (
+                Distance.COSINE,
+                [0, 2, 1, 2, 0],
+                [1, 0.5890328, 1, 0.9344414, 0.5366563],
+                True,
+            ),
+            (
+                Distance.EUCLIDEAN,
+                [0, 2, 1, 0, 2],
+                [0, 97.64220399, 2.23606798, 4.24264069, 98.41747812],
+                True,
+            ),
             (Distance.DOT, [2, 0, 2, 1, 0], [296, 25, 210, 10, 6], False),
         ),
     )
@@ -163,7 +220,12 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         (
             (Distance.DOT, [2, 0, 2, 0], [296, 25, 210, 6], True),
             (Distance.COSINE, [0, 2, 2, 0], [1, 0.5890328, 0.9344414, 0.5366563], True),
-            (Distance.EUCLIDEAN, [0, 2, 0, 2], [0, 97.64220399, 4.24264069, 98.41747812], True),
+            (
+                Distance.EUCLIDEAN,
+                [0, 2, 0, 2],
+                [0, 97.64220399, 4.24264069, 98.41747812],
+                True,
+            ),
             (Distance.DOT, [2, 0, 2, 0], [296, 25, 210, 6], False),
         ),
     )
@@ -184,7 +246,10 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
 
         _, actual_recs, actual_scores = ranker.rank(
-            subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), use_gpu=use_gpu
+            subject_ids=[0, 1],
+            k=3,
+            sorted_object_whitelist=np.array([0, 2]),
+            use_gpu=use_gpu,
         )
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
@@ -194,7 +259,12 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         (
             (Distance.DOT, [2, 2, 0], [296, 210, 6], True),
             (Distance.COSINE, [2, 2, 0], [0.5890328, 0.9344414, 0.5366563], True),
-            (Distance.EUCLIDEAN, [2, 0, 2], [97.64220399, 4.24264069, 98.41747812], True),
+            (
+                Distance.EUCLIDEAN,
+                [2, 0, 2],
+                [97.64220399, 4.24264069, 98.41747812],
+                True,
+            ),
             (Distance.DOT, [2, 2, 0], [296, 210, 6], False),
         ),
     )
@@ -220,13 +290,26 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
         _, actual_recs, actual_scores = ranker.rank(
-            subject_ids=[0, 1], k=3, sorted_object_whitelist=np.array([0, 2]), filter_pairs_csr=ui_csr, use_gpu=use_gpu
+            subject_ids=[0, 1],
+            k=3,
+            sorted_object_whitelist=np.array([0, 2]),
+            filter_pairs_csr=ui_csr,
+            use_gpu=use_gpu,
         )
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 
     @pytest.mark.parametrize("distance", (Distance.COSINE, Distance.EUCLIDEAN))
-    def test_raises(self, subject_factors: np.ndarray, object_factors: np.ndarray, distance: Distance) -> None:
+    def test_raises(
+        self,
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+        distance: Distance,
+    ) -> None:
         subject_factors = sparse.csr_matrix(subject_factors)
         with pytest.raises(ValueError):
-            ImplicitRanker(distance=distance, subjects_factors=subject_factors, objects_factors=object_factors)
+            ImplicitRanker(
+                distance=distance,
+                subjects_factors=subject_factors,
+                objects_factors=object_factors,
+            )
