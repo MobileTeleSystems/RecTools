@@ -114,13 +114,17 @@ class Dataset:
 
     @staticmethod
     def _get_feature_schema(features: Features) -> FeaturesSchema:
+        cat_cols = None
+        cat_n_stored_values = None
+        if isinstance(features, SparseFeatures):
+            cat_cols = features.cat_feature_indices.tolist()
+            cat_n_stored_values = features.get_cat_features().values.nnz
         feature_schema = FeaturesSchema(
             names=features.names,
             dense=isinstance(features, DenseFeatures),
+            cat_cols=cat_cols,
+            cat_n_stored_values=cat_n_stored_values,
         )
-        if isinstance(features, SparseFeatures):
-            feature_schema.cat_cols = features.cat_feature_indices.tolist()
-            feature_schema.cat_n_stored_values = features.get_cat_features().values.nnz
         return feature_schema
 
     @staticmethod

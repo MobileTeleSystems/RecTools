@@ -169,12 +169,15 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     BERT4Rec model: transformer-based sequential model with bidirectional attention mechanism and
     "MLM" (masked item in user sequence) training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
-    See transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
-    See advanced training guide:
+    
+    Notes
+    ----------
+    Transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
+    Advanced training guide:
     https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
-    See public benchmark: https://github.com/blondered/bert4rec_repro
-    See original BERT4Rec paper: https://arxiv.org/abs/1904.06690
-    See gBCE loss paper: https://arxiv.org/pdf/2308.07192
+    Public benchmark: https://github.com/blondered/bert4rec_repro
+    Original BERT4Rec paper: https://arxiv.org/abs/1904.06690
+    gBCE loss paper: https://arxiv.org/pdf/2308.07192
 
     Parameters
     ----------
