@@ -27,22 +27,24 @@ from scipy import sparse
 from rectools import Columns
 from rectools.utils.config import BaseConfig
 
-from .features import AbsentIdError, DenseFeatures, Features, SparseFeatures
+from .features import AbsentIdError, DenseFeatures, Features, SparseFeatureName, SparseFeatures
 from .identifiers import ExternalId, IdMap
 from .interactions import Interactions
 
+DenseOrSparseFeatureName = tp.Union[str, SparseFeatureName]
 
-def _serialize_feature_name(spec: tp.Any) -> Hashable:
+
+def _serialize_feature_name(spec: DenseOrSparseFeatureName) -> Hashable:
     if isinstance(spec, tuple):
         return tuple(_serialize_feature_name(item) for item in spec)
     if isinstance(spec, (int, float, str)):
         return spec
-    if np.issubdtype(spec, np.number):
+    if np.issubdtype(spec, np.number):  # type:ignore[unreachable]
         return spec.item()
     return "unsupported feature name"
 
 
-FeatureName = tpe.Annotated[tp.Any, PlainSerializer(_serialize_feature_name, when_used="json")]
+FeatureName = tpe.Annotated[DenseOrSparseFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
 DatasetSchemaDict = tp.Dict[str, tp.Any]
 
 
