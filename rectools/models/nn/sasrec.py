@@ -203,7 +203,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     See transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
     See advanced training guide:
     https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
-    See public benchmark: https://github.com/blondered/bert4rec_reproOriginal
+    See public benchmark: https://github.com/blondered/bert4rec_repro
     See original SASRec paper: https://arxiv.org/abs/1808.09781
     See gBCE loss and gSASRec paper: https://arxiv.org/pdf/2308.07192
 
@@ -215,15 +215,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Number of attention heads.
     n_factors : int, default 256
         Latent embeddings size.
-    use_pos_emb : bool, default ``True``
-        If ``True``, learnable positional encoding will be added to session item embeddings.
-    use_causal_attn : bool, default ``True``
-        If ``True``, causal mask will be added as attn_mask in Multi-head Attention. Please note that default
-        SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
-        parameter to ``False`` only when you change the training task with custom
-        `data_preparator_type` or if you are absolutely sure of what you are doing.
-    use_key_padding_mask : bool, default ``False``
-        If ``True``, key_padding_mask will be added in Multi-head Attention.
     dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
     session_max_len : int, default 100
@@ -231,21 +222,22 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater
         than 1.
-    dataloader_num_workers : int, default 0
-        Number of loader worker processes.
-    batch_size : int, default 128
-        How many samples per batch to load.
     loss : {"softmax", "BCE", "gBCE"}, default "softmax"
         Loss function.
-        See https://arxiv.org/pdf/2308.07192 for details on gBCE loss.
     n_negatives : int, default 1
         Number of negatives for BCE and gBCE losses.
     gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
     lr : float, default 0.001
         Learning rate.
+    batch_size : int, default 128
+        How many samples per batch to load.
     epochs : int, default 3
         Exact number of training epochs.
+        Will be omitted if `get_trainer_func` is specified.
+    deterministic : bool, default ``False``
+        `deterministic` flag passed to lightning trainer during initialization.
+        Use `pytorch_lightning.seed_everything` together with this parameter to fix the random seed.
         Will be omitted if `get_trainer_func` is specified.
     verbose : int, default 0
         Verbosity level.
@@ -254,10 +246,39 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Enables automatic lightning checkpointing when set to 100 or higher. This will save the most
         the most recent model to a single checkpoint after each epoch.
         Will be omitted if `get_trainer_func` is specified.
-    deterministic : bool, default ``False``
-        `deterministic` flag passed to lightning trainer during initialization.
-        Use `pytorch_lightning.seed_everything` together with this parameter to fix the random seed.
-        Will be omitted if `get_trainer_func` is specified.
+    dataloader_num_workers : int, default 0
+        Number of loader worker processes.
+    use_pos_emb : bool, default ``True``
+        If ``True``, learnable positional encoding will be added to session item embeddings.
+    use_key_padding_mask : bool, default ``False``
+        If ``True``, key_padding_mask will be added in Multi-head Attention.
+    use_causal_attn : bool, default ``True``
+        If ``True``, causal mask will be added as attn_mask in Multi-head Attention. Please note that default
+        SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
+        parameter to ``False`` only when you change the training task with custom
+        `data_preparator_type` or if you are absolutely sure of what you are doing.
+    item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
+        Type of network returning item embeddings.
+        (IdEmbeddingsItemNet,) - item embeddings based on ids.
+        (CatFeaturesItemNet,) - item embeddings based on categorical features.
+        (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
+    pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
+        Type of positional encoding.
+    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
+        Type of transformer layers architecture.
+    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
+        Type of data preparator used for dataset processing and dataloader creation.
+    lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
+        Type of lightning module defining training procedure.
+    get_val_mask_func : Callable, default ``None``
+        Function to get validation mask.
+    get_trainer_func : Callable, default ``None``
+        Function for get custom lightning trainer.
+        If `get_trainer_func` is None, default trainer will be created based on `epochs`,
+        `deterministic` and `verbose` argument values. Model will be trained for the exact number of
+        epochs. Checkpointing will be disabled.
+        If you want to assign custom trainer after model is initialized, you can manually assign new
+        value to model `_trainer` attribute.
     recommend_batch_size : int, default 256
         How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
@@ -282,28 +303,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
-    item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
-        Type of network returning item embeddings.
-        (IdEmbeddingsItemNet,) - item embeddings based on ids.
-        (CatFeaturesItemNet,) - item embeddings based on categorical features.
-        (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
-    pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
-        Type of positional encoding.
-    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
-        Type of transformer layers architecture.
-    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
-        Type of data preparator used for dataset processing and dataloader creation.
-    lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
-        Type of lightning module defining training procedure.
-    get_val_mask_func : Callable, default ``None``
-        Function to get validation mask.
-    get_trainer_func : Callable, default ``None``
-        Function for get custom lightning trainer.
-        If `get_trainer_func` is None, default trainer will be created based on `epochs`,
-        `deterministic` and `verbose` argument values. Model will be trained for the exact number of
-        epochs. Checkpointing will be disabled.
-        If you want to assign custom trainer after model is initialized, you can manually assign new
-        value to model `_trainer` attribute.
     """
 
     config_class = SASRecModelConfig
@@ -313,26 +312,21 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         n_blocks: int = 2,
         n_heads: int = 4,
         n_factors: int = 256,
-        use_pos_emb: bool = True,
-        use_causal_attn: bool = True,
-        use_key_padding_mask: bool = False,
         dropout_rate: float = 0.2,
         session_max_len: int = 100,
-        dataloader_num_workers: int = 0,
-        batch_size: int = 128,
+        train_min_user_interactions: int = 2,
         loss: str = "softmax",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.001,
+        batch_size: int = 128,
         epochs: int = 3,
-        verbose: int = 0,
         deterministic: bool = False,
-        recommend_batch_size: int = 256,
-        recommend_accelerator: str = "auto",
-        recommend_devices: tp.Union[int, tp.List[int]] = 1,
-        recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,
-        train_min_user_interactions: int = 2,
+        verbose: int = 0,
+        dataloader_num_workers: int = 0,
+        use_pos_emb: bool = True,
+        use_key_padding_mask: bool = False,
+        use_causal_attn: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
@@ -340,6 +334,11 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        recommend_batch_size: int = 256,
+        recommend_accelerator: str = "auto",
+        recommend_devices: tp.Union[int, tp.List[int]] = 1,
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
