@@ -27,7 +27,7 @@ from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import LightningModule, Trainer
 
 from rectools import ExternalIds
-from rectools.dataset.dataset import Dataset, DatasetSchemaDict, IdMap
+from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
@@ -117,13 +117,13 @@ class TransformerTorchBackbone(torch.nn.Module):
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
-    def construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchemaDict) -> None:
+    def construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> None:
         """
         Construct network for item embeddings from dataset schema.
 
         Parameters
         ----------
-        dataset_schema : DatasetSchemaDict
+        dataset_schema : DatasetSchema
             RecTools schema with dataset statistics.
         """
         self.item_model = ItemNetConstructor.from_dataset_schema(
@@ -914,10 +914,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded = cls.from_config(model_config)
         loaded.is_fitted = True
         dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
+        dataset_schema = DatasetSchema.model_validate(dataset_schema)
 
         # Update data preparator
-        id_map_schema = dataset_schema["items"]["id_map"]
-        item_external_ids = np.array(id_map_schema["external_ids"], dtype=id_map_schema["dtype"])
+        id_map_schema = dataset_schema.items.id_map
+        item_external_ids = np.array(id_map_schema.external_ids, dtype=id_map_schema.dtype)
         loaded.data_preparator.item_id_map = IdMap(item_external_ids)
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 

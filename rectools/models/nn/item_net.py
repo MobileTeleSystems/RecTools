@@ -19,7 +19,7 @@ import torch
 import typing_extensions as tpe
 from torch import nn
 
-from rectools.dataset.dataset import Dataset, DatasetSchemaDict
+from rectools.dataset.dataset import Dataset, DatasetSchema
 from rectools.dataset.features import SparseFeatures
 
 
@@ -36,7 +36,7 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+    def from_dataset_schema(cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
         raise NotImplementedError()
 
@@ -225,9 +225,9 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchemaDict, n_factors: int, dropout_rate: float) -> tpe.Self:
+    def from_dataset_schema(cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
-        n_items = dataset_schema["items"]["n_hot"]
+        n_items = dataset_schema.items.n_hot
         return cls(n_factors, n_items, dropout_rate)
 
 
@@ -321,13 +321,13 @@ class ItemNetConstructor(ItemNetBase):
     @classmethod
     def from_dataset_schema(
         cls,
-        dataset_schema: DatasetSchemaDict,
+        dataset_schema: DatasetSchema,
         n_factors: int,
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
     ) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
-        n_items = dataset_schema["items"]["n_hot"]
+        n_items = dataset_schema.items.n_hot
 
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
