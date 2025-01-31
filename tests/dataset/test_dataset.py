@@ -65,23 +65,19 @@ class TestDataset:
             "n_interactions": 6,
             "users": {
                 "n_hot": 3,
-                "id_map_external_ids": ["u1", "u2", "u3"],
-                "id_map_dtype": "|O",
-                "has_features": False,
-                "dense_features": None,
-                "feature_names": None,
-                "feature_cat_cols": None,
-                "cat_features_n_stored_values": None,
-            }, 
+                "id_map": {
+                    "external_ids": ["u1", "u2", "u3"],
+                    "dtype": "|O",
+                },
+                "features": None,
+            },
             "items": {
                 "n_hot": 3,
-                "id_map_external_ids": ["i1", "i2", "i5"],
-                "id_map_dtype": "|O",
-                "has_features": False,
-                "dense_features": None,
-                "feature_names": None,
-                "feature_cat_cols": None,
-                "cat_features_n_stored_values": None,
+                "id_map": {
+                    "external_ids": ["i1", "i2", "i5"],
+                    "dtype": "|O",
+                },
+                "features": None,
             },
         }
 
@@ -165,23 +161,29 @@ class TestDataset:
             "n_interactions": 6,
             "users": {
                 "n_hot": 3,
-                "id_map_external_ids": ["u1", "u2", "u3"],
-                "id_map_dtype": "|O",
-                "has_features": True,
-                "dense_features": True,
-                "feature_names": ["f1", "f2"],
-                "feature_cat_cols": None,
-                "cat_features_n_stored_values": None,
-            }, 
+                "id_map": {
+                    "external_ids": ["u1", "u2", "u3"],
+                    "dtype": "|O",
+                },
+                "features": {
+                    "dense": True,
+                    "names": ["f1", "f2"],
+                    "cat_cols": None,
+                    "cat_n_stored_values": None,
+                },
+            },
             "items": {
                 "n_hot": 3,
-                "id_map_external_ids": ["i1", "i2", "i5"],
-                "id_map_dtype": "|O",
-                "has_features": True,
-                "dense_features": False,
-                "feature_names":  [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
-                "feature_cat_cols": [1, 2],
-                "cat_features_n_stored_values": 3,
+                "id_map": {
+                    "external_ids": ["i1", "i2", "i5"],
+                    "dtype": "|O",
+                },
+                "features": {
+                    "dense": False,
+                    "names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
+                    "cat_cols": [1, 2],
+                    "cat_n_stored_values": 3,
+                },
             },
         }
         actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)

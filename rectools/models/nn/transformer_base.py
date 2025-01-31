@@ -913,12 +913,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         model_config = checkpoint["hyper_parameters"]["model_config"]
         loaded = cls.from_config(model_config)
         loaded.is_fitted = True
+        dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
 
         # Update data preparator
-        dataset_schema = checkpoint["hyper_parameters"]["dataset_schema"]
-        loaded.data_preparator.item_id_map = IdMap(
-            np.array(dataset_schema["items"]["id_map_external_ids"], dtype=dataset_schema["items"]["id_map_dtype"])
-        )
+        id_map_schema = dataset_schema["items"]["id_map"]
+        item_external_ids = np.array(id_map_schema["external_ids"], dtype=id_map_schema["dtype"])
+        loaded.data_preparator.item_id_map = IdMap(item_external_ids)
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model

@@ -200,14 +200,13 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     SASRec model: transformer-based sequential model with unidirectional attention mechanism and
     "Shifted Sequence" training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
-    
-    References:
-        - RecTools theory&practice tutorial on transformers: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
-        - RecTools advanced training guide for transformers: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
-        - Benchmark for RecTools transformers quality compared to other open-source implementations: https://github.com/blondered/bert4rec_repro
-        - Original BERT4Rec paper: https://arxiv.org/abs/1808.09781
-        - gBCE loss paper:https://arxiv.org/pdf/2308.07192
-    
+    See transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
+    See advanced training guide:
+    https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
+    See public benchmark: https://github.com/blondered/bert4rec_reproOriginal
+    See original SASRec paper: https://arxiv.org/abs/1808.09781
+    See gBCE loss and gSASRec paper: https://arxiv.org/pdf/2308.07192
+
     Parameters
     ----------
     n_blocks : int, default 2
