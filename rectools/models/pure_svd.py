@@ -107,6 +107,7 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.tol = tol
         self.maxiter = maxiter
         self.random_state = random_state
+        self._use_gpu = use_gpu  # for making a config
         if use_gpu:  # pragma: no cover
             if not cp:
                 warnings.warn("Forced to use CPU. CuPy is not available.")
@@ -116,7 +117,6 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
                 use_gpu = False
 
         self.use_gpu = use_gpu
-        self._use_gpu = use_gpu  # for making a config
         self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
