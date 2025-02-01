@@ -198,5 +198,6 @@ class TestModelFromParams:
         model = model_from_params(params)
         expected_config = {"cls": "tests.models.test_serialization.CustomModel", "some_param": 2, "sc": {"x": 20}}
         spy.assert_called_once_with(expected_config)
+        assert isinstance(model, CustomModel)
         assert model.some_param == 2
         assert model.x == 20

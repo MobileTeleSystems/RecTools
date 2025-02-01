@@ -2,10 +2,10 @@ from rectools.utils.misc import unflatten_dict
 
 
 class TestUnflattenDict:
-    def test_empty(self):
+    def test_empty(self) -> None:
         assert unflatten_dict({}) == {}
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         flattened = {
             "a.b": 1,
             "a.c": 2,
@@ -18,7 +18,7 @@ class TestUnflattenDict:
         }
         assert unflatten_dict(flattened) == excepted
 
-    def test_simple(self):
+    def test_simple(self) -> None:
         flattened = {
             "a": 1,
             "b": 2,
@@ -29,7 +29,7 @@ class TestUnflattenDict:
         }
         assert unflatten_dict(flattened) == excepted
 
-    def test_non_default_sep(self):
+    def test_non_default_sep(self) -> None:
         flattened = {
             "a_b": 1,
             "a_c": 2,
