@@ -25,6 +25,8 @@ import typing_extensions as tpe
 from implicit.gpu import HAS_CUDA
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import LightningModule, Trainer
+from scipy import sparse
+from torch.utils.data import DataLoader
 
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
@@ -317,8 +319,16 @@ class TransformerLightningModuleBase(LightningModule):
         """Validate step."""
         raise NotImplementedError()
 
-    def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        """Prediction step."""
+    def recommend_u2i(
+        self,
+        recommend_dataloader: DataLoader,
+        sorted_item_ids_to_recommend: InternalIdsArray,
+        k: int,
+        ui_csr_for_filter: tp.Optional[sparse.csr_matrix],
+        *args: tp.Any,
+        **kwargs: tp.Any,
+    ) -> InternalRecoTriplet:
+        """Recommending."""
         raise NotImplementedError()
 
 
@@ -465,29 +475,58 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         loss = self._calc_bce_loss(logits, y, w)
         return loss
 
-    def on_predict_start(self) -> None:
-        """Save item embeddings"""
-        self.eval()
-        with torch.no_grad():
-            self.item_embs = self.torch_model.item_model.get_all_embeddings()
-
-    def on_predict_end(self) -> None:
-        """Clear item embeddings"""
-        del self.item_embs
-        torch.cuda.empty_cache()
-
-    def predict_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        """
-        Prediction step.
-        Encode user sessions.
-        """
-        encoded_sessions = self.torch_model.encode_sessions(batch["x"], self.item_embs.to(self.device))[:, -1, :]
-        return encoded_sessions
-
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
             if param.data.dim() > 1:
                 torch.nn.init.xavier_normal_(param.data)
+
+    def recommend_u2i(
+        self,
+        recommend_dataloader: DataLoader,
+        sorted_item_ids_to_recommend: InternalIdsArray,
+        k: int,
+        ui_csr_for_filter: tp.Optional[sparse.csr_matrix],
+        recommend_n_threads: int,
+        recommend_use_gpu_ranking: bool,
+        recommend_device: tp.Optional[str],
+    ) -> InternalRecoTriplet:
+        """TODO."""
+        if recommend_device is None:
+            recommend_device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch.device(recommend_device)
+        self.torch_model.to(device)
+
+        self.torch_model.eval()
+        with torch.no_grad():
+            item_embs = self.torch_model.item_model.get_all_embeddings()
+            user_embs = []
+            for batch in recommend_dataloader:
+                batch_embs = self.torch_model.encode_sessions(batch["x"].to(device), item_embs)[:, -1, :]
+                user_embs.append(batch_embs)
+        user_embs_tensor = torch.cat(user_embs)
+
+        user_embs_np = user_embs_tensor.detach().cpu().numpy()
+        item_embs_np = item_embs.detach().cpu().numpy()
+        del user_embs
+        del item_embs
+        torch.cuda.empty_cache()
+
+        ranker = ImplicitRanker(
+            Distance.DOT,
+            user_embs_np,  # [n_rec_users, n_factors]
+            item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+        )
+
+        # TODO: We should test if torch `topk`` is faster when `filter_viewed`` is ``False``
+        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
+            subject_ids=np.arange(user_embs_np.shape[0]),  # n_rec_users
+            k=k,
+            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
+            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
+            num_threads=recommend_n_threads,
+            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
+        )
+        return user_ids_indices, all_reco_ids, all_scores
 
 
 # ####  --------------  Transformer Model Config  --------------  #### #
@@ -605,10 +644,9 @@ class TransformerModelConfig(ModelConfig):
     verbose: int = 0
     deterministic: bool = False
     recommend_batch_size: int = 256
-    recommend_accelerator: str = "auto"
-    recommend_devices: tp.Union[int, tp.List[int]] = 1
+    recommend_device: tp.Optional[str] = None
     recommend_n_threads: int = 0
-    recommend_use_gpu_ranking: bool = True
+    recommend_use_gpu_ranking: bool = True  # TODO: remove after TorchRanker
     train_min_user_interactions: int = 2
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
@@ -632,7 +670,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     """
 
     config_class: tp.Type[TransformerModelConfig_T]
-    u2i_dist = Distance.DOT
     i2i_dist = Distance.COSINE
     train_loss_name: str = "train_loss"
     val_loss_name: str = "val_loss"
@@ -659,10 +696,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         verbose: int = 0,
         deterministic: bool = False,
         recommend_batch_size: int = 256,
-        recommend_accelerator: str = "auto",
-        recommend_devices: tp.Union[int, tp.List[int]] = 1,
+        recommend_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,
+        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
         train_min_user_interactions: int = 2,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -672,9 +708,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
-
-        self._check_devices(recommend_devices)
-
         self.transformer_layers_type = transformer_layers_type
         self.data_preparator_type = data_preparator_type
         self.n_blocks = n_blocks
@@ -694,8 +727,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.epochs = epochs
         self.deterministic = deterministic
         self.recommend_batch_size = recommend_batch_size
-        self.recommend_accelerator = recommend_accelerator
-        self.recommend_devices = recommend_devices
+        self.recommend_device = recommend_device
         self.recommend_n_threads = recommend_n_threads
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
         self.train_min_user_interactions = train_min_user_interactions
@@ -711,12 +743,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_model: TransformerLightningModuleBase
         self.data_preparator: TransformerDataPreparatorBase
         self.fit_trainer: tp.Optional[Trainer] = None
-
-    def _check_devices(self, recommend_devices: tp.Union[int, tp.List[int]]) -> None:
-        if isinstance(recommend_devices, int) and recommend_devices != 1:
-            raise ValueError("Only single device is supported for inference")
-        if isinstance(recommend_devices, list) and len(recommend_devices) > 1:
-            raise ValueError("Only single device is supported for inference")
 
     def _init_data_preparator(self) -> None:
         raise NotImplementedError()
@@ -798,10 +824,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
 
-    def _init_recommend_trainer(self) -> Trainer:
-        self._check_devices(self.recommend_devices)
-        return Trainer(devices=self.recommend_devices, accelerator=self.recommend_accelerator)
-
     def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
@@ -813,40 +835,22 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
-        recommend_trainer = self._init_recommend_trainer()
-        recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
-
-        session_embs = recommend_trainer.predict(model=self.lightning_model, dataloaders=recommend_dataloader)
-        if session_embs is None:  # pragma: no cover
-            explanation = """Received empty recommendations. Used to solve incompatible type linter error."""
-            raise ValueError(explanation)
-        user_embs = np.concatenate(session_embs, axis=0)
-        user_embs = user_embs[user_ids]
-
-        item_embs = self.get_item_vectors_tensor().detach().cpu().numpy()
-
-        ranker = ImplicitRanker(
-            self.u2i_dist,
-            user_embs,  # [n_rec_users, n_factors]
-            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
-        )
         if filter_viewed:
             user_items = dataset.get_user_item_matrix(include_weights=False)
             ui_csr_for_filter = user_items[user_ids]
         else:
             ui_csr_for_filter = None
 
-        # TODO: We should test if torch `topk`` is faster when `filter_viewed`` is ``False``
-        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=np.arange(user_embs.shape[0]),  # n_rec_users
+        recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
+        return self.lightning_model.recommend_u2i(
+            recommend_dataloader=recommend_dataloader,
+            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             k=k,
-            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
-            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-            num_threads=self.recommend_n_threads,
-            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
+            ui_csr_for_filter=ui_csr_for_filter,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            recommend_device=self.recommend_device,
         )
-        all_target_ids = user_ids[user_ids_indices]
-        return all_target_ids, all_reco_ids, all_scores
 
     def get_item_vectors_tensor(self) -> torch.Tensor:
         """

@@ -110,13 +110,13 @@ class TestBERT4RecModel:
         return get_trainer
 
     @pytest.mark.parametrize(
-        "accelerator,n_devices,recommend_accelerator",
+        "accelerator,n_devices,recommend_device",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
                 "cpu",
                 1,
-                "gpu",
+                "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             ("cpu", 2, "cpu"),
@@ -129,7 +129,7 @@ class TestBERT4RecModel:
             pytest.param(
                 "gpu",
                 1,
-                "gpu",
+                "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             pytest.param(
@@ -216,7 +216,7 @@ class TestBERT4RecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
-        recommend_accelerator: str,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
@@ -244,7 +244,7 @@ class TestBERT4RecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_accelerator=recommend_accelerator,
+            recommend_device=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
         )
@@ -679,8 +679,7 @@ class TestBERT4RecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_accelerator": "auto",
-            "recommend_devices": 1,
+            "recommend_device": "cuda",
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,

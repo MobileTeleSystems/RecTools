@@ -201,7 +201,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     "Shifted Sequence" training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
 
-    Notes
+    References
     ----------
     Transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
     Advanced training guide:
@@ -338,10 +338,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
-        recommend_accelerator: str = "auto",
-        recommend_devices: tp.Union[int, tp.List[int]] = 1,
+        recommend_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,
+        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -364,8 +363,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             verbose=verbose,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
-            recommend_accelerator=recommend_accelerator,
-            recommend_devices=recommend_devices,
+            recommend_device=recommend_device,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             train_min_user_interactions=train_min_user_interactions,
