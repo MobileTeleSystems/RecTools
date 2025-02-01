@@ -22,13 +22,10 @@ from implicit.bpr import BayesianPersonalizedRanking
 from implicit.nearest_neighbours import ItemItemRecommender
 from pydantic import ValidationError
 
-from rectools.utils.config import BaseConfig
-
 try:
     from lightfm import LightFM
 except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
-
 
 from rectools.metrics import NDCG
 from rectools.models import (
@@ -47,6 +44,7 @@ from rectools.models import (
 )
 from rectools.models.base import ModelBase, ModelConfig
 from rectools.models.vector import VectorModel
+from rectools.utils.config import BaseConfig
 
 from .utils import get_successors
 
