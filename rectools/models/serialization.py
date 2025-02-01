@@ -18,6 +18,7 @@ import typing as tp
 from pydantic import TypeAdapter
 
 from rectools.models.base import ModelBase, ModelClass, ModelConfig
+from rectools.utils.misc import unflatten_dict
 from rectools.utils.serialization import FileLike, read_bytes
 
 
@@ -46,7 +47,7 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
 
     Parameters
     ----------
-    config : ModelConfig
+    config : dict or ModelConfig
         Model config.
 
     Returns
@@ -64,3 +65,24 @@ def model_from_config(config: tp.Union[dict, ModelConfig]) -> ModelBase:
         raise ValueError("`cls` must be provided in the config to load the model")
 
     return model_cls.from_config(config)
+
+
+def model_from_params(params: dict, sep: str = ".") -> ModelBase:
+    """
+    Create model from dict of parameters.
+    Same as `from_config` but accepts flat dict.
+
+    Parameters
+    ----------
+    params : dict
+        Model parameters as a flat dict with keys separated by `sep`.
+    sep : str, default "."
+        Separator for nested keys.
+
+    Returns
+    -------
+    model
+        Model instance.
+    """
+    config_dict = unflatten_dict(params, sep=sep)
+    return model_from_config(config_dict)

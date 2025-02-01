@@ -19,6 +19,7 @@ import warnings
 from datetime import timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryFile
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -497,6 +498,15 @@ class TestConfiguration:
             ValueError, match="1 validation error for SomeModelConfig\nextra\n  Extra inputs are not permitted"
         ):
             self.model_class.from_config(config)
+
+    def test_from_params(self, mocker: MagicMock) -> None:
+        params = {"x": 10, "verbose": 1, "sc.td": "P2DT3H"}
+        spy = mocker.spy(self.model_class, "from_config")
+        model = self.model_class.from_params(params)
+        spy.assert_called_once_with({"x": 10, "verbose": 1, "sc": {"td": "P2DT3H"}})
+        assert model.x == 10
+        assert model.td == timedelta(days=2, hours=3)
+        assert model.verbose == 1
 
     def test_get_config_pydantic(self) -> None:
         model = self.model_class(x=10, verbose=1)
