@@ -61,18 +61,23 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def __init__(
         self,
-        item_features: SparseFeatures,
+        emb_bag_inputs: torch.Tensor,
+        len_indexes: torch.Tensor,
+        offsets: torch.Tensor,
+        n_cat_features: int,
         n_factors: int,
         dropout_rate: float,
     ):
         super().__init__()
 
-        self.item_features = item_features
-        self.n_items = len(item_features)
-        self.n_cat_features = len(item_features.names)
-
-        self.category_embeddings = nn.Embedding(num_embeddings=self.n_cat_features, embedding_dim=n_factors)
+        self.n_cat_features = n_cat_features
+        self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_features, embedding_dim=n_factors, padding_idx=0)
         self.drop_layer = nn.Dropout(dropout_rate)
+
+        self.register_buffer("offsets", offsets)
+        self.register_buffer("emb_bag_indexes", torch.arange(len(emb_bag_inputs)))
+        self.register_buffer("emb_bag_inputs", emb_bag_inputs)
+        self.register_buffer("len_indexes", len_indexes)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -88,35 +93,25 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        feature_dense = self.get_dense_item_features(items)
-
-        feature_embs = self.category_embeddings(self.feature_catalog.to(self.device))
-        feature_embs = self.drop_layer(feature_embs)
-
-        feature_embeddings_per_items = feature_dense.to(self.device) @ feature_embs
+        item_emb_bag_inputs, item_offsets = self.get_item_inputs_offsets(items)
+        feature_embeddings_per_items = self.embedding_bag(input=item_emb_bag_inputs, offsets=item_offsets)
+        feature_embeddings_per_items = self.drop_layer(feature_embeddings_per_items)
         return feature_embeddings_per_items
+
+    def get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
+        """Get categorical item features and offsets for `items`."""
+        item_indexes = self.offsets[items].unsqueeze(-1) + self.emb_bag_indexes
+        length_mask = self.emb_bag_indexes < self.len_indexes[items].unsqueeze(-1)
+        item_emb_bag_inputs = self.emb_bag_inputs[item_indexes[length_mask]].squeeze(-1)
+        item_offsets = torch.cat(
+            (torch.tensor([0], device=self.device), torch.cumsum(self.len_indexes[items], dim=0)[:-1])
+        )
+        return item_emb_bag_inputs, item_offsets
 
     @property
     def feature_catalog(self) -> torch.Tensor:
         """Return tensor with elements in range [0, n_cat_features)."""
         return torch.arange(0, self.n_cat_features)
-
-    def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
-        """
-        Get categorical item values by certain item ids in dense format.
-
-        Parameters
-        ----------
-        items : torch.Tensor
-            Internal item ids.
-
-        Returns
-        -------
-        torch.Tensor
-            categorical item values in dense format.
-        """
-        feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
-        return torch.from_numpy(feature_dense)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tp.Optional[tpe.Self]:
@@ -156,7 +151,19 @@ class CatFeaturesItemNet(ItemNetBase):
             warnings.warn(explanation)
             return None
 
-        return cls(item_cat_features, n_factors, dropout_rate)
+        emb_bag_inputs = torch.tensor(item_cat_features.values.indices, dtype=torch.long)
+        offsets = torch.tensor(item_cat_features.values.indptr, dtype=torch.long)
+        len_indexes = torch.diff(offsets, dim=0)
+        n_cat_features = len(item_cat_features.names)
+
+        return cls(
+            emb_bag_inputs=emb_bag_inputs,
+            offsets=offsets[:-1],
+            len_indexes=len_indexes,
+            n_cat_features=n_cat_features,
+            n_factors=n_factors,
+            dropout_rate=dropout_rate,
+        )
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
