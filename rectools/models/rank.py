@@ -61,9 +61,11 @@ class ImplicitRanker:
     """
 
     def __init__(
-        self, distance: Distance, subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix], objects_factors: np.ndarray
+        self,
+        distance: Distance,
+        subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix],
+        objects_factors: np.ndarray,
     ) -> None:
-
         if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
             raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
 
@@ -85,7 +87,8 @@ class ImplicitRanker:
         # we're comparing `scores <= neginf_score`
         return float(
             np.asarray(
-                np.asarray(-np.finfo(np.float32).max, dtype=np.float32).view(np.uint32) - 1, dtype=np.uint32
+                np.asarray(-np.finfo(np.float32).max, dtype=np.float32).view(np.uint32) - 1,
+                dtype=np.uint32,
             ).view(np.float32)
         )
 
@@ -118,7 +121,6 @@ class ImplicitRanker:
     def _process_implicit_scores(
         self, subject_ids: InternalIds, ids: np.ndarray, scores: np.ndarray
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -152,7 +154,6 @@ class ImplicitRanker:
         object_norms: tp.Optional[np.ndarray],
         filter_query_items: tp.Optional[tp.Union[sparse.csr_matrix, sparse.csr_array]],
     ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
-
         object_factors = convert_arr_to_implicit_gpu_matrix(object_factors)
 
         if isinstance(subject_factors, sparse.spmatrix):

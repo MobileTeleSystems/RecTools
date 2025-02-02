@@ -1,0 +1,221 @@
+#  Copyright 2024-2025 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+"""Torch ranker model."""
+
+import typing as tp
+
+import numpy as np
+import torch
+from scipy import sparse
+from torch.utils.data import DataLoader, TensorDataset
+
+from rectools import InternalIds
+from rectools.models.base import Scores
+from rectools.types import InternalIdsArray
+
+from .rank import Distance
+
+# TODO do we need it now?
+# class Ranker(tp.Protocol):
+#     def rank(
+#         self,
+#         subject_ids: InternalIds,
+#         k: int,
+#         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
+#         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
+#     ) -> tp.Tuple[InternalIds, InternalIds, Scores]: ...
+
+
+class TorchRanker:
+    """
+    Ranker model based on torch.
+
+    This ranker is suitable for the following cases of scores calculation:
+    1. subject_embeddings.dot(objects_embeddings)
+    2. subject_interactions.dot(item-item-similarities)
+
+    Parameters
+    ----------
+    distance : Distance
+        Distance metric.
+    device: torch.device | str
+        Device to calculate on.
+    batch_size: int
+        Batch size for scores calculation.
+    subjects_factors : np.ndarray | sparse.csr_matrix | torch.Tensor
+        Array of subjects embeddings, shape (n_subjects, n_factors).
+        For item-item similarity models subjects vectors from ui_csr are viewed as factors.
+    objects_factors : np.ndarray | torch.Tensor
+        Array with embeddings of all objects, shape (n_objects, n_factors).
+        For item-item similarity models item similarity vectors are viewed as factors.
+    """
+
+    def __init__(
+        self,
+        distance: Distance,
+        device: tp.Union[torch.device, str],
+        batch_size: int,
+        subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix, torch.Tensor],
+        objects_factors: tp.Union[np.ndarray, torch.Tensor],
+    ):
+        assert batch_size > 0
+
+        self.device = torch.device(device)
+        self.batch_size = batch_size
+        self.distance = distance
+        self._scorer, self._higher_is_better = self._get_scorer(distance)
+
+        self.subjects_factors = self._normalize_tensor(subjects_factors)
+        self.objects_factors = self._normalize_tensor(objects_factors)
+
+    def rank(
+        self,
+        subject_ids: InternalIds,
+        k: int,
+        filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
+        sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
+        """Rank objects to proceed inference using implicit library topk cpu method.
+
+        Parameters
+        ----------
+        subject_ids : csr_matrix | np.ndarray
+            Array of ids to recommend for.
+        k : int
+            Derived number of recommendations for every subject id.
+        filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
+            Subject-object interactions that should be filtered from recommendations.
+            This is relevant for u2i case.
+        sorted_object_whitelist : sparse.csr_matrix, optional, default ``None``
+            Whitelist of object ids.
+            If given, only these items will be used for recommendations.
+            Otherwise all items from dataset will be used.
+
+        Returns
+        -------
+        (InternalIds, InternalIds, Scores)
+            Array of subject ids, array of recommended items, sorted by score descending and array of scores.
+        """
+        FILTER_VIEWED = filter_pairs_csr is not None
+
+        if sorted_object_whitelist is None:
+            sorted_object_whitelist = np.arange(self.objects_factors.shape[0])
+
+        if not isinstance(subject_ids, np.ndarray):
+            subject_ids = np.array(subject_ids)
+
+        user_embs = self.subjects_factors
+        item_embs = self.objects_factors
+
+        sorted_item_ids_to_recommend = sorted_object_whitelist
+        user_ids = subject_ids
+
+        user_embs_dataset = TensorDataset(torch.arange(user_embs.shape[0]), user_embs)
+        dataloader = DataLoader(user_embs_dataset, batch_size=self.batch_size, shuffle=False)
+        MASK_VALUE = float("-inf")
+        all_top_scores = []
+        all_top_inds = []
+        with torch.no_grad():
+            for (
+                cur_user_emb_inds,
+                cur_user_embs,
+            ) in dataloader:
+                scores = self._scorer(
+                    cur_user_embs.to(self.device),
+                    item_embs[sorted_item_ids_to_recommend].to(self.device),
+                )
+
+                if FILTER_VIEWED:
+                    mask = (
+                        torch.from_numpy(
+                            filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_item_ids_to_recommend]
+                        ).to(scores.device)
+                        == 1
+                    )
+                    scores = torch.masked_fill(scores, mask, MASK_VALUE)
+
+                top_scores, top_inds = torch.topk(
+                    scores,
+                    k=min(k, scores.shape[1]),
+                    dim=1,
+                    sorted=True,
+                    largest=self._higher_is_better,
+                )
+                all_top_scores.append(top_scores.cpu().numpy())
+                all_top_inds.append(top_inds.cpu().numpy())
+
+        all_top_scores = np.concatenate(all_top_scores, axis=0)
+        all_top_inds = np.concatenate(all_top_inds, axis=0)
+        all_scores = all_top_scores.flatten()
+        all_target_ids = user_ids.repeat(all_top_inds.shape[1])
+        all_reco_ids = sorted_item_ids_to_recommend[all_top_inds].flatten()
+
+        # filter masked items if they occurred int top
+        if FILTER_VIEWED:
+            mask = all_scores > MASK_VALUE
+            all_scores = all_scores[mask]
+            all_target_ids = all_target_ids[mask]
+            all_reco_ids = all_reco_ids[mask]
+
+        return all_target_ids, all_reco_ids, all_scores
+
+    def _get_scorer(
+        self, distance: Distance
+    ) -> tp.Tuple[tp.Callable[[torch.Tensor, torch.Tensor], torch.Tensor], bool]:
+        """Return scorer and higher_is_better flag"""
+        if distance == Distance.DOT:
+            return self._dot_score, True
+
+        elif distance == Distance.COSINE:
+            return self._cosine_score, True
+
+        elif distance == Distance.EUCLIDEAN:
+            return self._euclid_score, False
+
+        else:
+            explanation = f"distance {distance} is not supported"
+            raise NotImplementedError(explanation)
+
+    def _euclid_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+        return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
+
+    def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+        user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
+        item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
+
+        return user_embs @ item_embs.T
+
+    def _dot_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+        return user_embs @ item_embs.T
+
+    def _normalize_tensor(
+        self,
+        tensor: tp.Union[np.ndarray, sparse.csr_matrix, torch.Tensor],
+    ) -> torch.Tensor:
+        if isinstance(tensor, sparse.csr_matrix):
+            tensor = tensor.toarray()
+
+        if isinstance(tensor, np.ndarray):
+            tensor = torch.from_numpy(tensor)
+
+        if not isinstance(tensor, torch.Tensor):
+            explanation = "unsupported tensor type"
+            raise ValueError(explanation)
+
+        # TODO int and long float not supported on most operations
+        # but if we provide tensor of lower size that 32bits upscales it to 32bits anyway
+        tensor = tensor.to(torch.float32)
+
+        return tensor
