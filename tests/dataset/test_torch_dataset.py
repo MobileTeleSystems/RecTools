@@ -13,15 +13,28 @@
 #  limitations under the License.
 
 # pylint: disable=attribute-defined-outside-init,consider-using-enumerate
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
-import torch
+
+try:
+    import torch
+except ImportError:
+    pass
+
 from scipy import sparse
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.dataset.torch_datasets import DSSMItemDataset, DSSMTrainDataset, DSSMUserDataset
+
+try:
+    from rectools.dataset.torch_datasets import DSSMItemDataset, DSSMTrainDataset, DSSMUserDataset
+except ModuleNotFoundError:
+    pass
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 class WithFixtures:
