@@ -31,20 +31,25 @@ from .features import AbsentIdError, DenseFeatures, Features, SparseFeatureName,
 from .identifiers import ExternalId, IdMap
 from .interactions import Interactions
 
-DenseOrSparseFeatureName = tp.Union[str, SparseFeatureName]
+AnyFeatureName = tp.Union[str, SparseFeatureName]
 
 
-def _serialize_feature_name(spec: DenseOrSparseFeatureName) -> Hashable:
+def _serialize_feature_name(spec: tp.Union[AnyFeatureName, tp.Any]) -> Hashable:
     if isinstance(spec, tuple):
         return tuple(_serialize_feature_name(item) for item in spec)
-    if isinstance(spec, (int, float, str)):
+    if isinstance(spec, (int, float, str, bool)):
         return spec
-    if np.issubdtype(spec, np.number):  # type:ignore[unreachable]
+    if not isinstance(spec, np.ndarray) and np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):
         return spec.item()
-    return "unsupported feature name"
+    raise ValueError(
+        f"""
+        Serialization for feature name {spec} is not supported.
+        Please convert your feature names and values to strings, numbers, booleans or their tuples or lists.
+    """
+    )
 
 
-FeatureName = tpe.Annotated[DenseOrSparseFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
+FeatureName = tpe.Annotated[AnyFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
 DatasetSchemaDict = tp.Dict[str, tp.Any]
 
 

@@ -730,7 +730,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 enable_progress_bar=self.verbose > 0,
                 enable_model_summary=self.verbose > 0,
                 logger=self.verbose > 0,
-                enable_checkpointing=self.verbose > 99,
+                enable_checkpointing=False,
                 devices=1,
             )
         else:
@@ -931,12 +931,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __getstate__(self) -> object:
         if self.is_fitted:
+            if self.fit_trainer is None:
+                raise RuntimeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
             with NamedTemporaryFile() as f:
-                if self.fit_trainer is None:
-                    raise TypeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()
-                state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
+            state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
             return state
         state = {"model_config": self.get_config()}
         return state
