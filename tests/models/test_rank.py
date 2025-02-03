@@ -456,20 +456,20 @@ class TestRanker:  # pylint: disable=protected-access
                 [1, 0.9344414, 0.5366563],
                 True,
             ),
-            # (
-            #     Distance.EUCLIDEAN,
-            #     [0],
-            #     [2],
-            #     [97.64220399],
-            #     True,
-            # ),
-            # (
-            #     Distance.DOT,
-            #     [1],
-            #     [2, 1, 0],
-            #     [210, 10, 6],
-            #     False,
-            # ),
+            (
+                Distance.EUCLIDEAN,
+                [0],
+                [2],
+                [97.64220399],
+                True,
+            ),
+            (
+                Distance.DOT,
+                [1],
+                [2, 1, 0],
+                [210, 10, 6],
+                False,
+            ),
         ),
     )
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())

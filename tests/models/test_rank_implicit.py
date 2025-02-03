@@ -24,9 +24,7 @@ from rectools.models.rank_torch import TorchRanker
 
 T = tp.TypeVar("T")
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:invalid value encountered in true_divide"
-)
+pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in true_divide")
 
 
 class TestImplicitRanker:  # pylint: disable=protected-access
@@ -97,19 +95,13 @@ class TestImplicitRanker:  # pylint: disable=protected-access
         actual = implicit_ranker._get_mask_for_correct_scores(scores)
         assert actual == [True] * 4
 
-        actual = implicit_ranker._get_mask_for_correct_scores(
-            np.append(scores, [neginf] * 2)
-        )
+        actual = implicit_ranker._get_mask_for_correct_scores(np.append(scores, [neginf] * 2))
         assert actual == [True] * 4 + [False] * 2
 
-        actual = implicit_ranker._get_mask_for_correct_scores(
-            np.append(scores, [neginf * 0.99] * 2)
-        )
+        actual = implicit_ranker._get_mask_for_correct_scores(np.append(scores, [neginf * 0.99] * 2))
         assert actual == [True] * 6
 
-        actual = implicit_ranker._get_mask_for_correct_scores(
-            np.insert(scores, 0, neginf)
-        )
+        actual = implicit_ranker._get_mask_for_correct_scores(np.insert(scores, 0, neginf))
         assert actual == [True] * 5
 
     @pytest.mark.parametrize(
@@ -204,9 +196,7 @@ class TestImplicitRanker:  # pylint: disable=protected-access
             ]
         )
         ranker = ImplicitRanker(distance, subject_factors, object_factors)
-        _, actual_recs, actual_scores = ranker.rank(
-            subject_ids=[0, 1], k=3, filter_pairs_csr=ui_csr, use_gpu=use_gpu
-        )
+        _, actual_recs, actual_scores = ranker.rank(subject_ids=[0, 1], k=3, filter_pairs_csr=ui_csr, use_gpu=use_gpu)
         np.testing.assert_equal(actual_recs, expected_recs)
         np.testing.assert_almost_equal(actual_scores, expected_scores)
 

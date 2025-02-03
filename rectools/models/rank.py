@@ -223,6 +223,15 @@ class ImplicitRanker:
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
+        if filter_pairs_csr is not None:
+            if filter_pairs_csr.shape[0] != self.subjects_factors.shape[0]:
+                explanation = (
+                    "expected that filter_pairs_csr is aligned to subject_factors"
+                )
+                raise ValueError(explanation)
+
+            filter_pairs_csr = filter_pairs_csr[subject_ids]
+
         if sorted_object_whitelist is not None:
             object_factors = self.objects_factors[sorted_object_whitelist]
 
@@ -238,10 +247,6 @@ class ImplicitRanker:
             # keep all objects and full ui_csr_for_filter
             object_factors = self.objects_factors
             filter_query_items = filter_pairs_csr
-
-        # # TODO fixes
-        # if filter_query_items is not None:
-        #     filter_query_items = filter_query_items[subject_ids]
 
         if k is None:
             k = object_factors.shape[0]

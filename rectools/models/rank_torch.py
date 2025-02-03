@@ -113,6 +113,12 @@ class TorchRanker:
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
         filter_viewed = filter_pairs_csr is not None
+        if filter_viewed:
+            if filter_pairs_csr.shape[0] != self.subjects_factors.shape[0]:
+                explanation = (
+                    "expected that filter_pairs_csr is aligned to subject_factors"
+                )
+                raise ValueError(explanation)
 
         if sorted_object_whitelist is None:
             sorted_object_whitelist = np.arange(self.objects_factors.shape[0])
