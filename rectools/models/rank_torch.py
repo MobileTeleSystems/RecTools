@@ -61,6 +61,9 @@ class TorchRanker:
     objects_factors : np.ndarray | torch.Tensor
         Array with embeddings of all objects, shape (n_objects, n_factors).
         For item-item similarity models item similarity vectors are viewed as factors.
+    dtype: Optional[torch.dtype]
+        dtype to convert non-torch tensors to.
+        Don not convert if provided dtype is None.
     """
 
     def __init__(
@@ -133,9 +136,7 @@ class TorchRanker:
         item_embs = self.objects_factors[sorted_item_ids_to_recommend]
 
         user_embs_dataset = TensorDataset(torch.arange(user_embs.shape[0]), user_embs)
-        dataloader = DataLoader(
-            user_embs_dataset, batch_size=self.batch_size, shuffle=False
-        )
+        dataloader = DataLoader(user_embs_dataset, batch_size=self.batch_size, shuffle=False)
         MASK_VALUE = float("-inf")
         all_top_scores = []
         all_top_inds = []
@@ -153,9 +154,7 @@ class TorchRanker:
                 if filter_viewed:
                     mask = (
                         torch.from_numpy(
-                            filter_pairs_csr[cur_user_emb_inds].toarray()[
-                                :, sorted_item_ids_to_recommend
-                            ]
+                            filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_item_ids_to_recommend]
                         ).to(scores.device)
                         == 1
                     )
@@ -211,22 +210,16 @@ class TorchRanker:
             explanation = f"distance {distance} is not supported"
             raise NotImplementedError(explanation)
 
-    def _euclid_score(
-        self, user_embs: torch.Tensor, item_embs: torch.Tensor
-    ) -> torch.Tensor:
+    def _euclid_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
 
-    def _cosine_score(
-        self, user_embs: torch.Tensor, item_embs: torch.Tensor
-    ) -> torch.Tensor:
+    def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
         item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
 
         return user_embs @ item_embs.T
 
-    def _dot_score(
-        self, user_embs: torch.Tensor, item_embs: torch.Tensor
-    ) -> torch.Tensor:
+    def _dot_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         return user_embs @ item_embs.T
 
     def _normalize_tensor(

@@ -24,9 +24,7 @@ from rectools.models.rank_torch import Ranker, TorchRanker
 
 T = tp.TypeVar("T")
 EPS_DIGITS = 5
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:invalid value encountered in true_divide"
-)
+pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in true_divide")
 
 
 def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:

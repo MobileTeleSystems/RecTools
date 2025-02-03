@@ -25,17 +25,12 @@ from rectools.exceptions import NotFittedError
 from rectools.models import DSSMModel
 from rectools.models.dssm import DSSM
 from rectools.models.vector import ImplicitRanker
-from tests.models.utils import (
-    assert_dumps_loads_do_not_change_model,
-    assert_second_fit_refits_model,
-)
+from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 from .data import INTERACTIONS
 
 
-@pytest.mark.filterwarnings(
-    "ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning"
-)
+@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     def setup_method(self) -> None:
@@ -144,14 +139,10 @@ class TestDSSMModel:
         )
         model.fit(dataset=dataset, dataset_valid=dataset)
         users = np.array([10, 20, 50])
-        actual = model.recommend(
-            users=users, dataset=dataset, k=2, filter_viewed=filter_viewed
-        )
+        actual = model.recommend(users=users, dataset=dataset, k=2, filter_viewed=filter_viewed)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
-            actual.sort_values(
-                [Columns.User, Columns.Score], ascending=[True, True]
-            ).reset_index(drop=True),
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, True]).reset_index(drop=True),
             actual,
         )
 
@@ -206,9 +197,7 @@ class TestDSSMModel:
         )
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
-            actual.sort_values(
-                [Columns.User, Columns.Score], ascending=[True, True]
-            ).reset_index(drop=True),
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, True]).reset_index(drop=True),
             actual,
         )
 
@@ -239,9 +228,7 @@ class TestDSSMModel:
             item_embeddings,
         )
         _, vectors_reco, vectors_scores = ranker.rank(
-            subject_ids=dataset.user_id_map.convert_to_internal(
-                np.array([10, 20, 30, 40])
-            ),
+            subject_ids=dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])),
             k=5,
         )
         (
@@ -249,9 +236,7 @@ class TestDSSMModel:
             reco_item_ids,
             reco_scores,
         ) = model._recommend_u2i(  # pylint: disable=protected-access
-            user_ids=dataset.user_id_map.convert_to_internal(
-                np.array([10, 20, 30, 40])
-            ),
+            user_ids=dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])),
             dataset=dataset,
             k=5,
             filter_viewed=False,
@@ -345,17 +330,13 @@ class TestDSSMModel:
         )
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
-            actual.sort_values(
-                [Columns.TargetItem, Columns.Score], ascending=[True, True]
-            ).reset_index(drop=True),
+            actual.sort_values([Columns.TargetItem, Columns.Score], ascending=[True, True]).reset_index(drop=True),
             actual,
         )
 
     def test_u2i_with_cold_users(self, dataset: Dataset) -> None:
         model = DSSMModel().fit(dataset)
-        with pytest.raises(
-            ValueError, match="doesn't support recommendations for cold users"
-        ):
+        with pytest.raises(ValueError, match="doesn't support recommendations for cold users"):
             model.recommend(
                 users=[10, 60],
                 dataset=dataset,
@@ -365,9 +346,7 @@ class TestDSSMModel:
 
     def test_i2i_with_cold_items(self, dataset: Dataset) -> None:
         model = DSSMModel().fit(dataset)
-        with pytest.raises(
-            ValueError, match="doesn't support recommendations for cold items"
-        ):
+        with pytest.raises(ValueError, match="doesn't support recommendations for cold items"):
             model.recommend_to_items(
                 target_items=[11, 18],
                 dataset=dataset,
@@ -375,9 +354,7 @@ class TestDSSMModel:
             )
 
     @pytest.mark.parametrize("exclude_features", ("user", "item"))
-    def test_raises_when_no_features_in_dataset(
-        self, dataset: Dataset, exclude_features: str
-    ) -> None:
+    def test_raises_when_no_features_in_dataset(self, dataset: Dataset, exclude_features: str) -> None:
         dataset = Dataset(
             dataset.user_id_map,
             dataset.item_id_map,
@@ -391,9 +368,7 @@ class TestDSSMModel:
 
     def test_second_fit_refits_model(self, dataset: Dataset) -> None:
         model = DSSMModel(deterministic=True)
-        assert_second_fit_refits_model(
-            model, dataset, pre_fit_callback=self._seed_everything
-        )
+        assert_second_fit_refits_model(model, dataset, pre_fit_callback=self._seed_everything)
 
     def test_dumps_loads(self, dataset: Dataset) -> None:
         model = DSSMModel()

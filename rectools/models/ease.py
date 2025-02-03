@@ -123,9 +123,7 @@ class EASEModel(ModelBase[EASEModelConfig]):
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
 
         gram_matrix = ui_csr.T @ ui_csr
-        gram_matrix += self.regularization * sparse.identity(
-            gram_matrix.shape[0]
-        ).astype(np.float32)
+        gram_matrix += self.regularization * sparse.identity(gram_matrix.shape[0]).astype(np.float32)
         gram_matrix = gram_matrix.todense()
 
         gram_matrix_inv = np.linalg.inv(gram_matrix)
@@ -175,18 +173,12 @@ class EASEModel(ModelBase[EASEModelConfig]):
 
         n_reco = min(k, similarity.shape[1])
         unsorted_reco_positions = similarity.argpartition(-n_reco, axis=1)[:, -n_reco:]
-        unsorted_reco_scores = np.take_along_axis(
-            similarity, unsorted_reco_positions, axis=1
-        )
+        unsorted_reco_scores = np.take_along_axis(similarity, unsorted_reco_positions, axis=1)
 
         sorted_reco_positions = unsorted_reco_scores.argsort()[:, ::-1]
 
-        all_reco_scores = np.take_along_axis(
-            unsorted_reco_scores, sorted_reco_positions, axis=1
-        )
-        all_reco_ids = np.take_along_axis(
-            unsorted_reco_positions, sorted_reco_positions, axis=1
-        )
+        all_reco_scores = np.take_along_axis(unsorted_reco_scores, sorted_reco_positions, axis=1)
+        all_reco_ids = np.take_along_axis(unsorted_reco_positions, sorted_reco_positions, axis=1)
 
         all_target_ids = np.repeat(target_ids, n_reco)
 

@@ -127,12 +127,8 @@ class VectorModel(ModelBase[ModelConfig_T]):
                 )
             )
         elif distance in (Distance.COSINE, Distance.EUCLIDEAN):
-            subject_vectors = np.hstack(
-                (subject_biases[:, np.newaxis], subject_embeddings)
-            )
-            object_vectors = np.hstack(
-                (object_biases[:, np.newaxis], object_embeddings)
-            )
+            subject_vectors = np.hstack((subject_biases[:, np.newaxis], subject_embeddings))
+            object_vectors = np.hstack((object_biases[:, np.newaxis], object_embeddings))
         else:
             raise ValueError(f"Unexpected distance `{distance}`")
         return subject_vectors, object_vectors
