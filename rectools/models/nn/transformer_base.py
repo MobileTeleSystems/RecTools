@@ -279,6 +279,7 @@ class TransformerLightningModuleBase(LightningModule):
         torch_model: TransformerTorchBackbone,
         model_config: tp.Dict[str, tp.Any],
         dataset_schema: DatasetSchemaDict,
+        item_external_ids: ExternalIds,
         data_preparator: TransformerDataPreparatorBase,
         lr: float,
         gbce_t: float,
@@ -292,6 +293,7 @@ class TransformerLightningModuleBase(LightningModule):
         self.torch_model = torch_model
         self.model_config = model_config
         self.dataset_schema = dataset_schema
+        self.item_external_ids = item_external_ids
         self.lr = lr
         self.loss = loss
         self.adam_betas = adam_betas
@@ -755,11 +757,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self,
         torch_model: TransformerTorchBackbone,
         dataset_schema: DatasetSchemaDict,
+        item_external_ids: ExternalIds,
         model_config: tp.Dict[str, tp.Any],
     ) -> None:
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
+            item_external_ids=item_external_ids,
             model_config=model_config,
             data_preparator=self.data_preparator,
             lr=self.lr,
@@ -781,9 +785,15 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         torch_model = self._init_torch_model()
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
-        dataset_schema = self.data_preparator.train_dataset.get_schema(add_item_id_map=True)
+        dataset_schema = self.data_preparator.train_dataset.get_schema()
+        item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
         model_config = self.get_config()
-        self._init_lightning_model(torch_model, dataset_schema, model_config)
+        self._init_lightning_model(
+            torch_model=torch_model,
+            dataset_schema=dataset_schema,
+            item_external_ids=item_external_ids,
+            model_config=model_config,
+        )
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
@@ -916,15 +926,19 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataset_schema = DatasetSchema.model_validate(dataset_schema)
 
         # Update data preparator
-        id_map_schema = dataset_schema.items.id_map
-        item_external_ids = np.array(id_map_schema.external_ids, dtype=id_map_schema.dtype)
+        item_external_ids = checkpoint["hyper_parameters"]["item_external_ids"]
         loaded.data_preparator.item_id_map = IdMap(item_external_ids)
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model
         torch_model = loaded._init_torch_model()
         torch_model.construct_item_net_from_dataset_schema(dataset_schema)
-        loaded._init_lightning_model(torch_model, dataset_schema, model_config)
+        loaded._init_lightning_model(
+            torch_model=torch_model,
+            dataset_schema=dataset_schema,
+            item_external_ids=item_external_ids,
+            model_config=model_config,
+        )
         loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
         return loaded

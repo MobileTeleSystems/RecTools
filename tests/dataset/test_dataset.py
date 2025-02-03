@@ -66,7 +66,7 @@ class TestDataset:
             "users": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["u1", "u2", "u3"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": None,
@@ -74,7 +74,7 @@ class TestDataset:
             "items": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["i1", "i2", "i5"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": None,
@@ -105,7 +105,7 @@ class TestDataset:
         expected = self.expected_interactions
         expected.df["extra_col"] = self.interactions_df["extra_col"]
         assert_interactions_set_equal(actual, expected)
-        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        actual_schema = dataset.get_schema()
         assert actual_schema == self.expected_schema
 
     def test_construct_without_features(self) -> None:
@@ -113,7 +113,7 @@ class TestDataset:
         self.assert_dataset_equal_to_expected(dataset, None, None)
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
-        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        actual_schema = dataset.get_schema()
         assert actual_schema == self.expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
@@ -162,7 +162,7 @@ class TestDataset:
             "users": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["u1", "u2", "u3"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": {
@@ -175,7 +175,7 @@ class TestDataset:
             "items": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["i1", "i2", "i5"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": {
@@ -186,7 +186,7 @@ class TestDataset:
                 },
             },
         }
-        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        actual_schema = dataset.get_schema()
         assert actual_schema == expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
