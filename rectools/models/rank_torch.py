@@ -27,15 +27,16 @@ from rectools.types import InternalIdsArray
 
 from .rank import Distance
 
+
 # TODO do we need it now?
-# class Ranker(tp.Protocol):
-#     def rank(
-#         self,
-#         subject_ids: InternalIds,
-#         k: int,
-#         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
-#         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
-#     ) -> tp.Tuple[InternalIds, InternalIds, Scores]: ...
+class Ranker(tp.Protocol):
+    def rank(
+        self,
+        subject_ids: InternalIds,
+        k: tp.Optional[int] = None,
+        filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
+        sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]: ...
 
 
 class TorchRanker:
@@ -69,9 +70,11 @@ class TorchRanker:
         batch_size: int,
         subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix, torch.Tensor],
         objects_factors: tp.Union[np.ndarray, torch.Tensor],
+        dtype: tp.Optional[torch.dtype] = torch.float32,
     ):
         assert batch_size > 0
 
+        self.dtype = dtype
         self.device = torch.device(device)
         self.batch_size = batch_size
         self.distance = distance
@@ -82,7 +85,7 @@ class TorchRanker:
 
     def rank(
         self,
-        subject_ids: InternalIds,
+        subject_ids: InternalIds,  # TODO check it
         k: int,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
@@ -116,17 +119,20 @@ class TorchRanker:
         if not isinstance(subject_ids, np.ndarray):
             subject_ids = np.array(subject_ids)
 
-        user_embs = self.subjects_factors
-        item_embs = self.objects_factors
-
-        sorted_item_ids_to_recommend = sorted_object_whitelist
         user_ids = subject_ids
+        sorted_item_ids_to_recommend = sorted_object_whitelist
+
+        user_embs = self.subjects_factors[user_ids]
+        item_embs = self.objects_factors[sorted_item_ids_to_recommend]
 
         user_embs_dataset = TensorDataset(torch.arange(user_embs.shape[0]), user_embs)
-        dataloader = DataLoader(user_embs_dataset, batch_size=self.batch_size, shuffle=False)
+        dataloader = DataLoader(
+            user_embs_dataset, batch_size=self.batch_size, shuffle=False
+        )
         MASK_VALUE = float("-inf")
         all_top_scores = []
         all_top_inds = []
+        all_target_inds = []
         with torch.no_grad():
             for (
                 cur_user_emb_inds,
@@ -134,13 +140,15 @@ class TorchRanker:
             ) in dataloader:
                 scores = self._scorer(
                     cur_user_embs.to(self.device),
-                    item_embs[sorted_item_ids_to_recommend].to(self.device),
+                    item_embs.to(self.device),
                 )
 
                 if FILTER_VIEWED:
                     mask = (
                         torch.from_numpy(
-                            filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_item_ids_to_recommend]
+                            filter_pairs_csr[cur_user_emb_inds].toarray()[
+                                :, sorted_item_ids_to_recommend
+                            ]
                         ).to(scores.device)
                         == 1
                     )
@@ -155,21 +163,29 @@ class TorchRanker:
                 )
                 all_top_scores.append(top_scores.cpu().numpy())
                 all_top_inds.append(top_inds.cpu().numpy())
+                all_target_inds.append(cur_user_emb_inds.cpu().numpy())
 
         all_top_scores = np.concatenate(all_top_scores, axis=0)
         all_top_inds = np.concatenate(all_top_inds, axis=0)
+        all_target_inds = np.concatenate(all_target_inds, axis=0)
+
+        # flatten and convert inds back to input ids
         all_scores = all_top_scores.flatten()
-        all_target_ids = user_ids.repeat(all_top_inds.shape[1])
+        all_target_ids = user_ids[all_target_inds].repeat(all_top_inds.shape[1])
         all_reco_ids = sorted_item_ids_to_recommend[all_top_inds].flatten()
 
-        # filter masked items if they occurred int top
+        # filter masked items if they appeared at top
         if FILTER_VIEWED:
             mask = all_scores > MASK_VALUE
             all_scores = all_scores[mask]
             all_target_ids = all_target_ids[mask]
             all_reco_ids = all_reco_ids[mask]
 
-        return all_target_ids, all_reco_ids, all_scores
+        return (
+            all_target_ids,
+            all_reco_ids,
+            all_scores,
+        )
 
     def _get_scorer(
         self, distance: Distance
@@ -188,16 +204,22 @@ class TorchRanker:
             explanation = f"distance {distance} is not supported"
             raise NotImplementedError(explanation)
 
-    def _euclid_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    def _euclid_score(
+        self, user_embs: torch.Tensor, item_embs: torch.Tensor
+    ) -> torch.Tensor:
         return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
 
-    def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    def _cosine_score(
+        self, user_embs: torch.Tensor, item_embs: torch.Tensor
+    ) -> torch.Tensor:
         user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
         item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
 
         return user_embs @ item_embs.T
 
-    def _dot_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    def _dot_score(
+        self, user_embs: torch.Tensor, item_embs: torch.Tensor
+    ) -> torch.Tensor:
         return user_embs @ item_embs.T
 
     def _normalize_tensor(
@@ -214,8 +236,7 @@ class TorchRanker:
             explanation = "unsupported tensor type"
             raise ValueError(explanation)
 
-        # TODO int and long float not supported on most operations
-        # but if we provide tensor of lower size that 32bits upscales it to 32bits anyway
-        tensor = tensor.to(torch.float32)
+        if self.dtype is not None:
+            tensor = tensor.to(self.dtype)
 
         return tensor
