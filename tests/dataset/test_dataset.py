@@ -166,10 +166,8 @@ class TestDataset:
                     "dtype": "|O",
                 },
                 "features": {
-                    "dense": True,
+                    "kind": "dense",
                     "names": ["f1", "f2"],
-                    "cat_cols": None,
-                    "cat_n_stored_values": None,
                 },
             },
             "items": {
@@ -179,9 +177,9 @@ class TestDataset:
                     "dtype": "|O",
                 },
                 "features": {
-                    "dense": False,
+                    "kind": "sparse",
                     "names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
-                    "cat_cols": [1, 2],
+                    "cat_feature_indices": [1, 2],
                     "cat_n_stored_values": 3,
                 },
             },
