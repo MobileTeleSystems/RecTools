@@ -63,15 +63,19 @@ class VectorModel(ModelBase[ModelConfig_T]):
 
         user_vectors, item_vectors = self._get_u2i_vectors(dataset)
 
-        ranker = ImplicitRanker(self.u2i_dist, user_vectors, item_vectors)
+        ranker = ImplicitRanker(
+            self.u2i_dist,
+            user_vectors,
+            item_vectors,
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
+        )
 
         return ranker.rank(
             subject_ids=user_ids,
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.recommend_n_threads,
-            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     def _recommend_i2i(
@@ -83,15 +87,19 @@ class VectorModel(ModelBase[ModelConfig_T]):
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         item_vectors_1, item_vectors_2 = self._get_i2i_vectors(dataset)
 
-        ranker = ImplicitRanker(self.i2i_dist, item_vectors_1, item_vectors_2)
+        ranker = ImplicitRanker(
+            self.i2i_dist,
+            item_vectors_1,
+            item_vectors_2,
+            num_threads=self.recommend_n_threads,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
+        )
 
         return ranker.rank(
             subject_ids=target_ids,
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.recommend_n_threads,
-            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
     def _process_biases_to_vectors(
@@ -105,14 +113,26 @@ class VectorModel(ModelBase[ModelConfig_T]):
         # TODO: make it possible to control if add biases or not (even if they are present)
         if distance == Distance.DOT:
             subject_vectors = np.hstack(
-                (subject_biases[:, np.newaxis], np.ones((subject_biases.size, 1)), subject_embeddings)
+                (
+                    subject_biases[:, np.newaxis],
+                    np.ones((subject_biases.size, 1)),
+                    subject_embeddings,
+                )
             )
             object_vectors = np.hstack(
-                (np.ones((object_biases.size, 1)), object_biases[:, np.newaxis], object_embeddings)
+                (
+                    np.ones((object_biases.size, 1)),
+                    object_biases[:, np.newaxis],
+                    object_embeddings,
+                )
             )
         elif distance in (Distance.COSINE, Distance.EUCLIDEAN):
-            subject_vectors = np.hstack((subject_biases[:, np.newaxis], subject_embeddings))
-            object_vectors = np.hstack((object_biases[:, np.newaxis], object_embeddings))
+            subject_vectors = np.hstack(
+                (subject_biases[:, np.newaxis], subject_embeddings)
+            )
+            object_vectors = np.hstack(
+                (object_biases[:, np.newaxis], object_embeddings)
+            )
         else:
             raise ValueError(f"Unexpected distance `{distance}`")
         return subject_vectors, object_vectors

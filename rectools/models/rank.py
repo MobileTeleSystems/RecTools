@@ -60,6 +60,10 @@ class ImplicitRanker:
     objects_factors : np.ndarray
         Array with embeddings of all objects, shape (n_objects, n_factors).
         For item-item similarity models item similarity vectors are viewed as factors.
+    num_threads : int, default 0
+            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`. Omitted if use_gpu is True
+    use_gpu : bool, default False
+        If True `implicit.gpu.KnnQuery().topk` will be used instead of classic cpu version.
     """
 
     def __init__(
@@ -67,6 +71,8 @@ class ImplicitRanker:
         distance: Distance,
         subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix],
         objects_factors: np.ndarray,
+        num_threads: int = 0,
+        use_gpu: bool = False,
     ) -> None:
         if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
             raise ValueError(
@@ -76,6 +82,8 @@ class ImplicitRanker:
         self.distance = distance
         self.subjects_factors: np.ndarray = subjects_factors.astype(np.float32)
         self.objects_factors: np.ndarray = objects_factors.astype(np.float32)
+        self.num_threads = num_threads
+        self.use_gpu = use_gpu
 
         self.subjects_norms: np.ndarray
         if distance == Distance.COSINE:
@@ -195,8 +203,6 @@ class ImplicitRanker:
         k: tp.Optional[int] = None,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
-        num_threads: int = 0,
-        use_gpu: bool = False,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Rank objects to proceed inference using implicit library topk cpu method.
 
@@ -204,7 +210,7 @@ class ImplicitRanker:
         ----------
         subject_ids : csr_matrix
             Array of ids to recommend for.
-        k : int
+        k : Optional[int]
             Derived number of recommendations for every subject id.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
             Subject-object interactions that should be filtered from recommendations.
@@ -213,24 +219,17 @@ class ImplicitRanker:
             Whitelist of object ids.
             If given, only these items will be used for recommendations.
             Otherwise all items from dataset will be used.
-        num_threads : int, default 0
-            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`. Omitted if use_gpu is True
-        use_gpu : bool, default False
-            If True `implicit.gpu.KnnQuery().topk` will be used instead of classic cpu version.
 
         Returns
         -------
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
-        if filter_pairs_csr is not None:
-            if filter_pairs_csr.shape[0] != self.subjects_factors.shape[0]:
-                explanation = (
-                    "expected that filter_pairs_csr is aligned to subject_factors"
-                )
-                raise ValueError(explanation)
-
-            filter_pairs_csr = filter_pairs_csr[subject_ids]
+        if filter_pairs_csr is not None and filter_pairs_csr.shape[0] != len(
+            subject_ids
+        ):
+            explanation = "assumed that filter_pairs_csr and subject_ids are aligned"
+            raise ValueError(explanation)
 
         if sorted_object_whitelist is not None:
             object_factors = self.objects_factors[sorted_object_whitelist]
@@ -269,6 +268,7 @@ class ImplicitRanker:
 
         real_k = min(k, object_factors.shape[0])
 
+        use_gpu = self.use_gpu
         if use_gpu and not HAS_CUDA:
             warnings.warn("Forced rank() on CPU")
             use_gpu = False
@@ -289,7 +289,7 @@ class ImplicitRanker:
                 item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
                 filter_query_items=filter_query_items,  # queries x objects csr matrix for getting neginf scores
                 filter_items=None,  # rectools doesn't support blacklist for now
-                num_threads=num_threads,
+                num_threads=self.num_threads,
             )
 
         if sorted_object_whitelist is not None:

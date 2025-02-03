@@ -85,7 +85,6 @@ class EASEModel(ModelBase[EASEModelConfig]):
         recommend_use_gpu_ranking: bool = True,
         verbose: int = 0,
     ):
-
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
@@ -124,7 +123,9 @@ class EASEModel(ModelBase[EASEModelConfig]):
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
 
         gram_matrix = ui_csr.T @ ui_csr
-        gram_matrix += self.regularization * sparse.identity(gram_matrix.shape[0]).astype(np.float32)
+        gram_matrix += self.regularization * sparse.identity(
+            gram_matrix.shape[0]
+        ).astype(np.float32)
         gram_matrix = gram_matrix.todense()
 
         gram_matrix_inv = np.linalg.inv(gram_matrix)
@@ -146,7 +147,10 @@ class EASEModel(ModelBase[EASEModelConfig]):
             distance=Distance.DOT,
             subjects_factors=user_items,
             objects_factors=self.weight,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
+            num_threads=self.recommend_n_threads,
         )
+
         ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
 
         all_user_ids, all_reco_ids, all_scores = ranker.rank(
@@ -154,8 +158,6 @@ class EASEModel(ModelBase[EASEModelConfig]):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.recommend_n_threads,
-            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
         )
 
         return all_user_ids, all_reco_ids, all_scores
@@ -173,12 +175,18 @@ class EASEModel(ModelBase[EASEModelConfig]):
 
         n_reco = min(k, similarity.shape[1])
         unsorted_reco_positions = similarity.argpartition(-n_reco, axis=1)[:, -n_reco:]
-        unsorted_reco_scores = np.take_along_axis(similarity, unsorted_reco_positions, axis=1)
+        unsorted_reco_scores = np.take_along_axis(
+            similarity, unsorted_reco_positions, axis=1
+        )
 
         sorted_reco_positions = unsorted_reco_scores.argsort()[:, ::-1]
 
-        all_reco_scores = np.take_along_axis(unsorted_reco_scores, sorted_reco_positions, axis=1)
-        all_reco_ids = np.take_along_axis(unsorted_reco_positions, sorted_reco_positions, axis=1)
+        all_reco_scores = np.take_along_axis(
+            unsorted_reco_scores, sorted_reco_positions, axis=1
+        )
+        all_reco_ids = np.take_along_axis(
+            unsorted_reco_positions, sorted_reco_positions, axis=1
+        )
 
         all_target_ids = np.repeat(target_ids, n_reco)
 

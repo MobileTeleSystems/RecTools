@@ -39,7 +39,13 @@ def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:
     )
     torch_ranker_args = [(TorchRanker, dict(zip(keys, v))) for v in vals]
 
-    implicit_ranker_args = [(ImplicitRanker, {}) for v in vals]
+    keys = ["use_gpu"]
+    vals = list(
+        product(
+            [False, True],
+        )
+    )
+    implicit_ranker_args = [(ImplicitRanker, dict(zip(keys, v))) for v in vals]
 
     return [*torch_ranker_args, *implicit_ranker_args]
 
@@ -505,7 +511,7 @@ class TestRanker:  # pylint: disable=protected-access
         _, actual_recs, actual_scores = ranker.rank(
             subject_ids=user_ids,
             k=3,
-            filter_pairs_csr=ui_csr,
+            filter_pairs_csr=ui_csr[user_ids],
         )
 
         np.testing.assert_equal(actual_recs, expected_recs)
