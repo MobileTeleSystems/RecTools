@@ -86,7 +86,7 @@ class TorchRanker:
     def rank(
         self,
         subject_ids: InternalIds,  # TODO check it
-        k: int,
+        k: tp.Optional[int] = None,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
@@ -96,8 +96,9 @@ class TorchRanker:
         ----------
         subject_ids : csr_matrix | np.ndarray
             Array of ids to recommend for.
-        k : int
+        k : Optional[int]
             Derived number of recommendations for every subject id.
+            Return all recs if None.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
             Subject-object interactions that should be filtered from recommendations.
             This is relevant for u2i case.
@@ -111,13 +112,16 @@ class TorchRanker:
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
-        FILTER_VIEWED = filter_pairs_csr is not None
+        filter_viewed = filter_pairs_csr is not None
 
         if sorted_object_whitelist is None:
             sorted_object_whitelist = np.arange(self.objects_factors.shape[0])
 
         if not isinstance(subject_ids, np.ndarray):
             subject_ids = np.array(subject_ids)
+
+        if k is None:
+            k = len(sorted_object_whitelist)
 
         user_ids = subject_ids
         sorted_item_ids_to_recommend = sorted_object_whitelist
@@ -143,10 +147,10 @@ class TorchRanker:
                     item_embs.to(self.device),
                 )
 
-                if FILTER_VIEWED:
+                if filter_viewed:
                     mask = (
                         torch.from_numpy(
-                            filter_pairs_csr[cur_user_emb_inds].toarray()[
+                            filter_pairs_csr[user_ids[cur_user_emb_inds]].toarray()[
                                 :, sorted_item_ids_to_recommend
                             ]
                         ).to(scores.device)
@@ -175,7 +179,7 @@ class TorchRanker:
         all_reco_ids = sorted_item_ids_to_recommend[all_top_inds].flatten()
 
         # filter masked items if they appeared at top
-        if FILTER_VIEWED:
+        if filter_viewed:
             mask = all_scores > MASK_VALUE
             all_scores = all_scores[mask]
             all_target_ids = all_target_ids[mask]

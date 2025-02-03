@@ -21,7 +21,9 @@ from enum import Enum
 import implicit.cpu
 import implicit.gpu
 import numpy as np
-from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
+from implicit.cpu.matrix_factorization_base import (
+    _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix,
+)
 from implicit.gpu import HAS_CUDA
 from scipy import sparse
 
@@ -67,7 +69,9 @@ class ImplicitRanker:
         objects_factors: np.ndarray,
     ) -> None:
         if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
-            raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
+            raise ValueError(
+                "To use `sparse.csr_matrix` distance must be `Distance.DOT`"
+            )
 
         self.distance = distance
         self.subjects_factors: np.ndarray = subjects_factors.astype(np.float32)
@@ -75,7 +79,9 @@ class ImplicitRanker:
 
         self.subjects_norms: np.ndarray
         if distance == Distance.COSINE:
-            self.subjects_norms = self._calc_norms(self.subjects_factors, avoid_zeros=True)
+            self.subjects_norms = self._calc_norms(
+                self.subjects_factors, avoid_zeros=True
+            )
 
         self.subjects_dots: np.ndarray
         if distance == Distance.EUCLIDEAN:
@@ -87,7 +93,8 @@ class ImplicitRanker:
         # we're comparing `scores <= neginf_score`
         return float(
             np.asarray(
-                np.asarray(-np.finfo(np.float32).max, dtype=np.float32).view(np.uint32) - 1,
+                np.asarray(-np.finfo(np.float32).max, dtype=np.float32).view(np.uint32)
+                - 1,
                 dtype=np.uint32,
             ).view(np.float32)
         )
@@ -185,7 +192,7 @@ class ImplicitRanker:
     def rank(  # pylint: disable=too-many-branches
         self,
         subject_ids: InternalIds,
-        k: int,
+        k: tp.Optional[int] = None,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
         num_threads: int = 0,
@@ -221,7 +228,9 @@ class ImplicitRanker:
 
             if filter_pairs_csr is not None:
                 #  filter ui_csr_for_filter matrix to contain only whitelist objects
-                filter_query_items = filter_items_from_sparse_matrix(sorted_object_whitelist, filter_pairs_csr)
+                filter_query_items = filter_items_from_sparse_matrix(
+                    sorted_object_whitelist, filter_pairs_csr
+                )
             else:
                 filter_query_items = None
 
@@ -229,6 +238,13 @@ class ImplicitRanker:
             # keep all objects and full ui_csr_for_filter
             object_factors = self.objects_factors
             filter_query_items = filter_pairs_csr
+
+        # # TODO fixes
+        # if filter_query_items is not None:
+        #     filter_query_items = filter_query_items[subject_ids]
+
+        if k is None:
+            k = object_factors.shape[0]
 
         subject_factors = self.subjects_factors[subject_ids]
 
@@ -239,8 +255,12 @@ class ImplicitRanker:
         if self.distance == Distance.EUCLIDEAN:
             # Transform factors to get top-k by Euclidean distance using Dot metric
             # https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/XboxInnerProduct.pdf
-            subject_factors = np.hstack((-np.ones((subject_factors.shape[0], 1)), 2 * subject_factors))
-            object_factors = np.hstack(((object_factors**2).sum(axis=1).reshape(-1, 1), object_factors))
+            subject_factors = np.hstack(
+                (-np.ones((subject_factors.shape[0], 1)), 2 * subject_factors)
+            )
+            object_factors = np.hstack(
+                ((object_factors**2).sum(axis=1).reshape(-1, 1), object_factors)
+            )
 
         real_k = min(k, object_factors.shape[0])
 
@@ -271,6 +291,8 @@ class ImplicitRanker:
             ids = sorted_object_whitelist[ids]
 
         # filter neginf from implicit scores and apply transformations to scores (for COSINE and EUCLIDEAN distances)
-        all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(subject_ids, ids, scores)
+        all_target_ids, all_reco_ids, all_scores = self._process_implicit_scores(
+            subject_ids, ids, scores
+        )
 
         return all_target_ids, all_reco_ids, all_scores

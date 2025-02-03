@@ -28,8 +28,6 @@ pytestmark = pytest.mark.filterwarnings(
     "ignore:invalid value encountered in true_divide"
 )
 
-# TODO current test of Implicit ranker do not tested on gpu
-
 
 def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:
     keys = ["device", "batch_size"]
@@ -64,7 +62,12 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize(
         "distance, expected_recs, expected_scores, dense",
         (
-            (Distance.DOT, [2, 0, 1, 2, 1, 0], [296, 25, 12, 210, 10, 6], True),
+            (
+                Distance.DOT,
+                [2, 0, 1, 2, 1, 0],
+                [296, 25, 12, 210, 10, 6],
+                True,
+            ),
             (
                 Distance.COSINE,
                 [0, 2, 1, 1, 2, 0],
@@ -77,7 +80,12 @@ class TestRanker:  # pylint: disable=protected-access
                 [0, 4.58257569, 97.64220399, 2.23606798, 4.24264069, 98.41747812],
                 True,
             ),
-            (Distance.DOT, [2, 0, 1, 2, 1, 0], [296, 25, 12, 210, 10, 6], False),
+            (
+                Distance.DOT,
+                [2, 0, 1, 2, 1, 0],
+                [296, 25, 12, 210, 10, 6],
+                False,
+            ),
         ),
     )
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
@@ -305,6 +313,27 @@ class TestRanker:  # pylint: disable=protected-access
                 [296, 25, 210, 10],
                 False,
             ),
+            (
+                Distance.DOT,
+                None,
+                [2, 0, 1, 2, 1, 0],
+                [296, 25, 12, 210, 10, 6],
+                True,
+            ),
+            (
+                Distance.COSINE,
+                None,
+                [0, 2, 1, 1, 2, 0],
+                [1, 0.5890328, 0.5366563, 1, 0.9344414, 0.5366563],
+                True,
+            ),
+            (
+                Distance.EUCLIDEAN,
+                None,
+                [0, 1, 2, 1, 0, 2],
+                [0, 4.58257569, 97.64220399, 2.23606798, 4.24264069, 98.41747812],
+                True,
+            ),
         ),
     )
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
@@ -401,6 +430,82 @@ class TestRanker:  # pylint: disable=protected-access
         _, actual_recs, actual_scores = ranker.rank(
             subject_ids=user_ids,
             k=3,
+        )
+
+        np.testing.assert_equal(actual_recs, expected_recs)
+        np.testing.assert_almost_equal(
+            actual_scores,
+            expected_scores,
+            decimal=EPS_DIGITS,
+        )
+
+    @pytest.mark.parametrize(
+        "distance, user_ids, expected_recs, expected_scores, dense",
+        (
+            (
+                Distance.DOT,
+                [0],
+                [2],
+                [296],
+                True,
+            ),
+            (
+                Distance.COSINE,
+                [1],
+                [1, 2, 0],
+                [1, 0.9344414, 0.5366563],
+                True,
+            ),
+            # (
+            #     Distance.EUCLIDEAN,
+            #     [0],
+            #     [2],
+            #     [97.64220399],
+            #     True,
+            # ),
+            # (
+            #     Distance.DOT,
+            #     [1],
+            #     [2, 1, 0],
+            #     [210, 10, 6],
+            #     False,
+            # ),
+        ),
+    )
+    @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
+    def test_rank_different_user_ids_and_filter_viewed(
+        self,
+        ranker_cls,
+        ranker_args: tp.Dict[str, tp.Any],
+        distance: Distance,
+        user_ids: tp.List[int],
+        expected_recs: tp.List[int],
+        expected_scores: tp.List[float],
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+        dense: bool,
+    ) -> None:
+        if not dense:
+            subject_factors = sparse.csr_matrix(subject_factors)
+
+        ui_csr = sparse.csr_matrix(
+            [
+                [1, 1, 0],
+                [0, 0, 0],
+            ]
+        )
+
+        ranker: Ranker = ranker_cls(
+            **ranker_args,
+            distance=distance,
+            subjects_factors=subject_factors,
+            objects_factors=object_factors,
+        )
+
+        _, actual_recs, actual_scores = ranker.rank(
+            subject_ids=user_ids,
+            k=3,
+            filter_pairs_csr=ui_csr,
         )
 
         np.testing.assert_equal(actual_recs, expected_recs)
