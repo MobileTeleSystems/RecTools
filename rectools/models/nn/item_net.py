@@ -62,22 +62,22 @@ class CatFeaturesItemNet(ItemNetBase):
     def __init__(
         self,
         emb_bag_inputs: torch.Tensor,
-        len_indexes: torch.Tensor,
+        input_lengths: torch.Tensor,
         offsets: torch.Tensor,
-        n_cat_features: int,
+        n_cat_feature_values: int,
         n_factors: int,
         dropout_rate: float,
     ):
         super().__init__()
 
-        self.n_cat_features = n_cat_features
-        self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_features, embedding_dim=n_factors, padding_idx=0)
+        self.n_cat_feature_values = n_cat_feature_values
+        self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors)
         self.drop_layer = nn.Dropout(dropout_rate)
 
         self.register_buffer("offsets", offsets)
-        self.register_buffer("emb_bag_indexes", torch.arange(len(emb_bag_inputs)))
+        self.register_buffer("length_range", torch.arange(input_lengths.max().item()))
         self.register_buffer("emb_bag_inputs", emb_bag_inputs)
-        self.register_buffer("len_indexes", len_indexes)
+        self.register_buffer("input_lengths", input_lengths)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -100,18 +100,13 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """Get categorical item features and offsets for `items`."""
-        item_indexes = self.offsets[items].unsqueeze(-1) + self.emb_bag_indexes
-        length_mask = self.emb_bag_indexes < self.len_indexes[items].unsqueeze(-1)
-        item_emb_bag_inputs = self.emb_bag_inputs[item_indexes[length_mask]].squeeze(-1)
+        item_indexes = self.offsets[items].unsqueeze(-1) + self.length_range
+        length_mask = self.length_range < self.input_lengths[items].unsqueeze(-1)
+        item_emb_bag_inputs = self.emb_bag_inputs[item_indexes[length_mask]]
         item_offsets = torch.cat(
-            (torch.tensor([0], device=self.device), torch.cumsum(self.len_indexes[items], dim=0)[:-1])
+            (torch.tensor([0], device=self.device), torch.cumsum(self.input_lengths[items], dim=0)[:-1])
         )
         return item_emb_bag_inputs, item_offsets
-
-    @property
-    def feature_catalog(self) -> torch.Tensor:
-        """Return tensor with elements in range [0, n_cat_features)."""
-        return torch.arange(0, self.n_cat_features)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tp.Optional[tpe.Self]:
@@ -153,14 +148,14 @@ class CatFeaturesItemNet(ItemNetBase):
 
         emb_bag_inputs = torch.tensor(item_cat_features.values.indices, dtype=torch.long)
         offsets = torch.tensor(item_cat_features.values.indptr, dtype=torch.long)
-        len_indexes = torch.diff(offsets, dim=0)
-        n_cat_features = len(item_cat_features.names)
+        input_lengths = torch.diff(offsets, dim=0)
+        n_cat_feature_values = len(item_cat_features.names)
 
         return cls(
             emb_bag_inputs=emb_bag_inputs,
             offsets=offsets[:-1],
-            len_indexes=len_indexes,
-            n_cat_features=n_cat_features,
+            input_lengths=input_lengths,
+            n_cat_feature_values=n_cat_feature_values,
             n_factors=n_factors,
             dropout_rate=dropout_rate,
         )

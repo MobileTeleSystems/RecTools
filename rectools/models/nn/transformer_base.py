@@ -162,7 +162,7 @@ class TransformerBasedSessionEncoder(torch.nn.Module):
         res = (
             merged_mask.view(batch_size, 1, seq_len, seq_len)
             .expand(-1, self.n_heads, -1, -1)
-            .view(-1, seq_len, seq_len)
+            .reshape(-1, seq_len, seq_len)
         )  # [batch_size * n_heads, session_max_len, session_max_len]
         torch.diagonal(res, dim1=1, dim2=2).zero_()
         return res

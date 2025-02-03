@@ -22,9 +22,7 @@ from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.dataset.features import SparseFeatures
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
-from tests.testing_utils import assert_feature_set_equal
 
 from ..data import DATASET, INTERACTIONS
 
@@ -69,8 +67,6 @@ class TestCatFeaturesItemNet:
     def dataset_item_features(self) -> Dataset:
         item_features = pd.DataFrame(
             [
-                [11, "f1", "f1val1"],
-                [11, "f2", "f2val1"],
                 [12, "f1", "f1val1"],
                 [12, "f2", "f2val2"],
                 [13, "f1", "f1val1"],
@@ -83,7 +79,6 @@ class TestCatFeaturesItemNet:
                 [17, "f2", "f2val3"],
                 [16, "f1", "f1val2"],
                 [16, "f2", "f2val3"],
-                [11, "f3", 0],
                 [12, "f3", 1],
                 [13, "f3", 2],
                 [14, "f3", 3],
@@ -100,34 +95,19 @@ class TestCatFeaturesItemNet:
         )
         return ds
 
-    def test_feature_catalog(self, dataset_item_features: Dataset) -> None:
-        cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
-        assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
-        expected_feature_catalog = torch.arange(0, cat_item_embeddings.n_cat_features)
-        assert torch.equal(cat_item_embeddings.feature_catalog, expected_feature_catalog)
-
-    def test_get_dense_item_features(self, dataset_item_features: Dataset) -> None:
+    def test_get_item_inputs_offsets(self, dataset_item_features: Dataset) -> None:
         items = torch.from_numpy(
             dataset_item_features.item_id_map.convert_to_internal(INTERACTIONS[Columns.Item].unique())
-        )
+        )[:-1]
         cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
 
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
 
-        actual_feature_dense = cat_item_embeddings.get_dense_item_features(items)
-        expected_feature_dense = torch.tensor(
-            [
-                [1, 0, 1, 0, 0],
-                [1, 0, 0, 1, 0],
-                [0, 1, 1, 0, 0],
-                [1, 0, 0, 0, 1],
-                [0, 1, 0, 1, 0],
-                [0, 1, 0, 0, 1],
-            ],
-            dtype=torch.float,
-        )
-
-        assert torch.equal(actual_feature_dense, expected_feature_dense)
+        actual_item_emb_bag_inputs, actual_item_offsets = cat_item_embeddings.get_item_inputs_offsets(items)
+        expected_item_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2])
+        expected_item_offsets = torch.tensor([0, 0, 2, 4, 6])
+        assert torch.equal(actual_item_emb_bag_inputs, expected_item_emb_bag_inputs)
+        assert torch.equal(actual_item_offsets, expected_item_offsets)
 
     @pytest.mark.parametrize("n_factors", (10, 100))
     def test_create_from_dataset(self, n_factors: int, dataset_item_features: Dataset) -> None:
@@ -137,20 +117,24 @@ class TestCatFeaturesItemNet:
 
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
 
-        actual_item_features = cat_item_embeddings.item_features
-        actual_n_items = cat_item_embeddings.n_items
-        actual_n_cat_features = cat_item_embeddings.n_cat_features
-        actual_embedding_dim = cat_item_embeddings.category_embeddings.embedding_dim
+        actual_offsets = cat_item_embeddings.offsets
+        actual_n_cat_feature_values = cat_item_embeddings.n_cat_feature_values
+        actual_embedding_dim = cat_item_embeddings.embedding_bag.embedding_dim
+        actual_length_range = cat_item_embeddings.length_range
+        actual_emb_bag_inputs = cat_item_embeddings.emb_bag_inputs
+        actual_input_lengths = cat_item_embeddings.input_lengths
 
-        expected_item_features = dataset_item_features.item_features
+        expected_offsets = torch.tensor([0, 0, 2, 4, 6, 8, 10])
+        expected_length_range = torch.tensor([0, 1])
+        expected_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2, 1, 3, 1, 3])
+        expected_input_lengths = torch.tensor([0, 2, 2, 2, 2, 2, 2])
 
-        assert isinstance(expected_item_features, SparseFeatures)
-        expected_cat_item_features = expected_item_features.get_cat_features()
-
-        assert_feature_set_equal(actual_item_features, expected_cat_item_features)
-        assert actual_n_items == dataset_item_features.item_id_map.size
-        assert actual_n_cat_features == len(expected_cat_item_features.names)
+        assert actual_n_cat_feature_values == 5
         assert actual_embedding_dim == n_factors
+        assert torch.equal(actual_offsets, expected_offsets)
+        assert torch.equal(actual_length_range, expected_length_range)
+        assert torch.equal(actual_emb_bag_inputs, expected_emb_bag_inputs)
+        assert torch.equal(actual_input_lengths, expected_input_lengths)
 
     @pytest.mark.parametrize(
         "n_items,n_factors",
