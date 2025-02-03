@@ -249,7 +249,7 @@ class TransformerTorchBackbone(torch.nn.Module):
 # ####  --------------  Lightning Model  --------------  #### #
 
 
-class TransformerLightningModuleBase(LightningModule):
+class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-many-instance-attributes
     """
     Base class for transfofmers lightning module. To change train procedure inherit
     from this class and pass your custom LightningModule to your model parameters.
