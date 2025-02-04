@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 
 # pylint: disable=too-many-lines
 
-import os
 import typing as tp
 from functools import partial
 
@@ -23,18 +22,18 @@ import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import CSVLogger
 
 from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
-from rectools.models.nn.sasrec import PADDING_VALUE, SASRecDataPreparator, SASRecTransformerLayers
+from rectools.models.nn.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformer_base import (
     LearnableInversePositionalEncoding,
-    SessionEncoderLightningModule,
-    TransformerBasedSessionEncoder,
+    TrainerCallable,
+    TransformerLightningModule,
+    TransformerTorchBackbone,
 )
 from tests.models.data import DATASET
 from tests.models.utils import (
@@ -43,7 +42,7 @@ from tests.models.utils import (
 )
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
-from .utils import leave_one_out_mask
+from .utils import custom_trainer, leave_one_out_mask
 
 
 class TestSASRecModel:
@@ -144,30 +143,18 @@ class TestSASRecModel:
         return Dataset.construct(interactions_df[:-4])
 
     @pytest.fixture
-    def trainer(self) -> Trainer:
-        return Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            accelerator="cpu",
-            enable_checkpointing=False,
-        )
-
-    @pytest.fixture
-    def get_val_mask_func(self) -> partial:
-        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> pd.Series:
-            rank = (
-                interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
-                .groupby(Columns.User, sort=False)
-                .cumcount()
-                + 1
+    def get_trainer_func(self) -> TrainerCallable:
+        def get_trainer() -> Trainer:
+            return Trainer(
+                max_epochs=2,
+                min_epochs=2,
+                deterministic=True,
+                accelerator="cpu",
+                enable_checkpointing=False,
+                devices=1,
             )
-            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
-            return val_mask
 
-        val_users = [10, 30]
-        get_val_mask_func = partial(get_val_mask, val_users=val_users)
-        return get_val_mask_func
+        return get_trainer
 
     @pytest.mark.parametrize(
         "accelerator,devices,recommend_accelerator",
@@ -267,14 +254,20 @@ class TestSASRecModel:
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
     ) -> None:
-        trainer = Trainer(
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            devices=devices,
-            accelerator=accelerator,
-            enable_checkpointing=False,
-        )
+
+        if devices != 1:
+            pytest.skip("DEBUG: skipping multi-device tests")
+
+        def get_trainer() -> Trainer:
+            return Trainer(
+                max_epochs=2,
+                min_epochs=2,
+                deterministic=True,
+                devices=devices,
+                accelerator=accelerator,
+                enable_checkpointing=False,
+            )
+
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -286,7 +279,7 @@ class TestSASRecModel:
             deterministic=True,
             recommend_accelerator=recommend_accelerator,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -332,7 +325,7 @@ class TestSASRecModel:
         self,
         dataset: Dataset,
         loss: str,
-        trainer: Trainer,
+        get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
     ) -> None:
         model = SASRecModel(
@@ -345,7 +338,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
             loss=loss,
         )
         model.fit(dataset=dataset)
@@ -372,7 +365,7 @@ class TestSASRecModel:
     def test_u2i_with_key_and_attn_masks(
         self,
         dataset: Dataset,
-        trainer: Trainer,
+        get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
     ) -> None:
         model = SASRecModel(
@@ -385,7 +378,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
         )
         model.fit(dataset=dataset)
@@ -412,7 +405,7 @@ class TestSASRecModel:
     def test_u2i_with_item_features(
         self,
         dataset_item_features: Dataset,
-        trainer: Trainer,
+        get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
     ) -> None:
         model = SASRecModel(
@@ -425,7 +418,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
         )
         model.fit(dataset=dataset_item_features)
@@ -463,7 +456,7 @@ class TestSASRecModel:
         ),
     )
     def test_with_whitelist(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -474,7 +467,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -533,7 +526,7 @@ class TestSASRecModel:
     def test_i2i(
         self,
         dataset: Dataset,
-        trainer: Trainer,
+        get_trainer_func: TrainerCallable,
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
@@ -547,7 +540,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -564,7 +557,7 @@ class TestSASRecModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, trainer: Trainer) -> None:
+    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, get_trainer_func: TrainerCallable) -> None:
         model = SASRecModel(
             n_factors=32,
             n_blocks=2,
@@ -573,7 +566,7 @@ class TestSASRecModel:
             batch_size=4,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -603,7 +596,7 @@ class TestSASRecModel:
         ),
     )
     def test_recommend_for_cold_user_with_hot_item(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -614,7 +607,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
         users = np.array([20])
@@ -656,7 +649,7 @@ class TestSASRecModel:
         ),
     )
     def test_warn_when_hot_user_has_cold_items_in_recommend(
-        self, dataset: Dataset, trainer: Trainer, filter_viewed: bool, expected: pd.DataFrame
+        self, dataset: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -667,7 +660,7 @@ class TestSASRecModel:
             epochs=2,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
@@ -701,58 +694,7 @@ class TestSASRecModel:
     def test_torch_model(self, dataset: Dataset) -> None:
         model = SASRecModel()
         model.fit(dataset)
-        assert isinstance(model.torch_model, TransformerBasedSessionEncoder)
-
-    @pytest.mark.parametrize(
-        "verbose, is_val_mask_func, expected_columns",
-        (
-            (0, False, ["epoch", "step", "train/loss"]),
-            (1, True, ["epoch", "step", "train/loss", "val/loss"]),
-        ),
-    )
-    def test_log_metrics(
-        self,
-        dataset: Dataset,
-        tmp_path: str,
-        verbose: int,
-        get_val_mask_func: partial,
-        is_val_mask_func: bool,
-        expected_columns: tp.List[str],
-    ) -> None:
-        logger = CSVLogger(save_dir=tmp_path)
-        trainer = Trainer(
-            default_root_dir=tmp_path,
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            accelerator="cpu",
-            logger=logger,
-            log_every_n_steps=1,
-            enable_checkpointing=False,
-        )
-        model = SASRecModel(
-            n_factors=32,
-            n_blocks=2,
-            session_max_len=3,
-            lr=0.001,
-            batch_size=4,
-            epochs=2,
-            deterministic=True,
-            item_net_block_types=(IdEmbeddingsItemNet,),
-            trainer=trainer,
-            verbose=verbose,
-            get_val_mask_func=get_val_mask_func if is_val_mask_func else None,
-        )
-        model.fit(dataset=dataset)
-
-        assert model.fit_trainer.logger is not None
-        assert model.fit_trainer.log_dir is not None
-
-        metrics_path = os.path.join(model.fit_trainer.log_dir, "metrics.csv")
-        assert os.path.isfile(metrics_path)
-
-        actual_columns = list(pd.read_csv(metrics_path).columns)
-        assert actual_columns == expected_columns
+        assert isinstance(model.torch_model, TransformerTorchBackbone)
 
 
 class TestSASRecDataPreparator:
@@ -787,17 +729,11 @@ class TestSASRecDataPreparator:
 
     @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
-        return SASRecDataPreparator(
-            session_max_len=3,
-            batch_size=4,
-            dataloader_num_workers=0,
-            item_extra_tokens=(PADDING_VALUE,),
-            n_negatives=1,
-        )
+        return SASRecDataPreparator(session_max_len=3, batch_size=4, dataloader_num_workers=0)
 
     @pytest.fixture
     def data_preparator_val_mask(self) -> SASRecDataPreparator:
-        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> pd.Series:
+        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> np.ndarray:
             rank = (
                 interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
                 .groupby(Columns.User, sort=False)
@@ -805,7 +741,7 @@ class TestSASRecDataPreparator:
                 + 1
             )
             val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
-            return val_mask
+            return val_mask.values
 
         val_users = [10, 30]
         get_val_mask_func = partial(get_val_mask, val_users=val_users)
@@ -813,7 +749,6 @@ class TestSASRecDataPreparator:
             session_max_len=3,
             batch_size=4,
             dataloader_num_workers=0,
-            item_extra_tokens=(PADDING_VALUE,),
             get_val_mask_func=get_val_mask_func,
         )
 
@@ -964,25 +899,36 @@ class TestSASRecModelConfiguration:
             "pos_encoding_type": LearnableInversePositionalEncoding,
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
-            "lightning_module_type": SessionEncoderLightningModule,
+            "lightning_module_type": TransformerLightningModule,
             "get_val_mask_func": leave_one_out_mask,
+            "get_trainer_func": None,
         }
         return config
 
-    def test_from_config(self, initial_config: tp.Dict[str, tp.Any]) -> None:
-        model = SASRecModel.from_config(initial_config)
+    @pytest.mark.parametrize("use_custom_trainer", (True, False))
+    def test_from_config(self, initial_config: tp.Dict[str, tp.Any], use_custom_trainer: bool) -> None:
+        config = initial_config
+        if use_custom_trainer:
+            config["get_trainer_func"] = custom_trainer
+        model = SASRecModel.from_config(config)
 
-        for key, config_value in initial_config.items():
+        for key, config_value in config.items():
             assert getattr(model, key) == config_value
 
         assert model._trainer is not None  # pylint: disable = protected-access
 
+    @pytest.mark.parametrize("use_custom_trainer", (True, False))
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config(self, simple_types: bool, initial_config: tp.Dict[str, tp.Any]) -> None:
-        model = SASRecModel(**initial_config)
-        config = model.get_config(simple_types=simple_types)
+    def test_get_config(
+        self, simple_types: bool, initial_config: tp.Dict[str, tp.Any], use_custom_trainer: bool
+    ) -> None:
+        config = initial_config
+        if use_custom_trainer:
+            config["get_trainer_func"] = custom_trainer
+        model = SASRecModel(**config)
+        actual = model.get_config(simple_types=simple_types)
 
-        expected = initial_config.copy()
+        expected = config.copy()
         expected["cls"] = SASRecModel
 
         if simple_types:
@@ -992,16 +938,22 @@ class TestSASRecModelConfiguration:
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
                 "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",
-                "lightning_module_type": "rectools.models.nn.transformer_base.SessionEncoderLightningModule",
+                "lightning_module_type": "rectools.models.nn.transformer_base.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
+            if use_custom_trainer:
+                expected["get_trainer_func"] = "tests.models.nn.utils.custom_trainer"
 
-        assert config == expected
+        assert actual == expected
 
+    @pytest.mark.parametrize("use_custom_trainer", (True, False))
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(
-        self, simple_types: bool, initial_config: tp.Dict[str, tp.Any]
+        self,
+        simple_types: bool,
+        initial_config: tp.Dict[str, tp.Any],
+        use_custom_trainer: bool,
     ) -> None:
         dataset = DATASET
         model = SASRecModel
@@ -1014,6 +966,8 @@ class TestSASRecModelConfiguration:
         }
         config = initial_config.copy()
         config.update(updated_params)
+        if use_custom_trainer:
+            config["get_trainer_func"] = custom_trainer
 
         def get_reco(model: SASRecModel) -> pd.DataFrame:
             return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)

@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,8 +19,7 @@ import pytest
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-from rectools.models.nn.sasrec import PADDING_VALUE
-from rectools.models.nn.transformer_data_preparator import SequenceDataset, SessionEncoderDataPreparatorBase
+from rectools.models.nn.transformer_data_preparator import SequenceDataset, TransformerDataPreparatorBase
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
 from ..data import INTERACTIONS
@@ -66,7 +65,7 @@ class TestSequenceDataset:
         assert all(actual_list == expected_list for actual_list, expected_list in zip(actual.weights, expected_weights))
 
 
-class TestSessionEncoderDataPreparatorBase:
+class TestTransformerDataPreparatorBase:
 
     @pytest.fixture
     def dataset(self) -> Dataset:
@@ -111,12 +110,11 @@ class TestSessionEncoderDataPreparatorBase:
         return ds
 
     @pytest.fixture
-    def data_preparator(self) -> SessionEncoderDataPreparatorBase:
-        return SessionEncoderDataPreparatorBase(
+    def data_preparator(self) -> TransformerDataPreparatorBase:
+        return TransformerDataPreparatorBase(
             session_max_len=4,
             batch_size=4,
             dataloader_num_workers=0,
-            item_extra_tokens=(PADDING_VALUE,),
         )
 
     @pytest.mark.parametrize(
@@ -147,7 +145,7 @@ class TestSessionEncoderDataPreparatorBase:
     def test_process_dataset_train(
         self,
         dataset: Dataset,
-        data_preparator: SessionEncoderDataPreparatorBase,
+        data_preparator: TransformerDataPreparatorBase,
         expected_interactions: Interactions,
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
@@ -161,7 +159,7 @@ class TestSessionEncoderDataPreparatorBase:
     def test_raises_process_dataset_train_when_dense_item_features(
         self,
         dataset_dense_item_features: Dataset,
-        data_preparator: SessionEncoderDataPreparatorBase,
+        data_preparator: TransformerDataPreparatorBase,
     ) -> None:
         with pytest.raises(ValueError):
             data_preparator.process_dataset_train(dataset_dense_item_features)
@@ -190,7 +188,7 @@ class TestSessionEncoderDataPreparatorBase:
     def test_transform_dataset_u2i(
         self,
         dataset: Dataset,
-        data_preparator: SessionEncoderDataPreparatorBase,
+        data_preparator: TransformerDataPreparatorBase,
         expected_interactions: Interactions,
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
@@ -231,7 +229,7 @@ class TestSessionEncoderDataPreparatorBase:
     def test_tranform_dataset_i2i(
         self,
         dataset: Dataset,
-        data_preparator: SessionEncoderDataPreparatorBase,
+        data_preparator: TransformerDataPreparatorBase,
         expected_interactions: Interactions,
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,

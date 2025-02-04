@@ -14,3 +14,5 @@ See examples here: https://github.com/MobileTeleSystems/RecTools/tree/main/examp
    examples/5_benchmark_iALS_with_features
    examples/6_benchmark_lightfm_inference
    examples/7_visualization
+   examples/8_debiased_metrics
+   examples/9_model_configs_and_saving
