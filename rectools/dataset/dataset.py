@@ -34,19 +34,21 @@ from .interactions import Interactions
 AnyFeatureName = tp.Union[str, SparseFeatureName]
 
 
-def _serialize_feature_name(spec: tp.Union[AnyFeatureName, tp.Any]) -> Hashable:
+def _serialize_feature_name(spec: tp.Any) -> Hashable:
+    error_msg = f"""
+            Serialization for feature name '{spec}' is not supported.
+            Please convert your feature names and category feature values to strings, numbers, booleans
+            or their tuples.
+            """
+    if isinstance(spec, (list, np.ndarray)):
+        raise ValueError(error_msg)
     if isinstance(spec, tuple):
         return tuple(_serialize_feature_name(item) for item in spec)
     if isinstance(spec, (int, float, str, bool)):
         return spec
-    if not isinstance(spec, np.ndarray) and np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):
+    if np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):
         return spec.item()
-    raise ValueError(
-        f"""
-        Serialization for feature name {spec} is not supported.
-        Please convert your feature names and values to strings, numbers, booleans or their tuples or lists.
-    """
-    )
+    raise ValueError(error_msg)
 
 
 FeatureName = tpe.Annotated[AnyFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
