@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import torch
 import typing_extensions as tpe
 from torch import nn
 
-from rectools.dataset import Dataset
+from rectools.dataset.dataset import Dataset, DatasetSchema
 from rectools.dataset.features import SparseFeatures
 
 
@@ -33,6 +33,11 @@ class ItemNetBase(nn.Module):
     @classmethod
     def from_dataset(cls, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tp.Optional[tpe.Self]:
         """Construct ItemNet from Dataset."""
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dataset_schema(cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """Construct ItemNet from Dataset schema."""
         raise NotImplementedError()
 
     def get_all_embeddings(self) -> torch.Tensor:
@@ -88,7 +93,6 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        # TODO: Should we use torch.nn.EmbeddingBag?
         feature_dense = self.get_dense_item_features(items)
 
         feature_embs = self.category_embeddings(self.feature_catalog.to(self.device))
@@ -205,8 +209,25 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
-        """TODO"""
+        """
+        Create IdEmbeddingsItemNet from RecTools dataset.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            RecTools dataset.
+        n_factors : int
+            Latent embedding size of item embeddings.
+        dropout_rate : float
+            Probability of a hidden unit of item embedding to be zeroed.
+        """
         n_items = dataset.item_id_map.size
+        return cls(n_factors, n_items, dropout_rate)
+
+    @classmethod
+    def from_dataset_schema(cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float) -> tpe.Self:
+        """Construct ItemNet from Dataset schema."""
+        n_items = dataset_schema.items.n_hot
         return cls(n_factors, n_items, dropout_rate)
 
 
@@ -227,7 +248,6 @@ class ItemNetConstructor(ItemNetBase):
         n_items: int,
         item_net_blocks: tp.Sequence[ItemNetBase],
     ) -> None:
-        """TODO"""
         super().__init__()
 
         if len(item_net_blocks) == 0:
@@ -252,7 +272,6 @@ class ItemNetConstructor(ItemNetBase):
             Item embeddings.
         """
         item_embs = []
-        # TODO: Add functionality for parallel computing.
         for idx_block in range(self.n_item_blocks):
             item_emb = self.item_net_blocks[idx_block](items)
             item_embs.append(item_emb)
@@ -294,6 +313,25 @@ class ItemNetConstructor(ItemNetBase):
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
             item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
+            if item_net_block is not None:
+                item_net_blocks.append(item_net_block)
+
+        return cls(n_items, item_net_blocks)
+
+    @classmethod
+    def from_dataset_schema(
+        cls,
+        dataset_schema: DatasetSchema,
+        n_factors: int,
+        dropout_rate: float,
+        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+    ) -> tpe.Self:
+        """Construct ItemNet from Dataset schema."""
+        n_items = dataset_schema.items.n_hot
+
+        item_net_blocks: tp.List[ItemNetBase] = []
+        for item_net in item_net_block_types:
+            item_net_block = item_net.from_dataset_schema(dataset_schema, n_factors, dropout_rate)
             if item_net_block is not None:
                 item_net_blocks.append(item_net_block)
 

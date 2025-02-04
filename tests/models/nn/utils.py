@@ -11,3 +11,28 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
+import pandas as pd
+from pytorch_lightning import Trainer
+
+from rectools import Columns
+
+
+def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
+    rank = (
+        interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+        .groupby(Columns.User, sort=False)
+        .cumcount()
+    )
+    return rank == 0
+
+
+def custom_trainer() -> Trainer:
+    return Trainer(
+        max_epochs=3,
+        min_epochs=3,
+        deterministic=True,
+        accelerator="cpu",
+        enable_checkpointing=False,
+        devices=1,
+    )
