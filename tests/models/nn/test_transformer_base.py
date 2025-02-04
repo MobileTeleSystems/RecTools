@@ -26,10 +26,11 @@ from pytorch_lightning.loggers import CSVLogger
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.transformer_base import TransformerModelBase
 from tests.models.utils import assert_save_load_do_not_change_model
 
+from ..data import INTERACTIONS
 from .utils import custom_trainer, leave_one_out_mask
 
 
@@ -67,6 +68,38 @@ class TestTransformerModelBase:
     @pytest.fixture
     def dataset(self, interactions_df: pd.DataFrame) -> Dataset:
         return Dataset.construct(interactions_df)
+
+    @pytest.fixture
+    def dataset_item_features(self) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [12, "f1", "f1val1"],
+                [12, "f2", "f2val2"],
+                [13, "f1", "f1val1"],
+                [13, "f2", "f2val3"],
+                [14, "f1", "f1val2"],
+                [14, "f2", "f2val1"],
+                [15, "f1", "f1val2"],
+                [15, "f2", "f2val2"],
+                [17, "f1", "f1val2"],
+                [17, "f2", "f2val3"],
+                [16, "f1", "f1val2"],
+                [16, "f2", "f2val3"],
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [14, "f3", 3],
+                [15, "f3", 4],
+                [17, "f3", 5],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            cat_item_features=["f1", "f2"],
+        )
+        return ds
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("default_trainer", (True, False))
@@ -123,12 +156,12 @@ class TestTransformerModelBase:
         self,
         model_cls: tp.Type[TransformerModelBase],
         tmp_path: str,
-        dataset: Dataset,
+        dataset_item_features: Dataset,
     ) -> None:
         model = model_cls.from_config(
             {
                 "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
             }
         )
         model._trainer = Trainer(  # pylint: disable=protected-access
@@ -140,7 +173,7 @@ class TestTransformerModelBase:
             devices=1,
             callbacks=ModelCheckpoint(filename="last_epoch"),
         )
-        model.fit(dataset)
+        model.fit(dataset_item_features)
 
         assert model.fit_trainer is not None
         if model.fit_trainer.log_dir is None:
@@ -150,7 +183,7 @@ class TestTransformerModelBase:
         recovered_model = model_cls.load_from_checkpoint(ckpt_path)
         assert isinstance(recovered_model, model_cls)
 
-        self._assert_same_reco(model, recovered_model, dataset)
+        self._assert_same_reco(model, recovered_model, dataset_item_features)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("verbose", (1, 0))

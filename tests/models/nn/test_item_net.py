@@ -120,19 +120,16 @@ class TestCatFeaturesItemNet:
         actual_offsets = cat_item_embeddings.offsets
         actual_n_cat_feature_values = cat_item_embeddings.n_cat_feature_values
         actual_embedding_dim = cat_item_embeddings.embedding_bag.embedding_dim
-        actual_length_range = cat_item_embeddings.length_range
         actual_emb_bag_inputs = cat_item_embeddings.emb_bag_inputs
         actual_input_lengths = cat_item_embeddings.input_lengths
 
         expected_offsets = torch.tensor([0, 0, 2, 4, 6, 8, 10])
-        expected_length_range = torch.tensor([0, 1])
         expected_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2, 1, 3, 1, 3])
         expected_input_lengths = torch.tensor([0, 2, 2, 2, 2, 2, 2])
 
         assert actual_n_cat_feature_values == 5
         assert actual_embedding_dim == n_factors
         assert torch.equal(actual_offsets, expected_offsets)
-        assert torch.equal(actual_length_range, expected_length_range)
         assert torch.equal(actual_emb_bag_inputs, expected_emb_bag_inputs)
         assert torch.equal(actual_input_lengths, expected_input_lengths)
 

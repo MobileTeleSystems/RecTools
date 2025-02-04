@@ -36,7 +36,9 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+    def from_dataset_schema(
+        cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any
+    ) -> tp.Optional[tpe.Self]:
         """Construct ItemNet from Dataset schema."""
         raise NotImplementedError()
 
@@ -80,7 +82,6 @@ class CatFeaturesItemNet(ItemNetBase):
         self.drop_layer = nn.Dropout(dropout_rate)
 
         self.register_buffer("offsets", offsets)
-        self.register_buffer("length_range", torch.arange(input_lengths.max().item()))
         self.register_buffer("emb_bag_inputs", emb_bag_inputs)
         self.register_buffer("input_lengths", input_lengths)
 
@@ -105,8 +106,9 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """Get categorical item features and offsets for `items`."""
-        item_indexes = self.offsets[items].unsqueeze(-1) + self.length_range
-        length_mask = self.length_range < self.input_lengths[items].unsqueeze(-1)
+        length_range = torch.arange(self.input_lengths.max().item(), device=self.device)
+        item_indexes = self.offsets[items].unsqueeze(-1) + length_range
+        length_mask = length_range < self.input_lengths[items].unsqueeze(-1)
         item_emb_bag_inputs = self.emb_bag_inputs[item_indexes[length_mask]]
         item_offsets = torch.cat(
             (torch.tensor([0], device=self.device), torch.cumsum(self.input_lengths[items], dim=0)[:-1])
@@ -159,6 +161,46 @@ class CatFeaturesItemNet(ItemNetBase):
         return cls(
             emb_bag_inputs=emb_bag_inputs,
             offsets=offsets[:-1],
+            input_lengths=input_lengths,
+            n_cat_feature_values=n_cat_feature_values,
+            n_factors=n_factors,
+            dropout_rate=dropout_rate,
+        )
+
+    @classmethod
+    def from_dataset_schema(
+        cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float
+    ) -> tp.Optional[tpe.Self]:
+        """Construct CatFeaturesItemNet from Dataset schema."""
+        if dataset_schema.items.features is None:
+            explanation = """Ignoring `CatFeaturesItemNet` block because dataset doesn't contain item features."""
+            warnings.warn(explanation)
+            return None
+
+        if dataset_schema.items.features.kind == "dense":
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because
+            dataset item features are dense and unable to contain categorical features.
+            """
+            warnings.warn(explanation)
+            return None
+
+        if len(dataset_schema.items.features.cat_feature_indices) == 0:
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
+            """
+            warnings.warn(explanation)
+            return None
+
+        emb_bag_inputs = torch.randint(
+            high=dataset_schema.items.n_hot, size=(dataset_schema.items.features.cat_n_stored_values,)
+        )
+        offsets = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
+        input_lengths = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
+        n_cat_feature_values = len(dataset_schema.items.features.cat_feature_indices)
+        return cls(
+            emb_bag_inputs=emb_bag_inputs,
+            offsets=offsets,
             input_lengths=input_lengths,
             n_cat_feature_values=n_cat_feature_values,
             n_factors=n_factors,
