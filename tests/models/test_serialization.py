@@ -15,6 +15,7 @@
 import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
+from unittest.mock import MagicMock
 
 import pytest
 from implicit.als import AlternatingLeastSquares
@@ -26,7 +27,6 @@ try:
     from lightfm import LightFM
 except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
-
 
 from rectools.metrics import NDCG
 from rectools.models import (
@@ -40,9 +40,12 @@ from rectools.models import (
     PopularModel,
     load_model,
     model_from_config,
+    model_from_params,
+    serialization,
 )
 from rectools.models.base import ModelBase, ModelConfig
 from rectools.models.vector import VectorModel
+from rectools.utils.config import BaseConfig
 
 from .utils import get_successors
 
@@ -78,20 +81,26 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
     assert isinstance(loaded_model, model_cls)
 
 
+class CustomModelSubConfig(BaseConfig):
+    x: int = 10
+
+
 class CustomModelConfig(ModelConfig):
     some_param: int = 1
+    sc: CustomModelSubConfig = CustomModelSubConfig()
 
 
 class CustomModel(ModelBase[CustomModelConfig]):
     config_class = CustomModelConfig
 
-    def __init__(self, some_param: int = 1, verbose: int = 0):
+    def __init__(self, some_param: int = 1, x: int = 10, verbose: int = 0):
         super().__init__(verbose=verbose)
         self.some_param = some_param
+        self.x = x
 
     @classmethod
     def _from_config(cls, config: CustomModelConfig) -> "CustomModel":
-        return cls(some_param=config.some_param, verbose=config.verbose)
+        return cls(some_param=config.some_param, x=config.sc.x, verbose=config.verbose)
 
 
 class TestModelFromConfig:
@@ -120,6 +129,7 @@ class TestModelFromConfig:
         model = model_from_config(config)
         assert isinstance(model, CustomModel)
         assert model.some_param == 2
+        assert model.x == 10
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_fails_on_missing_cls(self, simple_types: bool) -> None:
@@ -179,3 +189,15 @@ class TestModelFromConfig:
         config = {"cls": model_cls}
         with pytest.raises(NotImplementedError, match="`from_config` method is not implemented for `DSSMModel` model"):
             model_from_config(config)
+
+
+class TestModelFromParams:
+    def test_uses_from_config(self, mocker: MagicMock) -> None:
+        params = {"cls": "tests.models.test_serialization.CustomModel", "some_param": 2, "sc.x": 20}
+        spy = mocker.spy(serialization, "model_from_config")
+        model = model_from_params(params)
+        expected_config = {"cls": "tests.models.test_serialization.CustomModel", "some_param": 2, "sc": {"x": 20}}
+        spy.assert_called_once_with(expected_config)
+        assert isinstance(model, CustomModel)
+        assert model.some_param == 2
+        assert model.x == 20
