@@ -254,7 +254,7 @@ class TransformerTorchBackbone(torch.nn.Module):
 # ####  --------------  Lightning Model  --------------  #### #
 
 
-class TransformerLightningModuleBase(LightningModule):
+class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-many-instance-attributes
     """
     Base class for transfofmers lightning module. To change train procedure inherit
     from this class and pass your custom LightningModule to your model parameters.
@@ -284,6 +284,7 @@ class TransformerLightningModuleBase(LightningModule):
         torch_model: TransformerTorchBackbone,
         model_config: tp.Dict[str, tp.Any],
         dataset_schema: DatasetSchemaDict,
+        item_external_ids: ExternalIds,
         data_preparator: TransformerDataPreparatorBase,
         lr: float,
         gbce_t: float,
@@ -297,6 +298,7 @@ class TransformerLightningModuleBase(LightningModule):
         self.torch_model = torch_model
         self.model_config = model_config
         self.dataset_schema = dataset_schema
+        self.item_external_ids = item_external_ids
         self.lr = lr
         self.loss = loss
         self.adam_betas = adam_betas
@@ -822,7 +824,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 enable_progress_bar=self.verbose > 0,
                 enable_model_summary=self.verbose > 0,
                 logger=self.verbose > 0,
-                enable_checkpointing=self.verbose > 99,
+                enable_checkpointing=False,
                 devices=1,
             )
         else:
@@ -847,11 +849,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self,
         torch_model: TransformerTorchBackbone,
         dataset_schema: DatasetSchemaDict,
+        item_external_ids: ExternalIds,
         model_config: tp.Dict[str, tp.Any],
     ) -> None:
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
+            item_external_ids=item_external_ids,
             model_config=model_config,
             data_preparator=self.data_preparator,
             lr=self.lr,
@@ -873,9 +877,15 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         torch_model = self._init_torch_model()
         torch_model.construct_item_net(self.data_preparator.train_dataset)
 
-        dataset_schema = self.data_preparator.train_dataset.get_schema(add_item_id_map=True)
+        dataset_schema = self.data_preparator.train_dataset.get_schema()
+        item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
         model_config = self.get_config()
-        self._init_lightning_model(torch_model, dataset_schema, model_config)
+        self._init_lightning_model(
+            torch_model=torch_model,
+            dataset_schema=dataset_schema,
+            item_external_ids=item_external_ids,
+            model_config=model_config,
+        )
 
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
@@ -964,27 +974,31 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataset_schema = DatasetSchema.model_validate(dataset_schema)
 
         # Update data preparator
-        id_map_schema = dataset_schema.items.id_map
-        item_external_ids = np.array(id_map_schema.external_ids, dtype=id_map_schema.dtype)
+        item_external_ids = checkpoint["hyper_parameters"]["item_external_ids"]
         loaded.data_preparator.item_id_map = IdMap(item_external_ids)
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model
         torch_model = loaded._init_torch_model()
         torch_model.construct_item_net_from_dataset_schema(dataset_schema)
-        loaded._init_lightning_model(torch_model, dataset_schema, model_config)
+        loaded._init_lightning_model(
+            torch_model=torch_model,
+            dataset_schema=dataset_schema,
+            item_external_ids=item_external_ids,
+            model_config=model_config,
+        )
         loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
         return loaded
 
     def __getstate__(self) -> object:
         if self.is_fitted:
+            if self.fit_trainer is None:
+                raise RuntimeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
             with NamedTemporaryFile() as f:
-                if self.fit_trainer is None:
-                    raise TypeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()
-                state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
+            state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
             return state
         state = {"model_config": self.get_config()}
         return state

@@ -217,8 +217,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Verbosity level.
         Enables progress bar, model summary and logging in default lightning trainer when set to a
         positive integer.
-        Enables automatic lightning checkpointing when set to 100 or higher. This will save the most
-        the most recent model to a single checkpoint after each epoch.
         Will be omitted if `get_trainer_func` is specified.
     dataloader_num_workers : int, default 0
         Number of loader worker processes.
@@ -310,6 +308,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
+
         recommend_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
         recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker

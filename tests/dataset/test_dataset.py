@@ -15,6 +15,7 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
+from collections.abc import Hashable
 from datetime import datetime
 
 import numpy as np
@@ -24,6 +25,7 @@ from scipy import sparse
 
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, Features, IdMap, Interactions, SparseFeatures
+from rectools.dataset.dataset import AnyFeatureName, _serialize_feature_name
 from rectools.dataset.features import DIRECT_FEATURE_VALUE
 from tests.testing_utils import (
     assert_feature_set_equal,
@@ -66,7 +68,7 @@ class TestDataset:
             "users": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["u1", "u2", "u3"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": None,
@@ -74,7 +76,7 @@ class TestDataset:
             "items": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["i1", "i2", "i5"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": None,
@@ -105,7 +107,7 @@ class TestDataset:
         expected = self.expected_interactions
         expected.df["extra_col"] = self.interactions_df["extra_col"]
         assert_interactions_set_equal(actual, expected)
-        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        actual_schema = dataset.get_schema()
         assert actual_schema == self.expected_schema
 
     def test_construct_without_features(self) -> None:
@@ -113,7 +115,7 @@ class TestDataset:
         self.assert_dataset_equal_to_expected(dataset, None, None)
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
-        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        actual_schema = dataset.get_schema()
         assert actual_schema == self.expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
@@ -162,31 +164,29 @@ class TestDataset:
             "users": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["u1", "u2", "u3"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": {
-                    "dense": True,
+                    "kind": "dense",
                     "names": ["f1", "f2"],
-                    "cat_cols": None,
-                    "cat_n_stored_values": None,
                 },
             },
             "items": {
                 "n_hot": 3,
                 "id_map": {
-                    "external_ids": ["i1", "i2", "i5"],
+                    "size": 3,
                     "dtype": "|O",
                 },
                 "features": {
-                    "dense": False,
+                    "kind": "sparse",
                     "names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
-                    "cat_cols": [1, 2],
+                    "cat_feature_indices": [1, 2],
                     "cat_n_stored_values": 3,
                 },
             },
         }
-        actual_schema = dataset.get_schema(add_item_id_map=True, add_user_id_map=True)
+        actual_schema = dataset.get_schema()
         assert actual_schema == expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
@@ -497,3 +497,28 @@ class TestDataset:
         assert new_user_features.names == old_user_features.names
         assert_sparse_matrix_equal(new_item_features.values, old_item_features.values[kept_internal_item_ids])
         assert new_item_features.names == old_item_features.names
+
+
+class TestSerializeFeatureName:
+    @pytest.mark.parametrize(
+        "feature_name, expected",
+        (
+            (("feature_one", "value_one"), ("feature_one", "value_one")),
+            (("feature_one", 1), ("feature_one", 1)),
+            ("feature_name", "feature_name"),
+            (True, True),
+            (1.0, 1.0),
+            (1, 1),
+            (np.array(["feature_name"])[0], "feature_name"),
+            (np.array([True])[0], True),
+            (np.array([1.0])[0], 1.0),
+            (np.array([1])[0], 1),
+        ),
+    )
+    def test_basic(self, feature_name: AnyFeatureName, expected: Hashable) -> None:
+        assert _serialize_feature_name(feature_name) == expected
+
+    @pytest.mark.parametrize("feature_name", (np.array([1]), [1], np.array(["name"]), np.array([True])))
+    def test_raises_on_incorrect_input(self, feature_name: tp.Any) -> None:
+        with pytest.raises(TypeError):
+            _serialize_feature_name(feature_name)
