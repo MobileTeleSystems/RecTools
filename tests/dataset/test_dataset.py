@@ -520,5 +520,5 @@ class TestSerializeFeatureName:
 
     @pytest.mark.parametrize("feature_name", (np.array([1]), [1], np.array(["name"]), np.array([True])))
     def test_raises_on_incorrect_input(self, feature_name: tp.Any) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             _serialize_feature_name(feature_name)

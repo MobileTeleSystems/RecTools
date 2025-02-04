@@ -35,20 +35,22 @@ AnyFeatureName = tp.Union[str, SparseFeatureName]
 
 
 def _serialize_feature_name(spec: tp.Any) -> Hashable:
-    error_msg = f"""
-            Serialization for feature name '{spec}' is not supported.
-            Please convert your feature names and category feature values to strings, numbers, booleans
-            or their tuples.
-            """
+    type_error = TypeError(
+        f"""
+        Serialization for feature name '{spec}' is not supported.
+        Please convert your feature names and category feature values to strings, numbers, booleans
+        or their tuples.
+        """
+    )
     if isinstance(spec, (list, np.ndarray)):
-        raise ValueError(error_msg)
+        raise type_error
     if isinstance(spec, tuple):
         return tuple(_serialize_feature_name(item) for item in spec)
     if isinstance(spec, (int, float, str, bool)):
         return spec
-    if np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):
+    if np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):  # str is handled by isinstance(spec, str)
         return spec.item()
-    raise ValueError(error_msg)
+    raise type_error
 
 
 FeatureName = tpe.Annotated[AnyFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
