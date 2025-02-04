@@ -292,16 +292,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_batch_size` attribute.
-    recommend_accelerator : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"}, default "auto"
-        Accelerator type for `recommend`. Used at predict_step of lightning module.
-        If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_accelerator` attribute.
-    recommend_devices : int | List[int], default 1
-        Devices for `recommend`. Please note that multi-device inference is not supported!
-        Do not specify more then one device. For ``gpu`` accelerator you can pass which device to
-        use, e.g. ``[1]``.
-        Used at predict_step of lightning module.
-        Multi-device recommendations are not supported.
+    recommend_device : {"cpu", "cuda", "cuda:0", ...}, default ``None``
+        String representation for `torch.device` used for recommendations.
+        When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
     recommend_n_threads : int, default 0
