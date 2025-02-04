@@ -158,6 +158,8 @@ class TestImplicitItemKNNWrapperModel:
         base_model = TFIDFRecommender(K=5, num_threads=2)
         # Recreate dataset to prevent same co-occurrence count between (11, 14) and (11, 15)
         # which leads to different results in the test in Python 3.13
+        # This is because numpy.argpartition behavior was changed.
+        # See also: https://github.com/MobileTeleSystems/RecTools/pull/227#discussion_r1941872699
         interactions = pd.DataFrame(
             [
                 [10, 11],
