@@ -889,7 +889,7 @@ class TestSASRecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_device": "cuda",
+            "recommend_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
