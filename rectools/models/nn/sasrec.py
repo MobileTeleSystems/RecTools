@@ -201,7 +201,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     "Shifted Sequence" training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
 
-    Notes
+    References
     ----------
     Transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
     Advanced training guide:
@@ -246,8 +246,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Verbosity level.
         Enables progress bar, model summary and logging in default lightning trainer when set to a
         positive integer.
-        Enables automatic lightning checkpointing when set to 100 or higher. This will save the most
-        the most recent model to a single checkpoint after each epoch.
         Will be omitted if `get_trainer_func` is specified.
     dataloader_num_workers : int, default 0
         Number of loader worker processes.
