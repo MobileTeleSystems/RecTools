@@ -53,13 +53,27 @@ FeatureName = tpe.Annotated[AnyFeatureName, PlainSerializer(_serialize_feature_n
 DatasetSchemaDict = tp.Dict[str, tp.Any]
 
 
-class FeaturesSchema(BaseConfig):
+class BaseFeaturesSchema(BaseConfig):
     """Features schema."""
 
-    dense: bool
     names: tp.Tuple[FeatureName, ...]
-    cat_cols: tp.Optional[tp.List[int]] = None
-    cat_n_stored_values: tp.Optional[int] = None
+
+
+class DenseFeaturesSchema(BaseFeaturesSchema):
+    """Dense features schema."""
+
+    kind: tp.Literal["dense"] = "dense"
+
+
+class SparseFeaturesSchema(BaseFeaturesSchema):
+    """Sparse features schema."""
+
+    kind: tp.Literal["sparse"] = "sparse"
+    cat_feature_indices: tp.List[int]
+    cat_n_stored_values: int
+
+
+FeaturesSchema = tp.Union[DenseFeaturesSchema, SparseFeaturesSchema]
 
 
 class IdMapSchema(BaseConfig):
@@ -118,19 +132,18 @@ class Dataset:
     item_features: tp.Optional[Features] = attr.ib(default=None)
 
     @staticmethod
-    def _get_feature_schema(features: Features) -> FeaturesSchema:
-        cat_cols = None
-        cat_n_stored_values = None
+    def _get_feature_schema(features: tp.Optional[Features]) -> tp.Optional[FeaturesSchema]:
+        if features is None:
+            return None
         if isinstance(features, SparseFeatures):
-            cat_cols = features.cat_feature_indices.tolist()
-            cat_n_stored_values = features.get_cat_features().values.nnz
-        feature_schema = FeaturesSchema(
+            return SparseFeaturesSchema(
+                names=features.names,
+                cat_feature_indices=features.cat_feature_indices.tolist(),
+                cat_n_stored_values=features.get_cat_features().values.nnz,
+            )
+        return DenseFeaturesSchema(
             names=features.names,
-            dense=isinstance(features, DenseFeatures),
-            cat_cols=cat_cols,
-            cat_n_stored_values=cat_n_stored_values,
         )
-        return feature_schema
 
     @staticmethod
     def _get_id_map_schema(id_map: IdMap) -> IdMapSchema:
@@ -141,12 +154,12 @@ class Dataset:
         user_schema = EntitySchema(
             n_hot=self.n_hot_users,
             id_map=self._get_id_map_schema(self.user_id_map),
-            features=self._get_feature_schema(self.user_features) if self.user_features is not None else None,
+            features=self._get_feature_schema(self.user_features),
         )
         item_schema = EntitySchema(
             n_hot=self.n_hot_items,
             id_map=self._get_id_map_schema(self.item_id_map),
-            features=self._get_feature_schema(self.item_features) if self.item_features is not None else None,
+            features=self._get_feature_schema(self.item_features),
         )
         schema = DatasetSchema(
             n_interactions=self.interactions.df.shape[0],
