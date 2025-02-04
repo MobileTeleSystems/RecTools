@@ -19,7 +19,13 @@ import numpy as np
 import torch
 from torch import nn
 
-from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
+from .item_net import (
+    CatFeaturesItemNet,
+    IdEmbeddingsItemNet,
+    ItemNetBase,
+    ItemNetConstructorBase,
+    SumOfEmbeddingsConstructor,
+)
 from .transformer_base import (
     TrainerCallable,
     TransformerDataPreparatorType,
@@ -263,6 +269,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
         (CatFeaturesItemNet,) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
+    item_net_constructor_type : type(ItemNetConstructorBase), default `SumOfEmbeddingsConstructor`
+        Type of item net blocks aggregation constructor.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
     transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
@@ -284,16 +292,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_batch_size` attribute.
-    recommend_accelerator : {"cpu", "gpu", "tpu", "hpu", "mps", "auto"}, default "auto"
-        Accelerator type for `recommend`. Used at predict_step of lightning module.
-        If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_accelerator` attribute.
-    recommend_devices : int | List[int], default 1
-        Devices for `recommend`. Please note that multi-device inference is not supported!
-        Do not specify more then one device. For ``gpu`` accelerator you can pass which device to
-        use, e.g. ``[1]``.
-        Used at predict_step of lightning module.
-        Multi-device recommendations are not supported.
+    recommend_device : {"cpu", "cuda", "cuda:0", ...}, default ``None``
+        String representation for `torch.device` used for recommendations.
+        When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
     recommend_n_threads : int, default 0
@@ -329,6 +330,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
@@ -336,10 +338,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
-        recommend_accelerator: str = "auto",
-        recommend_devices: tp.Union[int, tp.List[int]] = 1,
+        recommend_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,
+        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -362,12 +363,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             verbose=verbose,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
-            recommend_accelerator=recommend_accelerator,
-            recommend_devices=recommend_devices,
+            recommend_device=recommend_device,
             recommend_n_threads=recommend_n_threads,
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             train_min_user_interactions=train_min_user_interactions,
             item_net_block_types=item_net_block_types,
+            item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,

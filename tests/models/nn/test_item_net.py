@@ -23,7 +23,13 @@ from pytorch_lightning import seed_everything
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.features import SparseFeatures
-from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
+from rectools.models.nn.item_net import (
+    CatFeaturesItemNet,
+    IdEmbeddingsItemNet,
+    ItemNetBase,
+    ItemNetConstructorBase,
+    SumOfEmbeddingsConstructor,
+)
 from tests.testing_utils import assert_feature_set_equal
 
 from ..data import DATASET, INTERACTIONS
@@ -223,7 +229,7 @@ class TestCatFeaturesItemNet:
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
-class TestItemNetConstructor:
+class TestSumOfEmbeddingsConstructor:
     def setup_method(self) -> None:
         self._seed_everything()
 
@@ -264,7 +270,7 @@ class TestItemNetConstructor:
         return ds
 
     def test_catalog(self) -> None:
-        item_net = ItemNetConstructor.from_dataset(
+        item_net = SumOfEmbeddingsConstructor.from_dataset(
             DATASET, n_factors=10, dropout_rate=0.5, item_net_block_types=(IdEmbeddingsItemNet,)
         )
         expected_feature_catalog = torch.arange(0, DATASET.item_id_map.size)
@@ -281,7 +287,7 @@ class TestItemNetConstructor:
     def test_get_all_embeddings(
         self, dataset_item_features: Dataset, item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]], n_factors: int
     ) -> None:
-        item_net = ItemNetConstructor.from_dataset(
+        item_net = SumOfEmbeddingsConstructor.from_dataset(
             dataset_item_features, n_factors=n_factors, dropout_rate=0.5, item_net_block_types=item_net_block_types
         )
         assert item_net.get_all_embeddings().shape == (item_net.n_items, n_factors)
@@ -323,7 +329,7 @@ class TestItemNetConstructor:
         else:
             ds = dataset_item_features
 
-        item_net: ItemNetConstructor = ItemNetConstructor.from_dataset(
+        item_net: ItemNetConstructorBase = SumOfEmbeddingsConstructor.from_dataset(
             ds, n_factors=10, dropout_rate=0.5, item_net_block_types=item_net_block_types
         )
 
@@ -350,7 +356,7 @@ class TestItemNetConstructor:
         items = torch.from_numpy(
             np.random.choice(dataset_item_features.item_id_map.internal_ids, size=n_items, replace=False)
         )
-        item_net: ItemNetConstructor = ItemNetConstructor.from_dataset(
+        item_net: ItemNetConstructorBase = SumOfEmbeddingsConstructor.from_dataset(
             dataset_item_features, n_factors=n_factors, dropout_rate=0.5, item_net_block_types=item_net_block_types
         )
 
@@ -408,6 +414,6 @@ class TestItemNetConstructor:
             make_dense_item_features=make_dense_item_features,
         )
         with pytest.raises(ValueError):
-            ItemNetConstructor.from_dataset(
+            SumOfEmbeddingsConstructor.from_dataset(
                 ds, n_factors=10, dropout_rate=0.5, item_net_block_types=item_net_block_types
             )
