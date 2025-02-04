@@ -939,7 +939,7 @@ class TestSASRecModelConfiguration:
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
                 "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",
-                "lightning_module_type": "rectools.models.nn.transformer_base.TransformerLightningModule",
+                "lightning_module_type": "rectools.models.nn.transformer_lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
