@@ -24,7 +24,7 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
 from rectools.models.nn.bert4rec import BERT4RecDataPreparator
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
+from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.transformer_base import (
     LearnableInversePositionalEncoding,
     PreLNTransformerLayers,
@@ -685,6 +685,7 @@ class TestBERT4RecModelConfiguration:
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
+            "item_net_constructor_type": SumOfEmbeddingsConstructor,
             "pos_encoding_type": LearnableInversePositionalEncoding,
             "transformer_layers_type": PreLNTransformerLayers,
             "data_preparator_type": BERT4RecDataPreparator,
@@ -725,6 +726,7 @@ class TestBERT4RecModelConfiguration:
             simple_types_params = {
                 "cls": "BERT4RecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
+                "item_net_constructor_type": "rectools.models.nn.item_net.SumOfEmbeddingsConstructor",
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
                 "transformer_layers_type": "rectools.models.nn.transformer_net_blocks.PreLNTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.bert4rec.BERT4RecDataPreparator",

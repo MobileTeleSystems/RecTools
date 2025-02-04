@@ -19,7 +19,13 @@ import numpy as np
 import torch
 from torch import nn
 
-from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase
+from .item_net import (
+    CatFeaturesItemNet,
+    IdEmbeddingsItemNet,
+    ItemNetBase,
+    ItemNetConstructorBase,
+    SumOfEmbeddingsConstructor,
+)
 from .transformer_base import (
     TrainerCallable,
     TransformerDataPreparatorType,
@@ -263,6 +269,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
         (CatFeaturesItemNet,) - item embeddings based on categorical features.
         (IdEmbeddingsItemNet, CatFeaturesItemNet) - item embeddings based on ids and categorical features.
+    item_net_constructor_type : type(ItemNetConstructorBase), default `SumOfEmbeddingsConstructor`
+        Type of item net blocks aggregation constructor.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
     transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
@@ -329,6 +337,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
@@ -366,6 +375,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             recommend_use_gpu_ranking=recommend_use_gpu_ranking,
             train_min_user_interactions=train_min_user_interactions,
             item_net_block_types=item_net_block_types,
+            item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,

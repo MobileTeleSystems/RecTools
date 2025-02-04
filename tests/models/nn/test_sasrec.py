@@ -27,7 +27,7 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
-from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformer_base import (
     LearnableInversePositionalEncoding,
@@ -895,6 +895,7 @@ class TestSASRecModelConfiguration:
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
+            "item_net_constructor_type": SumOfEmbeddingsConstructor,
             "pos_encoding_type": LearnableInversePositionalEncoding,
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
@@ -934,6 +935,7 @@ class TestSASRecModelConfiguration:
             simple_types_params = {
                 "cls": "SASRecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
+                "item_net_constructor_type": "rectools.models.nn.item_net.SumOfEmbeddingsConstructor",
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
                 "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",

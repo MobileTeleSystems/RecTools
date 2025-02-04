@@ -38,7 +38,13 @@ from rectools.models.rank import Distance, ImplicitRanker
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
-from .item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, ItemNetBase, ItemNetConstructor
+from .item_net import (
+    CatFeaturesItemNet,
+    IdEmbeddingsItemNet,
+    ItemNetBase,
+    ItemNetConstructorBase,
+    SumOfEmbeddingsConstructor,
+)
 from .transformer_data_preparator import TransformerDataPreparatorBase
 from .transformer_net_blocks import (
     LearnableInversePositionalEncoding,
@@ -88,11 +94,12 @@ class TransformerTorchBackbone(torch.nn.Module):
         use_key_padding_mask: bool = False,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ) -> None:
         super().__init__()
 
-        self.item_model: ItemNetConstructor
+        self.item_model: ItemNetConstructorBase
         self.pos_encoding = pos_encoding_type(use_pos_emb, session_max_len, n_factors)
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers_type(
@@ -108,6 +115,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         self.n_heads = n_heads
 
         self.item_net_block_types = item_net_block_types
+        self.item_net_constructor_type = item_net_constructor_type
 
     def construct_item_net(self, dataset: Dataset) -> None:
         """
@@ -118,7 +126,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         dataset : Dataset
             RecTools dataset with user-item interactions.
         """
-        self.item_model = ItemNetConstructor.from_dataset(
+        self.item_model = self.item_net_constructor_type.from_dataset(
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
@@ -131,7 +139,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         dataset_schema : DatasetSchema
             RecTools schema with dataset statistics.
         """
-        self.item_model = ItemNetConstructor.from_dataset_schema(
+        self.item_model = self.item_net_constructor_type.from_dataset_schema(
             dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
@@ -655,6 +663,17 @@ TransformerDataPreparatorType = tpe.Annotated[
     ),
 ]
 
+
+ItemNetConstructorType = tpe.Annotated[
+    tp.Type[ItemNetConstructorBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
 ItemNetBlockTypes = tpe.Annotated[
     tp.Sequence[tp.Type[ItemNetBase]],
     BeforeValidator(_get_class_obj_sequence),
@@ -718,6 +737,7 @@ class TransformerModelConfig(ModelConfig):
     recommend_use_gpu_ranking: bool = True  # TODO: remove after TorchRanker
     train_min_user_interactions: int = 2
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
+    item_net_constructor_type: ItemNetConstructorType = SumOfEmbeddingsConstructor
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
@@ -769,6 +789,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
         train_min_user_interactions: int = 2,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
+        item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
@@ -800,6 +821,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
         self.train_min_user_interactions = train_min_user_interactions
         self.item_net_block_types = item_net_block_types
+        self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
@@ -843,6 +865,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             transformer_layers_type=self.transformer_layers_type,
             item_net_block_types=self.item_net_block_types,
             pos_encoding_type=self.pos_encoding_type,
+            item_net_constructor_type=self.item_net_constructor_type,
         )
 
     def _init_lightning_model(
