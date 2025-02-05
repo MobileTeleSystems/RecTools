@@ -275,7 +275,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
 
-class ItemNetConstructor(ItemNetBase):
+class ItemNetConstructorBase(ItemNetBase):
     """
     Constructed network for item embeddings based on aggregation of embeddings from transferred item network types.
 
@@ -300,26 +300,6 @@ class ItemNetConstructor(ItemNetBase):
         self.n_items = n_items
         self.n_item_blocks = len(item_net_blocks)
         self.item_net_blocks = nn.ModuleList(item_net_blocks)
-
-    def forward(self, items: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass to get item embeddings from item network blocks.
-
-        Parameters
-        ----------
-        items : torch.Tensor
-            Internal item ids.
-
-        Returns
-        -------
-        torch.Tensor
-            Item embeddings.
-        """
-        item_embs = []
-        for idx_block in range(self.n_item_blocks):
-            item_emb = self.item_net_blocks[idx_block](items)
-            item_embs.append(item_emb)
-        return torch.sum(torch.stack(item_embs, dim=0), dim=0)
 
     @property
     def catalog(self) -> torch.Tensor:
@@ -380,3 +360,52 @@ class ItemNetConstructor(ItemNetBase):
                 item_net_blocks.append(item_net_block)
 
         return cls(n_items, item_net_blocks)
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """Forward pass through item net blocks and aggregation of the results.
+
+        Parameters
+        ----------
+        items : torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            Item embeddings.
+        """
+        raise NotImplementedError()
+
+
+class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
+    """
+    Item net blocks constructor that simply sums all of the its net blocks embeddings.
+
+    Parameters
+    ----------
+    n_items : int
+        Number of items in the dataset.
+    item_net_blocks : Sequence(ItemNetBase)
+        Latent embedding size of item embeddings.
+    """
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through item net blocks and aggregation of the results.
+        Simple sum of embeddings.
+
+        Parameters
+        ----------
+        items : torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            Item embeddings.
+        """
+        item_embs = []
+        for idx_block in range(self.n_item_blocks):
+            item_emb = self.item_net_blocks[idx_block](items)
+            item_embs.append(item_emb)
+        return torch.sum(torch.stack(item_embs, dim=0), dim=0)

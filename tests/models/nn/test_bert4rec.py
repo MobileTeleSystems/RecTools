@@ -24,7 +24,7 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
 from rectools.models.nn.bert4rec import BERT4RecDataPreparator
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
+from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.transformer_base import (
     LearnableInversePositionalEncoding,
     PreLNTransformerLayers,
@@ -110,13 +110,13 @@ class TestBERT4RecModel:
         return get_trainer
 
     @pytest.mark.parametrize(
-        "accelerator,n_devices,recommend_accelerator",
+        "accelerator,n_devices,recommend_device",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
                 "cpu",
                 1,
-                "gpu",
+                "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             ("cpu", 2, "cpu"),
@@ -129,7 +129,7 @@ class TestBERT4RecModel:
             pytest.param(
                 "gpu",
                 1,
-                "gpu",
+                "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             pytest.param(
@@ -216,7 +216,7 @@ class TestBERT4RecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
-        recommend_accelerator: str,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
@@ -244,7 +244,7 @@ class TestBERT4RecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_accelerator=recommend_accelerator,
+            recommend_device=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
         )
@@ -679,13 +679,13 @@ class TestBERT4RecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_accelerator": "auto",
-            "recommend_devices": 1,
+            "recommend_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
+            "item_net_constructor_type": SumOfEmbeddingsConstructor,
             "pos_encoding_type": LearnableInversePositionalEncoding,
             "transformer_layers_type": PreLNTransformerLayers,
             "data_preparator_type": BERT4RecDataPreparator,
@@ -726,10 +726,11 @@ class TestBERT4RecModelConfiguration:
             simple_types_params = {
                 "cls": "BERT4RecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
+                "item_net_constructor_type": "rectools.models.nn.item_net.SumOfEmbeddingsConstructor",
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
                 "transformer_layers_type": "rectools.models.nn.transformer_net_blocks.PreLNTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.bert4rec.BERT4RecDataPreparator",
-                "lightning_module_type": "rectools.models.nn.transformer_base.TransformerLightningModule",
+                "lightning_module_type": "rectools.models.nn.transformer_lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
