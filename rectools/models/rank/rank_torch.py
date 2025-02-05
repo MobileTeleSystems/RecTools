@@ -108,17 +108,13 @@ class TorchRanker:
         if sorted_object_whitelist is None:
             sorted_object_whitelist = np.arange(self.objects_factors.shape[0])
 
-        if not isinstance(subject_ids, np.ndarray):
-            subject_ids = np.array(subject_ids)
+        subject_ids = np.asarray(subject_ids)
 
         if k is None:
             k = len(sorted_object_whitelist)
 
-        user_ids = subject_ids
-        sorted_item_ids_to_recommend = sorted_object_whitelist
-
-        user_embs = self.subjects_factors[user_ids]
-        item_embs = self.objects_factors[sorted_item_ids_to_recommend]
+        user_embs = self.subjects_factors[subject_ids]
+        item_embs = self.objects_factors[sorted_object_whitelist]
 
         user_embs_dataset = TensorDataset(torch.arange(user_embs.shape[0]), user_embs)
         dataloader = DataLoader(user_embs_dataset, batch_size=self.batch_size, shuffle=False)
@@ -138,9 +134,9 @@ class TorchRanker:
 
                 if filter_pairs_csr is not None:
                     mask = (
-                        torch.from_numpy(
-                            filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_item_ids_to_recommend]
-                        ).to(scores.device)
+                        torch.from_numpy(filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_object_whitelist]).to(
+                            scores.device
+                        )
                         == 1
                     )
                     scores = torch.masked_fill(scores, mask, mask_values)
@@ -162,8 +158,8 @@ class TorchRanker:
 
         # flatten and convert inds back to input ids
         all_scores = all_top_scores.flatten()
-        all_target_ids = user_ids[all_target_inds].repeat(all_top_inds.shape[1])
-        all_reco_ids = sorted_item_ids_to_recommend[all_top_inds].flatten()
+        all_target_ids = subject_ids[all_target_inds].repeat(all_top_inds.shape[1])
+        all_reco_ids = sorted_object_whitelist[all_top_inds].flatten()
 
         # filter masked items if they appeared at top
         if filter_pairs_csr is not None:
@@ -216,10 +212,6 @@ class TorchRanker:
 
         if isinstance(tensor, np.ndarray):
             tensor = torch.from_numpy(tensor)
-
-        if not isinstance(tensor, torch.Tensor):
-            explanation = "unsupported tensor type"
-            raise ValueError(explanation)
 
         if self.dtype is not None:
             tensor = tensor.to(self.dtype)
