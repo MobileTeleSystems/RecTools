@@ -277,7 +277,14 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.fit_trainer: tp.Optional[Trainer] = None
 
     def _init_data_preparator(self) -> None:
-        raise NotImplementedError()
+        self.data_preparator: TransformerDataPreparatorBase = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
+            get_val_mask_func=self.get_val_mask_func,
+        )
 
     def _init_trainer(self) -> None:
         if self.get_trainer_func is None:
