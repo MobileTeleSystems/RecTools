@@ -173,7 +173,11 @@ class TestDSSMModel:
     )
     @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_with_whitelist(
-        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, use_gpu_ranking: bool
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
         model = DSSMModel(
             n_factors=32,
@@ -218,9 +222,14 @@ class TestDSSMModel:
         )
         model.fit(dataset=dataset)
         user_embeddings, item_embeddings = model.get_vectors(dataset)
-        ranker = ImplicitRanker(model.u2i_dist, user_embeddings, item_embeddings)
+        ranker = ImplicitRanker(
+            model.u2i_dist,
+            user_embeddings,
+            item_embeddings,
+        )
         _, vectors_reco, vectors_scores = ranker.rank(
-            dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])), k=5
+            subject_ids=dataset.user_id_map.convert_to_internal(np.array([10, 20, 30, 40])),
+            k=5,
         )
         (
             _,
