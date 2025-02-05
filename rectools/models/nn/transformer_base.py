@@ -48,7 +48,6 @@ from .transformer_net_blocks import (
     TransformerLayersBase,
 )
 
-
 # ####  --------------  Transformer Model Config  --------------  #### #
 
 

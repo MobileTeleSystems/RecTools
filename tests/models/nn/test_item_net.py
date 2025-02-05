@@ -22,8 +22,6 @@ from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-
-from rectools.dataset.features import SparseFeatures
 from rectools.models.nn.item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -31,7 +29,6 @@ from rectools.models.nn.item_net import (
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from tests.testing_utils import assert_feature_set_equal
 
 from ..data import DATASET, INTERACTIONS
 

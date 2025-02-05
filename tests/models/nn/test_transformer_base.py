@@ -108,7 +108,7 @@ class TestTransformerModelBase:
     ) -> None:
         config = {
             "deterministic": True,
-            "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+            "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
         }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
@@ -139,17 +139,21 @@ class TestTransformerModelBase:
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("default_trainer", (True, False))
     def test_save_load_for_fitted_model(
-        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset_item_features: Dataset,
+        default_trainer: bool,
+        trainer: Trainer,
     ) -> None:
         config = {
             "deterministic": True,
-            "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+            "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
         }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
         model = model_cls.from_config(config)
-        model.fit(dataset)
-        assert_save_load_do_not_change_model(model, dataset)
+        model.fit(dataset_item_features)
+        assert_save_load_do_not_change_model(model, dataset_item_features)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     def test_load_from_checkpoint(
