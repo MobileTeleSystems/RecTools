@@ -16,7 +16,6 @@
 
 import typing as tp
 import warnings
-from enum import Enum
 
 import implicit.cpu
 import implicit.gpu
@@ -27,17 +26,9 @@ from scipy import sparse
 
 from rectools import InternalIds
 from rectools.models.base import Scores
+from rectools.models.rank.rank import Distance
+from rectools.models.utils import convert_arr_to_implicit_gpu_matrix
 from rectools.types import InternalIdsArray
-
-from .utils import convert_arr_to_implicit_gpu_matrix
-
-
-class Distance(Enum):
-    """Distance metric"""
-
-    DOT = 1  # Bigger value means closer vectors
-    COSINE = 2  # Bigger value means closer vectors
-    EUCLIDEAN = 3  # Smaller value means closer vectors
 
 
 class ImplicitRanker:

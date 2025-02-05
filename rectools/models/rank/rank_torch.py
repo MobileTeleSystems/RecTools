@@ -23,20 +23,8 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from rectools import InternalIds
 from rectools.models.base import Scores
+from rectools.models.rank.rank import Distance
 from rectools.types import InternalIdsArray
-
-from .rank import Distance
-
-
-# TODO do we need it now?
-class Ranker(tp.Protocol):
-    def rank(
-        self,
-        subject_ids: InternalIds,
-        k: tp.Optional[int] = None,
-        filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
-        sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]: ...
 
 
 class TorchRanker:
@@ -75,8 +63,6 @@ class TorchRanker:
         objects_factors: tp.Union[np.ndarray, torch.Tensor],
         dtype: tp.Optional[torch.dtype] = torch.float32,
     ):
-        assert batch_size > 0
-
         self.dtype = dtype
         self.device = torch.device(device)
         self.batch_size = batch_size
@@ -88,7 +74,7 @@ class TorchRanker:
 
     def rank(
         self,
-        subject_ids: InternalIds,  # TODO check it
+        subject_ids: InternalIds,
         k: tp.Optional[int] = None,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
@@ -97,7 +83,7 @@ class TorchRanker:
 
         Parameters
         ----------
-        subject_ids : csr_matrix | np.ndarray
+        subject_ids : InternalIds
             Array of ids to recommend for.
         k : Optional[int]
             Derived number of recommendations for every subject id.
@@ -115,9 +101,8 @@ class TorchRanker:
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
-        filter_viewed = filter_pairs_csr is not None
-        if filter_viewed and filter_pairs_csr.shape[0] != len(subject_ids):
-            explanation = "assumed that filter_pairs_csr and subject_ids are aligned"
+        if filter_pairs_csr is not None and filter_pairs_csr.shape[0] != len(subject_ids):
+            explanation = "For correct ranking `filter_pairs_csr` must have the same number of rows as `subject_ids`"
             raise ValueError(explanation)
 
         if sorted_object_whitelist is None:
@@ -137,10 +122,10 @@ class TorchRanker:
 
         user_embs_dataset = TensorDataset(torch.arange(user_embs.shape[0]), user_embs)
         dataloader = DataLoader(user_embs_dataset, batch_size=self.batch_size, shuffle=False)
-        MASK_VALUE = float("-inf")
-        all_top_scores = []
-        all_top_inds = []
-        all_target_inds = []
+        mask_values = float("-inf")
+        all_top_scores_list = []
+        all_top_inds_list = []
+        all_target_inds_list = []
         with torch.no_grad():
             for (
                 cur_user_emb_inds,
@@ -151,14 +136,14 @@ class TorchRanker:
                     item_embs.to(self.device),
                 )
 
-                if filter_viewed:
+                if filter_pairs_csr is not None:
                     mask = (
                         torch.from_numpy(
                             filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_item_ids_to_recommend]
                         ).to(scores.device)
                         == 1
                     )
-                    scores = torch.masked_fill(scores, mask, MASK_VALUE)
+                    scores = torch.masked_fill(scores, mask, mask_values)
 
                 top_scores, top_inds = torch.topk(
                     scores,
@@ -167,13 +152,13 @@ class TorchRanker:
                     sorted=True,
                     largest=self._higher_is_better,
                 )
-                all_top_scores.append(top_scores.cpu().numpy())
-                all_top_inds.append(top_inds.cpu().numpy())
-                all_target_inds.append(cur_user_emb_inds.cpu().numpy())
+                all_top_scores_list.append(top_scores.cpu().numpy())
+                all_top_inds_list.append(top_inds.cpu().numpy())
+                all_target_inds_list.append(cur_user_emb_inds.cpu().numpy())
 
-        all_top_scores = np.concatenate(all_top_scores, axis=0)
-        all_top_inds = np.concatenate(all_top_inds, axis=0)
-        all_target_inds = np.concatenate(all_target_inds, axis=0)
+        all_top_scores = np.concatenate(all_top_scores_list, axis=0)
+        all_top_inds = np.concatenate(all_top_inds_list, axis=0)
+        all_target_inds = np.concatenate(all_target_inds_list, axis=0)
 
         # flatten and convert inds back to input ids
         all_scores = all_top_scores.flatten()
@@ -181,8 +166,8 @@ class TorchRanker:
         all_reco_ids = sorted_item_ids_to_recommend[all_top_inds].flatten()
 
         # filter masked items if they appeared at top
-        if filter_viewed:
-            mask = all_scores > MASK_VALUE
+        if filter_pairs_csr is not None:
+            mask = all_scores > mask_values
             all_scores = all_scores[mask]
             all_target_ids = all_target_ids[mask]
             all_reco_ids = all_reco_ids[mask]
@@ -207,7 +192,7 @@ class TorchRanker:
             return self._euclid_score, False
 
         else:
-            explanation = f"distance {distance} is not supported"
+            explanation = f"distance {distance} is not supported"  # type: ignore[unreachable]
             raise NotImplementedError(explanation)
 
     def _euclid_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:

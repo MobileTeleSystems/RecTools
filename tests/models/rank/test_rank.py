@@ -17,10 +17,10 @@ from itertools import product
 
 import numpy as np
 import pytest
+import torch
 from scipy import sparse
 
-from rectools.models.rank import Distance, ImplicitRanker
-from rectools.models.rank_torch import Ranker, TorchRanker
+from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 
 T = tp.TypeVar("T")
 EPS_DIGITS = 5
@@ -28,22 +28,22 @@ pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in tru
 
 
 def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:
-    keys = ["device", "batch_size"]
-    vals = list(
+    torch_keys = ["device", "batch_size"]
+    torch_vals = list(
         product(
-            ["cpu", "cuda:0"],
+            ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"],
             [128, 1],
         )
     )
-    torch_ranker_args = [(TorchRanker, dict(zip(keys, v))) for v in vals]
+    torch_ranker_args = [(TorchRanker, dict(zip(torch_keys, v))) for v in torch_vals]
 
-    keys = ["use_gpu"]
-    vals = list(
+    implicit_keys = ["use_gpu"]
+    implicit_vals = list(
         product(
             [False, True],
         )
     )
-    implicit_ranker_args = [(ImplicitRanker, dict(zip(keys, v))) for v in vals]
+    implicit_ranker_args = [(ImplicitRanker, dict(zip(implicit_keys, v))) for v in implicit_vals]
 
     return [*torch_ranker_args, *implicit_ranker_args]
 
@@ -95,7 +95,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         expected_recs: tp.List[int],
@@ -148,7 +148,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank_with_filtering_viewed_items(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         expected_recs: tp.List[int],
@@ -201,7 +201,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank_with_objects_whitelist(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         expected_recs: tp.List[int],
@@ -249,7 +249,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank_with_objects_whitelist_and_filtering_viewed_items(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         expected_recs: tp.List[int],
@@ -343,7 +343,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank_different_k(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         k: int,
@@ -411,7 +411,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank_different_user_ids(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         user_ids: tp.List[int],
@@ -479,7 +479,7 @@ class TestRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank_different_user_ids_and_filter_viewed(
         self,
-        ranker_cls,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         user_ids: tp.List[int],

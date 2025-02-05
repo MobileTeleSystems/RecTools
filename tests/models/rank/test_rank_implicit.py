@@ -20,7 +20,6 @@ import pytest
 from scipy import sparse
 
 from rectools.models.rank import Distance, ImplicitRanker
-from rectools.models.rank_torch import TorchRanker
 
 T = tp.TypeVar("T")
 

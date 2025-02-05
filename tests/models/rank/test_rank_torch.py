@@ -15,14 +15,12 @@
 import typing as tp
 from itertools import product
 
-import implicit.cpu
 import numpy as np
 import pytest
 import torch
 from scipy import sparse
 
-from rectools.models.rank import Distance, ImplicitRanker
-from rectools.models.rank_torch import TorchRanker
+from rectools.models.rank import Distance, Ranker, TorchRanker
 
 T = tp.TypeVar("T")
 EPS_DIGITS = 5
@@ -33,7 +31,7 @@ def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:
     keys = ["device", "batch_size"]
     vals = list(
         product(
-            ["cpu", "cuda:0"],
+            ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"],
             [128, 1],
         )
     )
@@ -91,7 +89,7 @@ class TestTorchRanker:  # pylint: disable=protected-access
     @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
     def test_rank(
         self,
-        ranker_cls,
+        ranker_cls: tp.Type[TorchRanker],
         ranker_args: tp.Dict[str, tp.Any],
         distance: Distance,
         expected_recs: tp.List[int],
