@@ -31,7 +31,7 @@ from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import ExternalIdsArray, InternalIdsArray
 from rectools.utils.config import BaseConfig
-from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
 from rectools.utils.serialization import PICKLE_PROTOCOL, FileLike, read_bytes
 
 T = tp.TypeVar("T", bound="ModelBase")
@@ -209,6 +209,26 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             raise TypeError(f"`{cls.__name__}` is used, but config is for `{config_obj.cls.__name__}`")
 
         return cls._from_config(config_obj)
+
+    @classmethod
+    def from_params(cls, params: tp.Dict[str, tp.Any], sep: str = ".") -> tpe.Self:
+        """
+        Create model from parameters.
+        Same as `from_config` but accepts flat dict.
+
+        Parameters
+        ----------
+        params : dict
+            Model parameters as a flat dict with keys separated by `sep`.
+        sep : str, default "."
+            Separator for nested keys.
+
+        Returns
+        -------
+        Model instance.
+        """
+        config_dict = unflatten_dict(params, sep=sep)
+        return cls.from_config(config_dict)
 
     @classmethod
     def _from_config(cls, config: ModelConfig_T) -> tpe.Self:
