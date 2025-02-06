@@ -104,7 +104,10 @@ class TestTransformerModelBase:
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("default_trainer", (True, False))
     def test_save_load_for_unfitted_model(
-        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset, default_trainer: bool, trainer: Trainer
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+        default_trainer: bool,
     ) -> None:
         config = {
             "deterministic": True,
@@ -143,7 +146,6 @@ class TestTransformerModelBase:
         model_cls: tp.Type[TransformerModelBase],
         dataset_item_features: Dataset,
         default_trainer: bool,
-        trainer: Trainer,
     ) -> None:
         config = {
             "deterministic": True,
@@ -155,12 +157,14 @@ class TestTransformerModelBase:
         model.fit(dataset_item_features)
         assert_save_load_do_not_change_model(model, dataset_item_features)
 
+    @pytest.mark.parametrize("test_dataset", ("dataset", "dataset_item_features"))
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     def test_load_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
         tmp_path: str,
-        dataset_item_features: Dataset,
+        test_dataset: Dataset,
+        request,
     ) -> None:
         model = model_cls.from_config(
             {
@@ -177,7 +181,8 @@ class TestTransformerModelBase:
             devices=1,
             callbacks=ModelCheckpoint(filename="last_epoch"),
         )
-        model.fit(dataset_item_features)
+        dataset = request.getfixturevalue(test_dataset)
+        model.fit(dataset)
 
         assert model.fit_trainer is not None
         if model.fit_trainer.log_dir is None:
@@ -187,7 +192,7 @@ class TestTransformerModelBase:
         recovered_model = model_cls.load_from_checkpoint(ckpt_path)
         assert isinstance(recovered_model, model_cls)
 
-        self._assert_same_reco(model, recovered_model, dataset_item_features)
+        self._assert_same_reco(model, recovered_model, dataset)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("verbose", (1, 0))

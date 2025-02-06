@@ -78,7 +78,7 @@ class CatFeaturesItemNet(ItemNetBase):
         super().__init__()
 
         self.n_cat_feature_values = n_cat_feature_values
-        self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors)
+        self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors, mode="sum")
         self.drop_layer = nn.Dropout(dropout_rate)
 
         self.register_buffer("offsets", offsets)

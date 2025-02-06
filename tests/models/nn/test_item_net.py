@@ -22,6 +22,7 @@ from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
+from rectools.dataset.dataset import DatasetSchema
 from rectools.models.nn.item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -98,6 +99,26 @@ class TestCatFeaturesItemNet:
             INTERACTIONS,
             item_features_df=item_features,
             cat_item_features=["f1", "f2"],
+        )
+        return ds
+
+    @pytest.fixture
+    def dataset_dense_item_features(self) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [11, 1, 1],
+                [12, 1, 2],
+                [13, 1, 3],
+                [14, 2, 1],
+                [15, 2, 2],
+                [17, 2, 3],
+            ],
+            columns=[Columns.Item, "f1", "f2"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            make_dense_item_features=True,
         )
         return ds
 
@@ -207,6 +228,18 @@ class TestCatFeaturesItemNet:
         )
         cat_features_item_net = CatFeaturesItemNet.from_dataset(ds, n_factors=10, dropout_rate=0.5)
         assert cat_features_item_net is None
+
+    def test_warns_when_dataset_schema_features_are_dense(self, dataset_dense_item_features):
+        dataset_schema = dataset_dense_item_features.get_schema()
+        with pytest.warns() as record:
+            cat_item_embeddings = DatasetSchema(CatFeaturesItemNet.from_dataset_schema(dataset_schema, n_factors=5, dropout_rate=0.5))
+        assert (
+            str(record[0].message)
+            == """
+            Ignoring `CatFeaturesItemNet` block because
+            dataset item features are dense and unable to contain categorical features.
+            """
+        )
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")

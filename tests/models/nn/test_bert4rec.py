@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
 
+from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
@@ -584,6 +586,30 @@ class TestBERT4RecDataPreparator:
             mask_prob=0.5,
         )
 
+    @pytest.fixture
+    def data_preparator_val_mask(self) -> BERT4RecDataPreparator:
+        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> np.ndarray:
+            rank = (
+                interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+                .groupby(Columns.User, sort=False)
+                .cumcount()
+                + 1
+            )
+            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
+            return val_mask.values
+
+        val_users = [10, 30]
+        get_val_mask_func = partial(get_val_mask, val_users=val_users)
+        return BERT4RecDataPreparator(
+            session_max_len=4,
+            n_negatives=2,
+            train_min_user_interactions=2,
+            mask_prob=0.5,
+            batch_size=4,
+            dataloader_num_workers=0,
+            get_val_mask_func=get_val_mask_func,
+        )
+
     @pytest.mark.parametrize(
         "train_batch",
         (
@@ -649,6 +675,28 @@ class TestBERT4RecDataPreparator:
         actual = next(iter(dataloader))
         for key, value in actual.items():
             assert torch.equal(value, recommend_batch[key])
+
+    @pytest.mark.parametrize(
+        "val_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[0, 2, 4, 1]]),
+                    "y": torch.tensor([[3]]),
+                    "yw": torch.tensor([[1.0]]),
+                    "negatives": torch.tensor([[[5, 2]]]),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_val(
+        self, dataset: Dataset, data_preparator_val_mask: BERT4RecDataPreparator, val_batch: tp.List
+    ) -> None:
+        data_preparator_val_mask.process_dataset_train(dataset)
+        dataloader = data_preparator_val_mask.get_dataloader_val()
+        actual = next(iter(dataloader))  # type: ignore
+        for key, value in actual.items():
+            assert torch.equal(value, val_batch[key])
 
 
 class TestBERT4RecModelConfiguration:
