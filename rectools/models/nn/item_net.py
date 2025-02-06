@@ -36,7 +36,9 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+    def from_dataset_schema(
+        cls, dataset_schema: DatasetSchema, *args: tp.Any, **kwargs: tp.Any
+    ) -> tp.Optional[tpe.Self]:
         """Construct ItemNet from Dataset schema."""
         raise NotImplementedError()
 
@@ -66,18 +68,22 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def __init__(
         self,
-        item_features: SparseFeatures,
+        emb_bag_inputs: torch.Tensor,
+        input_lengths: torch.Tensor,
+        offsets: torch.Tensor,
+        n_cat_feature_values: int,
         n_factors: int,
         dropout_rate: float,
     ):
         super().__init__()
 
-        self.item_features = item_features
-        self.n_items = len(item_features)
-        self.n_cat_features = len(item_features.names)
-
-        self.category_embeddings = nn.Embedding(num_embeddings=self.n_cat_features, embedding_dim=n_factors)
+        self.n_cat_feature_values = n_cat_feature_values
+        self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors, mode="sum")
         self.drop_layer = nn.Dropout(dropout_rate)
+
+        self.register_buffer("offsets", offsets)
+        self.register_buffer("emb_bag_inputs", emb_bag_inputs)
+        self.register_buffer("input_lengths", input_lengths)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -93,35 +99,21 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        feature_dense = self.get_dense_item_features(items)
-
-        feature_embs = self.category_embeddings(self.feature_catalog.to(self.device))
-        feature_embs = self.drop_layer(feature_embs)
-
-        feature_embeddings_per_items = feature_dense.to(self.device) @ feature_embs
+        item_emb_bag_inputs, item_offsets = self.get_item_inputs_offsets(items)
+        feature_embeddings_per_items = self.embedding_bag(input=item_emb_bag_inputs, offsets=item_offsets)
+        feature_embeddings_per_items = self.drop_layer(feature_embeddings_per_items)
         return feature_embeddings_per_items
 
-    @property
-    def feature_catalog(self) -> torch.Tensor:
-        """Return tensor with elements in range [0, n_cat_features)."""
-        return torch.arange(0, self.n_cat_features)
-
-    def get_dense_item_features(self, items: torch.Tensor) -> torch.Tensor:
-        """
-        Get categorical item values by certain item ids in dense format.
-
-        Parameters
-        ----------
-        items : torch.Tensor
-            Internal item ids.
-
-        Returns
-        -------
-        torch.Tensor
-            categorical item values in dense format.
-        """
-        feature_dense = self.item_features.take(items.detach().cpu().numpy()).get_dense()
-        return torch.from_numpy(feature_dense)
+    def get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
+        """Get categorical item features and offsets for `items`."""
+        length_range = torch.arange(self.input_lengths.max().item(), device=self.device)
+        item_indexes = self.offsets[items].unsqueeze(-1) + length_range
+        length_mask = length_range < self.input_lengths[items].unsqueeze(-1)
+        item_emb_bag_inputs = self.emb_bag_inputs[item_indexes[length_mask]]
+        item_offsets = torch.cat(
+            (torch.tensor([0], device=self.device), torch.cumsum(self.input_lengths[items], dim=0)[:-1])
+        )
+        return item_emb_bag_inputs, item_offsets
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tp.Optional[tpe.Self]:
@@ -161,7 +153,59 @@ class CatFeaturesItemNet(ItemNetBase):
             warnings.warn(explanation)
             return None
 
-        return cls(item_cat_features, n_factors, dropout_rate)
+        emb_bag_inputs = torch.tensor(item_cat_features.values.indices, dtype=torch.long)
+        offsets = torch.tensor(item_cat_features.values.indptr, dtype=torch.long)
+        input_lengths = torch.diff(offsets, dim=0)
+        n_cat_feature_values = len(item_cat_features.names)
+
+        return cls(
+            emb_bag_inputs=emb_bag_inputs,
+            offsets=offsets[:-1],
+            input_lengths=input_lengths,
+            n_cat_feature_values=n_cat_feature_values,
+            n_factors=n_factors,
+            dropout_rate=dropout_rate,
+        )
+
+    @classmethod
+    def from_dataset_schema(
+        cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float
+    ) -> tp.Optional[tpe.Self]:
+        """Construct CatFeaturesItemNet from Dataset schema."""
+        if dataset_schema.items.features is None:
+            explanation = """Ignoring `CatFeaturesItemNet` block because dataset doesn't contain item features."""
+            warnings.warn(explanation)
+            return None
+
+        if dataset_schema.items.features.kind == "dense":
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because
+            dataset item features are dense and unable to contain categorical features.
+            """
+            warnings.warn(explanation)
+            return None
+
+        if len(dataset_schema.items.features.cat_feature_indices) == 0:
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
+            """
+            warnings.warn(explanation)
+            return None
+
+        emb_bag_inputs = torch.randint(
+            high=dataset_schema.items.n_hot, size=(dataset_schema.items.features.cat_n_stored_values,)
+        )
+        offsets = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
+        input_lengths = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
+        n_cat_feature_values = len(dataset_schema.items.features.cat_feature_indices)
+        return cls(
+            emb_bag_inputs=emb_bag_inputs,
+            offsets=offsets,
+            input_lengths=input_lengths,
+            n_cat_feature_values=n_cat_feature_values,
+            n_factors=n_factors,
+            dropout_rate=dropout_rate,
+        )
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
@@ -231,7 +275,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
 
-class ItemNetConstructor(ItemNetBase):
+class ItemNetConstructorBase(ItemNetBase):
     """
     Constructed network for item embeddings based on aggregation of embeddings from transferred item network types.
 
@@ -256,26 +300,6 @@ class ItemNetConstructor(ItemNetBase):
         self.n_items = n_items
         self.n_item_blocks = len(item_net_blocks)
         self.item_net_blocks = nn.ModuleList(item_net_blocks)
-
-    def forward(self, items: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass to get item embeddings from item network blocks.
-
-        Parameters
-        ----------
-        items : torch.Tensor
-            Internal item ids.
-
-        Returns
-        -------
-        torch.Tensor
-            Item embeddings.
-        """
-        item_embs = []
-        for idx_block in range(self.n_item_blocks):
-            item_emb = self.item_net_blocks[idx_block](items)
-            item_embs.append(item_emb)
-        return torch.sum(torch.stack(item_embs, dim=0), dim=0)
 
     @property
     def catalog(self) -> torch.Tensor:
@@ -336,3 +360,52 @@ class ItemNetConstructor(ItemNetBase):
                 item_net_blocks.append(item_net_block)
 
         return cls(n_items, item_net_blocks)
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """Forward pass through item net blocks and aggregation of the results.
+
+        Parameters
+        ----------
+        items : torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            Item embeddings.
+        """
+        raise NotImplementedError()
+
+
+class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
+    """
+    Item net blocks constructor that simply sums all of the its net blocks embeddings.
+
+    Parameters
+    ----------
+    n_items : int
+        Number of items in the dataset.
+    item_net_blocks : Sequence(ItemNetBase)
+        Latent embedding size of item embeddings.
+    """
+
+    def forward(self, items: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through item net blocks and aggregation of the results.
+        Simple sum of embeddings.
+
+        Parameters
+        ----------
+        items : torch.Tensor
+            Internal item ids.
+
+        Returns
+        -------
+        torch.Tensor
+            Item embeddings.
+        """
+        item_embs = []
+        for idx_block in range(self.n_item_blocks):
+            item_emb = self.item_net_blocks[idx_block](items)
+            item_embs.append(item_emb)
+        return torch.sum(torch.stack(item_embs, dim=0), dim=0)
