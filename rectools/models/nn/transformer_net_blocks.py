@@ -94,6 +94,85 @@ class TransformerLayersBase(nn.Module):
         raise NotImplementedError()
 
 
+class PreLNTransformerLayer(TransformerLayersBase):
+    """
+    Pre-LN Transformer Layer as described in "On Layer Normalization in the Transformer
+    Architecture" https://arxiv.org/pdf/2002.04745
+
+    Parameters
+    ----------
+    n_factors: int
+        Latent embeddings size.
+    n_heads: int
+        Number of attention heads.
+    dropout_rate: float
+        Probability of a hidden unit to be zeroed.
+    ff_factors_multiplier: int
+        Feed-forward layers latent embedding size multiplier.
+    """
+
+    def __init__(
+        self,
+        n_factors: int,
+        n_heads: int,
+        dropout_rate: float,
+        ff_factors_multiplier: int = 4,
+    ):
+        super().__init__()
+        self.multi_head_attn = nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True)
+        self.layer_norm_1 = nn.LayerNorm(n_factors)
+        self.dropout_1 = nn.Dropout(dropout_rate)
+        self.layer_norm_2 = nn.LayerNorm(n_factors)
+        self.feed_forward = PointWiseFeedForward(
+            n_factors, n_factors * ff_factors_multiplier, dropout_rate, torch.nn.GELU()
+        )
+        self.dropout_2 = nn.Dropout(dropout_rate)
+        self.dropout_3 = nn.Dropout(dropout_rate)
+
+    def forward(
+        self,
+        seqs: torch.Tensor,
+        timeline_mask: torch.Tensor,
+        attn_mask: tp.Optional[torch.Tensor],
+        key_padding_mask: tp.Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Forward pass through transformer blocks.
+
+        Parameters
+        ----------
+        seqs: torch.Tensor
+            User sequences of item embeddings.
+        timeline_mask: torch.Tensor
+            Mask indicating padding elements.
+        attn_mask: torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        key_padding_mask: torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
+
+
+        Returns
+        -------
+        torch.Tensor
+            User sequences passed through transformer layers.
+        """
+        mha_input = self.layer_norm_1(seqs)
+        mha_output, _ = self.multi_head_attn(
+            mha_input,
+            mha_input,
+            mha_input,
+            attn_mask=attn_mask,
+            key_padding_mask=key_padding_mask,
+            need_weights=False,
+        )
+        seqs = seqs + self.dropout_1(mha_output)
+        ff_input = self.layer_norm_2(seqs)
+        ff_output = self.feed_forward(ff_input)
+        seqs = seqs + self.dropout_2(ff_output)
+        seqs = self.dropout_3(seqs)
+        return seqs
+
+
 class PreLNTransformerLayers(TransformerLayersBase):
     """
     Pre-LN Transformer Layers as described in "On Layer Normalization in the Transformer
@@ -123,20 +202,17 @@ class PreLNTransformerLayers(TransformerLayersBase):
     ):
         super().__init__()
         self.n_blocks = n_blocks
-        self.multi_head_attn = nn.ModuleList(
-            [nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
-        )
-        self.layer_norm_1 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.dropout_1 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        self.layer_norm_2 = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.feed_forward = nn.ModuleList(
+        self.transformer_blocks = nn.ModuleList(
             [
-                PointWiseFeedForward(n_factors, n_factors * ff_factors_multiplier, dropout_rate, torch.nn.GELU())
-                for _ in range(n_blocks)
+                PreLNTransformerLayer(
+                    n_factors,
+                    n_heads,
+                    dropout_rate,
+                    ff_factors_multiplier,
+                )
+                for _ in range(self.n_blocks)
             ]
         )
-        self.dropout_2 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
-        self.dropout_3 = nn.ModuleList([nn.Dropout(dropout_rate) for _ in range(n_blocks)])
 
     def forward(
         self,
@@ -165,21 +241,8 @@ class PreLNTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        for i in range(self.n_blocks):
-            mha_input = self.layer_norm_1[i](seqs)
-            mha_output, _ = self.multi_head_attn[i](
-                mha_input,
-                mha_input,
-                mha_input,
-                attn_mask=attn_mask,
-                key_padding_mask=key_padding_mask,
-                need_weights=False,
-            )
-            seqs = seqs + self.dropout_1[i](mha_output)
-            ff_input = self.layer_norm_2[i](seqs)
-            ff_output = self.feed_forward[i](ff_input)
-            seqs = seqs + self.dropout_2[i](ff_output)
-            seqs = self.dropout_3[i](seqs)
+        for block_idx in range(self.n_blocks):
+            seqs = self.transformer_blocks[block_idx](seqs, timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
 

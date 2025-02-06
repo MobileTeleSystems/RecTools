@@ -16,21 +16,8 @@ import typing as tp
 
 import torch
 
-from rectools.dataset.dataset import Dataset, DatasetSchema
-
-from .item_net import (
-    CatFeaturesItemNet,
-    IdEmbeddingsItemNet,
-    ItemNetBase,
-    ItemNetConstructorBase,
-    SumOfEmbeddingsConstructor,
-)
-from .transformer_net_blocks import (
-    LearnableInversePositionalEncoding,
-    PositionalEncodingBase,
-    PreLNTransformerLayers,
-    TransformerLayersBase,
-)
+from .item_net import ItemNetConstructorBase
+from .transformer_net_blocks import PositionalEncodingBase, TransformerLayersBase
 
 
 class TransformerTorchBackbone(torch.nn.Module):
@@ -63,64 +50,23 @@ class TransformerTorchBackbone(torch.nn.Module):
 
     def __init__(
         self,
-        n_blocks: int,
-        n_factors: int,
-        n_heads: int,
-        session_max_len: int,
+        n_transformer_heads: int,
         dropout_rate: float,
-        use_pos_emb: bool = True,
+        item_model: ItemNetConstructorBase,
+        pos_encoding_layer: PositionalEncodingBase,
+        transformer_layers: TransformerLayersBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
-        item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
-        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
     ) -> None:
         super().__init__()
 
-        self.item_model: ItemNetConstructorBase
-        self.pos_encoding = pos_encoding_type(use_pos_emb, session_max_len, n_factors)
+        self.item_model = item_model
+        self.pos_encoding_layer = pos_encoding_layer
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
-        self.transformer_layers = transformer_layers_type(
-            n_blocks=n_blocks,
-            n_factors=n_factors,
-            n_heads=n_heads,
-            dropout_rate=dropout_rate,
-        )
+        self.transformer_layers = transformer_layers
         self.use_causal_attn = use_causal_attn
         self.use_key_padding_mask = use_key_padding_mask
-        self.n_factors = n_factors
-        self.dropout_rate = dropout_rate
-        self.n_heads = n_heads
-
-        self.item_net_block_types = item_net_block_types
-        self.item_net_constructor_type = item_net_constructor_type
-
-    def construct_item_net(self, dataset: Dataset) -> None:
-        """
-        Construct network for item embeddings from dataset.
-
-        Parameters
-        ----------
-        dataset : Dataset
-            RecTools dataset with user-item interactions.
-        """
-        self.item_model = self.item_net_constructor_type.from_dataset(
-            dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
-        )
-
-    def construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> None:
-        """
-        Construct network for item embeddings from dataset schema.
-
-        Parameters
-        ----------
-        dataset_schema : DatasetSchema
-            RecTools schema with dataset statistics.
-        """
-        self.item_model = self.item_net_constructor_type.from_dataset_schema(
-            dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
-        )
+        self.n_transformer_heads = n_transformer_heads
 
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:
@@ -168,7 +114,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         merged_mask = attn_mask_expanded + key_padding_mask_expanded
         res = (
             merged_mask.view(batch_size, 1, seq_len, seq_len)
-            .expand(-1, self.n_heads, -1, -1)
+            .expand(-1, self.n_transformer_heads, -1, -1)
             .view(-1, seq_len, seq_len)
         )  # [batch_size * n_heads, session_max_len, session_max_len]
         torch.diagonal(res, dim1=1, dim2=2).zero_()
@@ -199,7 +145,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
 
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
-        seqs = self.pos_encoding(seqs)
+        seqs = self.pos_encoding_layer(seqs)
         seqs = self.emb_dropout(seqs)
 
         if self.use_causal_attn:
