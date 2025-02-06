@@ -27,7 +27,7 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
-from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformer_base import (
     LearnableInversePositionalEncoding,
@@ -157,13 +157,13 @@ class TestSASRecModel:
         return get_trainer
 
     @pytest.mark.parametrize(
-        "accelerator,devices,recommend_accelerator",
+        "accelerator,devices,recommend_device",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
                 "cpu",
                 1,
-                "gpu",
+                "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             ("cpu", 2, "cpu"),
@@ -176,7 +176,7 @@ class TestSASRecModel:
             pytest.param(
                 "gpu",
                 1,
-                "gpu",
+                "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             pytest.param(
@@ -249,7 +249,7 @@ class TestSASRecModel:
         filter_viewed: bool,
         accelerator: str,
         devices: tp.Union[int, tp.List[int]],
-        recommend_accelerator: str,
+        recommend_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
@@ -277,7 +277,7 @@ class TestSASRecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_accelerator=recommend_accelerator,
+            recommend_device=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
         )
@@ -889,13 +889,13 @@ class TestSASRecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_accelerator": "auto",
-            "recommend_devices": 1,
+            "recommend_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_gpu_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
+            "item_net_constructor_type": SumOfEmbeddingsConstructor,
             "pos_encoding_type": LearnableInversePositionalEncoding,
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
@@ -935,10 +935,11 @@ class TestSASRecModelConfiguration:
             simple_types_params = {
                 "cls": "SASRecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
+                "item_net_constructor_type": "rectools.models.nn.item_net.SumOfEmbeddingsConstructor",
                 "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
                 "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",
-                "lightning_module_type": "rectools.models.nn.transformer_base.TransformerLightningModule",
+                "lightning_module_type": "rectools.models.nn.transformer_lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
