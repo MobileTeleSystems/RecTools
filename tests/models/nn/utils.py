@@ -41,7 +41,6 @@ def custom_trainer() -> Trainer:
 
 def custom_trainer_ckpt() -> Trainer:
     return Trainer(
-        # default_root_dir=tmp_path,
         max_epochs=3,
         min_epochs=3,
         deterministic=True,
