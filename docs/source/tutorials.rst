@@ -8,3 +8,5 @@ See tutorials here: https://github.com/MobileTeleSystems/RecTools/tree/main/exam
    :glob:
 
    examples/tutorials/baselines_extended_tutorial
+   examples/tutorials/transformers_tutorial
+   examples/tutorials/transformers_advanced_training_guide
