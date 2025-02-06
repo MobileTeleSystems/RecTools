@@ -19,6 +19,7 @@ from tempfile import NamedTemporaryFile
 import pandas as pd
 import pytest
 import torch
+from pytest import FixtureRequest
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
@@ -163,8 +164,8 @@ class TestTransformerModelBase:
         self,
         model_cls: tp.Type[TransformerModelBase],
         tmp_path: str,
-        test_dataset: Dataset,
-        request,
+        test_dataset: str,
+        request: FixtureRequest,
     ) -> None:
         model = model_cls.from_config(
             {
@@ -195,6 +196,38 @@ class TestTransformerModelBase:
         self._assert_same_reco(model, recovered_model, dataset)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_save_model_loaded_from_checkpoint(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        tmp_path: str,
+        dataset: Dataset,
+    ) -> None:
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+            }
+        )
+        model._trainer = Trainer(  # pylint: disable=protected-access
+            default_root_dir=tmp_path,
+            max_epochs=2,
+            min_epochs=2,
+            deterministic=True,
+            accelerator="cpu",
+            devices=1,
+            callbacks=ModelCheckpoint(filename="last_epoch"),
+        )
+        model.fit(dataset)
+        assert model.fit_trainer is not None
+        if model.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
+        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
+        with pytest.raises(RuntimeError):
+            with NamedTemporaryFile() as f:
+                recovered_model.save(f.name)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("verbose", (1, 0))
     @pytest.mark.parametrize(
         "is_val_mask_func, expected_columns",
@@ -203,12 +236,14 @@ class TestTransformerModelBase:
             (True, ["epoch", "step", "train_loss", "val_loss"]),
         ),
     )
+    @pytest.mark.parametrize("loss", ("softmax", "BCE", "gBCE"))
     def test_log_metrics(
         self,
         model_cls: tp.Type[TransformerModelBase],
         dataset: Dataset,
         tmp_path: str,
         verbose: int,
+        loss: str,
         is_val_mask_func: bool,
         expected_columns: tp.List[str],
     ) -> None:
@@ -228,6 +263,7 @@ class TestTransformerModelBase:
             {
                 "verbose": verbose,
                 "get_val_mask_func": get_val_mask_func,
+                "loss": loss,
             }
         )
         model._trainer = trainer  # pylint: disable=protected-access
