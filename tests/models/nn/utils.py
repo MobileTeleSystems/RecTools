@@ -14,6 +14,7 @@
 
 import pandas as pd
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from rectools import Columns
 
@@ -35,4 +36,16 @@ def custom_trainer() -> Trainer:
         accelerator="cpu",
         enable_checkpointing=False,
         devices=1,
+    )
+
+
+def custom_trainer_ckpt() -> Trainer:
+    return Trainer(
+        # default_root_dir=tmp_path,
+        max_epochs=3,
+        min_epochs=3,
+        deterministic=True,
+        accelerator="cpu",
+        devices=1,
+        callbacks=ModelCheckpoint(filename="last_epoch"),
     )

@@ -20,7 +20,6 @@ import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
 
 from rectools import Columns
@@ -30,7 +29,7 @@ from rectools.models.nn.item_net import IdEmbeddingsItemNet
 from rectools.models.nn.transformer_base import TransformerModelBase
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from .utils import custom_trainer, leave_one_out_mask
+from .utils import custom_trainer, custom_trainer_ckpt, leave_one_out_mask
 
 
 class TestTransformerModelBase:
@@ -122,23 +121,15 @@ class TestTransformerModelBase:
     def test_load_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
-        tmp_path: str,
         dataset: Dataset,
     ) -> None:
+
         model = model_cls.from_config(
             {
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet,),  # TODO: add CatFeaturesItemNet
+                "get_trainer_func": custom_trainer_ckpt,
             }
-        )
-        model._trainer = Trainer(  # pylint: disable=protected-access
-            default_root_dir=tmp_path,
-            max_epochs=2,
-            min_epochs=2,
-            deterministic=True,
-            accelerator="cpu",
-            devices=1,
-            callbacks=ModelCheckpoint(filename="last_epoch"),
         )
         model.fit(dataset)
 
