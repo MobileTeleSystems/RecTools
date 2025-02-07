@@ -371,5 +371,117 @@ class TestCrossValidate:
             ],
             "metrics": expected_metrics,
         }
+        assert actual == expected
 
+    @pytest.mark.parametrize(
+        "validate_ref_models,expected_metrics",
+        (
+            (
+                False,
+                [
+                    {
+                        "model": "random",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.0,
+                        "intersection_popular": 0.5,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_popular": 0.75,
+                    },
+                ],
+            ),
+            (
+                True,
+                [
+                    {
+                        "model": "popular",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.5,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 0,
+                        "precision@2": 0.5,
+                        "recall@1": 0.0,
+                        "intersection_popular": 0.5,
+                    },
+                    {
+                        "model": "popular",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.25,
+                        "intersection_popular": 1.0,
+                    },
+                    {
+                        "model": "random",
+                        "i_split": 1,
+                        "precision@2": 0.375,
+                        "recall@1": 0.5,
+                        "intersection_popular": 0.75,
+                    },
+                ],
+            ),
+        ),
+    )
+    @pytest.mark.parametrize("compute_timings", (False, True))
+    def test_happy_path_with_intersection_timings(
+        self,
+        validate_ref_models: bool,
+        expected_metrics: tp.List[tp.Dict[str, tp.Any]],
+        compute_timings: bool,
+    ) -> None:
+        splitter = LastNSplitter(n=1, n_splits=2, filter_cold_items=False, filter_already_seen=False)
+
+        actual = cross_validate(
+            dataset=self.dataset,
+            splitter=splitter,
+            metrics=self.metrics_intersection,
+            models=self.models,
+            k=2,
+            filter_viewed=False,
+            ref_models=["popular"],
+            validate_ref_models=validate_ref_models,
+            compute_timings=compute_timings,
+        )
+
+        time_threshold = 0.5
+
+        if compute_timings:
+            for data in actual["metrics"]:
+                assert data["fit_time"] < time_threshold
+                assert data["recommend_time"] < time_threshold
+
+                del data["fit_time"]
+                del data["recommend_time"]
+
+        expected = {
+            "splits": [
+                {
+                    "i_split": 0,
+                    "test": 2,
+                    "test_items": 2,
+                    "test_users": 2,
+                    "train": 2,
+                    "train_items": 2,
+                    "train_users": 2,
+                },
+                {
+                    "i_split": 1,
+                    "test": 4,
+                    "test_items": 3,
+                    "test_users": 4,
+                    "train": 6,
+                    "train_items": 2,
+                    "train_users": 4,
+                },
+            ],
+            "metrics": expected_metrics,
+        }
         assert actual == expected
