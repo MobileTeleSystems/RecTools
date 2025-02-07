@@ -194,7 +194,7 @@ class ImplicitRanker:
         ----------
         subject_ids : csr_matrix
             Array of ids to recommend for.
-        k : Optional[int]
+        k : int, optional, default ``None``
             Derived number of recommendations for every subject id.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
             Subject-object interactions that should be filtered from recommendations.
@@ -210,7 +210,7 @@ class ImplicitRanker:
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
         if filter_pairs_csr is not None and filter_pairs_csr.shape[0] != len(subject_ids):
-            explanation = "assumed that filter_pairs_csr and subject_ids are aligned"
+            explanation = "Number of rows in `filter_pairs_csr` must be equal to `len(sublect_ids)`"
             raise ValueError(explanation)
 
         if sorted_object_whitelist is not None:

@@ -518,3 +518,42 @@ class TestRanker:  # pylint: disable=protected-access
             expected_scores,
             decimal=EPS_DIGITS,
         )
+
+    @pytest.mark.parametrize(
+        "distance",
+        (
+            (Distance.DOT),
+            (Distance.COSINE),
+            (Distance.EUCLIDEAN),
+        ),
+    )
+    @pytest.mark.parametrize("ranker_cls, ranker_args", gen_rankers())
+    def test_rank_unaligned_filter_pairs_csr(
+        self,
+        ranker_cls: tp.Union[tp.Type[ImplicitRanker], tp.Type[TorchRanker]],
+        ranker_args: tp.Dict[str, tp.Any],
+        distance: Distance,
+        subject_factors: np.ndarray,
+        object_factors: np.ndarray,
+    ) -> None:
+        ui_csr = sparse.csr_matrix(
+            [
+                [1, 1, 0],
+                [0, 0, 0],
+            ]
+        )
+
+        user_ids = [1]
+
+        ranker: Ranker = ranker_cls(
+            **ranker_args,
+            distance=distance,
+            subjects_factors=subject_factors,
+            objects_factors=object_factors,
+        )
+        with pytest.raises(ValueError):
+            ranker.rank(
+                subject_ids=user_ids,
+                k=3,
+                filter_pairs_csr=ui_csr,
+            )

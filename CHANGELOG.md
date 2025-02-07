@@ -10,13 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `use_gpu` for PureSVD ([#229](https://github.com/MobileTeleSystems/RecTools/pull/229))
 - `from_params` method for models and `model_from_params` function ([#252](https://github.com/MobileTeleSystems/RecTools/pull/252))
-- `TorchRanker` ranker which calculates scores using torch. Supports GPU.
-- `Ranker` ranker protocol which unify rankers call.
+- `TorchRanker` ranker which calculates scores using torch. Supports GPU. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
+- `Ranker` ranker protocol which unify rankers call. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
 
 ### Changed
 
-- `ImplicitRanker` `rank` method compatible with `Ranker` protocol. 
-`use_gpu` and `num_threads` params moved from `rank` method to `__init__`.
+- `ImplicitRanker` `rank` method compatible with `Ranker` protocol. `use_gpu` and `num_threads` params moved from `rank` method to `__init__`. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
 
 ## [0.10.0] - 16.01.2025
 

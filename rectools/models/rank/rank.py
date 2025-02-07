@@ -25,14 +25,14 @@ class Ranker(tp.Protocol):
         k: tp.Optional[int] = None,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
-    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
+    ) -> tp.Tuple[InternalIds, InternalIds, Scores]:  # pragma: no cover
         """Rank objects by corresponding embeddings.
 
         Parameters
         ----------
         subject_ids : InternalIds
             Array of ids to recommend for.
-        k : Optional[int]
+        k : int, optional, default ``None``
             Derived number of recommendations for every subject id.
             Return all recs if None.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
@@ -48,4 +48,3 @@ class Ranker(tp.Protocol):
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
-        ...

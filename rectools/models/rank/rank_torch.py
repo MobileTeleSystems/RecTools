@@ -41,7 +41,7 @@ class TorchRanker:
         Distance metric.
     device: torch.device | str
         Device to calculate on.
-    batch_size: int
+    batch_size: int, default 128
         Batch size for scores calculation.
     subjects_factors : np.ndarray | sparse.csr_matrix | torch.Tensor
         Array of subjects embeddings, shape (n_subjects, n_factors).
@@ -49,18 +49,18 @@ class TorchRanker:
     objects_factors : np.ndarray | torch.Tensor
         Array with embeddings of all objects, shape (n_objects, n_factors).
         For item-item similarity models item similarity vectors are viewed as factors.
-    dtype: Optional[torch.dtype]
+    dtype: torch.dtype, optional, default `torch.float32`
         dtype to convert non-torch tensors to.
-        Don not convert if provided dtype is None.
+        Conversion is skipped if provided dtype is ``None``.
     """
 
     def __init__(
         self,
         distance: Distance,
         device: tp.Union[torch.device, str],
-        batch_size: int,
         subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix, torch.Tensor],
         objects_factors: tp.Union[np.ndarray, torch.Tensor],
+        batch_size: int = 128,
         dtype: tp.Optional[torch.dtype] = torch.float32,
     ):
         self.dtype = dtype
@@ -85,7 +85,7 @@ class TorchRanker:
         ----------
         subject_ids : InternalIds
             Array of ids to recommend for.
-        k : Optional[int]
+        k : int, optional, default ``None``
             Derived number of recommendations for every subject id.
             Return all recs if None.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
@@ -101,8 +101,9 @@ class TorchRanker:
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
+        # pylint: disable=too-many-locals
         if filter_pairs_csr is not None and filter_pairs_csr.shape[0] != len(subject_ids):
-            explanation = "For correct ranking `filter_pairs_csr` must have the same number of rows as `subject_ids`"
+            explanation = "Number of rows in `filter_pairs_csr` must be equal to `len(sublect_ids)`"
             raise ValueError(explanation)
 
         if sorted_object_whitelist is None:
@@ -181,15 +182,13 @@ class TorchRanker:
         if distance == Distance.DOT:
             return self._dot_score, True
 
-        elif distance == Distance.COSINE:
+        if distance == Distance.COSINE:
             return self._cosine_score, True
 
-        elif distance == Distance.EUCLIDEAN:
+        if distance == Distance.EUCLIDEAN:
             return self._euclid_score, False
 
-        else:
-            explanation = f"distance {distance} is not supported"  # type: ignore[unreachable]
-            raise NotImplementedError(explanation)
+        raise NotImplementedError(f"distance {distance} is not supported")  # pragma: no cover
 
     def _euclid_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
