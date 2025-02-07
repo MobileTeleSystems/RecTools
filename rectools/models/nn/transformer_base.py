@@ -301,62 +301,20 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         else:
             self._trainer = self.get_trainer_func()
 
-    def init_item_net_from_dataset(self, dataset: Dataset) -> ItemNetConstructorBase:
-        """
-        Construct network for item embeddings from dataset.
-
-        Parameters
-        ----------
-        dataset : Dataset
-            RecTools dataset with user-item interactions.
-
-        Returns
-        -------
-        ItemNetConstructorBase
-            Network for item embeddings.
-        """
+    def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset(
             dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
-    def init_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetConstructorBase:
-        """
-        Construct network for item embeddings from dataset schema.
-
-        Parameters
-        ----------
-        dataset_schema : DatasetSchema
-            RecTools schema with dataset statistics.
-
-        Returns
-        -------
-        ItemNetConstructorBase
-            Network for item embeddings.
-        """
+    def _construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset_schema(
             dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
         )
 
-    def init_pos_encoding_layer(self) -> PositionalEncodingBase:
-        """
-        Construct positional encoding layer.
-
-        Returns
-        -------
-        PositionalEncodingBase
-            Positional encoding layer.
-        """
+    def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
         return self.pos_encoding_type(self.use_pos_emb, self.session_max_len, self.n_factors)
 
-    def init_transformer_layers(self) -> TransformerLayersBase:
-        """
-        Construct transformer layers.
-
-        Returns
-        -------
-        TransformerLayersBase
-            Transformer layers.
-        """
+    def _init_transformer_layers(self) -> TransformerLayersBase:
         return self.transformer_layers_type(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
@@ -364,15 +322,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             dropout_rate=self.dropout_rate,
         )
 
-    def _init_torch_model(self, dataset_schema: tp.Optional[DatasetSchema] = None) -> TransformerTorchBackbone:
-        if dataset_schema is None:
-            item_model = self.init_item_net_from_dataset(self.data_preparator.train_dataset)
-        else:
-            item_model = self.init_item_net_from_dataset_schema(dataset_schema)
-        pos_encoding_layer = self.init_pos_encoding_layer()
-        transformer_layers = self.init_transformer_layers()
+    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
+        pos_encoding_layer = self._init_pos_encoding_layer()
+        transformer_layers = self._init_transformer_layers()
         return TransformerTorchBackbone(
-            n_transformer_heads=self.n_heads,
+            n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
             item_model=item_model,
             pos_encoding_layer=pos_encoding_layer,
@@ -410,7 +364,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        torch_model = self._init_torch_model()
+        item_model = self._construct_item_net(self.data_preparator.train_dataset)
+        torch_model = self._init_torch_model(item_model)
 
         dataset_schema = self.data_preparator.train_dataset.get_schema()
         item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
@@ -510,7 +465,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model
-        torch_model = loaded._init_torch_model(dataset_schema)
+        item_model = loaded._construct_item_net_from_dataset_schema(dataset_schema)
+        torch_model = loaded._init_torch_model(item_model)
         loaded._init_lightning_model(
             torch_model=torch_model,
             dataset_schema=dataset_schema,

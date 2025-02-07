@@ -137,7 +137,7 @@ class PreLNTransformerLayer(TransformerLayersBase):
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
-        Forward pass through transformer blocks.
+        Forward pass through transformer block.
 
         Parameters
         ----------
@@ -175,8 +175,7 @@ class PreLNTransformerLayer(TransformerLayersBase):
 
 class PreLNTransformerLayers(TransformerLayersBase):
     """
-    Pre-LN Transformer Layers as described in "On Layer Normalization in the Transformer
-    Architecture" https://arxiv.org/pdf/2002.04745
+    Pre-LN Transformer blocks.
 
     Parameters
     ----------

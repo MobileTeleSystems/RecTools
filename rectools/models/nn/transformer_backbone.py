@@ -16,7 +16,7 @@ import typing as tp
 
 import torch
 
-from .item_net import ItemNetConstructorBase
+from .item_net import ItemNetBase
 from .transformer_net_blocks import PositionalEncodingBase, TransformerLayersBase
 
 
@@ -26,33 +26,27 @@ class TransformerTorchBackbone(torch.nn.Module):
 
     Parameters
     ----------
-    n_blocks : int
-        Number of transformer blocks.
-    n_factors : int
-        Latent embeddings size.
     n_heads : int
         Number of attention heads.
-    session_max_len : int
-        Maximum length of user sequence.
     dropout_rate : float
         Probability of a hidden unit to be zeroed.
-    use_pos_emb : bool, default True
-        If ``True``, learnable positional encoding will be added to session item embeddings.
+    item_model : ItemNetBase
+        Network for item embeddings.
+    pos_encoding_layer : PositionalEncodingBase
+        Positional encoding layer.
+    transformer_layers : TransformerLayersBase
+        Transformer layers.
     use_causal_attn : bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
-    transformer_layers_type : type(TransformerLayersBase), default `PreLNTransformerLayers`
-        Type of transformer layers architecture.
-    item_net_type : type(ItemNetBase), default `IdEmbeddingsItemNet`
-        Type of network returning item embeddings.
-    pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
-        Type of positional encoding.
+    use_key_padding_mask : bool, default False
+        If ``True``, key padding mask is used in multi-head self-attention.
     """
 
     def __init__(
         self,
-        n_transformer_heads: int,
+        n_heads: int,
         dropout_rate: float,
-        item_model: ItemNetConstructorBase,
+        item_model: ItemNetBase,
         pos_encoding_layer: PositionalEncodingBase,
         transformer_layers: TransformerLayersBase,
         use_causal_attn: bool = True,
@@ -66,7 +60,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         self.transformer_layers = transformer_layers
         self.use_causal_attn = use_causal_attn
         self.use_key_padding_mask = use_key_padding_mask
-        self.n_transformer_heads = n_transformer_heads
+        self.n_heads = n_heads
 
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:
@@ -113,9 +107,9 @@ class TransformerTorchBackbone(torch.nn.Module):
 
         merged_mask = attn_mask_expanded + key_padding_mask_expanded
         res = (
-            merged_mask.view(batch_size, 1, seq_len, seq_len)
-            .expand(-1, self.n_transformer_heads, -1, -1)
-            .view(-1, seq_len, seq_len)
+            merged_mask.reshape(batch_size, 1, seq_len, seq_len)
+            .expand(-1, self.n_heads, -1, -1)
+            .reshape(-1, seq_len, seq_len)
         )  # [batch_size * n_heads, session_max_len, session_max_len]
         torch.diagonal(res, dim1=1, dim2=2).zero_()
         return res

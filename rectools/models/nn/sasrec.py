@@ -114,7 +114,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
 
 class SASRecTransformerLayer(TransformerLayersBase):
     """
-    Exactly SASRec author's transformer blocks architecture but with pytorch Multi-Head Attention realisation.
+    Exactly SASRec author's transformer block architecture but with pytorch Multi-Head Attention realisation.
 
     Parameters
     ----------
@@ -148,7 +148,7 @@ class SASRecTransformerLayer(TransformerLayersBase):
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
-        Forward pass through transformer blocks.
+        Forward pass through transformer block.
 
         Parameters
         ----------
@@ -182,7 +182,7 @@ class SASRecTransformerLayer(TransformerLayersBase):
 
 class SASRecTransformerLayers(TransformerLayersBase):
     """
-    Exactly SASRec author's transformer blocks architecture but with pytorch Multi-Head Attention realisation.
+    SASRec transformer blocks.
 
     Parameters
     ----------
@@ -205,7 +205,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
     ):
         super().__init__()
         self.n_blocks = n_blocks
-        self.transformer_layers = nn.ModuleList(
+        self.transformer_blocks = nn.ModuleList(
             [
                 SASRecTransformerLayer(
                     n_factors,
@@ -246,7 +246,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         """
         seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
         for i in range(self.n_blocks):
-            seqs = self.transformer_layers[i](seqs, timeline_mask, attn_mask, key_padding_mask)
+            seqs = self.transformer_blocks[i](seqs, timeline_mask, attn_mask, key_padding_mask)
         seqs = self.last_layernorm(seqs)
         return seqs
 
