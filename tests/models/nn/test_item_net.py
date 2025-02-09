@@ -144,11 +144,11 @@ class TestCatFeaturesItemNet:
 
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
 
-        actual_offsets = cat_item_embeddings.offsets
+        actual_offsets = cat_item_embeddings.get_buffer("offsets")
         actual_n_cat_feature_values = cat_item_embeddings.n_cat_feature_values
         actual_embedding_dim = cat_item_embeddings.embedding_bag.embedding_dim
-        actual_emb_bag_inputs = cat_item_embeddings.emb_bag_inputs
-        actual_input_lengths = cat_item_embeddings.input_lengths
+        actual_emb_bag_inputs = cat_item_embeddings.get_buffer("emb_bag_inputs")
+        actual_input_lengths = cat_item_embeddings.get_buffer("input_lengths")
 
         expected_offsets = torch.tensor([0, 0, 2, 4, 6, 8, 10])
         expected_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2, 1, 3, 1, 3])
