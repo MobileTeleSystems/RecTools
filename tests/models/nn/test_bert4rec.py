@@ -452,7 +452,7 @@ class TestBERT4RecModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, get_trainer_func: TrainerCallable) -> None:
+    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset) -> None:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
@@ -461,7 +461,7 @@ class TestBERT4RecModel:
             batch_size=4,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer_func=get_trainer_func,
+            get_trainer_func=custom_trainer,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 

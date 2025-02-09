@@ -344,7 +344,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         dataset_schema = self.data_preparator.train_dataset.get_schema()
         item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
-        model_config = self.get_config()
+        model_config = self.get_config(simple_types=True)
         self._init_lightning_model(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
@@ -461,7 +461,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 checkpoint = Path(f.name).read_bytes()
             state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
             return state
-        state = {"model_config": self.get_config()}
+        state = {"model_config": self.get_config(simple_types=True)}
         return state
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
