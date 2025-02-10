@@ -107,7 +107,7 @@ class TransformerTorchBackbone(torch.nn.Module):
 
         merged_mask = attn_mask_expanded + key_padding_mask_expanded
         res = (
-            merged_mask.reshape(batch_size, 1, seq_len, seq_len)
+            merged_mask.view(batch_size, 1, seq_len, seq_len)
             .expand(-1, self.n_heads, -1, -1)
             .reshape(-1, seq_len, seq_len)
         )  # [batch_size * n_heads, session_max_len, session_max_len]
