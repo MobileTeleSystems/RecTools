@@ -336,7 +336,10 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         ranker: Ranker
         if recommend_use_torch_ranking:
             ranker = TorchRanker(
-                distance=Distance.DOT, device=item_embs.device, subjects_factors=user_embs[user_ids], objects_factors=item_embs
+                distance=Distance.DOT,
+                device=item_embs.device,
+                subjects_factors=user_embs[user_ids],
+                objects_factors=item_embs,
             )
         else:
             user_embs_np = user_embs.detach().cpu().numpy()
