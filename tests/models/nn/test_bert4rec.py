@@ -151,28 +151,28 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
@@ -182,28 +182,28 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 12, 13, 11, 12, 13, 11, 12],
+                        Columns.Item: [12, 13, 11, 12, 13, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 12, 13, 11, 13, 12, 11, 13, 12],
+                        Columns.Item: [12, 13, 11, 12, 13, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
+                        Columns.Item: [12, 13, 11, 13, 12, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
+                        Columns.Item: [12, 13, 11, 13, 12, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -273,7 +273,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
@@ -283,7 +283,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
@@ -386,7 +386,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 13, 14, 14, 11, 13, 17, 13, 15],
+                        Columns.Item: [12, 17, 11, 14, 11, 15, 17, 12, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -397,7 +397,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [13, 14, 15, 11, 13, 12, 13, 15, 12],
+                        Columns.Item: [17, 11, 14, 11, 15, 17, 12, 14, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -408,7 +408,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [13, 14, 15, 13, 15, 13, 15, 14],
+                        Columns.Item: [14, 13, 15, 15, 13, 14, 15, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -471,7 +471,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20],
-                        Columns.Item: [11, 12],
+                        Columns.Item: [12, 11],
                         Columns.Rank: [1, 2],
                     }
                 ),
@@ -481,7 +481,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 11, 12],
+                        Columns.Item: [12, 13, 11],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),

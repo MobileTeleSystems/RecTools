@@ -277,7 +277,14 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.fit_trainer: tp.Optional[Trainer] = None
 
     def _init_data_preparator(self) -> None:
-        raise NotImplementedError()
+        self.data_preparator = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
+            get_val_mask_func=self.get_val_mask_func,
+        )
 
     def _init_trainer(self) -> None:
         if self.get_trainer_func is None:
@@ -294,20 +301,38 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         else:
             self._trainer = self.get_trainer_func()
 
-    def _init_torch_model(self) -> TransformerTorchBackbone:
-        return TransformerTorchBackbone(
+    def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
+        return self.item_net_constructor_type.from_dataset(
+            dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
+
+    def _construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetBase:
+        return self.item_net_constructor_type.from_dataset_schema(
+            dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
+
+    def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
+        return self.pos_encoding_type(self.use_pos_emb, self.session_max_len, self.n_factors)
+
+    def _init_transformer_layers(self) -> TransformerLayersBase:
+        return self.transformer_layers_type(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
-            session_max_len=self.session_max_len,
             dropout_rate=self.dropout_rate,
-            use_pos_emb=self.use_pos_emb,
+        )
+
+    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
+        pos_encoding_layer = self._init_pos_encoding_layer()
+        transformer_layers = self._init_transformer_layers()
+        return TransformerTorchBackbone(
+            n_heads=self.n_heads,
+            dropout_rate=self.dropout_rate,
+            item_model=item_model,
+            pos_encoding_layer=pos_encoding_layer,
+            transformer_layers=transformer_layers,
             use_causal_attn=self.use_causal_attn,
             use_key_padding_mask=self.use_key_padding_mask,
-            transformer_layers_type=self.transformer_layers_type,
-            item_net_block_types=self.item_net_block_types,
-            pos_encoding_type=self.pos_encoding_type,
-            item_net_constructor_type=self.item_net_constructor_type,
         )
 
     def _init_lightning_model(
@@ -339,8 +364,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        torch_model = self._init_torch_model()
-        torch_model.construct_item_net(self.data_preparator.train_dataset)
+        item_model = self._construct_item_net(self.data_preparator.train_dataset)
+        torch_model = self._init_torch_model(item_model)
 
         dataset_schema = self.data_preparator.train_dataset.get_schema()
         item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
@@ -440,8 +465,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model
-        torch_model = loaded._init_torch_model()
-        torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+        item_model = loaded._construct_item_net_from_dataset_schema(dataset_schema)
+        torch_model = loaded._init_torch_model(item_model)
         loaded._init_lightning_model(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
