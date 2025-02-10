@@ -112,7 +112,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
-class SASRecTransformerLayer(TransformerLayersBase):
+class SASRecTransformerLayer(nn.Module):
     """
     Exactly SASRec author's transformer block architecture but with pytorch Multi-Head Attention realisation.
 
@@ -143,7 +143,6 @@ class SASRecTransformerLayer(TransformerLayersBase):
     def forward(
         self,
         seqs: torch.Tensor,
-        timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
@@ -154,8 +153,6 @@ class SASRecTransformerLayer(TransformerLayersBase):
         ----------
         seqs : torch.Tensor
             User sequences of item embeddings.
-        timeline_mask : torch.Tensor
-            Mask indicating padding elements.
         attn_mask : torch.Tensor, optional
             Optional mask to use in forward pass of multi-head attention as `attn_mask`.
         key_padding_mask : torch.Tensor, optional
@@ -176,7 +173,6 @@ class SASRecTransformerLayer(TransformerLayersBase):
         seqs = self.feed_forward(ff_input)
         seqs = self.dropout(seqs)
         seqs += ff_input
-        seqs *= timeline_mask
         return seqs
 
 
@@ -244,9 +240,10 @@ class SASRecTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
         for i in range(self.n_blocks):
-            seqs = self.transformer_blocks[i](seqs, timeline_mask, attn_mask, key_padding_mask)
+            seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
+            seqs = self.transformer_blocks[i](seqs, attn_mask, key_padding_mask)
+        seqs *= timeline_mask
         seqs = self.last_layernorm(seqs)
         return seqs
 

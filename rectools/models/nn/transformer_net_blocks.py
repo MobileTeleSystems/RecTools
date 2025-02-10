@@ -94,7 +94,7 @@ class TransformerLayersBase(nn.Module):
         raise NotImplementedError()
 
 
-class PreLNTransformerLayer(TransformerLayersBase):
+class PreLNTransformerLayer(nn.Module):
     """
     Pre-LN Transformer Layer as described in "On Layer Normalization in the Transformer
     Architecture" https://arxiv.org/pdf/2002.04745
@@ -132,7 +132,6 @@ class PreLNTransformerLayer(TransformerLayersBase):
     def forward(
         self,
         seqs: torch.Tensor,
-        timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
@@ -143,8 +142,6 @@ class PreLNTransformerLayer(TransformerLayersBase):
         ----------
         seqs: torch.Tensor
             User sequences of item embeddings.
-        timeline_mask: torch.Tensor
-            Mask indicating padding elements.
         attn_mask: torch.Tensor, optional
             Optional mask to use in forward pass of multi-head attention as `attn_mask`.
         key_padding_mask: torch.Tensor, optional
@@ -241,7 +238,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
             User sequences passed through transformer layers.
         """
         for block_idx in range(self.n_blocks):
-            seqs = self.transformer_blocks[block_idx](seqs, timeline_mask, attn_mask, key_padding_mask)
+            seqs = self.transformer_blocks[block_idx](seqs, attn_mask, key_padding_mask)
         return seqs
 
 
