@@ -176,7 +176,7 @@ class TransformerModelConfig(ModelConfig):
     recommend_batch_size: int = 256
     recommend_device: tp.Optional[str] = None
     recommend_n_threads: int = 0
-    recommend_use_gpu_ranking: bool = True  # TODO: remove after TorchRanker
+    recommend_use_torch_ranking: bool = True
     train_min_user_interactions: int = 2
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     item_net_constructor_type: ItemNetConstructorType = SumOfEmbeddingsConstructor
@@ -228,7 +228,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
+        recommend_use_torch_ranking: bool = True,
         train_min_user_interactions: int = 2,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
@@ -260,7 +260,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.recommend_batch_size = recommend_batch_size
         self.recommend_device = recommend_device
         self.recommend_n_threads = recommend_n_threads
-        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
+        self.recommend_use_torch_ranking = recommend_use_torch_ranking
         self.train_min_user_interactions = train_min_user_interactions
         self.item_net_block_types = item_net_block_types
         self.item_net_constructor_type = item_net_constructor_type
@@ -402,7 +402,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
-        return self.lightning_model.recommend_u2i(
+        return self.lightning_model._recommend_u2i(  # pylint: disable=protected-access
             user_ids=user_ids,
             recommend_dataloader=recommend_dataloader,
             sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
@@ -410,7 +410,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             filter_viewed=filter_viewed,
             dataset=dataset,
             recommend_n_threads=self.recommend_n_threads,
-            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            recommend_use_torch_ranking=self.recommend_use_torch_ranking,
             recommend_device=self.recommend_device,
         )
 
@@ -424,12 +424,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        return self.lightning_model.recommend_i2i(
+        return self.lightning_model._recommend_i2i(  # pylint: disable=protected-access
             target_ids=target_ids,
             sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             k=k,
             recommend_n_threads=self.recommend_n_threads,
-            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            recommend_use_torch_ranking=self.recommend_use_torch_ranking,
             recommend_device=self.recommend_device,
         )
 

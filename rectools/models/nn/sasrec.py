@@ -352,14 +352,16 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
+    recommend_use_torch_ranking : bool, default ``True``
+        Use `TorchRanker` for items ranking while preparing recommendations.
+        If set to ``False``, use `ImplicitRanker` instead.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_torch_ranking` attribute.
     recommend_n_threads : int, default 0
-        Number of threads to use in ranker if GPU ranking is turned off or unavailable.
+        Number of threads to use for `ImplicitRanker`. Omitted if `recommend_use_torch_ranking` is
+        set to ``True`` (default).
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
-    recommend_use_gpu_ranking : bool, default ``True``
-        If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
-        If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     config_class = SASRecModelConfig
@@ -394,8 +396,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
         recommend_device: tp.Optional[str] = None,
+        recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -420,7 +422,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             recommend_batch_size=recommend_batch_size,
             recommend_device=recommend_device,
             recommend_n_threads=recommend_n_threads,
-            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,

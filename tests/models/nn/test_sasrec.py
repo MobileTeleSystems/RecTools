@@ -892,7 +892,7 @@ class TestSASRecModelConfiguration:
             "recommend_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
-            "recommend_use_gpu_ranking": True,
+            "recommend_use_torch_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
             "item_net_constructor_type": SumOfEmbeddingsConstructor,
