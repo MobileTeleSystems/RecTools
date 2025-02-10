@@ -27,6 +27,7 @@ from rectools.compat import (
     UserToItemAnnRecommender,
     VisualApp,
 )
+from rectools.models.rank.compat import TorchRanker
 
 
 @pytest.mark.parametrize(
@@ -41,6 +42,7 @@ from rectools.compat import (
         VisualApp,
         ItemToItemVisualApp,
         MetricsApp,
+        TorchRanker,
     ),
 )
 def test_raise_when_model_not_available(

@@ -30,7 +30,7 @@ faster than ever before.
 - Fully compatible with our  `fit` / `recommend` paradigm and require NO special data processing
 - Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_tutorial.ipynb): loss options, item embedding options,  category features utilization and more!
 - Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready, multi-gpu-compatible! See our [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb)
-- We are running benchmarks with comparison of RecTools models to other open-source implementations following BERT4Rec reproducibility paper and achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
+- Public benchmarks which compare of RecTools models to other open-source implementations following BERT4Rec replicability paper show that RecTools implementations achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
 
 
 

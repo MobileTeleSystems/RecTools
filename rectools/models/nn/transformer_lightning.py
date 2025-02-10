@@ -341,6 +341,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             Distance.DOT,
             user_embs_np[user_ids],  # [n_rec_users, n_factors]
             item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+            num_threads=recommend_n_threads,
+            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
         )
 
         # TODO: We should test if torch `topk`` is faster when `filter_viewed`` is ``False``
@@ -349,8 +351,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-            num_threads=recommend_n_threads,
-            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
         )
         all_user_ids = user_ids[user_ids_indices]
         return all_user_ids, all_reco_ids, all_scores
@@ -376,12 +376,12 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             self.i2i_dist,
             item_embs,  # [n_items + n_item_extra_tokens, n_factors]
             item_embs,  # [n_items + n_item_extra_tokens, n_factors]
+            num_threads=recommend_n_threads,
+            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
         )
         return ranker.rank(
             subject_ids=target_ids,  # model internal
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
-            num_threads=recommend_n_threads,
-            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
         )

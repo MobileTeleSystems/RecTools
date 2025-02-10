@@ -212,7 +212,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 30, 40, 40],
-                        Columns.Item: [14, 12, 12, 13],
+                        Columns.Item: [12, 14, 12, 13],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
@@ -222,7 +222,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 12, 13, 11, 12, 14, 12, 13],
+                        Columns.Item: [13, 12, 11, 11, 12, 14, 14, 11, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -236,7 +236,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 14, 13, 11, 14, 13, 14, 11, 12],
+                        Columns.Item: [12, 13, 11, 11, 12, 14, 12, 14, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -304,7 +304,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -314,7 +314,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 14, 13, 17, 12, 14, 13],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -356,7 +356,7 @@ class TestSASRecModel:
             pd.DataFrame(
                 {
                     Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 12, 14, 12, 11, 14, 12, 17, 11],
+                    Columns.Item: [13, 17, 11, 11, 13, 15, 17, 13, 11],
                     Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                 }
             ),
@@ -396,7 +396,7 @@ class TestSASRecModel:
             pd.DataFrame(
                 {
                     Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 11, 14, 11, 13, 14, 14, 12, 13],
+                    Columns.Item: [13, 12, 11, 11, 12, 13, 13, 14, 12],
                     Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                 }
             ),
@@ -448,7 +448,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 17, 11, 11, 13, 17, 17, 11, 13],
+                        Columns.Item: [13, 17, 11, 11, 13, 17, 17, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -494,7 +494,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 17, 11, 14, 11, 13, 17, 12, 14],
+                        Columns.Item: [12, 13, 14, 14, 12, 15, 17, 13, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -505,7 +505,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [17, 11, 14, 11, 13, 17, 12, 14, 11],
+                        Columns.Item: [13, 14, 11, 12, 15, 17, 13, 14, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -516,7 +516,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [14, 13, 15, 13, 15, 14, 15, 13],
+                        Columns.Item: [13, 14, 15, 15, 13, 13, 14, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -578,7 +578,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [14, 12, 17],
+                        Columns.Item: [11, 12, 17],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -588,7 +588,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 14, 12],
+                        Columns.Item: [13, 11, 12],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -631,7 +631,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20, 20],
-                        Columns.Item: [17, 15, 14, 12, 17],
+                        Columns.Item: [17, 15, 11, 12, 17],
                         Columns.Rank: [1, 2, 1, 2, 3],
                     }
                 ),
@@ -641,7 +641,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 20, 20, 20],
-                        Columns.Item: [13, 12, 14, 13, 14, 12],
+                        Columns.Item: [13, 17, 11, 13, 11, 12],
                         Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
