@@ -22,6 +22,7 @@ from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
+from rectools.dataset.dataset import DatasetSchema, EntitySchema
 from rectools.models.nn.item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -101,6 +102,26 @@ class TestCatFeaturesItemNet:
         )
         return ds
 
+    @pytest.fixture
+    def dataset_dense_item_features(self) -> Dataset:
+        item_features = pd.DataFrame(
+            [
+                [11, 1, 1],
+                [12, 1, 2],
+                [13, 1, 3],
+                [14, 2, 1],
+                [15, 2, 2],
+                [17, 2, 3],
+            ],
+            columns=[Columns.Item, "f1", "f2"],
+        )
+        ds = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+            make_dense_item_features=True,
+        )
+        return ds
+
     def test_get_item_inputs_offsets(self, dataset_item_features: Dataset) -> None:
         items = torch.from_numpy(
             dataset_item_features.item_id_map.convert_to_internal(INTERACTIONS[Columns.Item].unique())
@@ -123,11 +144,11 @@ class TestCatFeaturesItemNet:
 
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
 
-        actual_offsets = cat_item_embeddings.offsets
+        actual_offsets = cat_item_embeddings.get_buffer("offsets")
         actual_n_cat_feature_values = cat_item_embeddings.n_cat_feature_values
         actual_embedding_dim = cat_item_embeddings.embedding_bag.embedding_dim
-        actual_emb_bag_inputs = cat_item_embeddings.emb_bag_inputs
-        actual_input_lengths = cat_item_embeddings.input_lengths
+        actual_emb_bag_inputs = cat_item_embeddings.get_buffer("emb_bag_inputs")
+        actual_input_lengths = cat_item_embeddings.get_buffer("input_lengths")
 
         expected_offsets = torch.tensor([0, 0, 2, 4, 6, 8, 10])
         expected_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2, 1, 3, 1, 3])
@@ -207,6 +228,74 @@ class TestCatFeaturesItemNet:
         )
         cat_features_item_net = CatFeaturesItemNet.from_dataset(ds, n_factors=10, dropout_rate=0.5)
         assert cat_features_item_net is None
+
+    def test_warns_when_dataset_schema_features_are_dense(self, dataset_dense_item_features: Dataset) -> None:
+        dataset_schema_dict = dataset_dense_item_features.get_schema()
+        item_schema = EntitySchema(
+            n_hot=dataset_schema_dict["items"]["n_hot"],
+            id_map=dataset_schema_dict["items"]["id_map"],
+            features=dataset_schema_dict["items"]["features"],
+        )
+        user_schema = EntitySchema(
+            n_hot=dataset_schema_dict["users"]["n_hot"],
+            id_map=dataset_schema_dict["users"]["id_map"],
+            features=dataset_schema_dict["users"]["features"],
+        )
+        dataset_schema = DatasetSchema(
+            n_interactions=dataset_schema_dict["n_interactions"],
+            users=user_schema,
+            items=item_schema,
+        )
+        with pytest.warns() as record:
+            CatFeaturesItemNet.from_dataset_schema(dataset_schema, n_factors=5, dropout_rate=0.5)
+        assert (
+            str(record[0].message)
+            == """
+            Ignoring `CatFeaturesItemNet` block because
+            dataset item features are dense and unable to contain categorical features.
+            """
+        )
+
+    def test_warns_when_dataset_schema_categorical_features_are_none(self) -> None:
+        item_features = pd.DataFrame(
+            [
+                [12, "f3", 1],
+                [13, "f3", 2],
+                [14, "f3", 3],
+                [15, "f3", 4],
+                [17, "f3", 5],
+                [16, "f3", 6],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        dataset = Dataset.construct(
+            INTERACTIONS,
+            item_features_df=item_features,
+        )
+        dataset_schema_dict = dataset.get_schema()
+        item_schema = EntitySchema(
+            n_hot=dataset_schema_dict["items"]["n_hot"],
+            id_map=dataset_schema_dict["items"]["id_map"],
+            features=dataset_schema_dict["items"]["features"],
+        )
+        user_schema = EntitySchema(
+            n_hot=dataset_schema_dict["users"]["n_hot"],
+            id_map=dataset_schema_dict["users"]["id_map"],
+            features=dataset_schema_dict["users"]["features"],
+        )
+        dataset_schema = DatasetSchema(
+            n_interactions=dataset_schema_dict["n_interactions"],
+            users=user_schema,
+            items=item_schema,
+        )
+        with pytest.warns() as record:
+            CatFeaturesItemNet.from_dataset_schema(dataset_schema, n_factors=5, dropout_rate=0.5)
+        assert (
+            str(record[0].message)
+            == """
+            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
+            """
+        )
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
