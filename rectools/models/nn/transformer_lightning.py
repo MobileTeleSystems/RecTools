@@ -200,10 +200,15 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
             outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         else:
-            raise ValueError(f"loss {self.loss} is not supported")
+            outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
 
         self.log(self.val_loss_name, outputs["loss"], on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return outputs
+
+    def _calc_custom_loss_outputs(
+        self, batch: tp.Dict[str, torch.Tensor], batch_idx: int
+    ) -> tp.Dict[str, torch.Tensor]:
+        raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)

@@ -749,6 +749,7 @@ class TestSASRecDataPreparator:
             session_max_len=3,
             batch_size=4,
             dataloader_num_workers=0,
+            n_negatives=2,
             get_val_mask_func=get_val_mask_func,
         )
 
@@ -833,6 +834,7 @@ class TestSASRecDataPreparator:
                     "x": torch.tensor([[0, 1, 3]]),
                     "y": torch.tensor([[2]]),
                     "yw": torch.tensor([[1.0]]),
+                    "negatives": torch.tensor([[[4, 1]]]),
                 }
             ),
         ),
