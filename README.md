@@ -214,6 +214,7 @@ make clean
 - [Maya Spirina](https://github.com/spirinamayya)
 - [Grigoriy Gusarov](https://github.com/Gooogr)
 - [Aki Ariga](https://github.com/chezou)
+- [Nikolay Undalov](https://github.com/nsundalov)
 
 Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Alexander Butenko](https://github.com/iomallach), [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup), [Maxim Lukin](https://github.com/groundmax), [Yuri Ulianov](https://github.com/yukeeul), [Egor Kratkov](https://github.com/jegorus), [Azat Sibagatulin](https://github.com/azatnv), [Vadim Vetrov](https://github.com/Waujito)
 

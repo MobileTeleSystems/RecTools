@@ -16,6 +16,7 @@
 
 import typing as tp
 from collections.abc import Hashable
+import numbers
 
 import attr
 import numpy as np
@@ -48,9 +49,11 @@ def _serialize_feature_name(spec: tp.Any) -> Hashable:
         return tuple(_serialize_feature_name(item) for item in spec)
     if isinstance(spec, (int, float, str, bool)):
         return spec
-    if np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):  # str is handled by isinstance(spec, str)
+    if isinstance(spec, np.bool_):
         return spec.item()
-    raise type_error
+    if isinstance(spec, numbers.Number) and np.issubdtype(spec, np.number):
+        return spec.item()
+    raise type_error  # numpy str is handled by isinstance(spec, str)
 
 
 FeatureName = tpe.Annotated[AnyFeatureName, PlainSerializer(_serialize_feature_name, when_used="json")]
