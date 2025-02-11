@@ -504,3 +504,10 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
+    
+    def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]):
+        """Load modelweights from Lightning checkpoint path."""
+        checkpoint = torch.load(checkpoint_path, weights_only=True)
+        self.lightning_model.load_state_dict(checkpoint[''])
+
+
