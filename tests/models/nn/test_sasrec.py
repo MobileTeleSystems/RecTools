@@ -156,6 +156,7 @@ class TestSASRecModel:
 
         return get_trainer
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "accelerator,devices,recommend_device",
         [
@@ -253,6 +254,7 @@ class TestSASRecModel:
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
 
         if devices != 1:
@@ -280,6 +282,7 @@ class TestSASRecModel:
             recommend_device=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -296,6 +299,7 @@ class TestSASRecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "loss,expected",
         (
@@ -327,6 +331,7 @@ class TestSASRecModel:
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = SASRecModel(
             n_negatives=2,
@@ -340,6 +345,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -350,6 +356,7 @@ class TestSASRecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "expected",
         (
@@ -367,6 +374,7 @@ class TestSASRecModel:
         dataset: Dataset,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -380,6 +388,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -390,6 +399,7 @@ class TestSASRecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "expected",
         (
@@ -407,6 +417,7 @@ class TestSASRecModel:
         dataset_item_features: Dataset,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -420,6 +431,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
             get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_item_features)
         users = np.array([10, 30, 40])
@@ -430,6 +442,7 @@ class TestSASRecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -456,7 +469,12 @@ class TestSASRecModel:
         ),
     )
     def test_with_whitelist(
-        self, dataset: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        get_trainer_func: TrainerCallable,
+        filter_viewed: bool,
+        expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -468,6 +486,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -485,6 +504,7 @@ class TestSASRecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
         (
@@ -530,6 +550,7 @@ class TestSASRecModel:
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = SASRecModel(
             n_factors=32,
@@ -541,6 +562,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -894,7 +916,7 @@ class TestSASRecModelConfiguration:
             "recommend_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
-            "recommend_use_gpu_ranking": True,
+            "recommend_use_torch_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
             "item_net_constructor_type": SumOfEmbeddingsConstructor,
