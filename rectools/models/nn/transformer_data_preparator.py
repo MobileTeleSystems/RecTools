@@ -25,7 +25,7 @@ from torch.utils.data import Dataset as TorchDataset
 
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
-from rectools.dataset.features import SparseFeatures
+from rectools.dataset.features import DenseFeatures, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
 from .constants import PADDING_VALUE
@@ -172,28 +172,28 @@ class TransformerDataPreparatorBase:
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
 
-        # get item features
+        # Get item features
         item_features = None
         if dataset.item_features is not None:
             item_features = dataset.item_features
-            # TODO: remove assumption on SparseFeatures and add Dense Features support
-            if not isinstance(item_features, SparseFeatures):
-                raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
 
             internal_ids = dataset.item_id_map.convert_to_internal(
                 item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
             )
             sorted_item_features = item_features.take(internal_ids)
-
-            dtype = sorted_item_features.values.dtype
             n_features = sorted_item_features.values.shape[1]
-            extra_token_feature_values = sparse.csr_matrix((self.n_item_extra_tokens, n_features), dtype=dtype)
+            dtype = sorted_item_features.values.dtype
 
-            full_feature_values: sparse.scr_matrix = sparse.vstack(
-                [extra_token_feature_values, sorted_item_features.values], format="csr"
-            )
-
-            item_features = SparseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
+            if isinstance(item_features, SparseFeatures):
+                extra_token_feature_values = sparse.csr_matrix((self.n_item_extra_tokens, n_features), dtype=dtype)
+                full_feature_values: sparse.scr_matrix = sparse.vstack(
+                    [extra_token_feature_values, sorted_item_features.values], format="csr"
+                )
+                item_features = SparseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
+            else:
+                extra_token_feature_values = np.zeros((self.n_item_extra_tokens, n_features), dtype=dtype)
+                full_feature_values = np.vstack([extra_token_feature_values, sorted_item_features.values])
+                item_features = DenseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
 
         dataset_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
 

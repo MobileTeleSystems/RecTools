@@ -14,15 +14,15 @@
 
 import typing as tp
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
+from rectools.dataset.features import DenseFeatures
 from rectools.models.nn.transformer_data_preparator import SequenceDataset, TransformerDataPreparatorBase
-from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
-
-from ..data import INTERACTIONS
+from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
 
 
 class TestSequenceDataset:
@@ -68,7 +68,7 @@ class TestSequenceDataset:
 class TestTransformerDataPreparatorBase:
 
     @pytest.fixture
-    def dataset(self) -> Dataset:
+    def interactions_df(self) -> pd.DataFrame:
         interactions_df = pd.DataFrame(
             [
                 [10, 13, 1, "2021-11-30"],
@@ -86,10 +86,14 @@ class TestTransformerDataPreparatorBase:
             ],
             columns=Columns.Interactions,
         )
+        return interactions_df
+
+    @pytest.fixture
+    def dataset(self, interactions_df: pd.DataFrame) -> Dataset:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
-    def dataset_dense_item_features(self) -> Dataset:
+    def dataset_dense_item_features(self, interactions_df: pd.DataFrame) -> Dataset:
         item_features = pd.DataFrame(
             [
                 [11, 1, 1],
@@ -97,14 +101,14 @@ class TestTransformerDataPreparatorBase:
                 [13, 1, 3],
                 [14, 2, 1],
                 [15, 2, 2],
+                [16, 2, 2],
                 [17, 2, 3],
             ],
             columns=[Columns.Item, "f1", "f2"],
         )
         ds = Dataset.construct(
-            INTERACTIONS,
+            interactions_df,
             item_features_df=item_features,
-            cat_item_features=["f1", "f2"],
             make_dense_item_features=True,
         )
         return ds
@@ -156,13 +160,28 @@ class TestTransformerDataPreparatorBase:
         assert_id_map_equal(actual.item_id_map, expected_item_id_map)
         assert_interactions_set_equal(actual.interactions, expected_interactions)
 
-    def test_raises_process_dataset_train_when_dense_item_features(
+    def test_process_dataset_train_with_dense_item_features(
         self,
         dataset_dense_item_features: Dataset,
         data_preparator: TransformerDataPreparatorBase,
     ) -> None:
-        with pytest.raises(ValueError):
-            data_preparator.process_dataset_train(dataset_dense_item_features)
+        data_preparator.process_dataset_train(dataset_dense_item_features)
+        actual = data_preparator.train_dataset.item_features
+        expected_values = np.array(
+            [
+                [0, 0],
+                [2, 2],
+                [1, 1],
+                [1, 2],
+                [2, 3],
+                [2, 1],
+                [1, 3],
+            ],
+            dtype=np.float32,
+        )
+        expected_names = ("f1", "f2")
+        expected = DenseFeatures(expected_values, expected_names)
+        assert_feature_set_equal(actual, expected)
 
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_interactions",
