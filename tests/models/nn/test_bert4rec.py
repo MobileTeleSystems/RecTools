@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
 
+from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
@@ -109,6 +111,7 @@ class TestBERT4RecModel:
 
         return get_trainer
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_device",
         [
@@ -151,28 +154,28 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
@@ -182,28 +185,28 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 12, 13, 11, 12, 13, 11, 12],
+                        Columns.Item: [12, 13, 11, 12, 13, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 12, 13, 11, 13, 12, 11, 13, 12],
+                        Columns.Item: [12, 13, 11, 12, 13, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
+                        Columns.Item: [12, 13, 11, 13, 12, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 13, 12, 11, 13, 12, 11, 13, 12],
+                        Columns.Item: [12, 13, 11, 13, 12, 11, 12, 13, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -221,6 +224,7 @@ class TestBERT4RecModel:
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
         expected_gpu_2: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         if n_devices != 1:
             pytest.skip("DEBUG: skipping multi-device tests")
@@ -247,6 +251,7 @@ class TestBERT4RecModel:
             recommend_device=recommend_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -265,6 +270,7 @@ class TestBERT4RecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "loss,expected",
         (
@@ -273,7 +279,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
@@ -283,7 +289,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [30, 40, 40],
-                        Columns.Item: [12, 13, 12],
+                        Columns.Item: [12, 12, 13],
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
@@ -296,6 +302,7 @@ class TestBERT4RecModel:
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = BERT4RecModel(
             n_negatives=2,
@@ -311,6 +318,7 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -321,6 +329,7 @@ class TestBERT4RecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -347,7 +356,12 @@ class TestBERT4RecModel:
         ),
     )
     def test_with_whitelist(
-        self, dataset_devices: Dataset, get_trainer_func: TrainerCallable, filter_viewed: bool, expected: pd.DataFrame
+        self,
+        dataset_devices: Dataset,
+        get_trainer_func: TrainerCallable,
+        filter_viewed: bool,
+        expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -360,6 +374,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -377,6 +392,7 @@ class TestBERT4RecModel:
             actual,
         )
 
+    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
         (
@@ -386,7 +402,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 13, 14, 14, 11, 13, 17, 13, 15],
+                        Columns.Item: [12, 17, 11, 14, 11, 15, 17, 12, 14],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -397,7 +413,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [13, 14, 15, 11, 13, 12, 13, 15, 12],
+                        Columns.Item: [17, 11, 14, 11, 15, 17, 12, 14, 15],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -408,7 +424,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.TargetItem: [12, 12, 12, 14, 14, 17, 17, 17],
-                        Columns.Item: [13, 14, 15, 13, 15, 13, 15, 14],
+                        Columns.Item: [14, 13, 15, 15, 13, 14, 15, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 1, 2, 3],
                     }
                 ),
@@ -422,6 +438,7 @@ class TestBERT4RecModel:
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
+        recommend_use_torch_ranking: bool,
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -434,6 +451,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -450,7 +468,7 @@ class TestBERT4RecModel:
             actual,
         )
 
-    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset, get_trainer_func: TrainerCallable) -> None:
+    def test_second_fit_refits_model(self, dataset_hot_users_items: Dataset) -> None:
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
@@ -459,7 +477,7 @@ class TestBERT4RecModel:
             batch_size=4,
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer_func=get_trainer_func,
+            get_trainer_func=custom_trainer,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -471,7 +489,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20],
-                        Columns.Item: [11, 12],
+                        Columns.Item: [12, 11],
                         Columns.Rank: [1, 2],
                     }
                 ),
@@ -481,7 +499,7 @@ class TestBERT4RecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [20, 20, 20],
-                        Columns.Item: [13, 11, 12],
+                        Columns.Item: [12, 13, 11],
                         Columns.Rank: [1, 2, 3],
                     }
                 ),
@@ -584,6 +602,30 @@ class TestBERT4RecDataPreparator:
             mask_prob=0.5,
         )
 
+    @pytest.fixture
+    def data_preparator_val_mask(self) -> BERT4RecDataPreparator:
+        def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> np.ndarray:
+            rank = (
+                interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+                .groupby(Columns.User, sort=False)
+                .cumcount()
+                + 1
+            )
+            val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
+            return val_mask.values
+
+        val_users = [10, 30]
+        get_val_mask_func = partial(get_val_mask, val_users=val_users)
+        return BERT4RecDataPreparator(
+            session_max_len=4,
+            n_negatives=2,
+            train_min_user_interactions=2,
+            mask_prob=0.5,
+            batch_size=4,
+            dataloader_num_workers=0,
+            get_val_mask_func=get_val_mask_func,
+        )
+
     @pytest.mark.parametrize(
         "train_batch",
         (
@@ -650,6 +692,28 @@ class TestBERT4RecDataPreparator:
         for key, value in actual.items():
             assert torch.equal(value, recommend_batch[key])
 
+    @pytest.mark.parametrize(
+        "val_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[0, 2, 4, 1]]),
+                    "y": torch.tensor([[3]]),
+                    "yw": torch.tensor([[1.0]]),
+                    "negatives": torch.tensor([[[5, 2]]]),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_val(
+        self, dataset: Dataset, data_preparator_val_mask: BERT4RecDataPreparator, val_batch: tp.List
+    ) -> None:
+        data_preparator_val_mask.process_dataset_train(dataset)
+        dataloader = data_preparator_val_mask.get_dataloader_val()
+        actual = next(iter(dataloader))  # type: ignore
+        for key, value in actual.items():
+            assert torch.equal(value, val_batch[key])
+
 
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
@@ -682,7 +746,7 @@ class TestBERT4RecModelConfiguration:
             "recommend_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
-            "recommend_use_gpu_ranking": True,
+            "recommend_use_torch_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
             "item_net_constructor_type": SumOfEmbeddingsConstructor,

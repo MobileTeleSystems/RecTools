@@ -518,7 +518,7 @@ class TestSerializeFeatureName:
     def test_basic(self, feature_name: AnyFeatureName, expected: Hashable) -> None:
         assert _serialize_feature_name(feature_name) == expected
 
-    @pytest.mark.parametrize("feature_name", (np.array([1]), [1], np.array(["name"]), np.array([True])))
+    @pytest.mark.parametrize("feature_name", (datetime.now(), np.array([1]), [1], np.array(["name"]), np.array([True])))
     def test_raises_on_incorrect_input(self, feature_name: tp.Any) -> None:
         with pytest.raises(TypeError):
             _serialize_feature_name(feature_name)

@@ -106,12 +106,12 @@ class CatFeaturesItemNet(ItemNetBase):
 
     def get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """Get categorical item features and offsets for `items`."""
-        length_range = torch.arange(self.input_lengths.max().item(), device=self.device)
-        item_indexes = self.offsets[items].unsqueeze(-1) + length_range
-        length_mask = length_range < self.input_lengths[items].unsqueeze(-1)
-        item_emb_bag_inputs = self.emb_bag_inputs[item_indexes[length_mask]]
+        length_range = torch.arange(self.get_buffer("input_lengths").max().item(), device=self.device)
+        item_indexes = self.get_buffer("offsets")[items].unsqueeze(-1) + length_range
+        length_mask = length_range < self.get_buffer("input_lengths")[items].unsqueeze(-1)
+        item_emb_bag_inputs = self.get_buffer("emb_bag_inputs")[item_indexes[length_mask]]
         item_offsets = torch.cat(
-            (torch.tensor([0], device=self.device), torch.cumsum(self.input_lengths[items], dim=0)[:-1])
+            (torch.tensor([0], device=self.device), torch.cumsum(self.get_buffer("input_lengths")[items], dim=0)[:-1])
         )
         return item_emb_bag_inputs, item_offsets
 

@@ -16,14 +16,13 @@ import typing as tp
 
 import numpy as np
 import torch
-from implicit.gpu import HAS_CUDA
 from pytorch_lightning import LightningModule
 from torch.utils.data import DataLoader
 
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict
 from rectools.models.base import InternalRecoTriplet
-from rectools.models.rank import Distance, ImplicitRanker
+from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 from rectools.types import InternalIdsArray
 
 from .transformer_backbone import TransformerTorchBackbone
@@ -102,7 +101,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         """Validate step."""
         raise NotImplementedError()
 
-    def recommend_u2i(
+    def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
         recommend_dataloader: DataLoader,
@@ -110,19 +109,22 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         k: int,
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         filter_viewed: bool,
+        recommend_use_torch_ranking: bool,
+        recommend_n_threads: int,
+        recommend_device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
         """Recommending to users."""
         raise NotImplementedError()
 
-    def recommend_i2i(
+    def _recommend_i2i(
         self,
         target_ids: InternalIdsArray,
         sorted_item_ids_to_recommend: InternalIdsArray,
         k: int,
+        recommend_use_torch_ranking: bool,
         recommend_n_threads: int,
-        recommend_use_gpu_ranking: bool,
         recommend_device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
@@ -200,10 +202,15 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
             outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         else:
-            raise ValueError(f"loss {self.loss} is not supported")
+            outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
 
         self.log(self.val_loss_name, outputs["loss"], on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return outputs
+
+    def _calc_custom_loss_outputs(
+        self, batch: tp.Dict[str, torch.Tensor], batch_idx: int
+    ) -> tp.Dict[str, torch.Tensor]:
+        raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
@@ -291,12 +298,15 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         self.torch_model.to(device)
         self.torch_model.eval()
 
-    def get_user_item_embeddings(
+    def _get_user_item_embeddings(
         self,
         recommend_dataloader: DataLoader,
         recommend_device: tp.Optional[str],
     ) -> tp.Tuple[torch.Tensor, torch.Tensor]:
-        """TODO."""
+        """
+        Prepare user embeddings for all user interaction sequences in `recommend_dataloader`.
+        Prepare item embeddings for full items catalog.
+        """
         self._prepare_for_inference(recommend_device)
         device = self.torch_model.item_model.device
 
@@ -309,7 +319,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         return torch.cat(user_embs), item_embs
 
-    def recommend_u2i(
+    def _recommend_u2i(
         self,
         user_ids: InternalIdsArray,
         recommend_dataloader: DataLoader,
@@ -317,66 +327,81 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         k: int,
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         filter_viewed: bool,
+        recommend_use_torch_ranking: bool,
         recommend_n_threads: int,
-        recommend_use_gpu_ranking: bool,
         recommend_device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to users."""
         ui_csr_for_filter = None
         if filter_viewed:
-            ui_csr_for_filter = dataset.get_user_item_matrix(include_weights=False)[user_ids]
+            ui_csr_for_filter = dataset.get_user_item_matrix(include_weights=False, include_warm_items=True)[user_ids]
 
-        user_embs, item_embs = self.get_user_item_embeddings(recommend_dataloader, recommend_device)
-        user_embs_np = user_embs.detach().cpu().numpy()
-        item_embs_np = item_embs.detach().cpu().numpy()
-        del user_embs, item_embs
-        torch.cuda.empty_cache()
+        user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, recommend_device)
 
-        ranker = ImplicitRanker(
-            Distance.DOT,
-            user_embs_np[user_ids],  # [n_rec_users, n_factors]
-            item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-        )
+        ranker: Ranker
+        if recommend_use_torch_ranking:
+            ranker = TorchRanker(
+                distance=Distance.DOT,
+                device=item_embs.device,
+                subjects_factors=user_embs[user_ids],
+                objects_factors=item_embs,
+            )
+        else:
+            user_embs_np = user_embs.detach().cpu().numpy()
+            item_embs_np = item_embs.detach().cpu().numpy()
+            del user_embs, item_embs
+            torch.cuda.empty_cache()
+            ranker = ImplicitRanker(
+                Distance.DOT,
+                user_embs_np[user_ids],  # [n_rec_users, n_factors]
+                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+                num_threads=recommend_n_threads,
+                use_gpu=False,
+            )
 
-        # TODO: We should test if torch `topk`` is faster when `filter_viewed`` is ``False``
         user_ids_indices, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=np.arange(user_embs_np.shape[0]),  # n_rec_users
+            subject_ids=np.arange(len(user_ids)),  # n_rec_users
             k=k,
             filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-            num_threads=recommend_n_threads,
-            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
         )
         all_user_ids = user_ids[user_ids_indices]
         return all_user_ids, all_reco_ids, all_scores
 
-    def recommend_i2i(
+    def _recommend_i2i(
         self,
         target_ids: InternalIdsArray,
         sorted_item_ids_to_recommend: InternalIdsArray,
         k: int,
+        recommend_use_torch_ranking: bool,
         recommend_n_threads: int,
-        recommend_use_gpu_ranking: bool,
         recommend_device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to items."""
         self._prepare_for_inference(recommend_device)
-
         with torch.no_grad():
-            item_embs = self.torch_model.item_model.get_all_embeddings().detach().cpu().numpy()
-        # TODO: i2i recommendations do not need filtering viewed and user most of the times has GPU
-        # We should test if torch `topk`` is faster
+            item_embs = self.torch_model.item_model.get_all_embeddings()
 
-        ranker = ImplicitRanker(
-            self.i2i_dist,
-            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
-            item_embs,  # [n_items + n_item_extra_tokens, n_factors]
-        )
+        ranker: Ranker
+        if recommend_use_torch_ranking:
+            ranker = TorchRanker(
+                distance=self.i2i_dist, device=item_embs.device, subjects_factors=item_embs, objects_factors=item_embs
+            )
+        else:
+            item_embs_np = item_embs.detach().cpu().numpy()
+            del item_embs
+            ranker = ImplicitRanker(
+                self.i2i_dist,
+                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
+                num_threads=recommend_n_threads,
+                use_gpu=False,
+            )
+
+        torch.cuda.empty_cache()
         return ranker.rank(
             subject_ids=target_ids,  # model internal
             k=k,
             filter_pairs_csr=None,
             sorted_object_whitelist=sorted_item_ids_to_recommend,  # model internal
-            num_threads=recommend_n_threads,
-            use_gpu=recommend_use_gpu_ranking and HAS_CUDA,
         )

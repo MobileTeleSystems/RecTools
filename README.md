@@ -30,7 +30,7 @@ faster than ever before.
 - Fully compatible with our  `fit` / `recommend` paradigm and require NO special data processing
 - Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_tutorial.ipynb): loss options, item embedding options,  category features utilization and more!
 - Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready, multi-gpu-compatible! See our [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb)
-- We are running benchmarks with comparison of RecTools models to other open-source implementations following BERT4Rec reproducibility paper and achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
+- Public benchmarks which compare of RecTools models to other open-source implementations following BERT4Rec replicability paper show that RecTools implementations achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
 
 
 
@@ -214,6 +214,7 @@ make clean
 - [Maya Spirina](https://github.com/spirinamayya)
 - [Grigoriy Gusarov](https://github.com/Gooogr)
 - [Aki Ariga](https://github.com/chezou)
+- [Nikolay Undalov](https://github.com/nsundalov)
 
 Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Alexander Butenko](https://github.com/iomallach), [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup), [Maxim Lukin](https://github.com/groundmax), [Yuri Ulianov](https://github.com/yukeeul), [Egor Kratkov](https://github.com/jegorus), [Azat Sibagatulin](https://github.com/azatnv), [Vadim Vetrov](https://github.com/Waujito)
 

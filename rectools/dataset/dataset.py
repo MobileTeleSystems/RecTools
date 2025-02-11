@@ -48,7 +48,8 @@ def _serialize_feature_name(spec: tp.Any) -> Hashable:
         return tuple(_serialize_feature_name(item) for item in spec)
     if isinstance(spec, (int, float, str, bool)):
         return spec
-    if np.issubdtype(spec, np.number) or np.issubdtype(spec, np.bool_):  # str is handled by isinstance(spec, str)
+    if hasattr(spec, "dtype") and (np.issubdtype(spec.dtype, np.number) or np.issubdtype(spec.dtype, np.bool_)):
+        # numpy str is handled by isinstance(spec, str)
         return spec.item()
     raise type_error
 

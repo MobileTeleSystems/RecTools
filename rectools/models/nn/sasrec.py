@@ -112,9 +112,73 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         return {"x": torch.LongTensor(x)}
 
 
+class SASRecTransformerLayer(nn.Module):
+    """
+    Exactly SASRec author's transformer block architecture but with pytorch Multi-Head Attention realisation.
+
+    Parameters
+    ----------
+    n_factors : int
+        Latent embeddings size.
+    n_heads : int
+        Number of attention heads.
+    dropout_rate : float
+        Probability of a hidden unit to be zeroed.
+    """
+
+    def __init__(
+        self,
+        n_factors: int,
+        n_heads: int,
+        dropout_rate: float,
+    ):
+        super().__init__()
+        # important: original architecture had another version of MHA
+        self.multi_head_attn = torch.nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True)
+        self.q_layer_norm = nn.LayerNorm(n_factors)
+        self.ff_layer_norm = nn.LayerNorm(n_factors)
+        self.feed_forward = PointWiseFeedForward(n_factors, n_factors, dropout_rate, torch.nn.ReLU())
+        self.dropout = torch.nn.Dropout(dropout_rate)
+
+    def forward(
+        self,
+        seqs: torch.Tensor,
+        attn_mask: tp.Optional[torch.Tensor],
+        key_padding_mask: tp.Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Forward pass through transformer block.
+
+        Parameters
+        ----------
+        seqs : torch.Tensor
+            User sequences of item embeddings.
+        attn_mask : torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        key_padding_mask : torch.Tensor, optional
+            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
+
+
+        Returns
+        -------
+        torch.Tensor
+            User sequences passed through transformer layers.
+        """
+        q = self.q_layer_norm(seqs)
+        mha_output, _ = self.multi_head_attn(
+            q, seqs, seqs, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False
+        )
+        seqs = q + mha_output
+        ff_input = self.ff_layer_norm(seqs)
+        seqs = self.feed_forward(ff_input)
+        seqs = self.dropout(seqs)
+        seqs += ff_input
+        return seqs
+
+
 class SASRecTransformerLayers(TransformerLayersBase):
     """
-    Exactly SASRec author's transformer blocks architecture but with pytorch Multi-Head Attention realisation.
+    SASRec transformer blocks.
 
     Parameters
     ----------
@@ -137,15 +201,16 @@ class SASRecTransformerLayers(TransformerLayersBase):
     ):
         super().__init__()
         self.n_blocks = n_blocks
-        self.multi_head_attn = nn.ModuleList(
-            [torch.nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True) for _ in range(n_blocks)]
-        )  # important: original architecture had another version of MHA
-        self.q_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.ff_layer_norm = nn.ModuleList([nn.LayerNorm(n_factors) for _ in range(n_blocks)])
-        self.feed_forward = nn.ModuleList(
-            [PointWiseFeedForward(n_factors, n_factors, dropout_rate, torch.nn.ReLU()) for _ in range(n_blocks)]
+        self.transformer_blocks = nn.ModuleList(
+            [
+                SASRecTransformerLayer(
+                    n_factors,
+                    n_heads,
+                    dropout_rate,
+                )
+                for _ in range(self.n_blocks)
+            ]
         )
-        self.dropout = nn.ModuleList([torch.nn.Dropout(dropout_rate) for _ in range(n_blocks)])
         self.last_layernorm = torch.nn.LayerNorm(n_factors, eps=1e-8)
 
     def forward(
@@ -175,21 +240,11 @@ class SASRecTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
         for i in range(self.n_blocks):
-            q = self.q_layer_norm[i](seqs)
-            mha_output, _ = self.multi_head_attn[i](
-                q, seqs, seqs, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False
-            )
-            seqs = q + mha_output
-            ff_input = self.ff_layer_norm[i](seqs)
-            seqs = self.feed_forward[i](ff_input)
-            seqs = self.dropout[i](seqs)
-            seqs += ff_input
-            seqs *= timeline_mask
-
+            seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
+            seqs = self.transformer_blocks[i](seqs, attn_mask, key_padding_mask)
+        seqs *= timeline_mask
         seqs = self.last_layernorm(seqs)
-
         return seqs
 
 
@@ -297,14 +352,16 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_device` attribute.
+    recommend_use_torch_ranking : bool, default ``True``
+        Use `TorchRanker` for items ranking while preparing recommendations.
+        If set to ``False``, use `ImplicitRanker` instead.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_torch_ranking` attribute.
     recommend_n_threads : int, default 0
-        Number of threads to use in ranker if GPU ranking is turned off or unavailable.
+        Number of threads to use for `ImplicitRanker`. Omitted if `recommend_use_torch_ranking` is
+        set to ``True`` (default).
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
-    recommend_use_gpu_ranking : bool, default ``True``
-        If ``True`` and HAS_CUDA ``True``, set use_gpu=True in ImplicitRanker.rank.
-        If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     config_class = SASRecModelConfig
@@ -339,8 +396,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
         recommend_device: tp.Optional[str] = None,
+        recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -365,7 +422,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             recommend_batch_size=recommend_batch_size,
             recommend_device=recommend_device,
             recommend_n_threads=recommend_n_threads,
-            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
+            recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,
@@ -373,14 +430,4 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
-        )
-
-    def _init_data_preparator(self) -> None:
-        self.data_preparator = self.data_preparator_type(
-            session_max_len=self.session_max_len,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
-            batch_size=self.batch_size,
-            dataloader_num_workers=self.dataloader_num_workers,
-            train_min_user_interactions=self.train_min_user_interactions,
-            get_val_mask_func=self.get_val_mask_func,
         )

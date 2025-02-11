@@ -176,7 +176,7 @@ class TransformerModelConfig(ModelConfig):
     recommend_batch_size: int = 256
     recommend_device: tp.Optional[str] = None
     recommend_n_threads: int = 0
-    recommend_use_gpu_ranking: bool = True  # TODO: remove after TorchRanker
+    recommend_use_torch_ranking: bool = True
     train_min_user_interactions: int = 2
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     item_net_constructor_type: ItemNetConstructorType = SumOfEmbeddingsConstructor
@@ -228,7 +228,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
-        recommend_use_gpu_ranking: bool = True,  # TODO: remove after TorchRanker
+        recommend_use_torch_ranking: bool = True,
         train_min_user_interactions: int = 2,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
@@ -260,7 +260,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.recommend_batch_size = recommend_batch_size
         self.recommend_device = recommend_device
         self.recommend_n_threads = recommend_n_threads
-        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
+        self.recommend_use_torch_ranking = recommend_use_torch_ranking
         self.train_min_user_interactions = train_min_user_interactions
         self.item_net_block_types = item_net_block_types
         self.item_net_constructor_type = item_net_constructor_type
@@ -277,7 +277,14 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.fit_trainer: tp.Optional[Trainer] = None
 
     def _init_data_preparator(self) -> None:
-        raise NotImplementedError()
+        self.data_preparator = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
+            get_val_mask_func=self.get_val_mask_func,
+        )
 
     def _init_trainer(self) -> None:
         if self.get_trainer_func is None:
@@ -294,20 +301,38 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         else:
             self._trainer = self.get_trainer_func()
 
-    def _init_torch_model(self) -> TransformerTorchBackbone:
-        return TransformerTorchBackbone(
+    def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
+        return self.item_net_constructor_type.from_dataset(
+            dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
+
+    def _construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetBase:
+        return self.item_net_constructor_type.from_dataset_schema(
+            dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
+        )
+
+    def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
+        return self.pos_encoding_type(self.use_pos_emb, self.session_max_len, self.n_factors)
+
+    def _init_transformer_layers(self) -> TransformerLayersBase:
+        return self.transformer_layers_type(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
-            session_max_len=self.session_max_len,
             dropout_rate=self.dropout_rate,
-            use_pos_emb=self.use_pos_emb,
+        )
+
+    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
+        pos_encoding_layer = self._init_pos_encoding_layer()
+        transformer_layers = self._init_transformer_layers()
+        return TransformerTorchBackbone(
+            n_heads=self.n_heads,
+            dropout_rate=self.dropout_rate,
+            item_model=item_model,
+            pos_encoding_layer=pos_encoding_layer,
+            transformer_layers=transformer_layers,
             use_causal_attn=self.use_causal_attn,
             use_key_padding_mask=self.use_key_padding_mask,
-            transformer_layers_type=self.transformer_layers_type,
-            item_net_block_types=self.item_net_block_types,
-            pos_encoding_type=self.pos_encoding_type,
-            item_net_constructor_type=self.item_net_constructor_type,
         )
 
     def _init_lightning_model(
@@ -339,12 +364,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        torch_model = self._init_torch_model()
-        torch_model.construct_item_net(self.data_preparator.train_dataset)
+        item_model = self._construct_item_net(self.data_preparator.train_dataset)
+        torch_model = self._init_torch_model(item_model)
 
         dataset_schema = self.data_preparator.train_dataset.get_schema()
         item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
-        model_config = self.get_config()
+        model_config = self.get_config(simple_types=True)
         self._init_lightning_model(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
@@ -377,7 +402,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()  # model internal
 
         recommend_dataloader = self.data_preparator.get_dataloader_recommend(dataset, self.recommend_batch_size)
-        return self.lightning_model.recommend_u2i(
+        return self.lightning_model._recommend_u2i(  # pylint: disable=protected-access
             user_ids=user_ids,
             recommend_dataloader=recommend_dataloader,
             sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
@@ -385,7 +410,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             filter_viewed=filter_viewed,
             dataset=dataset,
             recommend_n_threads=self.recommend_n_threads,
-            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            recommend_use_torch_ranking=self.recommend_use_torch_ranking,
             recommend_device=self.recommend_device,
         )
 
@@ -399,12 +424,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if sorted_item_ids_to_recommend is None:
             sorted_item_ids_to_recommend = self.data_preparator.get_known_items_sorted_internal_ids()
 
-        return self.lightning_model.recommend_i2i(
+        return self.lightning_model._recommend_i2i(  # pylint: disable=protected-access
             target_ids=target_ids,
             sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             k=k,
             recommend_n_threads=self.recommend_n_threads,
-            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            recommend_use_torch_ranking=self.recommend_use_torch_ranking,
             recommend_device=self.recommend_device,
         )
 
@@ -440,8 +465,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded.data_preparator._init_extra_token_ids()  # pylint: disable=protected-access
 
         # Init and update torch model and lightning model
-        torch_model = loaded._init_torch_model()
-        torch_model.construct_item_net_from_dataset_schema(dataset_schema)
+        item_model = loaded._construct_item_net_from_dataset_schema(dataset_schema)
+        torch_model = loaded._init_torch_model(item_model)
         loaded._init_lightning_model(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
@@ -461,7 +486,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 checkpoint = Path(f.name).read_bytes()
             state: tp.Dict[str, tp.Any] = {"fitted_checkpoint": checkpoint}
             return state
-        state = {"model_config": self.get_config()}
+        state = {"model_config": self.get_config(simple_types=True)}
         return state
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
