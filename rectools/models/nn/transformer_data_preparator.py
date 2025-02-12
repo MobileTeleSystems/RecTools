@@ -25,7 +25,7 @@ from torch.utils.data import Dataset as TorchDataset
 
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
-from rectools.dataset.features import SparseFeatures
+from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
 from .constants import PADDING_VALUE
@@ -146,6 +146,26 @@ class TransformerDataPreparatorBase:
         """Return number of padding elements"""
         return len(self.item_extra_tokens)
 
+    @staticmethod
+    def _process_features_for_id_map(
+        raw_features: Features, raw_id_map: IdMap, id_map: IdMap, n_extra_tokens: int
+    ) -> Features:
+        raw_internal_ids = raw_id_map.convert_to_internal(id_map.get_external_sorted_by_internal()[n_extra_tokens:])
+        sorted_features = raw_features.take(raw_internal_ids)
+        n_features = sorted_features.values.shape[1]
+        dtype = sorted_features.values.dtype
+
+        if isinstance(raw_features, SparseFeatures):
+            extra_token_feature_values = sparse.csr_matrix((n_extra_tokens, n_features), dtype=dtype)
+            full_feature_values: sparse.scr_matrix = sparse.vstack(
+                [extra_token_feature_values, sorted_features.values], format="csr"
+            )
+            return SparseFeatures.from_iterables(values=full_feature_values, names=raw_features.names)
+
+        extra_token_feature_values = np.zeros((n_extra_tokens, n_features), dtype=dtype)
+        full_feature_values = np.vstack([extra_token_feature_values, sorted_features.values])
+        return DenseFeatures.from_iterables(values=full_feature_values, names=raw_features.names)
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
@@ -166,39 +186,22 @@ class TransformerDataPreparatorBase:
             .tail(self.session_max_len + self.train_session_max_len_addition)
         )
 
-        # Construct dataset
-        # User features are dropped for now because model doesn't support them
+        # Prepare id maps
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
 
-        # get item features
+        # Prepare item features
         item_features = None
         if dataset.item_features is not None:
-            item_features = dataset.item_features
-            # TODO: remove assumption on SparseFeatures and add Dense Features support
-            if not isinstance(item_features, SparseFeatures):
-                raise ValueError("`item_features` in `dataset` must be `SparseFeatures` instance.")
-
-            internal_ids = dataset.item_id_map.convert_to_internal(
-                item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
-            )
-            sorted_item_features = item_features.take(internal_ids)
-
-            dtype = sorted_item_features.values.dtype
-            n_features = sorted_item_features.values.shape[1]
-            extra_token_feature_values = sparse.csr_matrix((self.n_item_extra_tokens, n_features), dtype=dtype)
-
-            full_feature_values: sparse.scr_matrix = sparse.vstack(
-                [extra_token_feature_values, sorted_item_features.values], format="csr"
+            item_features = self._process_features_for_id_map(
+                dataset.item_features, dataset.item_id_map, item_id_map, self.n_item_extra_tokens
             )
 
-            item_features = SparseFeatures.from_iterables(values=full_feature_values, names=item_features.names)
-
-        dataset_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
-
-        self.train_dataset = Dataset(user_id_map, item_id_map, dataset_interactions, item_features=item_features)
-
+        # Prepare train dataset
+        # User features are dropped for now because model doesn't support them
+        final_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
+        self.train_dataset = Dataset(user_id_map, item_id_map, final_interactions, item_features=item_features)
         self.item_id_map = self.train_dataset.item_id_map
         self._init_extra_token_ids()
 
