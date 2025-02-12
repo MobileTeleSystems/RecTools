@@ -508,4 +508,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
         """Load modelweights from Lightning checkpoint path."""
         checkpoint = torch.load(checkpoint_path, weights_only=False)
+        if self.fit_trainer is None:
+            raise RuntimeError("Model weights cannot be loaded from checkpoint into unfitted model")
         self.lightning_model.load_state_dict(checkpoint["state_dict"])

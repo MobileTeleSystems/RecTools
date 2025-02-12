@@ -236,6 +236,35 @@ class TestTransformerModelBase:
         self._assert_same_reco(model, recovered_model, dataset)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_load_weights_from_checkpoint_not_fitted_model(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+    ) -> None:
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_ckpt,
+            }
+        )
+        model.fit(dataset)
+        assert model.fit_trainer is not None
+        if model.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
+
+        model_unfitted = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_ckpt,
+            }
+        )
+        with pytest.raises(RuntimeError):
+            model_unfitted.load_weights_from_checkpoint(ckpt_path)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("verbose", (1, 0))
     @pytest.mark.parametrize(
         "is_val_mask_func, expected_columns",
