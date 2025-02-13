@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
-from .constants import MASKING_VALUE, PADDING_VALUE
+from .constants import MASKING_VALUE, PADDING_VALUE, InitKwargs
 from .item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -59,9 +59,10 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int,
-        mask_prob: float,
+        mask_prob: float = 0.15,
         shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        init_kwargs: tp.Optional[InitKwargs] = None,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -71,6 +72,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             train_min_user_interactions=train_min_user_interactions,
             shuffle_train=shuffle_train,
             get_val_mask_func=get_val_mask_func,
+            init_kwargs=init_kwargs,
         )
         self.mask_prob = mask_prob
 
@@ -315,6 +317,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         recommend_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
+        init_kwargs: tp.Optional[InitKwargs] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -349,6 +352,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            init_kwargs=init_kwargs,
         )
 
     def _init_data_preparator(self) -> None:
@@ -360,4 +364,5 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
+            init_kwargs=self.init_kwargs,
         )

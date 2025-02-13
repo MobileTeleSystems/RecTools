@@ -16,6 +16,7 @@ import typing as tp
 
 import torch
 
+from .constants import InitKwargs
 from .item_net import ItemNetBase
 from .transformer_net_blocks import PositionalEncodingBase, TransformerLayersBase
 
@@ -51,6 +52,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         transformer_layers: TransformerLayersBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
+        init_kwargs: tp.Optional[InitKwargs] = None,
     ) -> None:
         super().__init__()
 
@@ -61,6 +63,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         self.use_causal_attn = use_causal_attn
         self.use_key_padding_mask = use_key_padding_mask
         self.n_heads = n_heads
+        self.init_kwargs = init_kwargs
 
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:

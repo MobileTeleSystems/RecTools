@@ -28,7 +28,7 @@ from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
-from .constants import PADDING_VALUE
+from .constants import PADDING_VALUE, InitKwargs
 
 
 class SequenceDataset(TorchDataset):
@@ -119,6 +119,7 @@ class TransformerDataPreparatorBase:
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+        init_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -132,6 +133,7 @@ class TransformerDataPreparatorBase:
         self.train_min_user_interactions = train_min_user_interactions
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
+        self.init_kwargs = init_kwargs
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""

@@ -31,6 +31,7 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase,
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
+from .constants import InitKwargs
 from .item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -185,6 +186,7 @@ class TransformerModelConfig(ModelConfig):
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
+    init_kwargs: tp.Optional[InitKwargs] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -236,6 +238,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        init_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -268,6 +271,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
+        self.init_kwargs = init_kwargs
 
         self._init_data_preparator()
         self._init_trainer()
@@ -284,6 +288,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
             get_val_mask_func=self.get_val_mask_func,
+            init_kwargs=self.init_kwargs,
         )
 
     def _init_trainer(self) -> None:
@@ -303,16 +308,29 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset(
-            dataset, self.n_factors, self.dropout_rate, self.item_net_block_types
+            dataset,
+            self.n_factors,
+            self.dropout_rate,
+            self.item_net_block_types,
+            init_kwargs=self.init_kwargs,
         )
 
     def _construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset_schema(
-            dataset_schema, self.n_factors, self.dropout_rate, self.item_net_block_types
+            dataset_schema,
+            self.n_factors,
+            self.dropout_rate,
+            self.item_net_block_types,
+            init_kwargs=self.init_kwargs,
         )
 
     def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
-        return self.pos_encoding_type(self.use_pos_emb, self.session_max_len, self.n_factors)
+        return self.pos_encoding_type(
+            self.use_pos_emb,
+            self.session_max_len,
+            self.n_factors,
+            init_kwargs=self.init_kwargs,
+        )
 
     def _init_transformer_layers(self) -> TransformerLayersBase:
         return self.transformer_layers_type(
@@ -320,6 +338,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_factors=self.n_factors,
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
+            init_kwargs=self.init_kwargs,
         )
 
     def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
@@ -333,6 +352,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             transformer_layers=transformer_layers,
             use_causal_attn=self.use_causal_attn,
             use_key_padding_mask=self.use_key_padding_mask,
+            init_kwargs=self.init_kwargs,
         )
 
     def _init_lightning_model(
@@ -354,6 +374,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             verbose=self.verbose,
             train_loss_name=self.train_loss_name,
             val_loss_name=self.val_loss_name,
+            init_kwargs=self.init_kwargs,
         )
 
     def _fit(
