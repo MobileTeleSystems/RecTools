@@ -48,3 +48,19 @@ def custom_trainer_ckpt() -> Trainer:
         devices=1,
         callbacks=ModelCheckpoint(filename="last_epoch"),
     )
+
+
+def custom_trainer_multiple_ckpt() -> Trainer:
+    return Trainer(
+        max_epochs=3,
+        min_epochs=3,
+        deterministic=True,
+        accelerator="cpu",
+        devices=1,
+        callbacks=ModelCheckpoint(
+            monitor="train_loss",
+            save_top_k=3,
+            every_n_epochs=1,
+            filename="{epoch}",
+        ),
+    )

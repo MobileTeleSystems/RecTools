@@ -43,8 +43,6 @@ from .ease import EASEModel
 from .implicit_als import ImplicitALSWrapperModel
 from .implicit_bpr import ImplicitBPRWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
-from .nn.bert4rec import BERT4RecModel
-from .nn.sasrec import SASRecModel
 from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
 from .pure_svd import PureSVDModel
@@ -57,9 +55,11 @@ except ImportError:  # pragma: no cover
     from ..compat import LightFMWrapperModel  # type: ignore
 
 try:
-    from .dssm import DSSMModel
+    from .nn.dssm import DSSMModel
+    from .nn.transformers.bert4rec import BERT4RecModel
+    from .nn.transformers.sasrec import SASRecModel
 except ImportError:  # pragma: no cover
-    from ..compat import DSSMModel  # type: ignore
+    from ..compat import BERT4RecModel, DSSMModel, SASRecModel  # type: ignore
 
 
 __all__ = (

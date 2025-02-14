@@ -16,8 +16,8 @@ import typing as tp
 
 import torch
 
-from .item_net import ItemNetBase
-from .transformer_net_blocks import PositionalEncodingBase, TransformerLayersBase
+from ..item_net import ItemNetBase
+from .net_blocks import PositionalEncodingBase, TransformerLayersBase
 
 
 class TransformerTorchBackbone(torch.nn.Module):

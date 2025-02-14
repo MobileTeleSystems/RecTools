@@ -19,15 +19,14 @@ import numpy as np
 import torch
 from torch import nn
 
-from .constants import InitKwargs
-from .item_net import (
+from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from .transformer_base import (
+from .base import (
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLayersType,
@@ -37,13 +36,14 @@ from .transformer_base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .transformer_data_preparator import TransformerDataPreparatorBase
-from .transformer_net_blocks import (
+from .data_preparator import TransformerDataPreparatorBase
+from .net_blocks import (
     LearnableInversePositionalEncoding,
     PointWiseFeedForward,
     PositionalEncodingBase,
     TransformerLayersBase,
 )
+from .constants import InitKwargs
 
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):

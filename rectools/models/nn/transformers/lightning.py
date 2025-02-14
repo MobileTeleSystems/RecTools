@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from collections.abc import Hashable
 
 import numpy as np
 import torch
@@ -25,8 +26,7 @@ from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 from rectools.types import InternalIdsArray
 
-from .transformer_backbone import TransformerTorchBackbone
-from .transformer_data_preparator import TransformerDataPreparatorBase
+from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Lightning Base Model  --------------  #### #
 
@@ -62,7 +62,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         model_config: tp.Dict[str, tp.Any],
         dataset_schema: DatasetSchemaDict,
         item_external_ids: ExternalIds,
-        data_preparator: TransformerDataPreparatorBase,
+        item_extra_tokens: tp.Sequence[Hashable],
         lr: float,
         gbce_t: float,
         loss: str,
@@ -77,17 +77,17 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.model_config = model_config
         self.dataset_schema = dataset_schema
         self.item_external_ids = item_external_ids
+        self.item_extra_tokens = item_extra_tokens
         self.lr = lr
         self.loss = loss
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
-        self.data_preparator = data_preparator
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
         self.item_embs: torch.Tensor
 
-        self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
+        self.save_hyperparameters(ignore=["torch_model"])
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
@@ -281,7 +281,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     def _calc_gbce_loss(
         self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
     ) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - self.data_preparator.n_item_extra_tokens
+        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
         n_negatives = negatives.shape[2]
         logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
         loss = self._calc_bce_loss(logits, y, w)

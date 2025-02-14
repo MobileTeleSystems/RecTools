@@ -32,22 +32,22 @@ from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
 from .constants import InitKwargs
-from .item_net import (
+from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from .transformer_backbone import TransformerTorchBackbone
-from .transformer_data_preparator import TransformerDataPreparatorBase
-from .transformer_lightning import TransformerLightningModule, TransformerLightningModuleBase
-from .transformer_net_blocks import (
+from .data_preparator import TransformerDataPreparatorBase
+from .lightning import TransformerLightningModule, TransformerLightningModuleBase
+from .net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
+from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Transformer Model Config  --------------  #### #
 
@@ -388,8 +388,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             torch_model=torch_model,
             dataset_schema=dataset_schema,
             item_external_ids=item_external_ids,
+            item_extra_tokens=self.data_preparator.item_extra_tokens,
             model_config=model_config,
-            data_preparator=self.data_preparator,
             lr=self.lr,
             loss=self.loss,
             gbce_t=self.gbce_t,
@@ -544,7 +544,32 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     @classmethod
     def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
-        """Load model from Lightning checkpoint path."""
+        """
+        Load model from Lightning checkpoint path.
+
+        Parameters
+        ----------
+        checkpoint_path: Union[str, Path]
+            Path to checkpoint location.
+
+        Returns
+        -------
+        Model instance.
+        """
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
+
+    def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
+        """
+        Load model weights from Lightning checkpoint path.
+
+        Parameters
+        ----------
+        checkpoint_path: Union[str, Path]
+            Path to checkpoint location.
+        """
+        if self.fit_trainer is None:
+            raise RuntimeError("Model weights cannot be loaded from checkpoint into unfitted model")
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        self.lightning_model.load_state_dict(checkpoint["state_dict"])

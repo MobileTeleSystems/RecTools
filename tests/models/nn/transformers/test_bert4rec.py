@@ -25,14 +25,14 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
-from rectools.models.nn.bert4rec import BERT4RecDataPreparator
 from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-from rectools.models.nn.transformer_base import (
+from rectools.models.nn.transformers.base import (
     LearnableInversePositionalEncoding,
     PreLNTransformerLayers,
     TrainerCallable,
     TransformerLightningModule,
 )
+from rectools.models.nn.transformers.bert4rec import BERT4RecDataPreparator
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -797,15 +797,15 @@ class TestBERT4RecModelConfiguration:
                 "cls": "BERT4RecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
                 "item_net_constructor_type": "rectools.models.nn.item_net.SumOfEmbeddingsConstructor",
-                "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
-                "transformer_layers_type": "rectools.models.nn.transformer_net_blocks.PreLNTransformerLayers",
-                "data_preparator_type": "rectools.models.nn.bert4rec.BERT4RecDataPreparator",
-                "lightning_module_type": "rectools.models.nn.transformer_lightning.TransformerLightningModule",
-                "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
+                "pos_encoding_type": "rectools.models.nn.transformers.net_blocks.LearnableInversePositionalEncoding",
+                "transformer_layers_type": "rectools.models.nn.transformers.net_blocks.PreLNTransformerLayers",
+                "data_preparator_type": "rectools.models.nn.transformers.bert4rec.BERT4RecDataPreparator",
+                "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
+                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
-                expected["get_trainer_func"] = "tests.models.nn.utils.custom_trainer"
+                expected["get_trainer_func"] = "tests.models.nn.transformers.utils.custom_trainer"
 
         assert actual == expected
 

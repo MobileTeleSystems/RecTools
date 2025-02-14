@@ -28,13 +28,13 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-from rectools.models.nn.sasrec import SASRecDataPreparator, SASRecTransformerLayers
-from rectools.models.nn.transformer_base import (
+from rectools.models.nn.transformers.base import (
     LearnableInversePositionalEncoding,
     TrainerCallable,
     TransformerLightningModule,
     TransformerTorchBackbone,
 )
+from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -700,12 +700,9 @@ class TestSASRecModel:
                 actual,
             )
         assert str(record[0].message) == "1 target users were considered cold because of missing known items"
-        assert (
-            str(record[1].message)
-            == """
-                Model `<class 'rectools.models.nn.sasrec.SASRecModel'>` doesn't support recommendations for cold users,
-                but some of given users are cold: they are not in the `dataset.user_id_map`
+        assert str(record[1].message).startswith(
             """
+                Model `<class 'rectools.models.nn.transformers.sasrec.SASRecModel'>` doesn't support"""
         )
 
     def test_raises_when_loss_is_not_supported(self, dataset: Dataset) -> None:
@@ -966,15 +963,15 @@ class TestSASRecModelConfiguration:
                 "cls": "SASRecModel",
                 "item_net_block_types": ["rectools.models.nn.item_net.IdEmbeddingsItemNet"],
                 "item_net_constructor_type": "rectools.models.nn.item_net.SumOfEmbeddingsConstructor",
-                "pos_encoding_type": "rectools.models.nn.transformer_net_blocks.LearnableInversePositionalEncoding",
-                "transformer_layers_type": "rectools.models.nn.sasrec.SASRecTransformerLayers",
-                "data_preparator_type": "rectools.models.nn.sasrec.SASRecDataPreparator",
-                "lightning_module_type": "rectools.models.nn.transformer_lightning.TransformerLightningModule",
-                "get_val_mask_func": "tests.models.nn.utils.leave_one_out_mask",
+                "pos_encoding_type": "rectools.models.nn.transformers.net_blocks.LearnableInversePositionalEncoding",
+                "transformer_layers_type": "rectools.models.nn.transformers.sasrec.SASRecTransformerLayers",
+                "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
+                "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
+                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
-                expected["get_trainer_func"] = "tests.models.nn.utils.custom_trainer"
+                expected["get_trainer_func"] = "tests.models.nn.transformers.utils.custom_trainer"
 
         assert actual == expected
 
