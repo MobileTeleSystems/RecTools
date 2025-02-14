@@ -25,7 +25,6 @@ from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 from rectools.types import InternalIdsArray
 
-from .constants import InitKwargs
 from .transformer_backbone import TransformerTorchBackbone
 from .transformer_data_preparator import TransformerDataPreparatorBase
 
@@ -71,7 +70,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.torch_model = torch_model
@@ -87,7 +86,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
         self.item_embs: torch.Tensor
-        self.init_kwargs = init_kwargs
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 

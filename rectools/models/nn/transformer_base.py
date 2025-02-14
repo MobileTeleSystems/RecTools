@@ -186,7 +186,12 @@ class TransformerModelConfig(ModelConfig):
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
-    init_kwargs: tp.Optional[InitKwargs] = None
+    data_preparator_kwargs: tp.Optional[InitKwargs] = None
+    transformer_layers_kwargs: tp.Optional[InitKwargs] = None
+    item_net_block_kwargs: tp.Optional[InitKwargs] = None
+    item_net_constructor_kwargs: tp.Optional[InitKwargs] = None
+    pos_encoding_kwargs: tp.Optional[InitKwargs] = None
+    lightning_module_kwargs: tp.Optional[InitKwargs] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -208,7 +213,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
-        data_preparator_type: TransformerDataPreparatorType,
+        data_preparator_type: tp.Type[TransformerDataPreparatorBase],
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         n_blocks: int = 2,
         n_heads: int = 4,
@@ -238,7 +243,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        data_preparator_kwargs: tp.Optional[InitKwargs] = None,
+        transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_block_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
+        pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
+        lightning_module_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -271,7 +281,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_module_type = lightning_module_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
-        self.init_kwargs = init_kwargs
+        self.data_preparator_kwargs = data_preparator_kwargs
+        self.transformer_layers_kwargs = transformer_layers_kwargs
+        self.item_net_block_kwargs = item_net_block_kwargs
+        self.item_net_constructor_kwargs = item_net_constructor_kwargs
+        self.pos_encoding_kwargs = pos_encoding_kwargs
+        self.lightning_module_kwargs = lightning_module_kwargs
 
         self._init_data_preparator()
         self._init_trainer()
@@ -280,15 +295,23 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.data_preparator: TransformerDataPreparatorBase
         self.fit_trainer: tp.Optional[Trainer] = None
 
+    @staticmethod
+    def _get_kwargs(actual_kwargs: tp.Optional[InitKwargs]) -> InitKwargs:
+        kwargs = {}
+        if actual_kwargs is not None:
+            kwargs = actual_kwargs
+        return kwargs
+
     def _init_data_preparator(self) -> None:
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
+            n_negatives=self.n_negatives if self.loss != "softmax" else None,
             get_val_mask_func=self.get_val_mask_func,
-            init_kwargs=self.init_kwargs,
+            shuffle_train=True,
+            **self._get_kwargs(self.data_preparator_kwargs),
         )
 
     def _init_trainer(self) -> None:
@@ -312,7 +335,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self.n_factors,
             self.dropout_rate,
             self.item_net_block_types,
-            init_kwargs=self.init_kwargs,
+            **self._get_kwargs(self.item_net_constructor_kwargs),
         )
 
     def _construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetBase:
@@ -321,7 +344,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self.n_factors,
             self.dropout_rate,
             self.item_net_block_types,
-            init_kwargs=self.init_kwargs,
+            **self._get_kwargs(self.item_net_constructor_kwargs),
         )
 
     def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
@@ -329,7 +352,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self.use_pos_emb,
             self.session_max_len,
             self.n_factors,
-            init_kwargs=self.init_kwargs,
+            **self._get_kwargs(self.pos_encoding_kwargs),
         )
 
     def _init_transformer_layers(self) -> TransformerLayersBase:
@@ -338,7 +361,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_factors=self.n_factors,
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
-            init_kwargs=self.init_kwargs,
+            **self._get_kwargs(self.transformer_layers_kwargs),
         )
 
     def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
@@ -352,7 +375,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             transformer_layers=transformer_layers,
             use_causal_attn=self.use_causal_attn,
             use_key_padding_mask=self.use_key_padding_mask,
-            init_kwargs=self.init_kwargs,
         )
 
     def _init_lightning_model(
@@ -374,7 +396,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             verbose=self.verbose,
             train_loss_name=self.train_loss_name,
             val_loss_name=self.val_loss_name,
-            init_kwargs=self.init_kwargs,
+            adam_betas=(0.9, 0.98),
+            **self._get_kwargs(self.lightning_module_kwargs),
         )
 
     def _fit(

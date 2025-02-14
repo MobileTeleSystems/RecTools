@@ -22,8 +22,6 @@ from torch import nn
 from rectools.dataset.dataset import Dataset, DatasetSchema
 from rectools.dataset.features import SparseFeatures
 
-from .constants import InitKwargs
-
 
 class ItemNetBase(nn.Module):
     """Base class for item net."""
@@ -76,7 +74,7 @@ class CatFeaturesItemNet(ItemNetBase):
         n_cat_feature_values: int,
         n_factors: int,
         dropout_rate: float,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ):
         super().__init__()
 
@@ -87,8 +85,6 @@ class CatFeaturesItemNet(ItemNetBase):
         self.register_buffer("offsets", offsets)
         self.register_buffer("emb_bag_inputs", emb_bag_inputs)
         self.register_buffer("input_lengths", input_lengths)
-
-        self.init_kwargs = init_kwargs
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -126,7 +122,7 @@ class CatFeaturesItemNet(ItemNetBase):
         dataset: Dataset,
         n_factors: int,
         dropout_rate: float,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ) -> tp.Optional[tpe.Self]:
         """
         Create CatFeaturesItemNet from RecTools dataset.
@@ -176,7 +172,6 @@ class CatFeaturesItemNet(ItemNetBase):
             n_cat_feature_values=n_cat_feature_values,
             n_factors=n_factors,
             dropout_rate=dropout_rate,
-            init_kwargs=init_kwargs,
         )
 
     @classmethod
@@ -185,7 +180,7 @@ class CatFeaturesItemNet(ItemNetBase):
         dataset_schema: DatasetSchema,
         n_factors: int,
         dropout_rate: float,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ) -> tp.Optional[tpe.Self]:
         """Construct CatFeaturesItemNet from Dataset schema."""
         if dataset_schema.items.features is None:
@@ -221,7 +216,6 @@ class CatFeaturesItemNet(ItemNetBase):
             n_cat_feature_values=n_cat_feature_values,
             n_factors=n_factors,
             dropout_rate=dropout_rate,
-            init_kwargs=init_kwargs,
         )
 
 
@@ -239,7 +233,13 @@ class IdEmbeddingsItemNet(ItemNetBase):
         Probability of a hidden unit to be zeroed.
     """
 
-    def __init__(self, n_factors: int, n_items: int, dropout_rate: float, init_kwargs: tp.Optional[InitKwargs] = None):
+    def __init__(
+        self,
+        n_factors: int,
+        n_items: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
+    ):
         super().__init__()
 
         self.n_items = n_items
@@ -249,7 +249,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             padding_idx=0,
         )
         self.drop_layer = nn.Dropout(dropout_rate)
-        self.init_kwargs = init_kwargs
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -271,7 +270,11 @@ class IdEmbeddingsItemNet(ItemNetBase):
 
     @classmethod
     def from_dataset(
-        cls, dataset: Dataset, n_factors: int, dropout_rate: float, init_kwargs: tp.Optional[InitKwargs] = None
+        cls,
+        dataset: Dataset,
+        n_factors: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
     ) -> tpe.Self:
         """
         Create IdEmbeddingsItemNet from RecTools dataset.
@@ -286,7 +289,7 @@ class IdEmbeddingsItemNet(ItemNetBase):
             Probability of a hidden unit of item embedding to be zeroed.
         """
         n_items = dataset.item_id_map.size
-        return cls(n_factors, n_items, dropout_rate, init_kwargs)
+        return cls(n_factors, n_items, dropout_rate)
 
     @classmethod
     def from_dataset_schema(
@@ -294,11 +297,11 @@ class IdEmbeddingsItemNet(ItemNetBase):
         dataset_schema: DatasetSchema,
         n_factors: int,
         dropout_rate: float,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
         n_items = dataset_schema.items.n_hot
-        return cls(n_factors, n_items, dropout_rate, init_kwargs)
+        return cls(n_factors, n_items, dropout_rate)
 
 
 class ItemNetConstructorBase(ItemNetBase):
@@ -314,7 +317,10 @@ class ItemNetConstructorBase(ItemNetBase):
     """
 
     def __init__(
-        self, n_items: int, item_net_blocks: tp.Sequence[ItemNetBase], init_kwargs: tp.Optional[InitKwargs] = None
+        self,
+        n_items: int,
+        item_net_blocks: tp.Sequence[ItemNetBase],
+        **kwargs: tp.Any,
     ) -> None:
         super().__init__()
 
@@ -324,7 +330,6 @@ class ItemNetConstructorBase(ItemNetBase):
         self.n_items = n_items
         self.n_item_blocks = len(item_net_blocks)
         self.item_net_blocks = nn.ModuleList(item_net_blocks)
-        self.init_kwargs = init_kwargs
 
     @property
     def catalog(self) -> torch.Tensor:
@@ -342,7 +347,7 @@ class ItemNetConstructorBase(ItemNetBase):
         n_factors: int,
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ) -> tpe.Self:
         """
         Construct ItemNet from RecTools dataset and from various blocks of item networks.
@@ -362,11 +367,11 @@ class ItemNetConstructorBase(ItemNetBase):
 
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
-            item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate, init_kwargs)
+            item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate, **kwargs)
             if item_net_block is not None:
                 item_net_blocks.append(item_net_block)
 
-        return cls(n_items, item_net_blocks, init_kwargs)
+        return cls(n_items, item_net_blocks)
 
     @classmethod
     def from_dataset_schema(
@@ -375,18 +380,18 @@ class ItemNetConstructorBase(ItemNetBase):
         n_factors: int,
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
         n_items = dataset_schema.items.n_hot
 
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
-            item_net_block = item_net.from_dataset_schema(dataset_schema, n_factors, dropout_rate)
+            item_net_block = item_net.from_dataset_schema(dataset_schema, n_factors, dropout_rate, **kwargs)
             if item_net_block is not None:
                 item_net_blocks.append(item_net_block)
 
-        return cls(n_items, item_net_blocks, init_kwargs)
+        return cls(n_items, item_net_blocks)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """Forward pass through item net blocks and aggregation of the results.

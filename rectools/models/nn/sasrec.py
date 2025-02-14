@@ -132,7 +132,6 @@ class SASRecTransformerLayer(nn.Module):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
-        init_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__()
         # important: original architecture had another version of MHA
@@ -141,7 +140,6 @@ class SASRecTransformerLayer(nn.Module):
         self.ff_layer_norm = nn.LayerNorm(n_factors)
         self.feed_forward = PointWiseFeedForward(n_factors, n_factors, dropout_rate, torch.nn.ReLU())
         self.dropout = torch.nn.Dropout(dropout_rate)
-        self.init_kwargs = init_kwargs
 
     def forward(
         self,
@@ -201,7 +199,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
@@ -216,7 +214,6 @@ class SASRecTransformerLayers(TransformerLayersBase):
             ]
         )
         self.last_layernorm = torch.nn.LayerNorm(n_factors, eps=1e-8)
-        self.init_kwargs = init_kwargs
 
     def forward(
         self,
@@ -403,7 +400,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         recommend_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
-        init_kwargs: tp.Optional[InitKwargs] = None,
+        data_preparator_kwargs: tp.Optional[InitKwargs] = None,
+        transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_block_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
+        pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
+        lightning_module_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -436,5 +438,10 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
-            init_kwargs=init_kwargs,
+            data_preparator_kwargs=data_preparator_kwargs,
+            transformer_layers_kwargs=transformer_layers_kwargs,
+            item_net_block_kwargs=item_net_block_kwargs,
+            item_net_constructor_kwargs=item_net_constructor_kwargs,
+            pos_encoding_kwargs=pos_encoding_kwargs,
+            lightning_module_kwargs=lightning_module_kwargs,
         )
