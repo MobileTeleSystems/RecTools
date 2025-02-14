@@ -31,7 +31,6 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase,
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
-from .constants import InitKwargs
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -39,6 +38,7 @@ from ..item_net import (
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
+from .constants import InitKwargs
 from .data_preparator import TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
 from .net_blocks import (
@@ -188,7 +188,6 @@ class TransformerModelConfig(ModelConfig):
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
     transformer_layers_kwargs: tp.Optional[InitKwargs] = None
-    item_net_block_kwargs: tp.Optional[InitKwargs] = None
     item_net_constructor_kwargs: tp.Optional[InitKwargs] = None
     pos_encoding_kwargs: tp.Optional[InitKwargs] = None
     lightning_module_kwargs: tp.Optional[InitKwargs] = None
@@ -245,7 +244,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
         transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
-        item_net_block_kwargs: tp.Optional[InitKwargs] = None,
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
@@ -283,7 +281,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.get_trainer_func = get_trainer_func
         self.data_preparator_kwargs = data_preparator_kwargs
         self.transformer_layers_kwargs = transformer_layers_kwargs
-        self.item_net_block_kwargs = item_net_block_kwargs
         self.item_net_constructor_kwargs = item_net_constructor_kwargs
         self.pos_encoding_kwargs = pos_encoding_kwargs
         self.lightning_module_kwargs = lightning_module_kwargs

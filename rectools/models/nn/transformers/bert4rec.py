@@ -19,7 +19,6 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
-from .constants import MASKING_VALUE, PADDING_VALUE, InitKwargs
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -36,7 +35,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .constants import MASKING_VALUE, PADDING_VALUE
+from .constants import MASKING_VALUE, PADDING_VALUE, InitKwargs
 from .data_preparator import TransformerDataPreparatorBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -279,6 +278,21 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         set to ``True`` (default).
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
+    data_preparator_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `data_preparator_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    transformer_layers_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `transformer_layers_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    item_net_constructor_kwargs optional(dict), default ``None``
+        Additional keyword arguments to pass during `item_net_constructor_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    pos_encoding_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `pos_encoding_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    lightning_module_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `lightning_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
     """
 
     config_class = BERT4RecModelConfig

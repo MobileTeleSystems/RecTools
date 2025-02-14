@@ -16,5 +16,4 @@ import typing as tp
 PADDING_VALUE = "PAD"
 MASKING_VALUE = "MASK"
 
-SimpleHashable = tp.Union[str, bool, int, float]
-InitKwargs = tp.Dict[str, tp.Optional[tp.Union[SimpleHashable, tp.Tuple[SimpleHashable]]]]
+InitKwargs = tp.Dict[str, tp.Any]

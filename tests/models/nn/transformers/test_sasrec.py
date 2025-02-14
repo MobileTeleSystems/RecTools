@@ -925,7 +925,6 @@ class TestSASRecModelConfiguration:
             "get_trainer_func": None,
             "data_preparator_kwargs": None,
             "transformer_layers_kwargs": None,
-            "item_net_block_kwargs": None,
             "item_net_constructor_kwargs": None,
             "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
