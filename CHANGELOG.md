@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `SASRecModel` and `BERT4RecModel` - models based on transformer architecture ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
-- Transfomers extended theory & practice tuotorial ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
+- Transfomers extended theory & practice tutorial ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
 - Transfomers advanced training guide ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
 - `use_gpu` for PureSVD ([#229](https://github.com/MobileTeleSystems/RecTools/pull/229))
 - `from_params` method for models and `model_from_params` function ([#252](https://github.com/MobileTeleSystems/RecTools/pull/252))
