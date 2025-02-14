@@ -105,6 +105,7 @@ class TransformerDataPreparatorBase:
     get_val_mask_func : Callable, default None
         Function to get validation mask.
     """
+
     # We sometimes need data preparators to add +1 to actual session_max_len
     # e.g. required by "Shifted Sequence" training objective (as in SASRecModel)
     train_session_max_len_addition: int = 0
