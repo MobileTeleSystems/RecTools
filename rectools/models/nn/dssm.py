@@ -46,9 +46,9 @@ from rectools.dataset.torch_datasets import (
 from rectools.exceptions import NotFittedError
 from rectools.types import InternalIdsArray
 
-from .base import InternalRecoTriplet
-from .rank import Distance
-from .vector import Factors, VectorModel
+from ..base import InternalRecoTriplet
+from ..rank import Distance
+from ..vector import Factors, VectorModel
 
 
 class ItemNet(nn.Module):
