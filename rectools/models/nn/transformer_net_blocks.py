@@ -195,6 +195,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
         n_heads: int,
         dropout_rate: float,
         ff_factors_multiplier: int = 4,
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
@@ -264,7 +265,13 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         Latent embeddings size.
     """
 
-    def __init__(self, use_pos_emb: bool, session_max_len: int, n_factors: int):
+    def __init__(
+        self,
+        use_pos_emb: bool,
+        session_max_len: int,
+        n_factors: int,
+        **kwargs: tp.Any,
+    ):
         super().__init__()
         self.pos_emb = torch.nn.Embedding(session_max_len, n_factors) if use_pos_emb else None
 

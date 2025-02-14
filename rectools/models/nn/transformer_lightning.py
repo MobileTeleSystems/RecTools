@@ -70,6 +70,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.torch_model = torch_model

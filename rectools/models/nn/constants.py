@@ -11,6 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import typing as tp
 
 PADDING_VALUE = "PAD"
 MASKING_VALUE = "MASK"
+
+SimpleHashable = tp.Union[str, bool, int, float]
+InitKwargs = tp.Dict[str, tp.Optional[tp.Union[SimpleHashable, tp.Tuple[SimpleHashable]]]]

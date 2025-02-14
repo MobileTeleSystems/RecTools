@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
-from .constants import MASKING_VALUE, PADDING_VALUE
+from .constants import MASKING_VALUE, PADDING_VALUE, InitKwargs
 from .item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -49,7 +49,6 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
     """Data Preparator for BERT4RecModel."""
 
     train_session_max_len_addition: int = 0
-
     item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE, MASKING_VALUE)
 
     def __init__(
@@ -59,9 +58,10 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int,
-        mask_prob: float,
+        mask_prob: float = 0.15,
         shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        **kwargs: tp.Any,
     ) -> None:
         super().__init__(
             session_max_len=session_max_len,
@@ -315,6 +315,12 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         recommend_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
+        data_preparator_kwargs: tp.Optional[InitKwargs] = None,
+        transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_block_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
+        pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
+        lightning_module_kwargs: tp.Optional[InitKwargs] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -349,6 +355,12 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            data_preparator_kwargs=data_preparator_kwargs,
+            transformer_layers_kwargs=transformer_layers_kwargs,
+            item_net_block_kwargs=item_net_block_kwargs,
+            item_net_constructor_kwargs=item_net_constructor_kwargs,
+            pos_encoding_kwargs=pos_encoding_kwargs,
+            lightning_module_kwargs=lightning_module_kwargs,
         )
 
     def _init_data_preparator(self) -> None:
@@ -360,4 +372,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
+            shuffle_train=True,
+            **self._get_kwargs(self.data_preparator_kwargs),
         )

@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from .constants import InitKwargs
 from .item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -198,6 +199,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
@@ -398,6 +400,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         recommend_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
+        data_preparator_kwargs: tp.Optional[InitKwargs] = None,
+        transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_block_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
+        pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
+        lightning_module_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -430,4 +438,10 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            data_preparator_kwargs=data_preparator_kwargs,
+            transformer_layers_kwargs=transformer_layers_kwargs,
+            item_net_block_kwargs=item_net_block_kwargs,
+            item_net_constructor_kwargs=item_net_constructor_kwargs,
+            pos_encoding_kwargs=pos_encoding_kwargs,
+            lightning_module_kwargs=lightning_module_kwargs,
         )

@@ -74,6 +74,7 @@ class CatFeaturesItemNet(ItemNetBase):
         n_cat_feature_values: int,
         n_factors: int,
         dropout_rate: float,
+        **kwargs: tp.Any,
     ):
         super().__init__()
 
@@ -116,7 +117,13 @@ class CatFeaturesItemNet(ItemNetBase):
         return item_emb_bag_inputs, item_offsets
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tp.Optional[tpe.Self]:
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        n_factors: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
+    ) -> tp.Optional[tpe.Self]:
         """
         Create CatFeaturesItemNet from RecTools dataset.
 
@@ -169,7 +176,11 @@ class CatFeaturesItemNet(ItemNetBase):
 
     @classmethod
     def from_dataset_schema(
-        cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float
+        cls,
+        dataset_schema: DatasetSchema,
+        n_factors: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
     ) -> tp.Optional[tpe.Self]:
         """Construct CatFeaturesItemNet from Dataset schema."""
         if dataset_schema.items.features is None:
@@ -222,7 +233,13 @@ class IdEmbeddingsItemNet(ItemNetBase):
         Probability of a hidden unit to be zeroed.
     """
 
-    def __init__(self, n_factors: int, n_items: int, dropout_rate: float):
+    def __init__(
+        self,
+        n_factors: int,
+        n_items: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
+    ):
         super().__init__()
 
         self.n_items = n_items
@@ -252,7 +269,13 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return item_embs
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, n_factors: int, dropout_rate: float) -> tpe.Self:
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        n_factors: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
+    ) -> tpe.Self:
         """
         Create IdEmbeddingsItemNet from RecTools dataset.
 
@@ -269,7 +292,13 @@ class IdEmbeddingsItemNet(ItemNetBase):
         return cls(n_factors, n_items, dropout_rate)
 
     @classmethod
-    def from_dataset_schema(cls, dataset_schema: DatasetSchema, n_factors: int, dropout_rate: float) -> tpe.Self:
+    def from_dataset_schema(
+        cls,
+        dataset_schema: DatasetSchema,
+        n_factors: int,
+        dropout_rate: float,
+        **kwargs: tp.Any,
+    ) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
         n_items = dataset_schema.items.n_hot
         return cls(n_factors, n_items, dropout_rate)
@@ -291,6 +320,7 @@ class ItemNetConstructorBase(ItemNetBase):
         self,
         n_items: int,
         item_net_blocks: tp.Sequence[ItemNetBase],
+        **kwargs: tp.Any,
     ) -> None:
         super().__init__()
 
@@ -317,6 +347,7 @@ class ItemNetConstructorBase(ItemNetBase):
         n_factors: int,
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+        **kwargs: tp.Any,
     ) -> tpe.Self:
         """
         Construct ItemNet from RecTools dataset and from various blocks of item networks.
@@ -336,7 +367,7 @@ class ItemNetConstructorBase(ItemNetBase):
 
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
-            item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate)
+            item_net_block = item_net.from_dataset(dataset, n_factors, dropout_rate, **kwargs)
             if item_net_block is not None:
                 item_net_blocks.append(item_net_block)
 
@@ -349,13 +380,14 @@ class ItemNetConstructorBase(ItemNetBase):
         n_factors: int,
         dropout_rate: float,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
+        **kwargs: tp.Any,
     ) -> tpe.Self:
         """Construct ItemNet from Dataset schema."""
         n_items = dataset_schema.items.n_hot
 
         item_net_blocks: tp.List[ItemNetBase] = []
         for item_net in item_net_block_types:
-            item_net_block = item_net.from_dataset_schema(dataset_schema, n_factors, dropout_rate)
+            item_net_block = item_net.from_dataset_schema(dataset_schema, n_factors, dropout_rate, **kwargs)
             if item_net_block is not None:
                 item_net_blocks.append(item_net_block)
 
