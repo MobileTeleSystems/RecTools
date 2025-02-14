@@ -27,10 +27,10 @@ from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
-from rectools.models.nn.transformer_base import TransformerModelBase
+from rectools.models.nn.transformers.base import TransformerModelBase
+from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from ..data import INTERACTIONS
 from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
 
 

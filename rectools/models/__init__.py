@@ -55,9 +55,9 @@ except ImportError:  # pragma: no cover
     from ..compat import LightFMWrapperModel  # type: ignore
 
 try:
-    from .dssm import DSSMModel
-    from .nn.bert4rec import BERT4RecModel
-    from .nn.sasrec import SASRecModel
+    from .nn.dssm import DSSMModel
+    from .nn.transformers.bert4rec import BERT4RecModel
+    from .nn.transformers.sasrec import SASRecModel
 except ImportError:  # pragma: no cover
     from ..compat import BERT4RecModel, DSSMModel, SASRecModel  # type: ignore
 

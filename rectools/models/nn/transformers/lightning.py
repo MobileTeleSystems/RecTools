@@ -26,7 +26,7 @@ from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 from rectools.types import InternalIdsArray
 
-from .transformer_backbone import TransformerTorchBackbone
+from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Lightning Base Model  --------------  #### #
 

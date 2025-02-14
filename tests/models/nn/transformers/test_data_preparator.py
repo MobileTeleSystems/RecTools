@@ -21,7 +21,7 @@ import pytest
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import DenseFeatures
-from rectools.models.nn.transformer_data_preparator import SequenceDataset, TransformerDataPreparatorBase
+from rectools.models.nn.transformers.data_preparator import SequenceDataset, TransformerDataPreparatorBase
 from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
 
 

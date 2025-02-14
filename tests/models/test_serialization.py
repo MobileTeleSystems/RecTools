@@ -43,7 +43,7 @@ from rectools.models import (
     serialization,
 )
 from rectools.models.base import ModelBase, ModelConfig
-from rectools.models.nn.transformer_base import TransformerModelBase
+from rectools.models.nn.transformers.base import TransformerModelBase
 from rectools.models.vector import VectorModel
 from rectools.utils.config import BaseConfig
 

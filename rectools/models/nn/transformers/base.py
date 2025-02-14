@@ -31,22 +31,22 @@ from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase,
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
-from .item_net import (
+from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
     ItemNetBase,
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from .transformer_backbone import TransformerTorchBackbone
-from .transformer_data_preparator import TransformerDataPreparatorBase
-from .transformer_lightning import TransformerLightningModule, TransformerLightningModuleBase
-from .transformer_net_blocks import (
+from .data_preparator import TransformerDataPreparatorBase
+from .lightning import TransformerLightningModule, TransformerLightningModuleBase
+from .net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
+from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Transformer Model Config  --------------  #### #
 
