@@ -31,7 +31,7 @@ from rectools.models.nn.transformer_base import TransformerModelBase
 from tests.models.utils import assert_save_load_do_not_change_model
 
 from ..data import INTERACTIONS
-from .utils import custom_trainer, custom_trainer_ckpt, leave_one_out_mask
+from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
 
 
 class TestTransformerModelBase:
@@ -208,6 +208,61 @@ class TestTransformerModelBase:
         with pytest.raises(RuntimeError):
             with NamedTemporaryFile() as f:
                 recovered_model.save(f.name)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_load_weights_from_checkpoint(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+    ) -> None:
+
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_multiple_ckpt,
+            }
+        )
+        model.fit(dataset)
+        assert model.fit_trainer is not None
+        if model.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "epoch=1.ckpt")
+        assert os.path.isfile(ckpt_path)
+
+        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
+        model.load_weights_from_checkpoint(ckpt_path)
+
+        self._assert_same_reco(model, recovered_model, dataset)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_load_weights_from_checkpoint_not_fitted_model(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+    ) -> None:
+        model = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_ckpt,
+            }
+        )
+        model.fit(dataset)
+        assert model.fit_trainer is not None
+        if model.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
+
+        model_unfitted = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_ckpt,
+            }
+        )
+        with pytest.raises(RuntimeError):
+            model_unfitted.load_weights_from_checkpoint(ckpt_path)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize("verbose", (1, 0))
