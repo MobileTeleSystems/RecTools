@@ -26,6 +26,7 @@ from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 from rectools.types import InternalIdsArray
 
+from .data_preparator import TransformerDataPreparatorBase
 from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Lightning Base Model  --------------  #### #
@@ -63,6 +64,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         dataset_schema: DatasetSchemaDict,
         item_external_ids: ExternalIds,
         item_extra_tokens: tp.Sequence[Hashable],
+        data_preparator: TransformerDataPreparatorBase,
         lr: float,
         gbce_t: float,
         loss: str,
@@ -78,6 +80,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.dataset_schema = dataset_schema
         self.item_external_ids = item_external_ids
         self.item_extra_tokens = item_extra_tokens
+        self.data_preparator = data_preparator
         self.lr = lr
         self.loss = loss
         self.adam_betas = adam_betas
@@ -87,7 +90,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.val_loss_name = val_loss_name
         self.item_embs: torch.Tensor
 
-        self.save_hyperparameters(ignore=["torch_model"])
+        self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""

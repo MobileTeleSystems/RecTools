@@ -386,6 +386,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             dataset_schema=dataset_schema,
             item_external_ids=item_external_ids,
             item_extra_tokens=self.data_preparator.item_extra_tokens,
+            data_preparator=self.data_preparator,
             model_config=model_config,
             lr=self.lr,
             loss=self.loss,
