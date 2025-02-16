@@ -32,7 +32,7 @@ from rectools.models.nn.transformers.base import (
     TrainerCallable,
     TransformerLightningModule,
 )
-from rectools.models.nn.transformers.bert4rec import BERT4RecDataPreparator
+from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -535,6 +535,95 @@ class TestBERT4RecModel:
             actual,
         )
 
+    def test_customized_happy_path(self, dataset_devices: Dataset, get_trainer_func: TrainerCallable) -> None:
+        class NextActionDataPreparator(BERT4RecDataPreparator):
+            def __init__(
+                self,
+                session_max_len: int,
+                n_negatives: tp.Optional[int],
+                batch_size: int,
+                dataloader_num_workers: int,
+                train_min_user_interactions: int,
+                mask_prob: float = 0.15,
+                shuffle_train: bool = True,
+                get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+                n_last_targets: int = 1,  # custom kwarg
+            ) -> None:
+                super().__init__(
+                    session_max_len=session_max_len,
+                    n_negatives=n_negatives,
+                    batch_size=batch_size,
+                    dataloader_num_workers=dataloader_num_workers,
+                    train_min_user_interactions=train_min_user_interactions,
+                    shuffle_train=shuffle_train,
+                    get_val_mask_func=get_val_mask_func,
+                    mask_prob=mask_prob,
+                )
+                self.n_last_targets = n_last_targets
+
+            def _collate_fn_train(
+                self,
+                batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+            ) -> tp.Dict[str, torch.Tensor]:
+                batch_size = len(batch)
+                x = np.zeros((batch_size, self.session_max_len))
+                y = np.zeros((batch_size, self.session_max_len))
+                yw = np.zeros((batch_size, self.session_max_len))
+                for i, (ses, ses_weights) in enumerate(batch):
+                    y[i, -self.n_last_targets] = ses[-self.n_last_targets]
+                    yw[i, -self.n_last_targets] = ses_weights[-self.n_last_targets]
+                    x[i, -len(ses) :] = ses
+                    x[i, -self.n_last_targets] = self.extra_token_ids[MASKING_VALUE]  # Replace last tokens with "MASK"
+                batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+                if self.n_negatives is not None:
+                    negatives = torch.randint(
+                        low=self.n_item_extra_tokens,
+                        high=self.item_id_map.size,
+                        size=(batch_size, self.session_max_len, self.n_negatives),
+                    )
+                    batch_dict["negatives"] = negatives
+                return batch_dict
+
+        model = BERT4RecModel(
+            n_factors=32,
+            n_blocks=2,
+            n_heads=1,
+            session_max_len=4,
+            lr=0.001,
+            batch_size=4,
+            epochs=2,
+            deterministic=True,
+            item_net_block_types=(IdEmbeddingsItemNet,),
+            get_trainer_func=get_trainer_func,
+            data_preparator_type=NextActionDataPreparator,
+            data_preparator_kwargs={"n_last_targets": 1},
+        )
+        model.fit(dataset=dataset_devices)
+
+        assert model.data_preparator.n_last_targets == 1  # type: ignore
+
+        users = np.array([10, 30, 40])
+        items_to_recommend = np.array([11, 13, 17])
+        actual = model.recommend(
+            users=users,
+            dataset=dataset_devices,
+            k=3,
+            filter_viewed=False,
+            items_to_recommend=items_to_recommend,
+        )
+        expected = pd.DataFrame(
+            {
+                Columns.User: [10, 10, 30, 30, 40, 40],
+                Columns.Item: [13, 11, 13, 11, 13, 11],
+                Columns.Rank: [1, 2, 1, 2, 1, 2],
+            }
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
 
 class TestBERT4RecDataPreparator:
 
@@ -757,6 +846,11 @@ class TestBERT4RecModelConfiguration:
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
+            "data_preparator_kwargs": None,
+            "transformer_layers_kwargs": None,
+            "item_net_constructor_kwargs": None,
+            "pos_encoding_kwargs": None,
+            "lightning_module_kwargs": None,
         }
         return config
 

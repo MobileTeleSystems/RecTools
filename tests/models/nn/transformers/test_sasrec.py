@@ -923,6 +923,11 @@ class TestSASRecModelConfiguration:
             "lightning_module_type": TransformerLightningModule,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
+            "data_preparator_kwargs": None,
+            "transformer_layers_kwargs": None,
+            "item_net_constructor_kwargs": None,
+            "pos_encoding_kwargs": None,
+            "lightning_module_kwargs": None,
         }
         return config
 
