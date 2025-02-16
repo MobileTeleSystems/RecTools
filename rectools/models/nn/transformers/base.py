@@ -451,9 +451,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             k=k,
             filter_viewed=filter_viewed,
             dataset=dataset,
-            recommend_n_threads=self.recommend_n_threads,
-            recommend_use_torch_ranking=self.recommend_use_torch_ranking,
-            recommend_device=self.recommend_device,
+            n_threads=self.recommend_n_threads,
+            use_torch_ranking=self.recommend_use_torch_ranking,
+            device=self.recommend_device,
         )
 
     def _recommend_i2i(
@@ -470,9 +470,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             target_ids=target_ids,
             sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             k=k,
-            recommend_n_threads=self.recommend_n_threads,
-            recommend_use_torch_ranking=self.recommend_use_torch_ranking,
-            recommend_device=self.recommend_device,
+            n_threads=self.recommend_n_threads,
+            use_torch_ranking=self.recommend_use_torch_ranking,
+            device=self.recommend_device,
         )
 
     @property
@@ -522,7 +522,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def __getstate__(self) -> object:
         if self.is_fitted:
             if self.fit_trainer is None:
-                raise RuntimeError("Model that was loaded from checkpoint cannot be saved without being fitted again")
+                explanation = """
+                Model is fitted but has no `fit_trainer`. Most likely it was just loaded from the
+                checkpoint. Model that was loaded from checkpoint cannot be saved without being
+                fitted again.
+                """
+                raise RuntimeError(explanation)
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()

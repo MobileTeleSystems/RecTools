@@ -74,16 +74,21 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         )
         self.mask_prob = mask_prob
 
-    def _mask_session(self, ses: List[int]) -> Tuple[List[int], List[int]]:
+    def _mask_session(
+        self,
+        ses: List[int],
+        first_border: float = 0.8,
+        second_border: float = 0.9,
+    ) -> Tuple[List[int], List[int]]:
         masked_session = ses.copy()
         target = ses.copy()
         random_probs = np.random.rand(len(ses))
         for j in range(len(ses)):
             if random_probs[j] < self.mask_prob:
                 random_probs[j] /= self.mask_prob
-                if random_probs[j] < 0.8:
+                if random_probs[j] < first_border:
                     masked_session[j] = self.extra_token_ids[MASKING_VALUE]
-                elif random_probs[j] < 0.9:
+                elif random_probs[j] < second_border:
                     masked_session[j] = np.random.randint(low=self.n_item_extra_tokens, high=self.item_id_map.size)
             else:
                 target[j] = 0

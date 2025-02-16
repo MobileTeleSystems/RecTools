@@ -126,15 +126,15 @@ class TestCatFeaturesItemNet:
         items = torch.from_numpy(
             dataset_item_features.item_id_map.convert_to_internal(INTERACTIONS[Columns.Item].unique())
         )[:-1]
-        cat_item_embeddings = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
+        cat_item_net = CatFeaturesItemNet.from_dataset(dataset_item_features, n_factors=5, dropout_rate=0.5)
 
-        assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
+        assert isinstance(cat_item_net, CatFeaturesItemNet)
 
-        actual_item_emb_bag_inputs, actual_item_offsets = cat_item_embeddings._get_item_inputs_offsets(items)
+        actual_inputs, actual_offsets = cat_item_net._get_item_inputs_offsets(items)  # pylint: disable=protected-access
         expected_item_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2])
         expected_item_offsets = torch.tensor([0, 0, 2, 4, 6])
-        assert torch.equal(actual_item_emb_bag_inputs, expected_item_emb_bag_inputs)
-        assert torch.equal(actual_item_offsets, expected_item_offsets)
+        assert torch.equal(actual_inputs, expected_item_emb_bag_inputs)
+        assert torch.equal(actual_offsets, expected_item_offsets)
 
     @pytest.mark.parametrize("n_factors", (10, 100))
     def test_create_from_dataset(self, n_factors: int, dataset_item_features: Dataset) -> None:

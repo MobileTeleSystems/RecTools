@@ -113,9 +113,9 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         k: int,
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         filter_viewed: bool,
-        recommend_use_torch_ranking: bool,
-        recommend_n_threads: int,
-        recommend_device: tp.Optional[str],
+        use_torch_ranking: bool,
+        n_threads: int,
+        device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
@@ -127,9 +127,9 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         target_ids: InternalIdsArray,
         sorted_item_ids_to_recommend: InternalIdsArray,
         k: int,
-        recommend_use_torch_ranking: bool,
-        recommend_n_threads: int,
-        recommend_device: tp.Optional[str],
+        use_torch_ranking: bool,
+        n_threads: int,
+        device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
@@ -243,9 +243,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         epsilon = 1e-10
         pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
         pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(dtype).max)
-        pos_probs_adjusted = torch.clamp(
-            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(dtype).max
-        )
+        pos_probs_adjusted = torch.clamp(torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(dtype).max)
         pos_logits_transformed = torch.log(pos_probs_adjusted)
         logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
         return logits
@@ -333,19 +331,19 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         k: int,
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         filter_viewed: bool,
-        recommend_use_torch_ranking: bool,
-        recommend_n_threads: int,
-        recommend_device: tp.Optional[str],
+        use_torch_ranking: bool,
+        n_threads: int,
+        device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to users."""
         ui_csr_for_filter = None
         if filter_viewed:
             ui_csr_for_filter = dataset.get_user_item_matrix(include_weights=False, include_warm_items=True)[user_ids]
 
-        user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, recommend_device)
+        user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, device)
 
         ranker: Ranker
-        if recommend_use_torch_ranking:
+        if use_torch_ranking:
             ranker = TorchRanker(
                 distance=Distance.DOT,
                 device=item_embs.device,
@@ -361,7 +359,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
                 Distance.DOT,
                 user_embs_np[user_ids],  # [n_rec_users, n_factors]
                 item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-                num_threads=recommend_n_threads,
+                num_threads=n_threads,
                 use_gpu=False,
             )
 
@@ -379,17 +377,17 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         target_ids: InternalIdsArray,
         sorted_item_ids_to_recommend: InternalIdsArray,
         k: int,
-        recommend_use_torch_ranking: bool,
-        recommend_n_threads: int,
-        recommend_device: tp.Optional[str],
+        use_torch_ranking: bool,
+        n_threads: int,
+        device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to items."""
-        self._prepare_for_inference(recommend_device)
+        self._prepare_for_inference(device)
         with torch.no_grad():
             item_embs = self.torch_model.item_model.get_all_embeddings()
 
         ranker: Ranker
-        if recommend_use_torch_ranking:
+        if use_torch_ranking:
             ranker = TorchRanker(
                 distance=self.i2i_dist, device=item_embs.device, subjects_factors=item_embs, objects_factors=item_embs
             )
@@ -400,7 +398,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
                 self.i2i_dist,
                 item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
                 item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-                num_threads=recommend_n_threads,
+                num_threads=n_threads,
                 use_gpu=False,
             )
 
