@@ -232,17 +232,19 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
         # https://arxiv.org/pdf/2308.07192.pdf
+
+        dtype = torch.float64  # for consistency with the original implementation
         alpha = n_negatives / (n_items - 1)  # sampling rate
         beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
 
-        pos_logits = logits[:, :, 0:1].to(torch.float64)
-        neg_logits = logits[:, :, 1:].to(torch.float64)
+        pos_logits = logits[:, :, 0:1].to(dtype)
+        neg_logits = logits[:, :, 1:].to(dtype)
 
         epsilon = 1e-10
         pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
-        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(torch.float64).max)
+        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(dtype).max)
         pos_probs_adjusted = torch.clamp(
-            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(torch.float64).max
+            torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(dtype).max
         )
         pos_logits_transformed = torch.log(pos_probs_adjusted)
         logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
