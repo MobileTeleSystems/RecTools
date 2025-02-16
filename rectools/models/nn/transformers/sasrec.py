@@ -36,6 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
+from .constants import InitKwargs
 from .data_preparator import TransformerDataPreparatorBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -198,6 +199,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
+        **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
@@ -362,6 +364,21 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         set to ``True`` (default).
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
+    data_preparator_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `data_preparator_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    transformer_layers_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `transformer_layers_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    item_net_constructor_kwargs optional(dict), default ``None``
+        Additional keyword arguments to pass during `item_net_constructor_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    pos_encoding_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `pos_encoding_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    lightning_module_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `lightning_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
     """
 
     config_class = SASRecModelConfig
@@ -398,6 +415,11 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         recommend_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
+        data_preparator_kwargs: tp.Optional[InitKwargs] = None,
+        transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
+        item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
+        pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
+        lightning_module_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -430,4 +452,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lightning_module_type=lightning_module_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            data_preparator_kwargs=data_preparator_kwargs,
+            transformer_layers_kwargs=transformer_layers_kwargs,
+            item_net_constructor_kwargs=item_net_constructor_kwargs,
+            pos_encoding_kwargs=pos_encoding_kwargs,
+            lightning_module_kwargs=lightning_module_kwargs,
         )
