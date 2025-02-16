@@ -130,7 +130,7 @@ class TestCatFeaturesItemNet:
 
         assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
 
-        actual_item_emb_bag_inputs, actual_item_offsets = cat_item_embeddings.get_item_inputs_offsets(items)
+        actual_item_emb_bag_inputs, actual_item_offsets = cat_item_embeddings._get_item_inputs_offsets(items)
         expected_item_emb_bag_inputs = torch.tensor([0, 2, 1, 4, 0, 3, 1, 2])
         expected_item_offsets = torch.tensor([0, 0, 2, 4, 6])
         assert torch.equal(actual_item_emb_bag_inputs, expected_item_emb_bag_inputs)
@@ -248,13 +248,11 @@ class TestCatFeaturesItemNet:
         )
         with pytest.warns() as record:
             CatFeaturesItemNet.from_dataset_schema(dataset_schema, n_factors=5, dropout_rate=0.5)
-        assert (
-            str(record[0].message)
-            == """
-            Ignoring `CatFeaturesItemNet` block because
-            dataset item features are dense and unable to contain categorical features.
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because dataset item features are dense and
+            one-hot-encoded categorical features were not created when constructing dataset.
             """
-        )
+        assert str(record[0].message) == explanation
 
     def test_warns_when_dataset_schema_categorical_features_are_none(self) -> None:
         item_features = pd.DataFrame(

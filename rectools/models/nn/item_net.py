@@ -19,7 +19,7 @@ import torch
 import typing_extensions as tpe
 from torch import nn
 
-from rectools.dataset.dataset import Dataset, DatasetSchema
+from rectools.dataset.dataset import Dataset, DatasetSchema, SparseFeaturesSchema
 from rectools.dataset.features import SparseFeatures
 
 
@@ -58,8 +58,14 @@ class CatFeaturesItemNet(ItemNetBase):
 
     Parameters
     ----------
-    item_features : SparseFeatures
-        Storage for sparse features.
+    emb_bag_inputs : torch.Tensor
+        Inputs for `torch.nn.EmbeddingBag.forward` method for full items catalog.
+    input_lengths : torch.Tensor
+        Lengths of indexes in `emb_bag_inputs` for each item in full catalog.
+    offsets : torch.Tensor
+        Offsets for `torch.nn.EmbeddingBag.forward` method for full items catalog.
+    n_cat_feature_values : torch.Tensor
+        Number of stored unique category feature and value pairs.
     n_factors : int
         Latent embedding size of item embeddings.
     dropout_rate : float
@@ -80,7 +86,7 @@ class CatFeaturesItemNet(ItemNetBase):
 
         self.n_cat_feature_values = n_cat_feature_values
         self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors, mode="sum")
-        self.drop_layer = nn.Dropout(dropout_rate)
+        self.dropout = nn.Dropout(dropout_rate)
 
         self.register_buffer("offsets", offsets)
         self.register_buffer("emb_bag_inputs", emb_bag_inputs)
@@ -100,12 +106,12 @@ class CatFeaturesItemNet(ItemNetBase):
         torch.Tensor
             Item embeddings.
         """
-        item_emb_bag_inputs, item_offsets = self.get_item_inputs_offsets(items)
+        item_emb_bag_inputs, item_offsets = self._get_item_inputs_offsets(items)
         feature_embeddings_per_items = self.embedding_bag(input=item_emb_bag_inputs, offsets=item_offsets)
-        feature_embeddings_per_items = self.drop_layer(feature_embeddings_per_items)
+        feature_embeddings_per_items = self.dropout(feature_embeddings_per_items)
         return feature_embeddings_per_items
 
-    def get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
+    def _get_item_inputs_offsets(self, items: torch.Tensor) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """Get categorical item features and offsets for `items`."""
         length_range = torch.arange(self.get_buffer("input_lengths").max().item(), device=self.device)
         item_indexes = self.get_buffer("offsets")[items].unsqueeze(-1) + length_range
@@ -115,6 +121,26 @@ class CatFeaturesItemNet(ItemNetBase):
             (torch.tensor([0], device=self.device), torch.cumsum(self.get_buffer("input_lengths")[items], dim=0)[:-1])
         )
         return item_emb_bag_inputs, item_offsets
+
+    @staticmethod
+    def _warn_for_unsupported_dataset_schema(dataset_schema: DatasetSchema) -> None:
+        if dataset_schema.items.features is None:
+            explanation = """Ignoring `CatFeaturesItemNet` block because dataset doesn't contain item features."""
+            warnings.warn(explanation)
+
+        elif dataset_schema.items.features.kind == "dense":
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because dataset item features are dense and
+            one-hot-encoded categorical features were not created when constructing dataset.
+            """
+            warnings.warn(explanation)
+            return
+
+        elif len(dataset_schema.items.features.cat_feature_indices) == 0:
+            explanation = """
+            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
+            """
+            warnings.warn(explanation)
 
     @classmethod
     def from_dataset(
@@ -136,43 +162,28 @@ class CatFeaturesItemNet(ItemNetBase):
         dropout_rate : float
             Probability of a hidden unit of item embedding to be zeroed.
         """
-        item_features = dataset.item_features
+        dataset_schema = DatasetSchema.model_validate(dataset.get_schema())
+        cls._warn_for_unsupported_dataset_schema(dataset_schema)
 
-        if item_features is None:
-            explanation = """Ignoring `CatFeaturesItemNet` block because dataset doesn't contain item features."""
-            warnings.warn(explanation)
-            return None
+        if isinstance(dataset.item_features, SparseFeatures):
+            item_cat_features = dataset.item_features.get_cat_features()
+            if item_cat_features.values.size == 0:
+                return None
 
-        if not isinstance(item_features, SparseFeatures):
-            explanation = """
-            Ignoring `CatFeaturesItemNet` block because
-            dataset item features are dense and unable to contain categorical features.
-            """
-            warnings.warn(explanation)
-            return None
+            emb_bag_inputs = torch.tensor(item_cat_features.values.indices, dtype=torch.long)
+            offsets = torch.tensor(item_cat_features.values.indptr, dtype=torch.long)
+            input_lengths = torch.diff(offsets, dim=0)
+            n_cat_feature_values = len(item_cat_features.names)
 
-        item_cat_features = item_features.get_cat_features()
-
-        if item_cat_features.values.size == 0:
-            explanation = """
-            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
-            """
-            warnings.warn(explanation)
-            return None
-
-        emb_bag_inputs = torch.tensor(item_cat_features.values.indices, dtype=torch.long)
-        offsets = torch.tensor(item_cat_features.values.indptr, dtype=torch.long)
-        input_lengths = torch.diff(offsets, dim=0)
-        n_cat_feature_values = len(item_cat_features.names)
-
-        return cls(
-            emb_bag_inputs=emb_bag_inputs,
-            offsets=offsets[:-1],
-            input_lengths=input_lengths,
-            n_cat_feature_values=n_cat_feature_values,
-            n_factors=n_factors,
-            dropout_rate=dropout_rate,
-        )
+            return cls(
+                emb_bag_inputs=emb_bag_inputs,
+                offsets=offsets[:-1],
+                input_lengths=input_lengths,
+                n_cat_feature_values=n_cat_feature_values,
+                n_factors=n_factors,
+                dropout_rate=dropout_rate,
+            )
+        return None
 
     @classmethod
     def from_dataset_schema(
@@ -182,41 +193,34 @@ class CatFeaturesItemNet(ItemNetBase):
         dropout_rate: float,
         **kwargs: tp.Any,
     ) -> tp.Optional[tpe.Self]:
-        """Construct CatFeaturesItemNet from Dataset schema."""
-        if dataset_schema.items.features is None:
-            explanation = """Ignoring `CatFeaturesItemNet` block because dataset doesn't contain item features."""
-            warnings.warn(explanation)
-            return None
+        """Construct CatFeaturesItemNet from Dataset schema.
 
-        if dataset_schema.items.features.kind == "dense":
-            explanation = """
-            Ignoring `CatFeaturesItemNet` block because
-            dataset item features are dense and unable to contain categorical features.
-            """
-            warnings.warn(explanation)
-            return None
+        Parameters
+        ----------
+        dataset_schema : DatasetSchema
+            RecTools schema for dataset.
+        n_factors : int
+            Latent embedding size of item embeddings.
+        dropout_rate : float
+            Probability of a hidden unit of item embedding to be zeroed.
+        """
+        cls._warn_for_unsupported_dataset_schema(dataset_schema)
+        features_schema = dataset_schema.items.features
 
-        if len(dataset_schema.items.features.cat_feature_indices) == 0:
-            explanation = """
-            Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
-            """
-            warnings.warn(explanation)
-            return None
-
-        emb_bag_inputs = torch.randint(
-            high=dataset_schema.items.n_hot, size=(dataset_schema.items.features.cat_n_stored_values,)
-        )
-        offsets = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
-        input_lengths = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
-        n_cat_feature_values = len(dataset_schema.items.features.cat_feature_indices)
-        return cls(
-            emb_bag_inputs=emb_bag_inputs,
-            offsets=offsets,
-            input_lengths=input_lengths,
-            n_cat_feature_values=n_cat_feature_values,
-            n_factors=n_factors,
-            dropout_rate=dropout_rate,
-        )
+        if isinstance(features_schema, SparseFeaturesSchema) and len(features_schema.cat_feature_indices) > 0:
+            emb_bag_inputs = torch.randint(high=dataset_schema.items.n_hot, size=(features_schema.cat_n_stored_values,))
+            offsets = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
+            input_lengths = torch.randint(high=dataset_schema.items.n_hot, size=(dataset_schema.items.n_hot,))
+            n_cat_feature_values = len(features_schema.cat_feature_indices)
+            return cls(
+                emb_bag_inputs=emb_bag_inputs,
+                offsets=offsets,
+                input_lengths=input_lengths,
+                n_cat_feature_values=n_cat_feature_values,
+                n_factors=n_factors,
+                dropout_rate=dropout_rate,
+            )
+        return None
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
@@ -299,7 +303,17 @@ class IdEmbeddingsItemNet(ItemNetBase):
         dropout_rate: float,
         **kwargs: tp.Any,
     ) -> tpe.Self:
-        """Construct ItemNet from Dataset schema."""
+        """Construct ItemNet from Dataset schema.
+
+        Parameters
+        ----------
+        dataset_schema : DatasetSchema
+            RecTools schema for dataset.
+        n_factors : int
+            Latent embedding size of item embeddings.
+        dropout_rate : float
+            Probability of a hidden unit of item embedding to be zeroed.
+        """
         n_items = dataset_schema.items.n_hot
         return cls(n_factors, n_items, dropout_rate)
 
@@ -382,7 +396,19 @@ class ItemNetConstructorBase(ItemNetBase):
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]],
         **kwargs: tp.Any,
     ) -> tpe.Self:
-        """Construct ItemNet from Dataset schema."""
+        """Construct ItemNet from Dataset schema.
+
+        Parameters
+        ----------
+        dataset_schema : DatasetSchema
+            RecTools schema for dataset.
+        n_factors : int
+            Latent embedding size of item embeddings.
+        dropout_rate : float
+            Probability of a hidden unit of item embedding to be zeroed.
+        item_net_block_types : sequence of `type(ItemNetBase)`
+            Sequence item network block types.
+        """
         n_items = dataset_schema.items.n_hot
 
         item_net_blocks: tp.List[ItemNetBase] = []
