@@ -115,7 +115,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         filter_viewed: bool,
         use_torch_ranking: bool,
         n_threads: int,
-        device: tp.Optional[str],
+        torch_device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
@@ -129,7 +129,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         k: int,
         use_torch_ranking: bool,
         n_threads: int,
-        device: tp.Optional[str],
+        torch_device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
     ) -> InternalRecoTriplet:
@@ -295,23 +295,23 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             if param.data.dim() > 1:
                 torch.nn.init.xavier_normal_(param.data)
 
-    def _prepare_for_inference(self, recommend_device: tp.Optional[str]) -> None:
-        if recommend_device is None:
-            recommend_device = "cuda" if torch.cuda.is_available() else "cpu"
-        device = torch.device(recommend_device)
+    def _prepare_for_inference(self, torch_device: tp.Optional[str]) -> None:
+        if torch_device is None:
+            torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch.device(torch_device)
         self.torch_model.to(device)
         self.torch_model.eval()
 
     def _get_user_item_embeddings(
         self,
         recommend_dataloader: DataLoader,
-        recommend_device: tp.Optional[str],
+        torch_device: tp.Optional[str],
     ) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """
         Prepare user embeddings for all user interaction sequences in `recommend_dataloader`.
         Prepare item embeddings for full items catalog.
         """
-        self._prepare_for_inference(recommend_device)
+        self._prepare_for_inference(torch_device)
         device = self.torch_model.item_model.device
 
         with torch.no_grad():
@@ -333,14 +333,14 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         filter_viewed: bool,
         use_torch_ranking: bool,
         n_threads: int,
-        device: tp.Optional[str],
+        torch_device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to users."""
         ui_csr_for_filter = None
         if filter_viewed:
             ui_csr_for_filter = dataset.get_user_item_matrix(include_weights=False, include_warm_items=True)[user_ids]
 
-        user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, device)
+        user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
         ranker: Ranker
         if use_torch_ranking:
@@ -379,10 +379,10 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         k: int,
         use_torch_ranking: bool,
         n_threads: int,
-        device: tp.Optional[str],
+        torch_device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to items."""
-        self._prepare_for_inference(device)
+        self._prepare_for_inference(torch_device)
         with torch.no_grad():
             item_embs = self.torch_model.item_model.get_all_embeddings()
 

@@ -113,7 +113,7 @@ class TestBERT4RecModel:
 
     @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
-        "accelerator,n_devices,recommend_device",
+        "accelerator,n_devices,recommend_torch_device",
         [
             ("cpu", 1, "cpu"),
             pytest.param(
@@ -219,7 +219,7 @@ class TestBERT4RecModel:
         filter_viewed: bool,
         accelerator: str,
         n_devices: int,
-        recommend_device: str,
+        recommend_torch_device: str,
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
@@ -248,7 +248,7 @@ class TestBERT4RecModel:
             batch_size=4,
             epochs=2,
             deterministic=True,
-            recommend_device=recommend_device,
+            recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
@@ -832,7 +832,7 @@ class TestBERT4RecModelConfiguration:
             "epochs": 10,
             "verbose": 1,
             "deterministic": True,
-            "recommend_device": None,
+            "recommend_torch_device": None,
             "recommend_batch_size": 256,
             "recommend_n_threads": 0,
             "recommend_use_torch_ranking": True,

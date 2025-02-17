@@ -176,7 +176,7 @@ class TransformerModelConfig(ModelConfig):
     verbose: int = 0
     deterministic: bool = False
     recommend_batch_size: int = 256
-    recommend_device: tp.Optional[str] = None
+    recommend_torch_device: tp.Optional[str] = None
     recommend_n_threads: int = 0
     recommend_use_torch_ranking: bool = True
     train_min_user_interactions: int = 2
@@ -233,7 +233,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         verbose: int = 0,
         deterministic: bool = False,
         recommend_batch_size: int = 256,
-        recommend_device: tp.Optional[str] = None,
+        recommend_torch_device: tp.Optional[str] = None,
         recommend_n_threads: int = 0,
         recommend_use_torch_ranking: bool = True,
         train_min_user_interactions: int = 2,
@@ -270,7 +270,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.epochs = epochs
         self.deterministic = deterministic
         self.recommend_batch_size = recommend_batch_size
-        self.recommend_device = recommend_device
+        self.recommend_torch_device = recommend_torch_device
         self.recommend_n_threads = recommend_n_threads
         self.recommend_use_torch_ranking = recommend_use_torch_ranking
         self.train_min_user_interactions = train_min_user_interactions
@@ -454,7 +454,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             dataset=dataset,
             n_threads=self.recommend_n_threads,
             use_torch_ranking=self.recommend_use_torch_ranking,
-            device=self.recommend_device,
+            torch_device=self.recommend_torch_device,
         )
 
     def _recommend_i2i(
@@ -473,7 +473,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             k=k,
             n_threads=self.recommend_n_threads,
             use_torch_ranking=self.recommend_use_torch_ranking,
-            device=self.recommend_device,
+            torch_device=self.recommend_torch_device,
         )
 
     @property

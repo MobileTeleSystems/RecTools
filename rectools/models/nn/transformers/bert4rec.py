@@ -269,19 +269,24 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         How many samples per batch to load during `recommend`.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_batch_size` attribute.
-    recommend_device : {"cpu", "cuda", "cuda:0", ...}, default ``None``
-        String representation for `torch.device` used for recommendations.
+    recommend_torch_device : {"cpu", "cuda", "cuda:0", ...}, default ``None``
+        String representation for `torch.device` used for torch model inference.
+        When `recommend_use_torch_ranking` is set to ``True`` (default) this device is also used
+        for items ranking while preparing recommendations using `TorchRanker`.
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_device` attribute.
+        you can manually assign new value to model `recommend_torch_device` attribute.
     recommend_use_torch_ranking : bool, default ``True``
         Use `TorchRanker` for items ranking while preparing recommendations.
-        If set to ``False``, use `ImplicitRanker` instead.
+        When set to ``True`` (default), device specified in `recommend_torch_device` is used
+        for items ranking.
+        When set to ``False``, multi-threaded cpu ranking will be used with `ImplicitRanker`. You
+        can specify numer of threads using `recommend_n_threads` argument.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_torch_ranking` attribute.
     recommend_n_threads : int, default 0
-        Number of threads to use for `ImplicitRanker`. Omitted if `recommend_use_torch_ranking` is
-        set to ``True`` (default).
+        Number of threads to use for cpu items ranking with `ImplicitRanker`. Omitted if
+        `recommend_use_torch_ranking` is set to ``True`` (default).
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_n_threads` attribute.
     data_preparator_kwargs: optional(dict), default ``None``
@@ -333,7 +338,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
-        recommend_device: tp.Optional[str] = None,
+        recommend_torch_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
         recommend_n_threads: int = 0,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
@@ -366,7 +371,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             verbose=verbose,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
-            recommend_device=recommend_device,
+            recommend_torch_device=recommend_torch_device,
             recommend_n_threads=recommend_n_threads,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
