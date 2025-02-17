@@ -27,6 +27,7 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
+    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLightningModule,
@@ -35,7 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .constants import MASKING_VALUE, PADDING_VALUE, InitKwargs
+from .constants import MASKING_VALUE, PADDING_VALUE
 from .data_preparator import TransformerDataPreparatorBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,

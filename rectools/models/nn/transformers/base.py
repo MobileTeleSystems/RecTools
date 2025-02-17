@@ -38,7 +38,6 @@ from ..item_net import (
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from .constants import InitKwargs
 from .data_preparator import TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
 from .net_blocks import (
@@ -48,6 +47,8 @@ from .net_blocks import (
     TransformerLayersBase,
 )
 from .torch_backbone import TransformerTorchBackbone
+
+InitKwargs = tp.Dict[str, tp.Any]
 
 # ####  --------------  Transformer Model Config  --------------  #### #
 

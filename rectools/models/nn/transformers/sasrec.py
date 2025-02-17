@@ -27,6 +27,7 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
+    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLayersType,
@@ -36,7 +37,6 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .constants import InitKwargs
 from .data_preparator import TransformerDataPreparatorBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
