@@ -1,4 +1,4 @@
-#  Copyright 2024-2025 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -167,7 +167,10 @@ class ImplicitRanker:
             object_norms = convert_arr_to_implicit_gpu_matrix(object_norms)
 
         if filter_query_items is not None:
-            filter_query_items = implicit.gpu.COOMatrix(filter_query_items.tocoo())
+            if filter_query_items.count_nonzero() > 0:
+                filter_query_items = implicit.gpu.COOMatrix(filter_query_items.tocoo())
+            else:  # can't create `implicit.gpu.COOMatrix` for all zeroes
+                filter_query_items = None
 
         ids, scores = implicit.gpu.KnnQuery().topk(  # pylint: disable=c-extension-no-member
             items=object_factors,

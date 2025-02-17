@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@ import typing as tp
 import pytest
 
 from rectools.compat import (
+    BERT4RecModel,
     DSSMModel,
     ItemToItemAnnRecommender,
     ItemToItemVisualApp,
     LightFMWrapperModel,
     MetricsApp,
+    SASRecModel,
     UserToItemAnnRecommender,
     VisualApp,
 )
@@ -32,6 +34,8 @@ from rectools.models.rank.compat import TorchRanker
     "model",
     (
         DSSMModel,
+        SASRecModel,
+        BERT4RecModel,
         ItemToItemAnnRecommender,
         UserToItemAnnRecommender,
         LightFMWrapperModel,

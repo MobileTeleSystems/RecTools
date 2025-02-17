@@ -12,32 +12,4 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# pylint: disable=wrong-import-position
-
-"""
-Recommendation models (:mod:`rectools.models.rank`)
-==============================================
-
-Rankers to build recs from embeddings.
-
-
-Rankers
-------
-`rank.ImplicitRanker`
-`rank.TorchRanker`
-"""
-
-try:
-    from .rank_torch import TorchRanker
-except ImportError:  # pragma: no cover
-    from .compat import TorchRanker  # type: ignore
-
-from rectools.models.rank.rank import Distance, Ranker
-from rectools.models.rank.rank_implicit import ImplicitRanker
-
-__all__ = [
-    "TorchRanker",
-    "ImplicitRanker",
-    "Distance",
-    "Ranker",
-]
+"""Recommendation models based on neural nets."""

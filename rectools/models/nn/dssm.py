@@ -1,4 +1,4 @@
-#  Copyright 2022-2025 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -46,9 +46,9 @@ from rectools.dataset.torch_datasets import (
 from rectools.exceptions import NotFittedError
 from rectools.types import InternalIdsArray
 
-from .base import InternalRecoTriplet
-from .rank import Distance
-from .vector import Factors, VectorModel
+from ..base import InternalRecoTriplet
+from ..rank import Distance
+from ..vector import Factors, VectorModel
 
 
 class ItemNet(nn.Module):

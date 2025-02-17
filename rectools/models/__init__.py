@@ -35,6 +35,8 @@ Models
 `models.PopularInCategoryModel`
 `models.PureSVDModel`
 `models.RandomModel`
+`models.nn.bert4rec.BERT4RecModel`
+`models.nn.sasrec.SASRecModel`
 """
 
 from .ease import EASEModel
@@ -53,12 +55,16 @@ except ImportError:  # pragma: no cover
     from ..compat import LightFMWrapperModel  # type: ignore
 
 try:
-    from .dssm import DSSMModel
+    from .nn.dssm import DSSMModel
+    from .nn.transformers.bert4rec import BERT4RecModel
+    from .nn.transformers.sasrec import SASRecModel
 except ImportError:  # pragma: no cover
-    from ..compat import DSSMModel  # type: ignore
+    from ..compat import BERT4RecModel, DSSMModel, SASRecModel  # type: ignore
 
 
 __all__ = (
+    "SASRecModel",
+    "BERT4RecModel",
     "EASEModel",
     "ImplicitALSWrapperModel",
     "ImplicitBPRWrapperModel",

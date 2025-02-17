@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- `SASRecModel` and `BERT4RecModel` - models based on transformer architecture ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
+- Transfomers extended theory & practice tutorial, advanced training guide and customization guide ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
 - `use_gpu` for PureSVD ([#229](https://github.com/MobileTeleSystems/RecTools/pull/229))
 - `from_params` method for models and `model_from_params` function ([#252](https://github.com/MobileTeleSystems/RecTools/pull/252))
 - `TorchRanker` ranker which calculates scores using torch. Supports GPU. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)

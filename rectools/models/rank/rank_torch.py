@@ -1,4 +1,4 @@
-#  Copyright 2024-2025 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -138,7 +138,7 @@ class TorchRanker:
                         torch.from_numpy(filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_object_whitelist]).to(
                             scores.device
                         )
-                        == 1
+                        != 0
                     )
                     scores = torch.masked_fill(scores, mask, mask_values)
 

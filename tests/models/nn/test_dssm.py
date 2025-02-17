@@ -1,4 +1,4 @@
-#  Copyright 2022-2025 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
 from rectools.models import DSSMModel
-from rectools.models.dssm import DSSM
+from rectools.models.nn.dssm import DSSM
 from rectools.models.vector import ImplicitRanker
 from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
-from .data import INTERACTIONS
+from ..data import INTERACTIONS
 
 
 @pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
