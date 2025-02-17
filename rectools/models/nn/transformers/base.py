@@ -177,8 +177,6 @@ class TransformerModelConfig(ModelConfig):
     deterministic: bool = False
     recommend_batch_size: int = 256
     recommend_torch_device: tp.Optional[str] = None
-    recommend_n_threads: int = 0
-    recommend_use_torch_ranking: bool = True
     train_min_user_interactions: int = 2
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     item_net_constructor_type: ItemNetConstructorType = SumOfEmbeddingsConstructor
@@ -234,8 +232,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         deterministic: bool = False,
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
-        recommend_n_threads: int = 0,
-        recommend_use_torch_ranking: bool = True,
         train_min_user_interactions: int = 2,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
@@ -271,8 +267,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.deterministic = deterministic
         self.recommend_batch_size = recommend_batch_size
         self.recommend_torch_device = recommend_torch_device
-        self.recommend_n_threads = recommend_n_threads
-        self.recommend_use_torch_ranking = recommend_use_torch_ranking
         self.train_min_user_interactions = train_min_user_interactions
         self.item_net_block_types = item_net_block_types
         self.item_net_constructor_type = item_net_constructor_type
@@ -452,8 +446,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             k=k,
             filter_viewed=filter_viewed,
             dataset=dataset,
-            n_threads=self.recommend_n_threads,
-            use_torch_ranking=self.recommend_use_torch_ranking,
             torch_device=self.recommend_torch_device,
         )
 
@@ -471,8 +463,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             target_ids=target_ids,
             sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
             k=k,
-            n_threads=self.recommend_n_threads,
-            use_torch_ranking=self.recommend_use_torch_ranking,
             torch_device=self.recommend_torch_device,
         )
 

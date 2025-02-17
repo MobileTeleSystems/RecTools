@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict
 from rectools.models.base import InternalRecoTriplet
-from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
+from rectools.models.rank import Distance, TorchRanker
 from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
@@ -113,8 +113,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         k: int,
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         filter_viewed: bool,
-        use_torch_ranking: bool,
-        n_threads: int,
         torch_device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
@@ -127,8 +125,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         target_ids: InternalIdsArray,
         sorted_item_ids_to_recommend: InternalIdsArray,
         k: int,
-        use_torch_ranking: bool,
-        n_threads: int,
         torch_device: tp.Optional[str],
         *args: tp.Any,
         **kwargs: tp.Any,
@@ -331,8 +327,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         k: int,
         dataset: Dataset,  # [n_rec_users x n_items + n_item_extra_tokens]
         filter_viewed: bool,
-        use_torch_ranking: bool,
-        n_threads: int,
         torch_device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to users."""
@@ -342,26 +336,12 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        ranker: Ranker
-        if use_torch_ranking:
-            ranker = TorchRanker(
-                distance=Distance.DOT,
-                device=item_embs.device,
-                subjects_factors=user_embs[user_ids],
-                objects_factors=item_embs,
-            )
-        else:
-            user_embs_np = user_embs.detach().cpu().numpy()
-            item_embs_np = item_embs.detach().cpu().numpy()
-            del user_embs, item_embs
-            torch.cuda.empty_cache()
-            ranker = ImplicitRanker(
-                Distance.DOT,
-                user_embs_np[user_ids],  # [n_rec_users, n_factors]
-                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-                num_threads=n_threads,
-                use_gpu=False,
-            )
+        ranker = TorchRanker(
+            distance=Distance.DOT,
+            device=item_embs.device,
+            subjects_factors=user_embs[user_ids],
+            objects_factors=item_embs,
+        )
 
         user_ids_indices, all_reco_ids, all_scores = ranker.rank(
             subject_ids=np.arange(len(user_ids)),  # n_rec_users
@@ -377,8 +357,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         target_ids: InternalIdsArray,
         sorted_item_ids_to_recommend: InternalIdsArray,
         k: int,
-        use_torch_ranking: bool,
-        n_threads: int,
         torch_device: tp.Optional[str],
     ) -> InternalRecoTriplet:
         """Recommend to items."""
@@ -386,22 +364,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         with torch.no_grad():
             item_embs = self.torch_model.item_model.get_all_embeddings()
 
-        ranker: Ranker
-        if use_torch_ranking:
-            ranker = TorchRanker(
-                distance=self.i2i_dist, device=item_embs.device, subjects_factors=item_embs, objects_factors=item_embs
-            )
-        else:
-            item_embs_np = item_embs.detach().cpu().numpy()
-            del item_embs
-            ranker = ImplicitRanker(
-                self.i2i_dist,
-                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-                item_embs_np,  # [n_items + n_item_extra_tokens, n_factors]
-                num_threads=n_threads,
-                use_gpu=False,
-            )
-
+        ranker = TorchRanker(
+            distance=self.i2i_dist, device=item_embs.device, subjects_factors=item_embs, objects_factors=item_embs
+        )
         torch.cuda.empty_cache()
         return ranker.rank(
             subject_ids=target_ids,  # model internal

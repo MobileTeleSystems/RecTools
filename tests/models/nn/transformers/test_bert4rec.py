@@ -111,7 +111,6 @@ class TestBERT4RecModel:
 
         return get_trainer
 
-    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_torch_device",
         [
@@ -224,7 +223,6 @@ class TestBERT4RecModel:
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
         expected_gpu_2: pd.DataFrame,
-        recommend_use_torch_ranking: bool,
     ) -> None:
         if n_devices != 1:
             pytest.skip("DEBUG: skipping multi-device tests")
@@ -251,7 +249,6 @@ class TestBERT4RecModel:
             recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
-            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -270,7 +267,6 @@ class TestBERT4RecModel:
             actual,
         )
 
-    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "loss,expected",
         (
@@ -302,7 +298,6 @@ class TestBERT4RecModel:
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
-        recommend_use_torch_ranking: bool,
     ) -> None:
         model = BERT4RecModel(
             n_negatives=2,
@@ -318,7 +313,6 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
-            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -329,7 +323,6 @@ class TestBERT4RecModel:
             actual,
         )
 
-    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "filter_viewed,expected",
         (
@@ -361,7 +354,6 @@ class TestBERT4RecModel:
         get_trainer_func: TrainerCallable,
         filter_viewed: bool,
         expected: pd.DataFrame,
-        recommend_use_torch_ranking: bool,
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -374,7 +366,6 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
-            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -392,7 +383,6 @@ class TestBERT4RecModel:
             actual,
         )
 
-    @pytest.mark.parametrize("recommend_use_torch_ranking", (True, False))
     @pytest.mark.parametrize(
         "filter_itself,whitelist,expected",
         (
@@ -438,7 +428,6 @@ class TestBERT4RecModel:
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
-        recommend_use_torch_ranking: bool,
     ) -> None:
         model = BERT4RecModel(
             n_factors=32,
@@ -451,7 +440,6 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
-            recommend_use_torch_ranking=recommend_use_torch_ranking,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -834,8 +822,6 @@ class TestBERT4RecModelConfiguration:
             "deterministic": True,
             "recommend_torch_device": None,
             "recommend_batch_size": 256,
-            "recommend_n_threads": 0,
-            "recommend_use_torch_ranking": True,
             "train_min_user_interactions": 2,
             "item_net_block_types": (IdEmbeddingsItemNet,),
             "item_net_constructor_type": SumOfEmbeddingsConstructor,

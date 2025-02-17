@@ -270,25 +270,10 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_batch_size` attribute.
     recommend_torch_device : {"cpu", "cuda", "cuda:0", ...}, default ``None``
-        String representation for `torch.device` used for torch model inference.
-        When `recommend_use_torch_ranking` is set to ``True`` (default) this device is also used
-        for items ranking while preparing recommendations using `TorchRanker`.
+        String representation for `torch.device` used for model inference.
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_torch_device` attribute.
-    recommend_use_torch_ranking : bool, default ``True``
-        Use `TorchRanker` for items ranking while preparing recommendations.
-        When set to ``True`` (default), device specified in `recommend_torch_device` is used
-        for items ranking.
-        When set to ``False``, multi-threaded cpu ranking will be used with `ImplicitRanker`. You
-        can specify number of threads using `recommend_n_threads` argument.
-        If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_use_torch_ranking` attribute.
-    recommend_n_threads : int, default 0
-        Number of threads to use for cpu items ranking with `ImplicitRanker`. Omitted if
-        `recommend_use_torch_ranking` is set to ``True`` (default).
-        If you want to change this parameter after model is initialized,
-        you can manually assign new value to model `recommend_n_threads` attribute.
     data_preparator_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `data_preparator_type` initialization.
         Make sure all dict values have JSON serializable types.
