@@ -361,7 +361,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         When set to ``True`` (default), device specified in `recommend_torch_device` is used
         for items ranking.
         When set to ``False``, multi-threaded cpu ranking will be used with `ImplicitRanker`. You
-        can specify numer of threads using `recommend_n_threads` argument.
+        can specify number of threads using `recommend_n_threads` argument.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_use_torch_ranking` attribute.
     recommend_n_threads : int, default 0
