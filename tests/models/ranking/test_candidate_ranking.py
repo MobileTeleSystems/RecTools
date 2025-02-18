@@ -4,18 +4,18 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 import pytest
-from catboost import CatBoostRanker
+from implicit.nearest_neighbours import CosineRecommender
+from sklearn.ensemble import GradientBoostingClassifier
 
 from rectools import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.exceptions import NotFittedForStageError
 from rectools.model_selection import TimeRangeSplitter
-from rectools.models import PopularModel
+from rectools.models import ImplicitItemKNNWrapperModel, PopularModel
 from rectools.models.ranking import (
     CandidateFeatureCollector,
     CandidateGenerator,
     CandidateRankingModel,
-    CatBoostReranker,
     PerUserNegativeSampler,
     Reranker,
 )
@@ -220,7 +220,7 @@ class TestCandidateRankingModel:
     def model(self) -> PopularModel:
         return PopularModel()
 
-    def test_get_train_with_targets_for_reranker_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
+    def test_get_train_with_targets_for_reranker(self, model: PopularModel, dataset: Dataset) -> None:
         candidate_generators = [CandidateGenerator(model, 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
@@ -228,7 +228,7 @@ class TestCandidateRankingModel:
             candidate_generators,
             splitter,
             sampler=sampler,
-            reranker=CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
+            reranker=Reranker(GradientBoostingClassifier(random_state=123)),
         )
         actual = two_stage_model.get_train_with_targets_for_reranker(dataset)
         expected = pd.DataFrame(
@@ -240,42 +240,98 @@ class TestCandidateRankingModel:
         )
         pd.testing.assert_frame_equal(actual, expected)
 
-    def test_recommend_happy_path(self, model: PopularModel, dataset: Dataset) -> None:
-        candidate_generators = [CandidateGenerator(model, 2, True, True)]
+    def test_recommend(self, model: PopularModel, dataset: Dataset) -> None:
+        cangen_1 = model
+        cangen_2 = ImplicitItemKNNWrapperModel(CosineRecommender())
+
+        scores_fillna_value = -100
+        ranks_fillna_value = 3
+
+        candidate_generators = [
+            CandidateGenerator(cangen_1, 2, True, True, scores_fillna_value, ranks_fillna_value),
+            CandidateGenerator(cangen_2, 2, True, True, scores_fillna_value, ranks_fillna_value),
+        ]
         splitter = TimeRangeSplitter("1D", n_splits=1)
         sampler = PerUserNegativeSampler(1, 32)
         two_stage_model = CandidateRankingModel(
             candidate_generators,
             splitter,
             sampler=sampler,
-            reranker=CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
+            reranker=Reranker(GradientBoostingClassifier(random_state=123)),
         )
         two_stage_model.fit(dataset)
 
-        actual = two_stage_model.recommend(
-            [10, 20, 30],
-            dataset,
-            k=3,
-            filter_viewed=True,
+        actual_reco = two_stage_model.recommend(
+            [10, 20, 30], dataset, k=3, filter_viewed=True, force_fit_candidate_generators=True
         )
-        expected = pd.DataFrame(
+        expected_reco = pd.DataFrame(
             {
-                Columns.User: [10, 10, 20, 20, 30],
-                Columns.Item: [14, 15, 12, 13, 13],
+                Columns.User: [10, 10, 20, 20, 20, 30],
+                Columns.Item: [14, 15, 12, 15, 13, 13],
                 Columns.Score: [
-                    -0.192,
-                    -23.396,
-                    23.396,
-                    -23.396,
-                    -0.192,
+                    0.999,
+                    0.412,
+                    0.999,
+                    0.412,
+                    0.000,
+                    0.999,
                 ],
-                Columns.Rank: [1, 2, 1, 2, 1],
+                Columns.Rank: [1, 2, 1, 2, 3, 1],
             }
         )
-        pd.testing.assert_frame_equal(actual, expected, atol=0.001)
+        pd.testing.assert_frame_equal(actual_reco, expected_reco, atol=0.001)
 
 
 class TestReranker:
+    @pytest.fixture
+    def fit_kwargs(self) -> tp.Dict[str, tp.Any]:
+        fit_kwargs = {"sample_weight": np.array([1, 2])}
+        return fit_kwargs
+
+    @pytest.fixture
+    def model(self) -> GradientBoostingClassifier:
+        return GradientBoostingClassifier(random_state=123)
+
+    @pytest.fixture
+    def reranker(self, model: GradientBoostingClassifier, fit_kwargs: tp.Dict[str, tp.Any]) -> Reranker:
+        return Reranker(model, fit_kwargs)
+
+    @pytest.fixture
+    def candidates_with_target(self) -> pd.DataFrame:
+        candidates_with_target = pd.DataFrame(
+            {
+                Columns.User: [10, 10],
+                Columns.Item: [14, 11],
+                Columns.Score: [0.1, 0.2],
+                Columns.Target: np.array([0, 1], dtype="int32"),
+            }
+        )
+        return candidates_with_target
+
+    def test_prepare_fit_kwargs(self, reranker: Reranker, candidates_with_target: pd.DataFrame) -> None:
+        expected_fit_kwargs = {
+            "X": pd.DataFrame(
+                {
+                    Columns.Score: [0.1, 0.2],
+                }
+            ),
+            "y": pd.Series(np.array([0, 1], dtype="int32"), name=Columns.Target),
+            "sample_weight": np.array([1, 2]),
+        }
+
+        actual_fit_kwargs = reranker.prepare_fit_kwargs(candidates_with_target)
+        pd.testing.assert_frame_equal(actual_fit_kwargs["X"], expected_fit_kwargs["X"])
+        pd.testing.assert_series_equal(actual_fit_kwargs["y"], expected_fit_kwargs["y"])
+        np.testing.assert_array_equal(actual_fit_kwargs["sample_weight"], expected_fit_kwargs["sample_weight"])
+
+    def test_predict_scores(self, reranker: Reranker, candidates_with_target: pd.DataFrame) -> None:
+        reranker.fit(candidates_with_target)
+        candidates = candidates_with_target.drop(columns=Columns.Target)
+
+        actual_predict_scores = reranker.predict_scores(candidates)
+        expected_predict_scores = np.array([0.000029, 1.000000])
+        np.testing.assert_allclose(actual_predict_scores, expected_predict_scores, rtol=0.015, atol=1.5e-05)
+
     def test_recommend(self) -> None:
         scored_pairs = pd.DataFrame(
             {
