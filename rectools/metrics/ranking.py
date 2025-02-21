@@ -321,14 +321,14 @@ class NDCG(_RankingMetric):
 
     where
         - :math:`DCG_u@k` is "Discounted Cumulative Gain" at k for user u.
-        - "Gain" stands for relevance of item at position i to user. It equals to ``1`` if this item
-        is relevant, ``0`` otherwise
-        - "Discounted Gain" means that original item relevance is being discounted based on this
-        items rank. The closer is item to the top the, the more gain is achieved.
-        - "Discounted Cumulative Gain" means that discounted gains are summed together.
-        - :math:`IDCG_u@k` is "Ideal Discounted Cumulative Gain" at k for user u. This is maximum
-        possible value of `DCG@k`, used as normalization coefficient to ensure that `NDCG@k`
-        values lie in ``[0, 1]``.
+        - `"Gain"` stands for relevance of item at position i to user. It equals to ``1`` if this item
+          is relevant, ``0`` otherwise
+        - `"Discounted Gain"` means that original item relevance is being discounted based on this
+          items rank. The closer is item to the top the, the more gain is achieved.
+        - `"Discounted Cumulative Gain"` means that discounted gains are summed together.
+        - :math:`IDCG_u@k` is `"Ideal Discounted Cumulative Gain"` at k for user u. This is maximum
+          possible value of `DCG@k`, used as normalization coefficient to ensure that `NDCG@k`
+          values lie in ``[0, 1]``.
 
     When `divide_by_achievable` is set to ``False`` (default) `IDCG_u@k` is the same value for all
     users and is equal to:
