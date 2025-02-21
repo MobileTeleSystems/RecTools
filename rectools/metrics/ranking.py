@@ -453,11 +453,8 @@ class NDCG(_RankingMetric):
             stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
 
             # IDCG
-            rank_discounted_gains = dict(zip(ranks, discounted_gains))
-            rank_discounted_gains[0] = 0
-            idcg_cumcum_map = {0: 0}
-            for rank in ranks:
-                idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + rank_discounted_gains[rank]
+            n_items_to_ndcg_map = dict(zip(ranks, discounted_gains.cumsum()))
+            n_items_to_ndcg_map[0] = 0 
             stats["__ideal"] = stats["__ideal"].clip(upper=self.k)
             stats["__ideal"] = stats["__ideal"].map(idcg_cumcum_map)
 
