@@ -40,6 +40,7 @@ Metrics
 `metrics.SufficientReco`
 `metrics.UnrepeatedReco`
 `metrics.CoveredUsers`
+`metrics.CatalogCoverage`
 
 Tools
 -----
@@ -52,6 +53,7 @@ Tools
 """
 
 from .auc import PAP, PartialAUC
+from .catalog import CatalogCoverage
 from .classification import MCC, Accuracy, F1Beta, HitRate, Precision, Recall
 from .debias import DebiasConfig, debias_interactions
 from .distances import (
@@ -80,6 +82,7 @@ __all__ = (
     "PartialAUC",
     "PAP",
     "MRR",
+    "CatalogCoverage",
     "MeanInvUserFreq",
     "IntraListDiversity",
     "AvgRecPopularity",
