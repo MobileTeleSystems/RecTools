@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -326,11 +326,11 @@ class NDCG(_RankingMetric):
     if an item at rank `i` is relevant, ``0`` otherwise;
     - `log` - logarithm at any given base, usually ``2``.
     The relevant items are to the top the, more gain is achieved.
-    
+
     In the denominator of NDCG@k is `Ideal DCG@k`, maximum possible value of `DCG@k`, used as
     normalization coefficient to ensure that `NDCG@k` valueslie in ``[0, 1]``.
     When `divide_by_achievable` is set to ``False`` (default) it is the same value for all users
-    ans is equal to:
+    and is equal to:
     :math:`IDCG_u@k = \sum_{i=1}^{k} \frac{1}{log(i + 1)}`
     When `divide_by_achievable` is set to ``True``, the formula for IDCG depends
     on number of each user relevant items in the test set. The formula is:
