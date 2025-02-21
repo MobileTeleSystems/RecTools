@@ -318,7 +318,7 @@ class NDCG(_RankingMetric):
 
     .. math::
         NDCG@k=\frac{1}{|U|}\sum_{u \in U}\frac{DCG_u@k}{IDCG_u@k}
-        
+
     where
         - :math:`DCG_u@k` is "Discounted Cumulative Gain" at k for user u.
         - "Gain" stands for relevance of item at position i to user. It equals to ``1`` if this item
