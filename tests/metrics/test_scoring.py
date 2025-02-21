@@ -167,6 +167,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             (PartialAUC(k=1), ["reco"]),
             (Intersection(k=1), ["reco"]),
             (CoveredUsers(k=1), ["reco"]),
+            (CatalogCoverage(k=1), ["reco"]),
         ),
     )
     def test_raises(self, metric: MetricAtK, arg_names: tp.List[str]) -> None:
