@@ -317,23 +317,24 @@ class NDCG(_RankingMetric):
     Estimates relevance of recommendations taking in account their order.
 
     .. math::
-        NDCG@k = DCG@k / IDCG@k
-    where :math:`DCG@k = \sum_{i=1}^{k} rel(i) / log_{}(i+1)` -
-    Discounted Cumulative Gain at k, main part of `NDCG@k`.
+        NDCG@k=\frac{1}{|U|}\sum_{u \in U}\frac{DCG_u@k}{IDCG_u@k}
+    where :math:`DCG_u@k = \sum_{i=1}^{k} \frac{rel(i)}{log_{}(i+1)}` -
+    Discounted Cumulative Gain at k for user u.
 
-    The closer it is to the top the more weight it assigns to relevant items.
     Here:
     - `rel(i)` is an indicator function, it equals to ``1``
     if an item at rank `i` is relevant, ``0`` otherwise;
     - `log` - logarithm at any given base, usually ``2``.
-
-    and :math:`IDCG@k = \sum_{i=1}^{k} (1 / log(i + 1))` -
-    `Ideal DCG@k`, maximum possible value of `DCG@k`, used as
-    normalization coefficient to ensure that `NDCG@k` values
-    lie in ``[0, 1]``.
+    The relevant items are to the top the, more gain is achieved.
+    
+    In the denominator of NDCG@k is `Ideal DCG@k`, maximum possible value of `DCG@k`, used as
+    normalization coefficient to ensure that `NDCG@k` valueslie in ``[0, 1]``.
+    When `divide_by_achievable` is set to ``False`` (default) it is the same value for all users
+    ans is equal to:
+    :math:`IDCG_u@k = \sum_{i=1}^{k} \frac{1}{log(i + 1)}`
     When `divide_by_achievable` is set to ``True``, the formula for IDCG depends
-    on number of each user test positives. IDCG for each user is computed as
-    :math:`\frac{1}{\sum_{i=1}^{\min (|R(u)|, K)}\frac{1}{\log_{}(i+1)}}`
+    on number of each user relevant items in the test set. The formula is:
+    :math:`IDCG_u@k = \sum_{i=1}^{\min (|R(u)|, k)} \frac{1}{log(i + 1)}`
 
     Parameters
     ----------
