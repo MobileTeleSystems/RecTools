@@ -450,16 +450,15 @@ class NDCG(_RankingMetric):
 
         if self.divide_by_achievable:
             grouped = merged.groupby(Columns.User, sort=False)
-            stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
+            stats = grouped.agg(n_items=(Columns.Item, "count"), dcg=("__DCG", "sum"))
 
             # IDCG
             n_items_to_ndcg_map = dict(zip(ranks, discounted_gains.cumsum()))
-            n_items_to_ndcg_map[0] = 0 
-            stats["__ideal"] = stats["__ideal"].clip(upper=self.k)
-            stats["__ideal"] = stats["__ideal"].map(idcg_cumcum_map)
+            n_items_to_ndcg_map[0] = 0
+            idcg = stats["n_items"].clip(upper=self.k).map(n_items_to_ndcg_map)
 
             # NDCG
-            ndcg = stats["__real"] / stats["__ideal"]
+            ndcg = stats["dcg"] / idcg
 
         else:
             idcg = discounted_gains.sum()
