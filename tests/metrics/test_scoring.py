@@ -26,6 +26,7 @@ from rectools.metrics import (
     PAP,
     Accuracy,
     AvgRecPopularity,
+    CatalogCoverage,
     CoveredUsers,
     DebiasConfig,
     F1Beta,
@@ -118,6 +119,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "sufficient": SufficientReco(k=2),
             "unrepeated": UnrepeatedReco(k=2),
             "covered_users": CoveredUsers(k=2),
+            "catalog_coverage": CatalogCoverage(k=2),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
             actual = calc_metrics(
@@ -147,6 +149,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "sufficient": 0.25,
             "unrepeated": 1,
             "covered_users": 0.75,
+            "catalog_coverage": 0.2,
         }
         assert actual == expected
 
