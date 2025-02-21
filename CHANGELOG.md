@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- `CatalogCoverage` metric and `divide_by_achievable` argument to `NDCG` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266))
+- `CatalogCoverage` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266))
+- `divide_by_achievable` argument to `NDCG` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266))
 
 ## [0.11.0] - 17.02.2025
 

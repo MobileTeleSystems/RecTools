@@ -49,7 +49,7 @@ class CatalogCoverage(MetricAtK):
         float
             Value of metric (aggregated for all users).
         """
-        return reco[reco[Columns.Rank] <= self.k][Columns.Item].nunique() / len(catalog)
+        return reco.loc[reco[Columns.Rank] <= self.k, Columns.Item].nunique() / len(catalog)
 
 
 CatalogMetric = CatalogCoverage

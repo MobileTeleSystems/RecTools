@@ -318,19 +318,20 @@ class NDCG(_RankingMetric):
 
     .. math::
         NDCG@k=\frac{1}{|U|}\sum_{u \in U}\frac{DCG_u@k}{IDCG_u@k}
-    where :math:`DCG_u@k = \sum_{i=1}^{k} \frac{rel(i)}{log_{}(i+1)}` -
-    Discounted Cumulative Gain at k for user u.
+        
+    where
+        - :math:`DCG_u@k` is "Discounted Cumulative Gain" at k for user u.
+        - "Gain" stands for relevance of item at position i to user. It equals to ``1`` if this item
+        is relevant, ``0`` otherwise
+        - "Discounted Gain" means that original item relevance is being discounted based on this
+        items rank. The closer is item to the top the, the more gain is achieved.
+        - "Discounted Cumulative Gain" means that discounted gains are summed together.
+        - :math:`IDCG_u@k` is "Ideal Discounted Cumulative Gain" at k for user u. This is maximum
+        possible value of `DCG@k`, used as normalization coefficient to ensure that `NDCG@k`
+        values lie in ``[0, 1]``.
 
-    Here:
-    - `rel(i)` is an indicator function, it equals to ``1``
-    if an item at rank `i` is relevant, ``0`` otherwise;
-    - `log` - logarithm at any given base, usually ``2``.
-    The relevant items are to the top the, more gain is achieved.
-
-    In the denominator of NDCG@k is `Ideal DCG@k`, maximum possible value of `DCG@k`, used as
-    normalization coefficient to ensure that `NDCG@k` valueslie in ``[0, 1]``.
-    When `divide_by_achievable` is set to ``False`` (default) it is the same value for all users
-    and is equal to:
+    When `divide_by_achievable` is set to ``False`` (default) `IDCG_u@k` is the same value for all
+    users and is equal to:
     :math:`IDCG_u@k = \sum_{i=1}^{k} \frac{1}{log(i + 1)}`
     When `divide_by_achievable` is set to ``True``, the formula for IDCG depends
     on number of each user relevant items in the test set. The formula is:
@@ -440,21 +441,20 @@ class NDCG(_RankingMetric):
             merged = debias_interactions(merged, self.debias_config)
 
         # DCG
-        ranks = np.arange(1, self.k + 1)
-        discounted_gains = 1 / log_at_base(ranks + 1, self.log_base)  # avoid division by 0 with `+1`
-        rank_discounted_gains = dict(zip(ranks, discounted_gains))
-        rank_discounted_gains[0] = 0
-        merged["__DCG"] = (
-            (merged[Columns.Rank] <= self.k).astype(int)  # indicate TP at top `k`
-            * merged[Columns.Rank].fillna(0)  # reveal TP ranks at top `k`
-            .map(rank_discounted_gains)  # replace TP ranks with their gains
+        # Avoid division by 0 with `+1` for rank value in denominator before taking logarithm
+        merged["__DCG"] = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(
+            merged[Columns.Rank] + 1, self.log_base
         )
+        ranks = np.arange(1, self.k + 1)
+        discounted_gains = 1 / log_at_base(ranks + 1, self.log_base)
 
         if self.divide_by_achievable:
             grouped = merged.groupby(Columns.User, sort=False)
             stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
 
             # IDCG
+            rank_discounted_gains = dict(zip(ranks, discounted_gains))
+            rank_discounted_gains[0] = 0
             idcg_cumcum_map = {0: 0}
             for rank in ranks:
                 idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + rank_discounted_gains[rank]
