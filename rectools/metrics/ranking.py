@@ -439,12 +439,16 @@ class NDCG(_RankingMetric):
         if not is_debiased and self.debias_config is not None:
             merged = debias_interactions(merged, self.debias_config)
 
+        # DCG
         ranks = np.arange(1, self.k + 1)
-        idcg_for_ranks = 1 / log_at_base(ranks + 1, self.log_base)
-        idcg_map = dict(zip(ranks, idcg_for_ranks))
-        idcg_map[0] = 0
-
-        merged["__DCG"] = ((merged[Columns.Rank] <= self.k).astype(int) * merged[Columns.Rank].fillna(0)).map(idcg_map)
+        discounted_gains = 1 / log_at_base(ranks + 1, self.log_base)  # avoid division by 0 with `+1`
+        rank_discounted_gains = dict(zip(ranks, discounted_gains))
+        rank_discounted_gains[0] = 0
+        merged["__DCG"] = (
+            (merged[Columns.Rank] <= self.k).astype(int)  # indicate TP at top `k`
+            * merged[Columns.Rank].fillna(0)  # reveal TP ranks at top `k`
+            .map(rank_discounted_gains)  # replace TP ranks with their gains
+        )
 
         if self.divide_by_achievable:
             grouped = merged.groupby(Columns.User, sort=False)
@@ -453,7 +457,7 @@ class NDCG(_RankingMetric):
             # IDCG
             idcg_cumcum_map = {0: 0}
             for rank in ranks:
-                idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + idcg_map[rank]
+                idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + rank_discounted_gains[rank]
             stats["__ideal"] = stats["__ideal"].clip(upper=self.k)
             stats["__ideal"] = stats["__ideal"].map(idcg_cumcum_map)
 
@@ -461,7 +465,7 @@ class NDCG(_RankingMetric):
             ndcg = stats["__real"] / stats["__ideal"]
 
         else:
-            idcg = idcg_for_ranks.sum()
+            idcg = discounted_gains.sum()
             ndcg = (
                 pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": merged["__DCG"] / idcg})
                 .groupby(Columns.User, sort=False)["__ndcg"]
