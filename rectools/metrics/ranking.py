@@ -445,15 +445,7 @@ class NDCG(_RankingMetric):
 
         merged["__DCG"] = ((merged[Columns.Rank] <= self.k).astype(int) * merged[Columns.Rank].fillna(0)).map(idcg_map)
 
-        if not self.divide_by_achievable:
-            idcg = idcg_for_ranks.sum()
-            ndcg = (
-                pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": merged["__DCG"] / idcg})
-                .groupby(Columns.User, sort=False)["__ndcg"]
-                .sum()
-            )
-
-        else:
+        if self.divide_by_achievable:
             grouped = merged.groupby(Columns.User, sort=False)
             stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
 
@@ -466,6 +458,14 @@ class NDCG(_RankingMetric):
 
             # NDCG
             ndcg = stats["__real"] / stats["__ideal"]
+
+        else:
+            idcg = idcg_for_ranks.sum()
+            ndcg = (
+                pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": merged["__DCG"] / idcg})
+                .groupby(Columns.User, sort=False)["__ndcg"]
+                .sum()
+            )
 
         del merged["__DCG"]
         return ndcg.rename(None)
