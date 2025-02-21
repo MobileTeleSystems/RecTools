@@ -451,23 +451,21 @@ class NDCG(_RankingMetric):
                 pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": merged["__DCG"] / idcg})
                 .groupby(Columns.User, sort=False)["__ndcg"]
                 .sum()
-                .rename(None)
             )
-            del merged["__DCG"]
-            return ndcg
 
-        grouped = merged.groupby(Columns.User, sort=False)
-        stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
+        else:
+            grouped = merged.groupby(Columns.User, sort=False)
+            stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
 
-        # IDCG
-        idcg_cumcum_map = {0: 0}
-        for rank in ranks:
-            idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + idcg_map[rank]
-        stats["__ideal"] = stats["__ideal"].clip(upper=self.k)
-        stats["__ideal"] = stats["__ideal"].map(idcg_cumcum_map)
+            # IDCG
+            idcg_cumcum_map = {0: 0}
+            for rank in ranks:
+                idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + idcg_map[rank]
+            stats["__ideal"] = stats["__ideal"].clip(upper=self.k)
+            stats["__ideal"] = stats["__ideal"].map(idcg_cumcum_map)
 
-        # NDCG
-        ndcg = stats["__real"] / stats["__ideal"]
+            # NDCG
+            ndcg = stats["__real"] / stats["__ideal"]
 
         del merged["__DCG"]
         return ndcg.rename(None)
