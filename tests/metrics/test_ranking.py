@@ -99,13 +99,15 @@ class TestNDCG:
     _idcg_at_3 = 1 / np.log2(2) + 1 / np.log2(3) + 1 / np.log2(4)
 
     @pytest.mark.parametrize(
-        "k,expected_ndcg",
+        "k,divide_by_achievable,expected_ndcg",
         (
-            (1, [0, 0, 1, 1, 0]),
-            (3, [0, 0, 1, 1 / _idcg_at_3, 0.5 / _idcg_at_3]),
+            (1, False, [0, 0, 1, 1, 0]),
+            (3, False, [0, 0, 1, 1 / _idcg_at_3, 0.5 / _idcg_at_3]),
+            (1, True, [0, 0, 1, 1, 0]),
+            (3, True, [0, 0, 1, 1, (1 / np.log2(4)) / (1 / np.log2(2))]),
         ),
     )
-    def test_calc(self, k: int, expected_ndcg: tp.List[float]) -> None:
+    def test_calc(self, k: int, divide_by_achievable: bool, expected_ndcg: tp.List[float]) -> None:
         reco = pd.DataFrame(
             {
                 Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6],
@@ -115,12 +117,12 @@ class TestNDCG:
         )
         interactions = pd.DataFrame(
             {
-                Columns.User: [1, 2, 3, 3, 3, 4, 5, 5, 5, 5],
-                Columns.Item: [1, 1, 1, 2, 3, 1, 1, 2, 3, 4],
+                Columns.User: [1, 2, 3, 3, 3, 4, 5],
+                Columns.Item: [1, 1, 1, 2, 3, 1, 1],
             }
         )
 
-        metric = NDCG(k=k)
+        metric = NDCG(k=k, divide_by_achievable=divide_by_achievable)
         expected_metric_per_user = pd.Series(
             expected_ndcg,
             index=pd.Series([1, 2, 3, 4, 5], name=Columns.User),

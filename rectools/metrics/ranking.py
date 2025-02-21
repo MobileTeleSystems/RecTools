@@ -331,6 +331,9 @@ class NDCG(_RankingMetric):
     `Ideal DCG@k`, maximum possible value of `DCG@k`, used as
     normalization coefficient to ensure that `NDCG@k` values
     lie in ``[0, 1]``.
+    When `divide_by_achievable` is set to ``True``, the formula for IDCG depends
+    on number of each user test positives. IDCG for each user is computed as
+    :math:`\frac{1}{\sum_{i=1}^{\min (|R(u)|, K)}\frac{1}{\log _{2}(i+1)}}`
 
     Parameters
     ----------
@@ -338,6 +341,11 @@ class NDCG(_RankingMetric):
         Number of items at the top of recommendations list that will be used to calculate metric.
     log_base : int, default ``2``
         Base of logarithm used to weight relevant items.
+    divide_by_achievable: bool, default ``False``
+        When set to ``False`` (default) IDCG is calculated as one value for all of the users and
+        equals to the maximum gain, achievable when all ``k`` positions are relevant.
+        When set to ``True``, IDCG is calculated for each user individually, considering
+        the maximum possible amount of user test items on top ``k`` positions.
     debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
 
@@ -368,6 +376,7 @@ class NDCG(_RankingMetric):
     """
 
     log_base: int = attr.ib(default=2)
+    divide_by_achievable: bool = attr.ib(default=False)
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
@@ -429,15 +438,39 @@ class NDCG(_RankingMetric):
         if not is_debiased and self.debias_config is not None:
             merged = debias_interactions(merged, self.debias_config)
 
-        dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
-        idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
-        ndcg = (
-            pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": dcg / idcg})
-            .groupby(Columns.User, sort=False)["__ndcg"]
-            .sum()
-            .rename(None)
-        )
-        return ndcg
+        ranks = np.arange(1, self.k + 1)
+        idcg_for_ranks = 1 / log_at_base(ranks + 1, self.log_base)
+        idcg_map = dict(zip(ranks, idcg_for_ranks))
+        idcg_map[0] = 0
+
+        merged["__DCG"] = ((merged[Columns.Rank] <= self.k).astype(int) * merged[Columns.Rank].fillna(0)).map(idcg_map)
+
+        if not self.divide_by_achievable:
+            idcg = idcg_for_ranks.sum()
+            ndcg = (
+                pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": merged["__DCG"] / idcg})
+                .groupby(Columns.User, sort=False)["__ndcg"]
+                .sum()
+                .rename(None)
+            )
+            del merged["__DCG"]
+            return ndcg
+
+        grouped = merged.groupby(Columns.User, sort=False)
+        stats = grouped.agg(__ideal=(Columns.Item, "count"), __real=("__DCG", "sum"))
+
+        # IDCG
+        idcg_cumcum_map = {0: 0}
+        for rank in ranks:
+            idcg_cumcum_map[rank] = idcg_cumcum_map[rank - 1] + idcg_map[rank]
+        stats["__ideal"] = stats["__ideal"].clip(upper=self.k)
+        stats["__ideal"] = stats["__ideal"].map(idcg_cumcum_map)
+
+        # NDCG
+        ndcg = stats["__real"] / stats["__ideal"]
+
+        del merged["__DCG"]
+        return ndcg.rename(None)
 
 
 class MRR(_RankingMetric):
