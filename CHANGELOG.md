@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- `CatalogCoverage` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266))
+- `CatalogCoverage` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266), [#267](https://github.com/MobileTeleSystems/RecTools/pull/267))
 - `divide_by_achievable` argument to `NDCG` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266))
+
+### Changed
+- Interactions extra columns are not dropped in `Dataset.filter_interactions` method [#267](https://github.com/MobileTeleSystems/RecTools/pull/267)
 
 ## [0.11.0] - 17.02.2025
 
