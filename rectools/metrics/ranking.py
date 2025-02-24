@@ -314,10 +314,17 @@ class NDCG(_RankingMetric):
     r"""
     Normalized Discounted Cumulative Gain at k (NDCG@k).
 
-    Estimates relevance of recommendations taking in account their order.
+    Estimates relevance of recommendations taking in account their order. `"Discounted Gain"`
+    means that original item relevance is being discounted based on this
+    items rank. The closer is item to the top the, the more gain is achieved.
+    `"Cumulative"` means that all items discounted gains from ``k`` ranks are being summed.
+    `"Normalized"` means that the actual value of DCG is being divided by the `"Ideal DCG"` (IDCG).
+    This is the maximum possible value of `DCG@k`, used as normalization coefficient to ensure that
+    `NDCG@k` values lie in ``[0, 1]``.
 
     .. math::
         NDCG@k=\frac{1}{|U|}\sum_{u \in U}\frac{DCG_u@k}{IDCG_u@k}
+
         DCG_u@k = \sum_{i=1}^{k} \frac{rel_u(i)}{log(i + 1)}
 
     where
@@ -325,16 +332,9 @@ class NDCG(_RankingMetric):
           to ``False`` (default).
         - :math:`IDCG_u@k = \sum_{i=1}^{\min (|R(u)|, k)} \frac{1}{log(i + 1)}` when
           `divide_by_achievable` is set to ``True``.
-        - :math:`DCG_u@k` is "Discounted Cumulative Gain" at ``k`` for user ``u``.
         - :math:`rel_u(i)` is `"Gain"`. Here it is an indicator function, it equals to ``1`` if the
           item at rank ``i`` is relevant to user ``u``, ``0`` otherwise.
-        - `"Discounted Gain"` means that original item relevance is being discounted based on this
-          items rank. The closer is item to the top the, the more gain is achieved.
-        - `"Discounted Cumulative Gain"` means that discounted gains are summed together.
-        - :math:`IDCG_u@k` is `"Ideal Discounted Cumulative Gain"` at ``k`` for user ``u``. This is
-          the maximum possible value of `DCG@k`, used as normalization coefficient to ensure that
-          `NDCG@k` values lie in ``[0, 1]``.
-        - :math:`|R_u|` is number of relevant (ground truth) items for user $u$.
+        - :math:`|R_u|` is number of relevant (ground truth) items for user ``u``.
 
     Parameters
     ----------
