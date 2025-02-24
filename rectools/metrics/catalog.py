@@ -27,7 +27,7 @@ from .base import Catalog, MetricAtK
 @attr.s
 class CatalogCoverage(MetricAtK):
     """
-    Share of items in catalog that is present in recommendations for all users.
+    Count (or share) of items from catalog that is present in recommendations for all users.
 
     Parameters
     ----------
