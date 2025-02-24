@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Unreleased
+## [0.12.0] - 24.02.2025
 
 ### Added
 - `CatalogCoverage` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266), [#267](https://github.com/MobileTeleSystems/RecTools/pull/267))
