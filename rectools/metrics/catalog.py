@@ -16,6 +16,7 @@
 
 import typing as tp
 
+import attr
 import pandas as pd
 
 from rectools import Columns
@@ -23,15 +24,20 @@ from rectools import Columns
 from .base import Catalog, MetricAtK
 
 
+@attr.s
 class CatalogCoverage(MetricAtK):
     """
-    Share of items in catalog that is present in recommendations for all users.
+    Count (or share) of items from catalog that is present in recommendations for all users.
 
     Parameters
     ----------
     k : int
         Number of items at the top of recommendations list that will be used to calculate metric.
+    normalize: bool, default ``False``
+        Flag, which says whether to normalize metric or not.
     """
+
+    normalize: bool = attr.ib(default=False)
 
     def calc(self, reco: pd.DataFrame, catalog: Catalog) -> float:
         """
@@ -49,7 +55,10 @@ class CatalogCoverage(MetricAtK):
         float
             Value of metric (aggregated for all users).
         """
-        return reco.loc[reco[Columns.Rank] <= self.k, Columns.Item].nunique() / len(catalog)
+        res = reco.loc[reco[Columns.Rank] <= self.k, Columns.Item].nunique()
+        if self.normalize:
+            return res / len(catalog)
+        return res
 
 
 CatalogMetric = CatalogCoverage

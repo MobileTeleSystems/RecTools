@@ -119,7 +119,7 @@ class TestCalcMetrics:  # pylint: disable=attribute-defined-outside-init
             "sufficient": SufficientReco(k=2),
             "unrepeated": UnrepeatedReco(k=2),
             "covered_users": CoveredUsers(k=2),
-            "catalog_coverage": CatalogCoverage(k=2),
+            "catalog_coverage": CatalogCoverage(k=2, normalize=True),
         }
         with pytest.warns(UserWarning, match="Custom metrics are not supported"):
             actual = calc_metrics(

@@ -16,6 +16,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from rectools import Columns
 from rectools.metrics import CatalogCoverage
@@ -23,7 +24,6 @@ from rectools.metrics import CatalogCoverage
 
 class TestCatalogCoverage:
     def setup_method(self) -> None:
-        self.metric = CatalogCoverage(k=2)
         self.reco = pd.DataFrame(
             {
                 Columns.User: [1, 1, 1, 2, 2, 3, 4],
@@ -32,7 +32,8 @@ class TestCatalogCoverage:
             }
         )
 
-    def test_calc(self) -> None:
+    @pytest.mark.parametrize("normalize,expected", ((True, 0.4), (False, 2.0)))
+    def test_calc(self, normalize: bool, expected: float) -> None:
         catalog = np.arange(5)
-        expected = 0.4
-        assert self.metric.calc(self.reco, catalog) == expected
+        metric = CatalogCoverage(k=2, normalize=normalize)
+        assert metric.calc(self.reco, catalog) == expected

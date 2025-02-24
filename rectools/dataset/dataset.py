@@ -401,7 +401,8 @@ class Dataset:
         # 1x internal -> 2x internal
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
-        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map)
+        # We shouldn't drop extra columns if they are present
+        interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map, keep_extra_cols=True)
 
         def _handle_features(
             features: tp.Optional[Features], target_id_map: IdMap, dataset_id_map: IdMap
