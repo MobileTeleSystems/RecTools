@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -14,12 +14,14 @@
 
 import typing as tp
 from copy import deepcopy
+from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pandas as pd
 
 from rectools.dataset import Dataset
 from rectools.models.base import ModelBase
+from rectools.models.serialization import load_model
 
 
 def _dummy_func() -> None:
@@ -32,10 +34,14 @@ def assert_second_fit_refits_model(
     pre_fit_callback = pre_fit_callback or _dummy_func
 
     pre_fit_callback()
-    model_1 = deepcopy(model).fit(dataset)
+    model_1 = deepcopy(model)
+    pre_fit_callback()
+    model_1.fit(dataset)
 
     pre_fit_callback()
-    model_2 = deepcopy(model).fit(dataset)
+    model_2 = deepcopy(model)
+    pre_fit_callback()
+    model_2.fit(dataset)
     pre_fit_callback()
     model_2.fit(dataset)
 
@@ -72,6 +78,32 @@ def assert_dumps_loads_do_not_change_model(
         assert recovered_model_config == original_model_config
 
 
+def assert_save_load_do_not_change_model(
+    model: ModelBase,
+    dataset: Dataset,
+    check_configs: bool = True,
+) -> None:
+
+    def get_reco(model: ModelBase) -> pd.DataFrame:
+        users = dataset.user_id_map.external_ids[:2]
+        return model.recommend(users=users, dataset=dataset, k=2, filter_viewed=False)
+
+    with NamedTemporaryFile() as f:
+        model.save(f.name)
+        recovered_model = load_model(f.name)
+
+    assert isinstance(recovered_model, model.__class__)
+
+    original_model_reco = get_reco(model)
+    recovered_model_reco = get_reco(recovered_model)
+    pd.testing.assert_frame_equal(recovered_model_reco, original_model_reco)
+
+    if check_configs:
+        original_model_config = model.get_config()
+        recovered_model_config = recovered_model.get_config()
+        assert recovered_model_config == original_model_config
+
+
 def assert_default_config_and_default_model_params_are_the_same(
     model: ModelBase, default_config: tp.Dict[str, tp.Any]
 ) -> None:
@@ -95,3 +127,12 @@ def assert_get_config_and_from_config_compatibility(
 
     assert config_1 == config_2
     pd.testing.assert_frame_equal(reco_1, reco_2)
+
+
+def get_successors(cls: tp.Type) -> tp.List[tp.Type]:
+    successors = []
+    subclasses = cls.__subclasses__()
+    for subclass in subclasses:
+        successors.append(subclass)
+        successors.extend(get_successors(subclass))
+    return successors

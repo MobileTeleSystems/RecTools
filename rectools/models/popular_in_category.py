@@ -162,6 +162,7 @@ class PopularInCategoryModel(
 
     def _get_config(self) -> PopularInCategoryModelConfig:
         return PopularInCategoryModelConfig(
+            cls=self.__class__,
             category_feature=self.category_feature,
             n_categories=self.n_categories,
             mixing_strategy=self.mixing_strategy,

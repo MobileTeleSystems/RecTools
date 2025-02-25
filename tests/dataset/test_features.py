@@ -290,3 +290,37 @@ class TestSparseFeatures:
     def test_len(self) -> None:
         features = SparseFeatures(self.values, self.names)
         assert len(features) == 4
+
+    @pytest.mark.parametrize(
+        "cat_features,expected_names,expected_values",
+        (
+            (
+                ["f3", "f4"],
+                (("f3", 0), ("f4", 100), ("f4", 200)),
+                sparse.csr_matrix([[1, 0, 1], [0, 2, 1], [0, 0, 0]], dtype=float),
+            ),
+            ([], (), sparse.csr_matrix([[] for _ in range(3)], dtype=float)),
+        ),
+    )
+    def test_get_cat_features(
+        self, cat_features: tp.List, expected_names: tp.Tuple, expected_values: sparse.csr_matrix
+    ) -> None:
+        df = pd.DataFrame(
+            [
+                [10, "f3", 0],
+                [20, "f4", 100],
+                [10, "f4", 200],
+                [20, "f4", 100],
+                [20, "f4", 200],
+                [20, "f1", 200],
+                [20, "f0", 200],
+            ],
+            columns=["id", "feature", "value"],
+        )
+        id_map = IdMap.from_values([10, 20, 30])
+        features = SparseFeatures.from_flatten(df, id_map=id_map, cat_features=cat_features)
+
+        category_features = features.get_cat_features()
+
+        assert expected_names == category_features.names
+        assert_sparse_matrix_equal(category_features.values, expected_values)

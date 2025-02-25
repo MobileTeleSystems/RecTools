@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -15,24 +15,20 @@
 """Implicit ranker model."""
 
 import typing as tp
-from enum import Enum
+import warnings
 
 import implicit.cpu
+import implicit.gpu
 import numpy as np
 from implicit.cpu.matrix_factorization_base import _filter_items_from_sparse_matrix as filter_items_from_sparse_matrix
+from implicit.gpu import HAS_CUDA
 from scipy import sparse
 
 from rectools import InternalIds
 from rectools.models.base import Scores
+from rectools.models.rank.rank import Distance
+from rectools.models.utils import convert_arr_to_implicit_gpu_matrix
 from rectools.types import InternalIdsArray
-
-
-class Distance(Enum):
-    """Distance metric"""
-
-    DOT = 1  # Bigger value means closer vectors
-    COSINE = 2  # Bigger value means closer vectors
-    EUCLIDEAN = 3  # Smaller value means closer vectors
 
 
 class ImplicitRanker:
@@ -53,10 +49,19 @@ class ImplicitRanker:
     objects_factors : np.ndarray
         Array with embeddings of all objects, shape (n_objects, n_factors).
         For item-item similarity models item similarity vectors are viewed as factors.
+    num_threads : int, default 0
+            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`. Omitted if use_gpu is True
+    use_gpu : bool, default False
+        If True `implicit.gpu.KnnQuery().topk` will be used instead of classic cpu version.
     """
 
     def __init__(
-        self, distance: Distance, subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix], objects_factors: np.ndarray
+        self,
+        distance: Distance,
+        subjects_factors: tp.Union[np.ndarray, sparse.csr_matrix],
+        objects_factors: np.ndarray,
+        num_threads: int = 0,
+        use_gpu: bool = False,
     ) -> None:
         if isinstance(subjects_factors, sparse.csr_matrix) and distance != Distance.DOT:
             raise ValueError("To use `sparse.csr_matrix` distance must be `Distance.DOT`")
@@ -64,6 +69,8 @@ class ImplicitRanker:
         self.distance = distance
         self.subjects_factors: np.ndarray = subjects_factors.astype(np.float32)
         self.objects_factors: np.ndarray = objects_factors.astype(np.float32)
+        self.num_threads = num_threads
+        self.use_gpu = use_gpu
 
         self.subjects_norms: np.ndarray
         if distance == Distance.COSINE:
@@ -74,8 +81,15 @@ class ImplicitRanker:
             self.subjects_dots = self._calc_dots(self.subjects_factors)
 
     def _get_neginf_score(self) -> float:
-        # Adding 1 to avoid float calculation errors (we're comparing `scores <= neginf_score`)
-        return float(-np.finfo(np.float32).max + 1)
+        # neginf_score computed according to implicit gpu FLT_FILTER_DISTANCE
+        # https://github.com/benfred/implicit/blob/main/implicit/gpu/knn.cu#L36
+        # we're comparing `scores <= neginf_score`
+        return float(
+            np.asarray(
+                np.asarray(-np.finfo(np.float32).max, dtype=np.float32).view(np.uint32) - 1,
+                dtype=np.uint32,
+            ).view(np.float32)
+        )
 
     @staticmethod
     def _calc_dots(factors: np.ndarray) -> np.ndarray:
@@ -106,7 +120,6 @@ class ImplicitRanker:
     def _process_implicit_scores(
         self, subject_ids: InternalIds, ids: np.ndarray, scores: np.ndarray
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
-
         all_target_ids = []
         all_reco_ids: tp.List[np.ndarray] = []
         all_scores: tp.List[np.ndarray] = []
@@ -132,13 +145,51 @@ class ImplicitRanker:
 
         return all_target_ids, np.concatenate(all_reco_ids), np.concatenate(all_scores)
 
-    def rank(
+    def _rank_on_gpu(
+        self,
+        object_factors: np.ndarray,
+        subject_factors: tp.Union[np.ndarray, sparse.csr_matrix],
+        k: int,
+        object_norms: tp.Optional[np.ndarray],
+        filter_query_items: tp.Optional[tp.Union[sparse.csr_matrix, sparse.csr_array]],
+    ) -> tp.Tuple[np.ndarray, np.ndarray]:  # pragma: no cover
+        object_factors = convert_arr_to_implicit_gpu_matrix(object_factors)
+
+        if isinstance(subject_factors, sparse.spmatrix):
+            warnings.warn("Sparse subject factors converted to Dense matrix")
+            subject_factors = subject_factors.todense()
+
+        subject_factors = convert_arr_to_implicit_gpu_matrix(subject_factors)
+
+        if object_norms is not None:
+            if len(np.shape(object_norms)) == 1:
+                object_norms = np.expand_dims(object_norms, axis=0)
+            object_norms = convert_arr_to_implicit_gpu_matrix(object_norms)
+
+        if filter_query_items is not None:
+            if filter_query_items.count_nonzero() > 0:
+                filter_query_items = implicit.gpu.COOMatrix(filter_query_items.tocoo())
+            else:  # can't create `implicit.gpu.COOMatrix` for all zeroes
+                filter_query_items = None
+
+        ids, scores = implicit.gpu.KnnQuery().topk(  # pylint: disable=c-extension-no-member
+            items=object_factors,
+            m=subject_factors,
+            k=k,
+            item_norms=object_norms,
+            query_filter=filter_query_items,
+            item_filter=None,
+        )
+
+        scores = scores.astype(np.float64)
+        return ids, scores
+
+    def rank(  # pylint: disable=too-many-branches
         self,
         subject_ids: InternalIds,
-        k: int,
+        k: tp.Optional[int] = None,
         filter_pairs_csr: tp.Optional[sparse.csr_matrix] = None,
         sorted_object_whitelist: tp.Optional[InternalIdsArray] = None,
-        num_threads: int = 0,
     ) -> tp.Tuple[InternalIds, InternalIds, Scores]:
         """Rank objects to proceed inference using implicit library topk cpu method.
 
@@ -146,7 +197,7 @@ class ImplicitRanker:
         ----------
         subject_ids : csr_matrix
             Array of ids to recommend for.
-        k : int
+        k : int, optional, default ``None``
             Derived number of recommendations for every subject id.
         filter_pairs_csr : sparse.csr_matrix, optional, default ``None``
             Subject-object interactions that should be filtered from recommendations.
@@ -155,14 +206,16 @@ class ImplicitRanker:
             Whitelist of object ids.
             If given, only these items will be used for recommendations.
             Otherwise all items from dataset will be used.
-        num_threads : int, default 0
-            Will be used as `num_threads` parameter for `implicit.cpu.topk.topk`.
 
         Returns
         -------
         (InternalIds, InternalIds, Scores)
             Array of subject ids, array of recommended items, sorted by score descending and array of scores.
         """
+        if filter_pairs_csr is not None and filter_pairs_csr.shape[0] != len(subject_ids):
+            explanation = "Number of rows in `filter_pairs_csr` must be equal to `len(sublect_ids)`"
+            raise ValueError(explanation)
+
         if sorted_object_whitelist is not None:
             object_factors = self.objects_factors[sorted_object_whitelist]
 
@@ -176,6 +229,9 @@ class ImplicitRanker:
             # keep all objects and full ui_csr_for_filter
             object_factors = self.objects_factors
             filter_query_items = filter_pairs_csr
+
+        if k is None:
+            k = object_factors.shape[0]
 
         subject_factors = self.subjects_factors[subject_ids]
 
@@ -191,15 +247,29 @@ class ImplicitRanker:
 
         real_k = min(k, object_factors.shape[0])
 
-        ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
-            items=object_factors,
-            query=subject_factors,
-            k=real_k,
-            item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
-            filter_query_items=filter_query_items,  # queries x objects csr matrix for getting neginf scores
-            filter_items=None,  # rectools doesn't support blacklist for now
-            num_threads=num_threads,
-        )
+        use_gpu = self.use_gpu
+        if use_gpu and not HAS_CUDA:
+            warnings.warn("Forced rank() on CPU")
+            use_gpu = False
+
+        if use_gpu:  # pragma: no cover
+            ids, scores = self._rank_on_gpu(
+                object_factors=object_factors,
+                subject_factors=subject_factors,
+                k=real_k,
+                object_norms=object_norms,
+                filter_query_items=filter_query_items,
+            )
+        else:
+            ids, scores = implicit.cpu.topk.topk(  # pylint: disable=c-extension-no-member
+                items=object_factors,
+                query=subject_factors,
+                k=real_k,
+                item_norms=object_norms,  # query norms for COSINE distance are applied afterwards
+                filter_query_items=filter_query_items,  # queries x objects csr matrix for getting neginf scores
+                filter_items=None,  # rectools doesn't support blacklist for now
+                num_threads=self.num_threads,
+            )
 
         if sorted_object_whitelist is not None:
             ids = sorted_object_whitelist[ids]

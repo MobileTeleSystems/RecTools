@@ -64,7 +64,7 @@ Install from PyPi using pip
 
     $ pip install rectools
 
-RecTools is compatible with all operating systems and with Python 3.8+.
+RecTools is compatible with all operating systems and with Python 3.9+.
 The default version doesn't contain all the dependencies. Optional dependencies are the following:
 
 lightfm: adds wrapper for LightFM model,

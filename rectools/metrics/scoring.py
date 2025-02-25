@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from rectools.utils import select_by_type
 
 from .auc import AucMetric, calc_auc_metrics
 from .base import Catalog, MetricAtK, merge_reco
+from .catalog import CatalogMetric, calc_catalog_metrics
 from .classification import ClassificationMetric, SimpleClassificationMetric, calc_classification_metrics
 from .diversity import DiversityMetric, calc_diversity_metrics
 from .dq import CrossDQMetric, RecoDQMetric, calc_cross_dq_metrics, calc_reco_dq_metrics
@@ -149,6 +150,14 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
             raise ValueError("For calculating novelty metrics it's necessary to set 'prev_interactions'")
         novelty_values = calc_novelty_metrics(novelty_metrics, reco, prev_interactions)
         results.update(novelty_values)
+
+    # Catalog
+    catalog_metrics = select_by_type(metrics, CatalogMetric)
+    if catalog_metrics:
+        if catalog is None:
+            raise ValueError("For calculating catalog metrics it's necessary to set 'catalog'")
+        catalog_values = calc_catalog_metrics(catalog_metrics, reco, catalog)
+        results.update(catalog_values)
 
     # Popularity
     popularity_metrics = select_by_type(metrics, PopularityMetric)

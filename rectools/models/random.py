@@ -88,7 +88,7 @@ class RandomModel(ModelBase[RandomModelConfig]):
         self.all_item_ids: np.ndarray
 
     def _get_config(self) -> RandomModelConfig:
-        return RandomModelConfig(random_state=self.random_state, verbose=self.verbose)
+        return RandomModelConfig(cls=self.__class__, random_state=self.random_state, verbose=self.verbose)
 
     @classmethod
     def _from_config(cls, config: RandomModelConfig) -> tpe.Self:

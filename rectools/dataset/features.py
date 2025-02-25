@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -449,6 +449,23 @@ class SparseFeatures:
     def __len__(self) -> int:
         """Return number of objects."""
         return self.values.shape[0]
+
+    @property
+    def cat_col_mask(self) -> np.ndarray:
+        """Mask that identifies category columns in feature values sparse matrix."""
+        return np.array([feature_name[1] != DIRECT_FEATURE_VALUE for feature_name in self.names])
+
+    @property
+    def cat_feature_indices(self) -> np.ndarray:
+        """Category columns indices in feature values sparse matrix."""
+        return np.arange(len(self.names))[self.cat_col_mask]
+
+    def get_cat_features(self) -> "SparseFeatures":
+        """Return `SparseFeatures` only with categorical features."""
+        return SparseFeatures(
+            values=self.values[:, self.cat_feature_indices],
+            names=tuple(map(self.names.__getitem__, self.cat_feature_indices)),
+        )
 
 
 Features = tp.Union[DenseFeatures, SparseFeatures]

@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 # pylint: disable=attribute-defined-outside-init
 
 import typing as tp
+from collections.abc import Hashable
 from datetime import datetime
 
 import numpy as np
@@ -24,6 +25,8 @@ from scipy import sparse
 
 from rectools import Columns
 from rectools.dataset import Dataset, DenseFeatures, Features, IdMap, Interactions, SparseFeatures
+from rectools.dataset.dataset import AnyFeatureName, _serialize_feature_name
+from rectools.dataset.features import DIRECT_FEATURE_VALUE
 from tests.testing_utils import (
     assert_feature_set_equal,
     assert_id_map_equal,
@@ -36,14 +39,14 @@ class TestDataset:
     def setup_method(self) -> None:
         self.interactions_df = pd.DataFrame(
             [
-                ["u1", "i1", 2, "2021-09-09"],
-                ["u1", "i2", 2, "2021-09-05"],
-                ["u1", "i1", 6, "2021-08-09"],
-                ["u2", "i1", 7, "2020-09-09"],
-                ["u2", "i5", 9, "2021-09-03"],
-                ["u3", "i1", 2, "2021-09-09"],
+                ["u1", "i1", 2, "2021-09-09", 5],
+                ["u1", "i2", 2, "2021-09-05", 6],
+                ["u1", "i1", 6, "2021-08-09", 7],
+                ["u2", "i1", 7, "2020-09-09", 8],
+                ["u2", "i5", 9, "2021-09-03", 9],
+                ["u3", "i1", 2, "2021-09-09", 10],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra_col"],
         )
         self.expected_user_id_map = IdMap.from_values(["u1", "u2", "u3"])
         self.expected_item_id_map = IdMap.from_values(["i1", "i2", "i5"])
@@ -60,6 +63,25 @@ class TestDataset:
                 columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
             ),
         )
+        self.expected_schema = {
+            "n_interactions": 6,
+            "users": {
+                "n_hot": 3,
+                "id_map": {
+                    "size": 3,
+                    "dtype": "|O",
+                },
+                "features": None,
+            },
+            "items": {
+                "n_hot": 3,
+                "id_map": {
+                    "size": 3,
+                    "dtype": "|O",
+                },
+                "features": None,
+            },
+        }
 
     def assert_dataset_equal_to_expected(
         self,
@@ -78,11 +100,23 @@ class TestDataset:
         assert_feature_set_equal(actual.user_features, expected_user_features)
         assert_feature_set_equal(actual.item_features, expected_item_features)
 
+    def test_construct_with_extra_cols(self) -> None:
+
+        dataset = Dataset.construct(self.interactions_df, keep_extra_cols=True)
+        actual = dataset.interactions
+        expected = self.expected_interactions
+        expected.df["extra_col"] = self.interactions_df["extra_col"]
+        assert_interactions_set_equal(actual, expected)
+        actual_schema = dataset.get_schema()
+        assert actual_schema == self.expected_schema
+
     def test_construct_without_features(self) -> None:
         dataset = Dataset.construct(self.interactions_df)
         self.assert_dataset_equal_to_expected(dataset, None, None)
         assert dataset.n_hot_users == 3
         assert dataset.n_hot_items == 3
+        actual_schema = dataset.get_schema()
+        assert actual_schema == self.expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -124,6 +158,36 @@ class TestDataset:
 
         assert_feature_set_equal(dataset.get_hot_user_features(), expected_user_features)
         assert_feature_set_equal(dataset.get_hot_item_features(), expected_item_features)
+
+        expected_schema = {
+            "n_interactions": 6,
+            "users": {
+                "n_hot": 3,
+                "id_map": {
+                    "size": 3,
+                    "dtype": "|O",
+                },
+                "features": {
+                    "kind": "dense",
+                    "names": ["f1", "f2"],
+                },
+            },
+            "items": {
+                "n_hot": 3,
+                "id_map": {
+                    "size": 3,
+                    "dtype": "|O",
+                },
+                "features": {
+                    "kind": "sparse",
+                    "names": [["f1", DIRECT_FEATURE_VALUE], ["f2", 20], ["f2", 30]],
+                    "cat_feature_indices": [1, 2],
+                    "cat_n_stored_values": 3,
+                },
+            },
+        }
+        actual_schema = dataset.get_schema()
+        assert actual_schema == expected_schema
 
     @pytest.mark.parametrize("user_id_col", ("id", Columns.User))
     @pytest.mark.parametrize("item_id_col", ("id", Columns.Item))
@@ -276,14 +340,20 @@ class TestDataset:
 
     @pytest.mark.parametrize("include_weight", (True, False))
     @pytest.mark.parametrize("include_datetime", (True, False))
-    def test_get_raw_interactions(self, include_weight: bool, include_datetime: bool) -> None:
-        dataset = Dataset.construct(self.interactions_df)
-        actual = dataset.get_raw_interactions(include_weight, include_datetime)
+    @pytest.mark.parametrize("keep_extra_cols", (True, False))
+    @pytest.mark.parametrize("include_extra_cols", (True, False))
+    def test_get_raw_interactions(
+        self, include_weight: bool, include_datetime: bool, keep_extra_cols: bool, include_extra_cols: bool
+    ) -> None:
+        dataset = Dataset.construct(self.interactions_df, keep_extra_cols=keep_extra_cols)
+        actual = dataset.get_raw_interactions(include_weight, include_datetime, include_extra_cols)
         expected = self.interactions_df.astype({Columns.Weight: "float64", Columns.Datetime: "datetime64[ns]"})
         if not include_weight:
             expected.drop(columns=Columns.Weight, inplace=True)
         if not include_datetime:
             expected.drop(columns=Columns.Datetime, inplace=True)
+        if not keep_extra_cols or not include_extra_cols:
+            expected.drop(columns="extra_col", inplace=True)
         pd.testing.assert_frame_equal(actual, expected)
 
     @pytest.fixture
@@ -292,19 +362,19 @@ class TestDataset:
         user_id_map = IdMap.from_values([10, 11, 12, 13, 14])
         df = pd.DataFrame(
             [
-                [0, 0, 1, "2021-09-01"],
-                [4, 2, 1, "2021-09-02"],
-                [2, 1, 1, "2021-09-02"],
-                [2, 2, 1, "2021-09-03"],
-                [3, 2, 1, "2021-09-03"],
-                [3, 3, 1, "2021-09-03"],
-                [3, 4, 1, "2021-09-04"],
-                [1, 2, 1, "2021-09-04"],
-                [3, 1, 1, "2021-09-05"],
-                [4, 2, 1, "2021-09-05"],
-                [3, 3, 1, "2021-09-06"],
+                [0, 0, 1, "2021-09-01", 1],
+                [4, 2, 1, "2021-09-02", 1],
+                [2, 1, 1, "2021-09-02", 1],
+                [2, 2, 1, "2021-09-03", 1],
+                [3, 2, 1, "2021-09-03", 1],
+                [3, 3, 1, "2021-09-03", 1],
+                [3, 4, 1, "2021-09-04", 1],
+                [1, 2, 1, "2021-09-04", 1],
+                [3, 1, 1, "2021-09-05", 1],
+                [4, 2, 1, "2021-09-05", 1],
+                [3, 3, 1, "2021-09-06", 1],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra"],
         ).astype({Columns.Datetime: "datetime64[ns]"})
         interactions = Interactions(df)
         return Dataset(user_id_map, item_id_map, interactions)
@@ -356,12 +426,12 @@ class TestDataset:
         )
         expected_interactions_2x_internal_df = pd.DataFrame(
             [
-                [0, 0, 1, "2021-09-01"],
-                [1, 1, 1, "2021-09-02"],
-                [2, 2, 1, "2021-09-02"],
-                [2, 1, 1, "2021-09-03"],
+                [0, 0, 1, "2021-09-01", 1],
+                [1, 1, 1, "2021-09-02", 1],
+                [2, 2, 1, "2021-09-02", 1],
+                [2, 1, 1, "2021-09-03", 1],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra"],
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
         np.testing.assert_equal(filtered_dataset.user_id_map.external_ids, expected_external_user_ids)
         np.testing.assert_equal(filtered_dataset.item_id_map.external_ids, expected_external_item_ids)
@@ -394,12 +464,12 @@ class TestDataset:
         )
         expected_interactions_2x_internal_df = pd.DataFrame(
             [
-                [0, 0, 1, "2021-09-01"],
-                [1, 1, 1, "2021-09-02"],
-                [2, 2, 1, "2021-09-02"],
-                [2, 1, 1, "2021-09-03"],
+                [0, 0, 1, "2021-09-01", 1],
+                [1, 1, 1, "2021-09-02", 1],
+                [2, 2, 1, "2021-09-02", 1],
+                [2, 1, 1, "2021-09-03", 1],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra"],
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
         np.testing.assert_equal(filtered_dataset.user_id_map.external_ids, expected_external_user_ids)
         np.testing.assert_equal(filtered_dataset.item_id_map.external_ids, expected_external_item_ids)
@@ -427,3 +497,28 @@ class TestDataset:
         assert new_user_features.names == old_user_features.names
         assert_sparse_matrix_equal(new_item_features.values, old_item_features.values[kept_internal_item_ids])
         assert new_item_features.names == old_item_features.names
+
+
+class TestSerializeFeatureName:
+    @pytest.mark.parametrize(
+        "feature_name, expected",
+        (
+            (("feature_one", "value_one"), ("feature_one", "value_one")),
+            (("feature_one", 1), ("feature_one", 1)),
+            ("feature_name", "feature_name"),
+            (True, True),
+            (1.0, 1.0),
+            (1, 1),
+            (np.array(["feature_name"])[0], "feature_name"),
+            (np.array([True])[0], True),
+            (np.array([1.0])[0], 1.0),
+            (np.array([1])[0], 1),
+        ),
+    )
+    def test_basic(self, feature_name: AnyFeatureName, expected: Hashable) -> None:
+        assert _serialize_feature_name(feature_name) == expected
+
+    @pytest.mark.parametrize("feature_name", (datetime.now(), np.array([1]), [1], np.array(["name"]), np.array([True])))
+    def test_raises_on_incorrect_input(self, feature_name: tp.Any) -> None:
+        with pytest.raises(TypeError):
+            _serialize_feature_name(feature_name)

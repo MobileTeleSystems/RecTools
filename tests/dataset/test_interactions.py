@@ -36,6 +36,16 @@ class TestInteractions:
                 Columns.Item: [0, 1, 0, 1],
                 Columns.Weight: [5, 7.0, 4, 1],
                 Columns.Datetime: [datetime(2021, 9, 8)] * 4,
+                "extra_col": [1, 2, 3, 4],
+            }
+        )
+        self.raw_df = pd.DataFrame(
+            {
+                Columns.User: ["u1", "u2", "u1", "u1"],
+                Columns.Item: ["i1", "i2", "i1", "i2"],
+                Columns.Weight: [5, 7, 4, 1],
+                Columns.Datetime: ["2021-09-08"] * 4,
+                "extra_col": [1, 2, 3, 4],
             }
         )
 
@@ -46,8 +56,9 @@ class TestInteractions:
     def test_missing_columns_validation(self, subtests: SubTests) -> None:
         for col in self.df.columns:
             with subtests.test(f"drop {col} column"):
-                with pytest.raises(KeyError):
-                    Interactions(self.df.drop(columns=col))
+                if col != "extra_col":
+                    with pytest.raises(KeyError):
+                        Interactions(self.df.drop(columns=col))
 
     @pytest.mark.parametrize("column", (Columns.User, Columns.Item))
     def test_types_validation(self, column: str) -> None:
@@ -60,19 +71,16 @@ class TestInteractions:
             self.df.at[0, column] = -1
             Interactions(self.df)
 
-    def test_from_raw_creation(self) -> None:
-        raw_df = pd.DataFrame(
-            {
-                Columns.User: ["u1", "u2", "u1", "u1"],
-                Columns.Item: ["i1", "i2", "i1", "i2"],
-                Columns.Weight: [5, 7, 4, 1],
-                Columns.Datetime: ["2021-09-08"] * 4,
-            }
-        )
+    @pytest.mark.parametrize("keep_extra_cols", (True, False))
+    def test_from_raw_creation(self, keep_extra_cols: bool) -> None:
+        raw_df = self.raw_df
         user_id_map = IdMap(np.array(["u0", "u1", "u2"]))
         item_id_map = IdMap.from_values(["i1", "i2"])
-        interactions = Interactions.from_raw(raw_df, user_id_map, item_id_map)
-        pd.testing.assert_frame_equal(interactions.df, self.df)
+        interactions = Interactions.from_raw(raw_df, user_id_map, item_id_map, keep_extra_cols=keep_extra_cols)
+        excepted = self.df
+        if not keep_extra_cols:
+            excepted.drop(columns="extra_col", inplace=True)
+        pd.testing.assert_frame_equal(interactions.df, excepted)
 
     @pytest.mark.parametrize(
         "with_weights,expected_data",
@@ -105,12 +113,15 @@ class TestInteractions:
 
     @pytest.mark.parametrize("include_weight", (True, False))
     @pytest.mark.parametrize("include_datetime", (True, False))
-    def test_to_external(self, include_weight: bool, include_datetime: bool) -> None:
+    @pytest.mark.parametrize("include_extra_cols", (True, False))
+    def test_to_external(self, include_weight: bool, include_datetime: bool, include_extra_cols: bool) -> None:
         user_id_map = IdMap(np.array([10, 20, 30]))
         item_id_map = IdMap(np.array(["i1", "i2"]))
         interactions = Interactions(self.df)
 
-        actual = interactions.to_external(user_id_map, item_id_map, include_weight, include_datetime)
+        actual = interactions.to_external(
+            user_id_map, item_id_map, include_weight, include_datetime, include_extra_cols
+        )
         expected = pd.DataFrame(
             [
                 [20, "i1"],
@@ -124,6 +135,8 @@ class TestInteractions:
             expected[Columns.Weight] = self.df[Columns.Weight]
         if include_datetime:
             expected[Columns.Datetime] = self.df[Columns.Datetime]
+        if include_extra_cols:
+            expected["extra_col"] = self.df["extra_col"]
 
         pd.testing.assert_frame_equal(actual, expected)
 
@@ -132,7 +145,7 @@ class TestInteractions:
         item_id_map = IdMap(np.array(["i1", "i2"]))
         interactions = Interactions(self.df.iloc[:0])
 
-        actual = interactions.to_external(user_id_map, item_id_map)
+        actual = interactions.to_external(user_id_map, item_id_map, include_extra_cols=False)
         expected = pd.DataFrame(
             [],
             columns=Columns.Interactions,

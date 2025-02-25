@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -314,23 +314,27 @@ class NDCG(_RankingMetric):
     r"""
     Normalized Discounted Cumulative Gain at k (NDCG@k).
 
-    Estimates relevance of recommendations taking in account their order.
+    Estimates relevance of recommendations taking in account their order. `"Discounted Gain"`
+    means that original item relevance is being discounted based on this
+    items rank. The closer is item to the top the, the more gain is achieved.
+    `"Cumulative"` means that all items discounted gains from ``k`` ranks are being summed.
+    `"Normalized"` means that the actual value of DCG is being divided by the `"Ideal DCG"` (IDCG).
+    This is the maximum possible value of `DCG@k`, used as normalization coefficient to ensure that
+    `NDCG@k` values lie in ``[0, 1]``.
 
     .. math::
-        NDCG@k = DCG@k / IDCG@k
-    where :math:`DCG@k = \sum_{i=1}^{k+1} rel(i) / log_{}(i+1)` -
-    Discounted Cumulative Gain at k, main part of `NDCG@k`.
+        NDCG@k=\frac{1}{|U|}\sum_{u \in U}\frac{DCG_u@k}{IDCG_u@k}
 
-    The closer it is to the top the more weight it assigns to relevant items.
-    Here:
-    - `rel(i)` is an indicator function, it equals to ``1``
-    if an item at rank `i` is relevant, ``0`` otherwise;
-    - `log` - logarithm at any given base, usually ``2``.
+        DCG_u@k = \sum_{i=1}^{k} \frac{rel_u(i)}{log(i + 1)}
 
-    and :math:`IDCG@k = \sum_{i=1}^{k+1} (1 / log(i + 1))` -
-    `Ideal DCG@k`, maximum possible value of `DCG@k`, used as
-    normalization coefficient to ensure that `NDCG@k` values
-    lie in ``[0, 1]``.
+    where
+        - :math:`IDCG_u@k = \sum_{i=1}^{k} \frac{1}{log(i + 1)}` when `divide_by_achievable` is set
+          to ``False`` (default).
+        - :math:`IDCG_u@k = \sum_{i=1}^{\min (|R(u)|, k)} \frac{1}{log(i + 1)}` when
+          `divide_by_achievable` is set to ``True``.
+        - :math:`rel_u(i)` is `"Gain"`. Here it is an indicator function, it equals to ``1`` if the
+          item at rank ``i`` is relevant to user ``u``, ``0`` otherwise.
+        - :math:`|R_u|` is number of relevant (ground truth) items for user ``u``.
 
     Parameters
     ----------
@@ -338,6 +342,11 @@ class NDCG(_RankingMetric):
         Number of items at the top of recommendations list that will be used to calculate metric.
     log_base : int, default ``2``
         Base of logarithm used to weight relevant items.
+    divide_by_achievable: bool, default ``False``
+        When set to ``False`` (default) IDCG is calculated as one value for all of the users and
+        equals to the maximum gain, achievable when all ``k`` positions are relevant.
+        When set to ``True``, IDCG is calculated for each user individually, considering
+        the maximum possible amount of user test items on top ``k`` positions.
     debias_config : DebiasConfig, optional, default None
         Config with debias method parameters (iqr_coef, random_state).
 
@@ -368,6 +377,7 @@ class NDCG(_RankingMetric):
     """
 
     log_base: int = attr.ib(default=2)
+    divide_by_achievable: bool = attr.ib(default=False)
 
     def calc_per_user(self, reco: pd.DataFrame, interactions: pd.DataFrame) -> pd.Series:
         """
@@ -429,15 +439,36 @@ class NDCG(_RankingMetric):
         if not is_debiased and self.debias_config is not None:
             merged = debias_interactions(merged, self.debias_config)
 
-        dcg = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(merged[Columns.Rank] + 1, self.log_base)
-        idcg = (1 / log_at_base(np.arange(1, self.k + 1) + 1, self.log_base)).sum()
-        ndcg = (
-            pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": dcg / idcg})
-            .groupby(Columns.User, sort=False)["__ndcg"]
-            .sum()
-            .rename(None)
+        # DCG
+        # Avoid division by 0 with `+1` for rank value in denominator before taking logarithm
+        merged["__DCG"] = (merged[Columns.Rank] <= self.k).astype(int) / log_at_base(
+            merged[Columns.Rank] + 1, self.log_base
         )
-        return ndcg
+        ranks = np.arange(1, self.k + 1)
+        discounted_gains = 1 / log_at_base(ranks + 1, self.log_base)
+
+        if self.divide_by_achievable:
+            grouped = merged.groupby(Columns.User, sort=False)
+            stats = grouped.agg(n_items=(Columns.Item, "count"), dcg=("__DCG", "sum"))
+
+            # IDCG
+            n_items_to_ndcg_map = dict(zip(ranks, discounted_gains.cumsum()))
+            n_items_to_ndcg_map[0] = 0
+            idcg = stats["n_items"].clip(upper=self.k).map(n_items_to_ndcg_map)
+
+            # NDCG
+            ndcg = stats["dcg"] / idcg
+
+        else:
+            idcg = discounted_gains.sum()
+            ndcg = (
+                pd.DataFrame({Columns.User: merged[Columns.User], "__ndcg": merged["__DCG"] / idcg})
+                .groupby(Columns.User, sort=False)["__ndcg"]
+                .sum()
+            )
+
+        del merged["__DCG"]
+        return ndcg.rename(None)
 
 
 class MRR(_RankingMetric):
