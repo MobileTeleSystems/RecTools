@@ -18,6 +18,7 @@ import pytest
 
 from rectools.compat import (
     BERT4RecModel,
+    CatBoostReranker,
     DSSMModel,
     ItemToItemAnnRecommender,
     ItemToItemVisualApp,
@@ -43,6 +44,7 @@ from rectools.models.rank.compat import TorchRanker
         ItemToItemVisualApp,
         MetricsApp,
         TorchRanker,
+        CatBoostReranker,
     ),
 )
 def test_raise_when_model_not_available(

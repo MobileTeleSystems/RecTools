@@ -27,7 +27,10 @@ try:
 except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
 
+from catboost import CatBoostRanker
+
 from rectools.metrics import NDCG
+from rectools.model_selection import TimeRangeSplitter
 from rectools.models import (
     DSSMModel,
     EASEModel,
@@ -44,6 +47,7 @@ from rectools.models import (
 )
 from rectools.models.base import ModelBase, ModelConfig
 from rectools.models.nn.transformers.base import TransformerModelBase
+from rectools.models.ranking import CandidateGenerator, CandidateRankingModel, CatBoostReranker
 from rectools.models.vector import VectorModel
 from rectools.utils.config import BaseConfig
 
@@ -56,11 +60,18 @@ EXPOSABLE_MODEL_CLASSES = tuple(
     for cls in get_successors(ModelBase)
     if (cls.__module__.startswith("rectools.models") and cls not in INTERMEDIATE_MODEL_CLASSES)
 )
-CONFIGURABLE_MODEL_CLASSES = tuple(cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel,))
+CONFIGURABLE_MODEL_CLASSES = tuple(
+    cls for cls in EXPOSABLE_MODEL_CLASSES if cls not in (DSSMModel, CandidateRankingModel)
+)
 
 
 def init_default_model(model_cls: tp.Type[ModelBase]) -> ModelBase:
     mandatory_params = {
+        CandidateRankingModel: {
+            "candidate_generators": [CandidateGenerator(PopularModel(), 2, False, False)],
+            "splitter": TimeRangeSplitter("1D", n_splits=1),
+            "reranker": CatBoostReranker(CatBoostRanker(random_state=32, verbose=False)),
+        },
         ImplicitItemKNNWrapperModel: {"model": ItemItemRecommender()},
         ImplicitALSWrapperModel: {"model": AlternatingLeastSquares()},
         ImplicitBPRWrapperModel: {"model": BayesianPersonalizedRanking()},
