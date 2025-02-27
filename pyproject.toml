@@ -95,14 +95,13 @@ torch = ["torch", "pytorch-lightning"]
 visuals = ["ipywidgets", "plotly", "nbformat"]
 cupy = ["cupy-cuda12x"]
 catboost = ["catboost"]
-
 all = [
     "rectools-lightfm",
     "nmslib", "nmslib-metabrainz",
     "torch", "pytorch-lightning",
     "ipywidgets", "plotly", "nbformat",
     "cupy-cuda12x",
-    "catboost"
+    "catboost",
 ]
 
 
