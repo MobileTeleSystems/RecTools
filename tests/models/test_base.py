@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import warnings
 from datetime import timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryFile
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -452,15 +453,24 @@ class TestConfiguration:
 
             def _get_config(self) -> SomeModelConfig:
                 sc = None if self.td is None else SomeModelSubConfig(td=self.td)
-                return SomeModelConfig(x=self.x, sc=sc, verbose=self.verbose)
+                return SomeModelConfig(cls=self.__class__, x=self.x, sc=sc, verbose=self.verbose)
 
             @classmethod
             def _from_config(cls, config: SomeModelConfig) -> tpe.Self:
                 td = None if config.sc is None else config.sc.td
                 return cls(x=config.x, td=td, verbose=config.verbose)
 
+        class OtherModelConfig(ModelConfig):
+            y: int
+
+        class OtherModel(ModelBase[OtherModelConfig]):
+            pass
+
         self.config_class = SomeModelConfig
         self.model_class = SomeModel
+        self.model_class_path = "tests.models.test_base.TestConfiguration.setup_method.<locals>.SomeModel"
+        self.other_config_class = OtherModelConfig
+        self.other_model_class = OtherModel
 
     def test_from_pydantic_config(self) -> None:
         config = self.config_class(x=10, verbose=1)
@@ -489,10 +499,19 @@ class TestConfiguration:
         ):
             self.model_class.from_config(config)
 
+    def test_from_params(self, mocker: MagicMock) -> None:
+        params = {"x": 10, "verbose": 1, "sc.td": "P2DT3H"}
+        spy = mocker.spy(self.model_class, "from_config")
+        model = self.model_class.from_params(params)
+        spy.assert_called_once_with({"x": 10, "verbose": 1, "sc": {"td": "P2DT3H"}})
+        assert model.x == 10
+        assert model.td == timedelta(days=2, hours=3)
+        assert model.verbose == 1
+
     def test_get_config_pydantic(self) -> None:
         model = self.model_class(x=10, verbose=1)
         config = model.get_config(mode="pydantic")
-        assert config == self.config_class(x=10, verbose=1)
+        assert config == self.config_class(cls=self.model_class, x=10, verbose=1)
 
     def test_raises_on_pydantic_with_simple_types(self) -> None:
         model = self.model_class(x=10, verbose=1)
@@ -503,7 +522,8 @@ class TestConfiguration:
     def test_get_config_dict(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
         model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
         config = model.get_config(mode="dict", simple_types=simple_types)
-        assert config == {"x": 10, "verbose": 1, "sc": {"td": expected_td}}
+        expected_cls = self.model_class_path if simple_types else self.model_class
+        assert config == {"cls": expected_cls, "x": 10, "verbose": 1, "sc": {"td": expected_td}}
 
     def test_raises_on_incorrect_format(self) -> None:
         model = self.model_class(x=10, verbose=1)
@@ -514,13 +534,15 @@ class TestConfiguration:
     def test_get_params(self, simple_types: bool, expected_td: tp.Union[timedelta, str]) -> None:
         model = self.model_class(x=10, verbose=1, td=timedelta(days=2, hours=3))
         config = model.get_params(simple_types=simple_types)
-        assert config == {"x": 10, "verbose": 1, "sc.td": expected_td}
+        expected_cls = self.model_class_path if simple_types else self.model_class
+        assert config == {"cls": expected_cls, "x": 10, "verbose": 1, "sc.td": expected_td}
 
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_params_with_empty_subconfig(self, simple_types: bool) -> None:
         model = self.model_class(x=10, verbose=1, td=None)
         config = model.get_params(simple_types=simple_types)
-        assert config == {"x": 10, "verbose": 1, "sc": None}
+        expected_cls = self.model_class_path if simple_types else self.model_class
+        assert config == {"cls": expected_cls, "x": 10, "verbose": 1, "sc": None}
 
     def test_model_without_implemented_config_from_config(self) -> None:
         class MyModelWithoutConfig(ModelBase):
@@ -539,6 +561,11 @@ class TestConfiguration:
             NotImplementedError, match="`get_config` method is not implemented for `MyModelWithoutConfig` model"
         ):
             MyModelWithoutConfig().get_config()
+
+    def test_incorrct_model_class_in_config(self) -> None:
+        config = self.config_class(cls=self.other_model_class, x=1)
+        with pytest.raises(TypeError, match="`SomeModel` is used, but config is for `OtherModel`"):
+            self.model_class.from_config(config)
 
 
 class MyModel(ModelBase):

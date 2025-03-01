@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -40,6 +40,24 @@ class DSSMModel(RequirementUnavailable):
     requirement = "torch"
 
 
+class SASRecModel(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "torch"
+
+
+class BERT4RecModel(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "torch"
+
+
+class CatBoostReranker(RequirementUnavailable):
+    """Dummy class, which is returned if there are no dependencies required for the model"""
+
+    requirement = "catboost"
+
+
 class ItemToItemAnnRecommender(RequirementUnavailable):
     """Dummy class, which is returned if there are no dependencies required for the model"""
 
@@ -68,9 +86,3 @@ class MetricsApp(RequirementUnavailable):
     """Dummy class, which is returned if there are no dependencies required for the model"""
 
     requirement = "visuals"
-
-
-class CatBoostReranker(RequirementUnavailable):
-    """Dummy class, which is returned if there are no dependencies required for the model"""
-
-    requirement = "catboost"

@@ -42,6 +42,7 @@ class Interactions:
                 - `Columns.Weight` - weight of interaction, float, use ``1`` if interactions have no weight;
                 - `Columns.Datetime` - timestamp of interactions,
                   assign random value if you're not going to use it later.
+            Extra columns can also be present.
     """
 
     df: pd.DataFrame = attr.ib()
@@ -81,12 +82,15 @@ class Interactions:
         """Convert datetime and weight columns to the right data types."""
         self._convert_weight_and_datetime_types(self.df)
 
+    @staticmethod
+    def _add_extra_cols(df: pd.DataFrame, interactions: pd.DataFrame) -> None:
+        extra_cols = [col for col in interactions.columns if col not in df.columns]
+        for extra_col in extra_cols:
+            df[extra_col] = interactions[extra_col].values
+
     @classmethod
     def from_raw(
-        cls,
-        interactions: pd.DataFrame,
-        user_id_map: IdMap,
-        item_id_map: IdMap,
+        cls, interactions: pd.DataFrame, user_id_map: IdMap, item_id_map: IdMap, keep_extra_cols: bool = False
     ) -> "Interactions":
         """
         Create `Interactions` from dataset with external ids and id mappings.
@@ -104,6 +108,8 @@ class Interactions:
             User identifiers mapping.
         item_id_map : IdMap
             Item identifiers mapping.
+        keep_extra_cols: bool, default ``False``
+            Flag to keep all columns from interactions besides the default ones.
 
         Returns
         -------
@@ -120,6 +126,8 @@ class Interactions:
         df[Columns.Weight] = interactions[Columns.Weight].values
         df[Columns.Datetime] = interactions[Columns.Datetime].values
         cls._convert_weight_and_datetime_types(df)
+        if keep_extra_cols:
+            cls._add_extra_cols(df, interactions)
 
         return cls(df)
 
@@ -159,6 +167,7 @@ class Interactions:
         item_id_map: IdMap,
         include_weight: bool = True,
         include_datetime: bool = True,
+        include_extra_cols: bool = True,
     ) -> pd.DataFrame:
         """
         Convert itself to `pd.DataFrame` with replacing internal user and item ids to external ones.
@@ -173,6 +182,8 @@ class Interactions:
             Whether to include weight column into resulting table or not
         include_datetime : bool, default ``True``
             Whether to include datetime column into resulting table or not.
+        include_extra_cols: bool, default ``True``
+            Whether to include extra columns into resulting table or not.
 
         Returns
         -------
@@ -184,10 +195,16 @@ class Interactions:
                 Columns.Item: item_id_map.convert_to_external(self.df[Columns.Item].values),
             }
         )
+        cols_to_add = []
 
         if include_weight:
-            res[Columns.Weight] = self.df[Columns.Weight]
+            cols_to_add.append(Columns.Weight)
         if include_datetime:
-            res[Columns.Datetime] = self.df[Columns.Datetime]
+            cols_to_add.append(Columns.Datetime)
+        if include_extra_cols:
+            extra_cols = [col for col in self.df if col not in Columns.Interactions]
+            cols_to_add.extend(extra_cols)
 
+        for col in cols_to_add:
+            res[col] = self.df[col]
         return res

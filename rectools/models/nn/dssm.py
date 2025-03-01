@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -46,9 +46,9 @@ from rectools.dataset.torch_datasets import (
 from rectools.exceptions import NotFittedError
 from rectools.types import InternalIdsArray
 
-from .base import InternalRecoTriplet
-from .rank import Distance
-from .vector import Factors, VectorModel
+from ..base import InternalRecoTriplet
+from ..rank import Distance
+from ..vector import Factors, VectorModel
 
 
 class ItemNet(nn.Module):
@@ -159,7 +159,7 @@ class DSSM(LightningModule):
         self.weight_decay = weight_decay
         self.log_to_prog_bar = log_to_prog_bar
 
-    def forward(  # type: ignore
+    def forward(
         self,
         item_features_pos: torch.Tensor,
         item_features_neg: torch.Tensor,
@@ -177,7 +177,7 @@ class DSSM(LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         return optimizer
 
-    def training_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore
+    def training_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Compute and return the training loss"""
         user_features, interactions, pos, neg = batch
         anchor, positive, negative = self(pos, neg, user_features, interactions)
@@ -185,7 +185,7 @@ class DSSM(LightningModule):
         self.log("loss", loss.item(), prog_bar=self.log_to_prog_bar)
         return loss
 
-    def validation_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore
+    def validation_step(self, batch: tp.Sequence[torch.Tensor], batch_idx: int) -> torch.Tensor:
         user_features, interactions, pos, neg = batch
         anchor, positive, negative = self(pos, neg, user_features, interactions)
         val_loss = F.triplet_margin_loss(anchor, positive, negative, margin=self.triplet_loss_margin)
@@ -215,7 +215,7 @@ class DSSM(LightningModule):
         return vectors
 
 
-class DSSMModel(VectorModel):
+class DSSMModel(VectorModel):  # pylint: disable=too-many-instance-attributes
     """
     Wrapper for `rectools.models.dssm.DSSM`
 
@@ -267,6 +267,17 @@ class DSSMModel(VectorModel):
     deterministic : bool, default ``False``
         If ``True``, sets whether PyTorch operations must use deterministic algorithms.
         Use `pytorch_lightning.seed_everything` together with this param to fix the random state.
+    recommend_n_threads: int, default 0
+        Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: bool, default ``True``
+        Flag to use GPU for recommendation ranking. Please note that GPU and CPU ranking may provide
+        different ordering of items with identical scores in recommendation table.
+        If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     recommends_for_warm = True
@@ -292,6 +303,8 @@ class DSSMModel(VectorModel):
         loggers: tp.Union[Logger, tp.Iterable[Logger], bool] = True,
         verbose: int = 0,
         deterministic: bool = False,
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
     ) -> None:
         super().__init__(verbose=verbose)
         self.model: DSSM
@@ -313,6 +326,8 @@ class DSSMModel(VectorModel):
         self.train_dataset_type = train_dataset_type
         self.user_dataset_type = user_dataset_type
         self.item_dataset_type = item_dataset_type
+        self.recommend_n_threads = recommend_n_threads
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _fit(self, dataset: Dataset, dataset_valid: tp.Optional[Dataset] = None) -> None:  # type: ignore
         self.trainer = deepcopy(self._trainer)

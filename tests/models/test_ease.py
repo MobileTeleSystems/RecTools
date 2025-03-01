@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2024-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -63,8 +64,9 @@ class TestEASEModel:
             ),
         ),
     )
-    def test_basic(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_basic(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, use_gpu_ranking: bool) -> None:
+        model = EASEModel(regularization=500, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -100,8 +102,11 @@ class TestEASEModel:
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_whitelist(
+        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, use_gpu_ranking: bool
+    ) -> None:
+        model = EASEModel(regularization=500, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -149,10 +154,16 @@ class TestEASEModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
-        model = EASEModel(regularization=500).fit(dataset)
+        model = EASEModel(regularization=500, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend_to_items(
             target_items=np.array([11, 12]),
             dataset=dataset,
@@ -188,7 +199,10 @@ class TestEASEModel:
     )
     @pytest.mark.parametrize("filter_viewed", (True, False))
     def test_u2i_with_warm_and_cold_users(
-        self, filter_viewed: bool, user_features: tp.Optional[pd.DataFrame], error_match: str
+        self,
+        filter_viewed: bool,
+        user_features: tp.Optional[pd.DataFrame],
+        error_match: str,
     ) -> None:
         dataset = Dataset.construct(INTERACTIONS, user_features_df=user_features)
         model = EASEModel(regularization=500).fit(dataset)
@@ -231,29 +245,41 @@ class TestEASEModel:
         model.fit(dataset)
         assert_dumps_loads_do_not_change_model(model, dataset)
 
+    def test_warn_with_num_threads(self) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            EASEModel(num_threads=10)
+            assert len(w) == 1
+            assert "`num_threads` argument is deprecated" in str(w[-1].message)
+
 
 class TestEASEModelConfiguration:
     def test_from_config(self) -> None:
         config = {
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
+            "recommend_use_gpu_ranking": True,
             "verbose": 1,
         }
         model = EASEModel.from_config(config)
-        assert model.num_threads == 1
+        assert model.recommend_n_threads == 1
         assert model.verbose == 1
         assert model.regularization == 500
+        assert model.recommend_use_gpu_ranking is True
 
-    def test_get_config(self) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    def test_get_config(self, simple_types: bool) -> None:
         model = EASEModel(
             regularization=500,
-            num_threads=1,
+            recommend_n_threads=1,
+            recommend_use_gpu_ranking=False,
             verbose=1,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
+            "cls": "EASEModel" if simple_types else EASEModel,
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
+            "recommend_use_gpu_ranking": False,
             "verbose": 1,
         }
         assert config == expected
@@ -262,8 +288,9 @@ class TestEASEModelConfiguration:
     def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
         initial_config = {
             "regularization": 500,
-            "num_threads": 1,
+            "recommend_n_threads": 1,
             "verbose": 1,
+            "recommend_use_gpu_ranking": True,
         }
         assert_get_config_and_from_config_compatibility(EASEModel, DATASET, initial_config, simple_types)
 

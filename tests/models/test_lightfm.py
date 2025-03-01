@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 
 import numpy as np
@@ -37,8 +36,6 @@ from tests.models.utils import (
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
-
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 12), reason="`lightfm` is not compatible with Python >= 3.12")
 
 
 # pylint: disable=attribute-defined-outside-init
@@ -132,9 +129,12 @@ class TestLightFMWrapperModel:
             ),
         ),
     )
-    def test_without_features(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_without_features(
+        self, use_gpu_ranking: bool, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame
+    ) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset)
+        model = LightFMWrapperModel(model=base_model, epochs=50, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20, 150]),  # hot, hot, cold
             dataset=dataset,
@@ -172,9 +172,12 @@ class TestLightFMWrapperModel:
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_whitelist(
+        self, use_gpu_ranking: bool, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame
+    ) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset)
+        model = LightFMWrapperModel(model=base_model, epochs=50, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([20, 150]),  # hot, cold
             dataset=dataset,
@@ -188,9 +191,12 @@ class TestLightFMWrapperModel:
             actual,
         )
 
-    def test_with_features(self, dataset_with_features: Dataset) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_features(self, use_gpu_ranking: bool, dataset_with_features: Dataset) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset_with_features)
+        model = LightFMWrapperModel(model=base_model, epochs=50, recommend_use_gpu_ranking=use_gpu_ranking).fit(
+            dataset_with_features
+        )
         actual = model.recommend(
             users=np.array([10, 20, 130, 150]),  # hot, hot, warm, cold
             dataset=dataset_with_features,
@@ -211,11 +217,12 @@ class TestLightFMWrapperModel:
             actual,
         )
 
-    def test_with_weights(self, interactions_df: pd.DataFrame) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_weights(self, use_gpu_ranking: bool, interactions_df: pd.DataFrame) -> None:
         interactions_df.loc[interactions_df[Columns.Item] == 14, Columns.Weight] = 100
         dataset = Dataset.construct(interactions_df)
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model, epochs=50).fit(dataset)
+        model = LightFMWrapperModel(model=base_model, epochs=50, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([20]),
             dataset=dataset,
@@ -238,9 +245,12 @@ class TestLightFMWrapperModel:
             # LightFM raises ValueError with the dataset
             pass
 
-    def test_get_vectors(self, dataset_with_features: Dataset) -> None:
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_get_vectors(self, use_gpu_ranking: bool, dataset_with_features: Dataset) -> None:
         base_model = LightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model).fit(dataset_with_features)
+        model = LightFMWrapperModel(model=base_model, recommend_use_gpu_ranking=use_gpu_ranking).fit(
+            dataset_with_features
+        )
         user_embeddings, item_embeddings = model.get_vectors(dataset_with_features)
         predictions = user_embeddings @ item_embeddings.T
         vectors_predictions = [recommend_from_scores(predictions[i], k=5) for i in range(4)]
@@ -299,15 +309,19 @@ class TestLightFMWrapperModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_i2i(
         self,
+        use_gpu_ranking: bool,
         dataset_with_features: Dataset,
         filter_itself: bool,
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
     ) -> None:
         base_model = DeterministicLightFM(no_components=2, loss="logistic")
-        model = LightFMWrapperModel(model=base_model, epochs=100).fit(dataset_with_features)
+        model = LightFMWrapperModel(model=base_model, epochs=100, recommend_use_gpu_ranking=use_gpu_ranking).fit(
+            dataset_with_features
+        )
         actual = model.recommend_to_items(
             target_items=np.array([11, 12, 16, 17]),  # hot, hot, warm, cold
             dataset=dataset_with_features,
@@ -325,6 +339,33 @@ class TestLightFMWrapperModel:
         base_model = LightFM(no_components=2, loss="logistic", random_state=1)
         model = LightFMWrapperModel(model=base_model, epochs=5, num_threads=1)
         assert_second_fit_refits_model(model, dataset)
+
+    @pytest.mark.parametrize("loss", ("logistic", "bpr", "warp"))
+    @pytest.mark.parametrize("use_features_in_dataset", (False, True))
+    def test_per_epoch_partial_fit_consistent_with_regular_fit(
+        self,
+        dataset: Dataset,
+        dataset_with_features: Dataset,
+        use_features_in_dataset: bool,
+        loss: str,
+    ) -> None:
+        if use_features_in_dataset:
+            dataset = dataset_with_features
+
+        epochs = 20
+
+        base_model_1 = LightFM(no_components=2, loss=loss, random_state=1)
+        model_1 = LightFMWrapperModel(model=base_model_1, epochs=epochs, num_threads=1).fit(dataset)
+
+        base_model_2 = LightFM(no_components=2, loss=loss, random_state=1)
+        model_2 = LightFMWrapperModel(model=base_model_2, epochs=epochs, num_threads=1)
+        for _ in range(epochs):
+            model_2.fit_partial(dataset, epochs=1)
+
+        assert np.allclose(model_1.model.item_biases, model_2.model.item_biases)
+        assert np.allclose(model_1.model.user_biases, model_2.model.user_biases)
+        assert np.allclose(model_1.model.item_embeddings, model_2.model.item_embeddings)
+        assert np.allclose(model_1.model.user_embeddings, model_2.model.user_embeddings)
 
     def test_fail_when_getting_cold_reco_with_no_biases(self, dataset: Dataset) -> None:
         class NoBiasesLightFMWrapperModel(LightFMWrapperModel):
@@ -357,10 +398,8 @@ class TestLightFMWrapperModelConfiguration:
     def test_from_config(self, add_cls: bool) -> None:
         config: tp.Dict = {
             "model": {
-                "params": {
-                    "no_components": 16,
-                    "learning_rate": 0.03,
-                },
+                "no_components": 16,
+                "learning_rate": 0.03,
             },
             "epochs": 2,
             "num_threads": 3,
@@ -383,10 +422,13 @@ class TestLightFMWrapperModelConfiguration:
             model=LightFM(no_components=16, learning_rate=0.03, random_state=random_state),
             epochs=2,
             num_threads=3,
+            recommend_n_threads=None,
+            recommend_use_gpu_ranking=True,
             verbose=1,
         )
         config = model.get_config(simple_types=simple_types)
-        expected_model_params = {
+        expected_inner_model_config = {
+            "cls": "LightFM" if simple_types else LightFM,
             "no_components": 16,
             "k": 5,
             "n": 10,
@@ -401,12 +443,12 @@ class TestLightFMWrapperModelConfiguration:
             "random_state": random_state,
         }
         expected = {
-            "model": {
-                "cls": "LightFM" if simple_types else LightFM,
-                "params": expected_model_params,
-            },
+            "cls": "LightFMWrapperModel" if simple_types else LightFMWrapperModel,
+            "model": expected_inner_model_config,
             "epochs": 2,
             "num_threads": 3,
+            "recommend_n_threads": None,
+            "recommend_use_gpu_ranking": True,
             "verbose": 1,
         }
         assert config == expected
@@ -437,12 +479,16 @@ class TestLightFMWrapperModelConfiguration:
         assert model.get_config()["model"]["cls"] == CustomLightFM  # pylint: disable=unsubscriptable-object
 
     @pytest.mark.parametrize("simple_types", (False, True))
-    def test_get_config_and_from_config_compatibility(self, simple_types: bool) -> None:
+    @pytest.mark.parametrize("recommend_use_gpu", (False, True))
+    @pytest.mark.parametrize("recommend_n_threads", (None, 10))
+    def test_get_config_and_from_config_compatibility(
+        self, simple_types: bool, recommend_use_gpu: bool, recommend_n_threads: tp.Optional[int]
+    ) -> None:
         initial_config = {
-            "model": {
-                "params": {"no_components": 16, "learning_rate": 0.03, "random_state": 42},
-            },
+            "model": {"no_components": 16, "learning_rate": 0.03, "random_state": 42},
             "verbose": 1,
+            "recommend_n_threads": recommend_n_threads,
+            "recommend_use_gpu_ranking": recommend_use_gpu,
         }
         assert_get_config_and_from_config_compatibility(LightFMWrapperModel, DATASET, initial_config, simple_types)
 

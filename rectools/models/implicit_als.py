@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,18 +22,18 @@ from implicit.als import AlternatingLeastSquares
 from implicit.cpu.als import AlternatingLeastSquares as CPUAlternatingLeastSquares
 from implicit.gpu.als import AlternatingLeastSquares as GPUAlternatingLeastSquares
 from implicit.utils import check_random_state
-from pydantic import BeforeValidator, ConfigDict, PlainSerializer, SerializationInfo, WrapSerializer
+from pydantic import BeforeValidator, ConfigDict, SerializationInfo, WrapSerializer
 from scipy import sparse
 from tqdm.auto import tqdm
 
 from rectools.dataset import Dataset, Features
 from rectools.exceptions import NotFittedError
 from rectools.models.base import ModelConfig
-from rectools.utils.config import BaseConfig
 from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.serialization import DType, RandomState
 
-from .base import RandomState
 from .rank import Distance
+from .utils import convert_arr_to_implicit_gpu_matrix
 from .vector import Factors, VectorModel
 
 ALS_STRING = "AlternatingLeastSquares"
@@ -69,14 +69,11 @@ AlternatingLeastSquaresClass = tpe.Annotated[
     ),
 ]
 
-DType = tpe.Annotated[
-    np.dtype, BeforeValidator(func=np.dtype), PlainSerializer(func=lambda dtp: dtp.name, when_used="json")
-]
 
+class AlternatingLeastSquaresConfig(tpe.TypedDict):
+    """Config for implicit `AlternatingLeastSquares` model."""
 
-class AlternatingLeastSquaresParams(tpe.TypedDict):
-    """Params for implicit `AlternatingLeastSquares` model."""
-
+    cls: tpe.NotRequired[AlternatingLeastSquaresClass]
     factors: tpe.NotRequired[int]
     regularization: tpe.NotRequired[float]
     alpha: tpe.NotRequired[float]
@@ -90,20 +87,15 @@ class AlternatingLeastSquaresParams(tpe.TypedDict):
     random_state: tpe.NotRequired[RandomState]
 
 
-class AlternatingLeastSquaresConfig(BaseConfig):
-    """Config for implicit `AlternatingLeastSquares` model."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    cls: AlternatingLeastSquaresClass = "AlternatingLeastSquares"
-    params: AlternatingLeastSquaresParams = {}
-
-
 class ImplicitALSWrapperModelConfig(ModelConfig):
     """Config for `ImplicitALSWrapperModel`."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     model: AlternatingLeastSquaresConfig
     fit_features_together: bool = False
+    recommend_n_threads: tp.Optional[int] = None
+    recommend_use_gpu_ranking: tp.Optional[bool] = None
 
 
 class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
@@ -117,12 +109,25 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
     ----------
     model : AnyAlternatingLeastSquares
         Base model that will be used.
-    verbose : int, default 0
-        Degree of verbose output. If 0, no output will be provided.
     fit_features_together: bool, default False
         Whether fit explicit features together with latent features or not.
         Used only if explicit features are present in dataset.
         See documentations linked above for details.
+    recommend_n_threads: Optional[int], default ``None``
+        Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
+        If ``None``, then number of threads will be set same as `model.num_threads`.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: Optional[bool], default ``None``
+        Flag to use GPU for recommendation ranking. If ``None``, then will be set same as
+        `model.use_gpu`.
+        `implicit.gpu.HAS_CUDA` will also be checked before inference.  Please note that GPU and CPU
+        ranking may provide different ordering of items with identical scores in recommendation
+        table. If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
+    verbose : int, default 0
+        Degree of verbose output. If 0, no output will be provided.
     """
 
     recommends_for_warm = False
@@ -133,8 +138,21 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
     config_class = ImplicitALSWrapperModelConfig
 
-    def __init__(self, model: AnyAlternatingLeastSquares, verbose: int = 0, fit_features_together: bool = False):
-        self._config = self._make_config(model, verbose, fit_features_together)
+    def __init__(
+        self,
+        model: AnyAlternatingLeastSquares,
+        fit_features_together: bool = False,
+        recommend_n_threads: tp.Optional[int] = None,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
+        verbose: int = 0,
+    ):
+        self._config = self._make_config(
+            model=model,
+            verbose=verbose,
+            fit_features_together=fit_features_together,
+            recommend_n_threads=recommend_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
+        )
 
         super().__init__(verbose=verbose)
 
@@ -142,15 +160,31 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
         self._model = model  # for refit
 
         self.fit_features_together = fit_features_together
-        self.use_gpu = isinstance(model, GPUAlternatingLeastSquares)
-        if not self.use_gpu:
-            self.n_threads = model.num_threads
+
+        if recommend_n_threads is None:
+            recommend_n_threads = model.num_threads if isinstance(model, CPUAlternatingLeastSquares) else 0
+        self.recommend_n_threads = recommend_n_threads
+
+        if recommend_use_gpu_ranking is None:
+            recommend_use_gpu_ranking = isinstance(model, GPUAlternatingLeastSquares)
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     @classmethod
     def _make_config(
-        cls, model: AnyAlternatingLeastSquares, verbose: int, fit_features_together: bool
+        cls,
+        model: AnyAlternatingLeastSquares,
+        verbose: int,
+        fit_features_together: bool,
+        recommend_n_threads: tp.Optional[int] = None,
+        recommend_use_gpu_ranking: tp.Optional[bool] = None,
     ) -> ImplicitALSWrapperModelConfig:
-        params = {
+        model_cls = (
+            model.__class__
+            if model.__class__ not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
+            else "AlternatingLeastSquares"
+        )
+        inner_model_config = {
+            "cls": model_cls,
             "factors": model.factors,
             "regularization": model.regularization,
             "alpha": model.alpha,
@@ -160,9 +194,9 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
             "random_state": model.random_state,
         }
         if isinstance(model, GPUAlternatingLeastSquares):
-            params.update({"use_gpu": True})
+            inner_model_config.update({"use_gpu": True})
         else:
-            params.update(
+            inner_model_config.update(
                 {
                     "use_gpu": False,
                     "use_native": model.use_native,
@@ -171,18 +205,14 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
                 }
             )
 
-        model_cls = model.__class__
         return ImplicitALSWrapperModelConfig(
-            model=AlternatingLeastSquaresConfig(
-                cls=(
-                    model_cls
-                    if model_cls not in (CPUAlternatingLeastSquares, GPUAlternatingLeastSquares)
-                    else "AlternatingLeastSquares"
-                ),
-                params=tp.cast(AlternatingLeastSquaresParams, params),  # https://github.com/python/mypy/issues/8890
-            ),
+            cls=cls,
+            # https://github.com/python/mypy/issues/8890
+            model=tp.cast(AlternatingLeastSquaresConfig, inner_model_config),
             verbose=verbose,
             fit_features_together=fit_features_together,
+            recommend_n_threads=recommend_n_threads,
+            recommend_use_gpu_ranking=recommend_use_gpu_ranking,
         )
 
     def _get_config(self) -> ImplicitALSWrapperModelConfig:
@@ -190,19 +220,35 @@ class ImplicitALSWrapperModel(VectorModel[ImplicitALSWrapperModelConfig]):
 
     @classmethod
     def _from_config(cls, config: ImplicitALSWrapperModelConfig) -> tpe.Self:
-        if config.model.cls == ALS_STRING:
-            model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
-        else:
-            model_cls = config.model.cls
-        model = model_cls(**config.model.params)
-        return cls(model=model, verbose=config.verbose, fit_features_together=config.fit_features_together)
+        inner_model_params = config.model.copy()
+        inner_model_cls = inner_model_params.pop("cls", AlternatingLeastSquares)
+        if inner_model_cls == ALS_STRING:
+            inner_model_cls = AlternatingLeastSquares  # Not actually a class, but it's ok
+        model = inner_model_cls(**inner_model_params)  # type: ignore  # mypy misses we replaced str with a func
+        return cls(
+            model=model,
+            verbose=config.verbose,
+            fit_features_together=config.fit_features_together,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+        )
 
-    # TODO: move to `epochs` argument of `partial_fit` method when implemented
-    def _fit(self, dataset: Dataset, epochs: tp.Optional[int] = None) -> None:  # type: ignore
+    def _fit(self, dataset: Dataset) -> None:
         self.model = deepcopy(self._model)
+        self._fit_model_for_epochs(dataset, self.model.iterations)
+
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.model = deepcopy(self._model)
+            prev_epochs = 0
+        else:
+            prev_epochs = self.model.iterations
+
+        self._fit_model_for_epochs(dataset, epochs)
+        self.model.iterations = epochs + prev_epochs
+
+    def _fit_model_for_epochs(self, dataset: Dataset, epochs: int) -> None:
         ui_csr = dataset.get_user_item_matrix(include_weights=True).astype(np.float32)
-        if epochs is None:
-            epochs = self.model.iterations
 
         if self.fit_features_together:
             fit_als_with_features_together_inplace(
@@ -308,9 +354,8 @@ def fit_als_with_features_separately_inplace(
     """
     # If model was fitted we should drop any learnt embeddings except actual latent factors
     if model.user_factors is not None and model.item_factors is not None:
-        # Without .copy() gpu.Matrix will break correct slicing
-        user_factors = get_users_vectors(model)[:, : model.factors].copy()
-        item_factors = get_items_vectors(model)[:, : model.factors].copy()
+        user_factors = get_users_vectors(model)[:, : model.factors]
+        item_factors = get_items_vectors(model)[:, : model.factors]
         _set_factors(model, user_factors, item_factors)
 
     iu_csr = ui_csr.T.tocsr(copy=False)
@@ -340,8 +385,8 @@ def fit_als_with_features_separately_inplace(
 
 def _set_factors(model: AnyAlternatingLeastSquares, user_factors: np.ndarray, item_factors: np.ndarray) -> None:
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
-        user_factors = implicit.gpu.Matrix(user_factors)
-        item_factors = implicit.gpu.Matrix(item_factors)
+        user_factors = convert_arr_to_implicit_gpu_matrix(user_factors)
+        item_factors = convert_arr_to_implicit_gpu_matrix(item_factors)
     model.user_factors = user_factors
     model.item_factors = item_factors
 
@@ -359,7 +404,7 @@ def _fit_paired_factors(
     }
     if isinstance(model, GPUAlternatingLeastSquares):  # pragma: no cover
         features_model = GPUAlternatingLeastSquares(**features_model_params)
-        features_model.item_factors = implicit.gpu.Matrix(y_factors)
+        features_model.item_factors = convert_arr_to_implicit_gpu_matrix(y_factors)
         features_model.fit(xy_csr)
         x_factors = features_model.user_factors.to_numpy()
     else:
@@ -599,16 +644,16 @@ def _fit_combined_factors_on_gpu_inplace(
 
     iu_csr_cuda = implicit.gpu.CSRMatrix(iu_csr)
     ui_csr_cuda = implicit.gpu.CSRMatrix(ui_csr)
-    X = implicit.gpu.Matrix(user_factors)
-    Y = implicit.gpu.Matrix(item_factors)
+    X = convert_arr_to_implicit_gpu_matrix(user_factors)
+    Y = convert_arr_to_implicit_gpu_matrix(item_factors)
 
     # invalidate cached norms and squared factors
     model._item_norms = model._user_norms = None  # pylint: disable=protected-access
     model._item_norms_host = model._user_norms_host = None  # pylint: disable=protected-access
     model._YtY = model._XtX = None  # pylint: disable=protected-access
 
-    _YtY = implicit.gpu.Matrix.zeros(model.factors, model.factors)
-    _XtX = implicit.gpu.Matrix.zeros(model.factors, model.factors)
+    _YtY = implicit.gpu.Matrix.zeros(*item_factors.shape)
+    _XtX = implicit.gpu.Matrix.zeros(*user_factors.shape)
 
     for _ in tqdm(range(iterations), disable=verbose == 0):
 
@@ -617,14 +662,14 @@ def _fit_combined_factors_on_gpu_inplace(
 
         user_factors_np = X.to_numpy()
         user_factors_np[:, :n_user_explicit_factors] = user_explicit_factors
-        X = implicit.gpu.Matrix(user_factors_np)
+        X = convert_arr_to_implicit_gpu_matrix(user_factors_np)
 
         model.solver.calculate_yty(X, _XtX, model.regularization)
         model.solver.least_squares(iu_csr_cuda, Y, _XtX, X, model.cg_steps)
 
         item_factors_np = Y.to_numpy()
         item_factors_np[:, n_factors - n_item_explicit_factors :] = item_explicit_factors
-        Y = implicit.gpu.Matrix(item_factors_np)
+        Y = convert_arr_to_implicit_gpu_matrix(item_factors_np)
 
     model.user_factors = X
     model.item_factors = Y

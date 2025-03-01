@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import typing as tp
 import numpy as np
 import pandas as pd
 import pytest
+from pytest_mock import MockerFixture
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -31,6 +32,17 @@ from .utils import (
     assert_get_config_and_from_config_compatibility,
     assert_second_fit_refits_model,
 )
+
+try:
+    import cupy as cp  # pylint: disable=import-error, unused-import
+except ImportError:  # pragma: no cover
+    cp = None
+
+try:
+    HAS_CUDA = cp.is_available() if cp else False
+except Exception:  # pragma: no cover  # pylint: disable=broad-except
+    # If CUDA isn't installed cupy raises CUDARuntimeError:
+    HAS_CUDA = False
 
 
 class TestPureSVDModel:
@@ -64,13 +76,62 @@ class TestPureSVDModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_basic(
         self,
         dataset: Dataset,
         filter_viewed: bool,
         expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
+        actual = model.recommend(
+            users=np.array([10, 20]),
+            dataset=dataset,
+            k=2,
+            filter_viewed=filter_viewed,
+        )
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
+
+    # SciPy's svds and cupy's svds results can be different and use_gpu fallback causes errors
+    @pytest.mark.skipif(cp is None or not HAS_CUDA, reason="CUDA is not available")
+    @pytest.mark.parametrize(
+        "filter_viewed,expected",
+        (
+            (
+                True,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20],
+                        Columns.Item: [15, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2],
+                    }
+                ),
+            ),
+            (
+                False,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 20, 20],
+                        Columns.Item: [11, 12, 11, 12],
+                        Columns.Rank: [1, 2, 1, 2],
+                    }
+                ),
+            ),
+        ),
+    )
+    def test_basic_gpu(
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        expected: pd.DataFrame,
+    ) -> None:
+        model = PureSVDModel(factors=2, use_gpu=True, recommend_use_gpu_ranking=True).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -108,8 +169,11 @@ class TestPureSVDModel:
             ),
         ),
     )
-    def test_with_whitelist(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_with_whitelist(
+        self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame, use_gpu_ranking: bool
+    ) -> None:
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend(
             users=np.array([10, 20]),
             dataset=dataset,
@@ -123,8 +187,9 @@ class TestPureSVDModel:
             actual,
         )
 
-    def test_get_vectors(self, dataset: Dataset) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
+    def test_get_vectors(self, dataset: Dataset, use_gpu_ranking: bool) -> None:
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         user_embeddings, item_embeddings = model.get_vectors()
         predictions = user_embeddings @ item_embeddings.T
         vectors_predictions = [recommend_from_scores(predictions[i], k=5) for i in range(4)]
@@ -183,10 +248,16 @@ class TestPureSVDModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("use_gpu_ranking", (True, False))
     def test_i2i(
-        self, dataset: Dataset, filter_itself: bool, whitelist: tp.Optional[np.ndarray], expected: pd.DataFrame
+        self,
+        dataset: Dataset,
+        filter_itself: bool,
+        whitelist: tp.Optional[np.ndarray],
+        expected: pd.DataFrame,
+        use_gpu_ranking: bool,
     ) -> None:
-        model = PureSVDModel(factors=2).fit(dataset)
+        model = PureSVDModel(factors=2, recommend_use_gpu_ranking=use_gpu_ranking).fit(dataset)
         actual = model.recommend_to_items(
             target_items=np.array([11, 12]),
             dataset=dataset,
@@ -267,12 +338,16 @@ class TestPureSVDModel:
 
 class TestPureSVDModelConfiguration:
 
-    def test_from_config(self) -> None:
+    @pytest.mark.parametrize("use_gpu", (False, True))
+    def test_from_config(self, mocker: MockerFixture, use_gpu: bool) -> None:
+        mocker.patch("rectools.models.pure_svd.cp", return_value=True)
+        mocker.patch("rectools.models.pure_svd.cp.cuda.is_available", return_value=True)
         config = {
             "factors": 100,
             "tol": 0,
             "maxiter": 100,
             "random_state": 32,
+            "use_gpu": use_gpu,
             "verbose": 0,
         }
         model = PureSVDModel.from_config(config)
@@ -283,21 +358,34 @@ class TestPureSVDModelConfiguration:
         assert model.verbose == 0
 
     @pytest.mark.parametrize("random_state", (None, 42))
-    def test_get_config(self, random_state: tp.Optional[int]) -> None:
+    @pytest.mark.parametrize("simple_types", (False, True))
+    @pytest.mark.parametrize("use_gpu", (False, True))
+    def test_get_config(
+        self, mocker: MockerFixture, random_state: tp.Optional[int], simple_types: bool, use_gpu: bool
+    ) -> None:
+        mocker.patch("rectools.models.pure_svd.cp.cuda.is_available", return_value=True)
+        mocker.patch("rectools.models.pure_svd.cp", return_value=True)
         model = PureSVDModel(
             factors=100,
-            tol=1,
+            tol=1.0,
             maxiter=100,
             random_state=random_state,
+            use_gpu=use_gpu,
             verbose=1,
+            recommend_n_threads=2,
+            recommend_use_gpu_ranking=False,
         )
-        config = model.get_config()
+        config = model.get_config(simple_types=simple_types)
         expected = {
+            "cls": "PureSVDModel" if simple_types else PureSVDModel,
             "factors": 100,
-            "tol": 1,
+            "tol": 1.0,
             "maxiter": 100,
             "random_state": random_state,
+            "use_gpu": use_gpu,
             "verbose": 1,
+            "recommend_n_threads": 2,
+            "recommend_use_gpu_ranking": False,
         }
         assert config == expected
 
@@ -309,6 +397,8 @@ class TestPureSVDModelConfiguration:
             "maxiter": 100,
             "random_state": 32,
             "verbose": 0,
+            "recommend_n_threads": 2,
+            "recommend_use_gpu_ranking": False,
         }
         assert_get_config_and_from_config_compatibility(PureSVDModel, DATASET, initial_config, simple_types)
 

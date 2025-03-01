@@ -1,4 +1,4 @@
-#  Copyright 2024 MTS (Mobile Telesystems)
+#  Copyright 2024-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -15,9 +15,11 @@
 """EASE model."""
 
 import typing as tp
+import warnings
 
 import numpy as np
 import typing_extensions as tpe
+from implicit.gpu import HAS_CUDA
 from scipy import sparse
 
 from rectools import InternalIds
@@ -33,7 +35,8 @@ class EASEModelConfig(ModelConfig):
     """Config for `EASE` model."""
 
     regularization: float = 500.0
-    num_threads: int = 1
+    recommend_n_threads: int = 0
+    recommend_use_gpu_ranking: bool = True
 
 
 class EASEModel(ModelBase[EASEModelConfig]):
@@ -51,10 +54,22 @@ class EASEModel(ModelBase[EASEModelConfig]):
     ----------
     regularization : float
         The regularization factor of the weights.
+    num_threads: Optional[int], default ``None``
+        Deprecated, use `recommend_n_threads` instead.
+        Number of threads used for recommendation ranking on CPU.
+    recommend_n_threads: int, default 0
+        Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: bool, default ``True``
+        Flag to use GPU for recommendation ranking. Please note that GPU and CPU ranking may provide
+        different ordering of items with identical scores in recommendation table.
+        If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     verbose : int, default 0
         Degree of verbose output. If 0, no output will be provided.
-    num_threads: int, default 1
-        Number of threads used for `recommend` method.
     """
 
     recommends_for_warm = False
@@ -65,21 +80,44 @@ class EASEModel(ModelBase[EASEModelConfig]):
     def __init__(
         self,
         regularization: float = 500.0,
-        num_threads: int = 1,
+        num_threads: tp.Optional[int] = None,
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
         verbose: int = 0,
     ):
-
         super().__init__(verbose=verbose)
         self.weight: np.ndarray
         self.regularization = regularization
-        self.num_threads = num_threads
+
+        if num_threads is not None:
+            warnings.warn(
+                """
+            `num_threads` argument is deprecated and will be removed in future releases.
+            Please use `recommend_n_threads` instead.
+            """
+            )
+            recommend_n_threads = num_threads
+
+        self.recommend_n_threads = recommend_n_threads
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
     def _get_config(self) -> EASEModelConfig:
-        return EASEModelConfig(regularization=self.regularization, num_threads=self.num_threads, verbose=self.verbose)
+        return EASEModelConfig(
+            cls=self.__class__,
+            regularization=self.regularization,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
+            verbose=self.verbose,
+        )
 
     @classmethod
     def _from_config(cls, config: EASEModelConfig) -> tpe.Self:
-        return cls(regularization=config.regularization, num_threads=config.num_threads, verbose=config.verbose)
+        return cls(
+            regularization=config.regularization,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
+            verbose=config.verbose,
+        )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
@@ -107,7 +145,10 @@ class EASEModel(ModelBase[EASEModelConfig]):
             distance=Distance.DOT,
             subjects_factors=user_items,
             objects_factors=self.weight,
+            use_gpu=self.recommend_use_gpu_ranking and HAS_CUDA,
+            num_threads=self.recommend_n_threads,
         )
+
         ui_csr_for_filter = user_items[user_ids] if filter_viewed else None
 
         all_user_ids, all_reco_ids, all_scores = ranker.rank(
@@ -115,7 +156,6 @@ class EASEModel(ModelBase[EASEModelConfig]):
             k=k,
             filter_pairs_csr=ui_csr_for_filter,
             sorted_object_whitelist=sorted_item_ids_to_recommend,
-            num_threads=self.num_threads,
         )
 
         return all_user_ids, all_reco_ids, all_scores

@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -228,3 +228,34 @@ def make_dict_flat(d: tp.Dict[str, tp.Any], sep: str = ".", parent_key: str = ""
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+def unflatten_dict(d: tp.Dict[str, tp.Any], sep: str = ".") -> tp.Dict[str, tp.Any]:
+    """
+    Convert a flat dict with concatenated keys back into a nested dictionary.
+
+    Parameters
+    ----------
+    d : dict
+        Flattened dictionary.
+    sep : str, default "."
+        Separator used in flattened keys.
+
+    Returns
+    -------
+    dict
+        Nested dictionary.
+
+    Examples
+    --------
+    >>> unflatten_dict({'a.b': 1, 'a.c': 2, 'd': 3})
+    {'a': {'b': 1, 'c': 2}, 'd': 3}
+    """
+    result: tp.Dict[str, tp.Any] = {}
+    for key, value in d.items():
+        parts = key.split(sep)
+        current = result
+        for part in parts[:-1]:
+            current = current.setdefault(part, {})
+        current[parts[-1]] = value
+    return result

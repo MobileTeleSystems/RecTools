@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -13,7 +13,8 @@
 #  limitations under the License.
 
 import pickle
-from typing import Callable, Dict, Hashable, List, Union
+from collections.abc import Hashable
+from typing import Callable, Dict, List, Union
 
 import numpy as np
 import pytest

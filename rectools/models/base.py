@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typing_extensions as tpe
-from pydantic import PlainSerializer
+from pydantic import BeforeValidator, PlainSerializer
 from pydantic_core import PydanticSerializationError
 
 from rectools import Columns, ExternalIds, InternalIds
@@ -31,7 +31,8 @@ from rectools.dataset.identifiers import IdMap
 from rectools.exceptions import NotFittedError
 from rectools.types import ExternalIdsArray, InternalIdsArray
 from rectools.utils.config import BaseConfig
-from rectools.utils.misc import make_dict_flat
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
+from rectools.utils.serialization import PICKLE_PROTOCOL, FileLike, read_bytes
 
 T = tp.TypeVar("T", bound="ModelBase")
 ScoresArray = np.ndarray
@@ -44,28 +45,40 @@ ExternalRecoTriplet = tp.Tuple[ExternalIds, ExternalIds, Scores]
 
 RecoTriplet_T = tp.TypeVar("RecoTriplet_T", InternalRecoTriplet, SemiInternalRecoTriplet, ExternalRecoTriplet)
 
-FileLike = tp.Union[str, Path, tp.IO[bytes]]
 
-PICKLE_PROTOCOL = 5
-
-
-def _serialize_random_state(rs: tp.Optional[tp.Union[None, int, np.random.RandomState]]) -> tp.Union[None, int]:
-    if rs is None or isinstance(rs, int):
-        return rs
-
-    # NOBUG: We can add serialization using get/set_state, but it's not human readable
-    raise TypeError("`random_state` must be ``None`` or have ``int`` type to convert it to simple type")
+STANDARD_MODEL_PATH_PREFIX = "rectools.models"
 
 
-RandomState = tpe.Annotated[
-    tp.Union[None, int, np.random.RandomState],
-    PlainSerializer(func=_serialize_random_state, when_used="json"),
+def _deserialize_model_class(spec: tp.Any) -> tp.Any:
+    if not isinstance(spec, str):
+        return spec
+    if "." not in spec:
+        spec = f"{STANDARD_MODEL_PATH_PREFIX}.{spec}"  # EaseModel -> rectools.models.EaseModel
+    return import_object(spec)
+
+
+def _serialize_model_class(cls: tp.Type["ModelBase"]) -> str:
+    path = get_class_or_function_full_path(cls)
+    if path.startswith(STANDARD_MODEL_PATH_PREFIX):
+        return path.split(".")[-1]  # rectools.models.ease.EASEModel -> EASEModel
+    return path
+
+
+ModelClass = tpe.Annotated[
+    tp.Type["ModelBase"],
+    BeforeValidator(_deserialize_model_class),
+    PlainSerializer(
+        func=_serialize_model_class,
+        return_type=str,
+        when_used="json",
+    ),
 ]
 
 
 class ModelConfig(BaseConfig):
     """Base model config."""
 
+    cls: tp.Optional[ModelClass] = None
     verbose: int = 0
 
 
@@ -191,7 +204,31 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             config_obj = cls.config_class.model_validate(config)
         else:
             config_obj = config
+
+        if config_obj.cls is not None and config_obj.cls is not cls:
+            raise TypeError(f"`{cls.__name__}` is used, but config is for `{config_obj.cls.__name__}`")
+
         return cls._from_config(config_obj)
+
+    @classmethod
+    def from_params(cls, params: tp.Dict[str, tp.Any], sep: str = ".") -> tpe.Self:
+        """
+        Create model from parameters.
+        Same as `from_config` but accepts flat dict.
+
+        Parameters
+        ----------
+        params : dict
+            Model parameters as a flat dict with keys separated by `sep`.
+        sep : str, default "."
+            Separator for nested keys.
+
+        Returns
+        -------
+        Model instance.
+        """
+        config_dict = unflatten_dict(params, sep=sep)
+        return cls.from_config(config_dict)
 
     @classmethod
     def _from_config(cls, config: ModelConfig_T) -> tpe.Self:
@@ -244,10 +281,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         model
             Model instance.
         """
-        if isinstance(f, (str, Path)):
-            data = Path(f).read_bytes()
-        else:
-            data = f.read()
+        data = read_bytes(f)
 
         return cls.loads(data)
 
@@ -295,6 +329,27 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
     def _fit(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
         raise NotImplementedError()
+
+    def fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> tpe.Self:
+        """
+        Fit model. Unlike `fit`, repeated calls to this method will cause training to resume from
+        the current model state.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Dataset with input data.
+
+        Returns
+        -------
+        self
+        """
+        self._fit_partial(dataset, *args, **kwargs)
+        self.is_fitted = True
+        return self
+
+    def _fit_partial(self, dataset: Dataset, *args: tp.Any, **kwargs: tp.Any) -> None:
+        raise NotImplementedError("Partial fitting is not supported in {self.__class__.__name__}")
 
     def _custom_transform_dataset_u2i(
         self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -377,7 +432,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-
+        # We are going to lose original dataset object. Save dtype for later
+        original_user_type = dataset.user_id_map.external_dtype
+        original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
@@ -416,6 +473,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_hot_final = self._reco_to_external(reco_hot, dataset.user_id_map, dataset.item_id_map)
         reco_warm_final = self._reco_to_external(reco_warm, dataset.user_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
+
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_user_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_user_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_user_type, original_item_type)
 
         del reco_hot, reco_warm, reco_cold
 
@@ -490,7 +551,8 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         self._check_is_fitted()
         self._check_k(k)
-
+        # We are going to lose original dataset object. Save dtype for later
+        original_item_type = dataset.item_id_map.external_dtype
         dataset = self._custom_transform_dataset_i2i(dataset, target_items, on_unsupported_targets)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
@@ -540,6 +602,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         reco_warm_final = self._reco_to_external(reco_warm, dataset.item_id_map, dataset.item_id_map)
         reco_cold_final = self._reco_items_to_external(reco_cold, dataset.item_id_map)
         del reco_hot, reco_warm, reco_cold
+
+        reco_hot_final = self._adjust_reco_types(reco_hot_final, original_item_type, original_item_type)
+        reco_warm_final = self._adjust_reco_types(reco_warm_final, original_item_type, original_item_type)
+        reco_cold_final = self._adjust_reco_types(reco_cold_final, original_item_type, original_item_type)
 
         reco_all = self._concat_reco((reco_hot_final, reco_warm_final, reco_cold_final))
         del reco_hot_final, reco_warm_final, reco_cold_final
@@ -633,10 +699,12 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         return hot_targets, warm_targets, cold_targets
 
     @classmethod
-    def _adjust_reco_types(cls, reco: RecoTriplet_T, target_type: tp.Type = np.int64) -> RecoTriplet_T:
+    def _adjust_reco_types(
+        cls, reco: RecoTriplet_T, target_type: tp.Type = np.int64, item_type: tp.Type = np.int64
+    ) -> RecoTriplet_T:
         target_ids, item_ids, scores = reco
         target_ids = np.asarray(target_ids, dtype=target_type)
-        item_ids = np.asarray(item_ids, dtype=np.int64)
+        item_ids = np.asarray(item_ids, dtype=item_type)
         scores = np.asarray(scores, dtype=np.float32)
         return target_ids, item_ids, scores
 
@@ -734,6 +802,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         sorted_item_ids_to_recommend: tp.Optional[InternalIdsArray],
     ) -> InternalRecoTriplet:
         raise NotImplementedError()
+
+
+ModelConfig.model_rebuild()
 
 
 class FixedColdRecoModelMixin:
