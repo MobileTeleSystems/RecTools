@@ -426,6 +426,32 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
+    
+    def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
+        if not self.is_fitted:
+            self.data_preparator.process_dataset_train(dataset)
+
+            item_model = self._construct_item_net(self.data_preparator.train_dataset)
+            torch_model = self._init_torch_model(item_model)
+
+            dataset_schema = self.data_preparator.train_dataset.get_schema()
+            item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
+            model_config = self.get_config(simple_types=True)
+            self._init_lightning_model(
+                torch_model=torch_model,
+                dataset_schema=dataset_schema,
+                item_external_ids=item_external_ids,
+                model_config=model_config,
+            )
+
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
+        self.fit_trainer = deepcopy(self._trainer)
+        self.fit_trainer.fit_loop.max_epochs = epochs
+        self.fit_trainer.fit_loop.min_epochs = epochs
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
+
+
 
     def _recommend_u2i(
         self,

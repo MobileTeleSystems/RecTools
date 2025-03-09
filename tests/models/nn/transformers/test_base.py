@@ -317,3 +317,36 @@ class TestTransformerModelBase:
 
         actual_columns = list(pd.read_csv(metrics_path).columns)
         assert actual_columns == expected_columns
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_per_epoch_partial_fit_consistent_with_regular_fit(
+        self,
+        dataset: Dataset,
+        model_cls: tp.Type[TransformerModelBase],
+    ) -> None:
+
+        model_1 = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_ckpt,
+            }
+        )
+        RANDOM_STATE=60
+        torch.use_deterministic_algorithms(True)
+        seed_everything(RANDOM_STATE, workers=True)
+        model_1.fit(dataset)
+
+        model_2 = model_cls.from_config(
+            {
+                "deterministic": True,
+                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+                "get_trainer_func": custom_trainer_ckpt,
+            }
+        )
+        torch.use_deterministic_algorithms(True)
+        seed_everything(RANDOM_STATE, workers=True)
+        for _ in range(model_1.lightning_model._trainer.max_epochs):
+            model_2.fit_partial(dataset, epochs=1)
+
+        self._assert_same_reco(model_1, model_2, dataset)
