@@ -44,12 +44,13 @@ from rectools.models import (
     serialization,
 )
 from rectools.models.base import ModelBase, ModelConfig
+from rectools.models.nn.transformers.base import TransformerModelBase
 from rectools.models.vector import VectorModel
 from rectools.utils.config import BaseConfig
 
 from .utils import get_successors
 
-INTERMEDIATE_MODEL_CLASSES = (VectorModel,)
+INTERMEDIATE_MODEL_CLASSES = (VectorModel, TransformerModelBase)
 
 EXPOSABLE_MODEL_CLASSES = tuple(
     cls
@@ -79,6 +80,7 @@ def test_load_model(model_cls: tp.Type[ModelBase]) -> None:
         model.save(f.name)
         loaded_model = load_model(f.name)
     assert isinstance(loaded_model, model_cls)
+    assert not loaded_model.is_fitted
 
 
 class CustomModelSubConfig(BaseConfig):
