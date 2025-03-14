@@ -67,7 +67,7 @@ class TorchRanker:
         self.device = torch.device(device)
         self.batch_size = batch_size
         self.distance = distance
-        self._scorer, self._higher_is_better = self._get_scorer(distance)
+        self._scorer, self._higher_is_better = get_scorer(distance)
 
         self.subjects_factors = self._normalize_tensor(subjects_factors)
         self.objects_factors = self._normalize_tensor(objects_factors)
@@ -175,33 +175,6 @@ class TorchRanker:
             all_scores,
         )
 
-    def _get_scorer(
-        self, distance: Distance
-    ) -> tp.Tuple[tp.Callable[[torch.Tensor, torch.Tensor], torch.Tensor], bool]:
-        """Return scorer and higher_is_better flag"""
-        if distance == Distance.DOT:
-            return self._dot_score, True
-
-        if distance == Distance.COSINE:
-            return self._cosine_score, True
-
-        if distance == Distance.EUCLIDEAN:
-            return self._euclid_score, False
-
-        raise NotImplementedError(f"distance {distance} is not supported")  # pragma: no cover
-
-    def _euclid_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
-        return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
-
-    def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
-        user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
-        item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
-
-        return user_embs @ item_embs.T
-
-    def _dot_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
-        return user_embs @ item_embs.T
-
     def _normalize_tensor(
         self,
         tensor: tp.Union[np.ndarray, sparse.csr_matrix, torch.Tensor],
@@ -216,3 +189,95 @@ class TorchRanker:
             tensor = tensor.to(self.dtype)
 
         return tensor
+
+
+def get_scorer(distance: Distance) -> tp.Tuple[tp.Callable[[torch.Tensor, torch.Tensor], torch.Tensor], bool]:
+    """
+    Return scorer and higher_is_better flag
+
+    Parameters
+    ----------
+    distance : Distance
+        Distance metric.
+
+    Returns
+    -------
+    tuple(Callable(torch.Tensor, torch.Tensor), torch.Tensor)
+        Dictionary where keys are the same with keys in `metrics`
+        and values are metric calculation results.
+
+    Raises
+    ------
+    ValueError
+        If distance is not supported.
+    """
+    if distance == Distance.DOT:
+        return dot_score, True
+
+    if distance == Distance.COSINE:
+        return cosine_score, True
+
+    if distance == Distance.EUCLIDEAN:
+        return euclid_score, False
+
+    raise NotImplementedError(f"distance {distance} is not supported")  # pragma: no cover
+
+
+def euclid_score(user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate Euclidean score.
+
+    Parameters
+    ----------
+    user_embs : torch.Tensor
+        User embeddings.
+    item_embs : torch.Tensor
+        User embeddings.
+
+    Returns
+    -------
+    torch.Tensor
+        Result Euclidean score.
+    """
+    return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
+
+
+def cosine_score(user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate cosine score.
+
+    Parameters
+    ----------
+    user_embs : torch.Tensor
+        User embeddings.
+    item_embs : torch.Tensor
+        User embeddings.
+
+    Returns
+    -------
+    torch.Tensor
+        Result cosine score.
+    """
+    user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
+    item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
+
+    return user_embs @ item_embs.T
+
+
+def dot_score(user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate dot product score.
+
+    Parameters
+    ----------
+    user_embs : torch.Tensor
+        User embeddings.
+    item_embs : torch.Tensor
+        User embeddings.
+
+    Returns
+    -------
+    torch.Tensor
+        Result dot product score.
+    """
+    return user_embs @ item_embs.T

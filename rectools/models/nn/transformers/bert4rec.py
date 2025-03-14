@@ -19,6 +19,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
+from rectools.models.rank import Distance
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -241,6 +242,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         BERT4Rec training task ("MLM") does not work with causal masking. Set this
         parameter to ``True`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
+    u2i_dist : Distance, default Distance.DOT
+        U2I distance metric.
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
@@ -314,6 +317,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = True,
         use_causal_attn: bool = False,
+        u2i_dist: Distance = Distance.DOT,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -360,6 +364,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
+            u2i_dist=u2i_dist,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,

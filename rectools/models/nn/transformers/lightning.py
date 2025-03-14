@@ -24,6 +24,7 @@ from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict
 from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, TorchRanker
+from rectools.models.rank.rank_torch import get_scorer
 from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
@@ -55,7 +56,11 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         Name of the training loss.
     val_loss_name : str, default "val_loss"
         Name of the training loss.
+    u2i_dist : Distance, default Distance.DOT
+        U2I distance metric.
     """
+
+    u2i_dist_available = [Distance.DOT, Distance.COSINE]
 
     def __init__(
         self,
@@ -72,6 +77,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        u2i_dist: Distance = Distance.DOT,
         **kwargs: tp.Any,
     ):
         super().__init__()
@@ -89,6 +95,12 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
         self.item_embs: torch.Tensor
+
+        if u2i_dist not in self.u2i_dist_available:
+            raise ValueError("`u2i_distance` can only be either `Distance.DOT` or `Distance.COSINE`")
+
+        self.u2i_dist = u2i_dist
+        self.scorer, _ = get_scorer(u2i_dist)
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
@@ -214,7 +226,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
-        logits = session_embs @ item_embs.T
+        logits = self.scorer(session_embs, item_embs)
         return logits
 
     def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
@@ -223,7 +235,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
         pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
         # [batch_size, session_max_len, n_negatives + 1]
-        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
+        logits = self.scorer(session_embs.unsqueeze(-1), pos_neg_embs).squeeze(-1)
         return logits
 
     def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
@@ -337,7 +349,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
         ranker = TorchRanker(
-            distance=Distance.DOT,
+            distance=self.u2i_dist,
             device=item_embs.device,
             subjects_factors=user_embs[user_ids],
             objects_factors=item_embs,
