@@ -12,26 +12,41 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
 import typing as tp
 
 import numpy as np
 import pandas as pd
 import pytest
-import torch
-from pytorch_lightning import seed_everything
+
+try:
+    import torch
+    from pytorch_lightning import seed_everything
+except ImportError:
+    pass
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.dataset.dataset import DatasetSchema, EntitySchema
-from rectools.models.nn.item_net import (
-    CatFeaturesItemNet,
-    IdEmbeddingsItemNet,
-    ItemNetBase,
-    ItemNetConstructorBase,
-    SumOfEmbeddingsConstructor,
-)
+
+try:
+    from rectools.models.nn.item_net import (
+        CatFeaturesItemNet,
+        IdEmbeddingsItemNet,
+        ItemNetBase,
+        ItemNetConstructorBase,
+        SumOfEmbeddingsConstructor,
+    )
+except ImportError:
+    CatFeaturesItemNet = object  # type: ignore
+    IdEmbeddingsItemNet = object  # type: ignore
+    ItemNetBase = object  # type: ignore
+    ItemNetConstructorBase = object  # type: ignore
+    SumOfEmbeddingsConstructor = object  # type: ignore
 
 from ..data import DATASET, INTERACTIONS
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 class TestIdEmbeddingsItemNet:

@@ -29,8 +29,12 @@ except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
 
 from rectools.metrics import NDCG
+
+try:
+    from rectools.models import DSSMModel
+except ImportError:
+    DMMSModel = object  # it's ok in case we're skipping the tests
 from rectools.models import (
-    DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
     ImplicitBPRWrapperModel,
@@ -44,7 +48,11 @@ from rectools.models import (
     serialization,
 )
 from rectools.models.base import ModelBase, ModelConfig
-from rectools.models.nn.transformers.base import TransformerModelBase
+
+try:
+    from rectools.models.nn.transformers.base import TransformerModelBase
+except ImportError:
+    TransformerModelBase = object  # type: ignore
 from rectools.models.vector import VectorModel
 from rectools.utils.config import BaseConfig
 

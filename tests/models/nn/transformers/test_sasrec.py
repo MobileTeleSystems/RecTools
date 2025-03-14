@@ -14,27 +14,41 @@
 
 # pylint: disable=too-many-lines
 
+import sys
+import types
 import typing as tp
 from functools import partial
 
 import numpy as np
 import pandas as pd
 import pytest
-import torch
-from pytorch_lightning import Trainer, seed_everything
+
+try:
+    import torch
+    from pytorch_lightning import Trainer, seed_everything
+except ImportError:
+    torch = types.ModuleType("torch")
+    torch.tensor = lambda x: None  # type: ignore
+    torch.Tensor = object  # type: ignore
+    Trainer = object  # type: ignore
 
 from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-from rectools.models import SASRecModel
-from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-from rectools.models.nn.transformers.base import (
-    LearnableInversePositionalEncoding,
-    TrainerCallable,
-    TransformerLightningModule,
-    TransformerTorchBackbone,
-)
-from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
+
+try:
+    from rectools.models import SASRecModel
+    from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
+    from rectools.models.nn.transformers.base import (
+        LearnableInversePositionalEncoding,
+        TrainerCallable,
+        TransformerLightningModule,
+        TransformerTorchBackbone,
+    )
+    from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
+except ImportError:
+    TrainerCallable = object  # type: ignore
+    SASRecDataPreparator = object  # type: ignore
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -42,7 +56,12 @@ from tests.models.utils import (
 )
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
-from .utils import custom_trainer, leave_one_out_mask
+try:
+    from .utils import custom_trainer, leave_one_out_mask
+except NameError:
+    pass
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 class TestSASRecModel:
@@ -164,27 +183,33 @@ class TestSASRecModel:
                 "cpu",
                 1,
                 "cuda",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+                marks=pytest.mark.skipif(
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
+                ),
             ),
             ("cpu", 2, "cpu"),
             pytest.param(
                 "gpu",
                 1,
                 "cpu",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+                marks=pytest.mark.skipif(
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
+                ),
             ),
             pytest.param(
                 "gpu",
                 1,
                 "cuda",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+                marks=pytest.mark.skipif(
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
+                ),
             ),
             pytest.param(
                 "gpu",
                 [0, 1],
                 "cpu",
                 marks=pytest.mark.skipif(
-                    torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
                     reason="GPU is not available or there is only one gpu device",
                 ),
             ),

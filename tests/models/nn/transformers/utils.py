@@ -12,11 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
+
 import pandas as pd
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+import pytest
+
+try:
+    from pytorch_lightning import Trainer
+    from pytorch_lightning.callbacks import ModelCheckpoint
+except ImportError:
+    pass
 
 from rectools import Columns
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
