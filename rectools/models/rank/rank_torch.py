@@ -232,7 +232,7 @@ def euclid_score(user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tens
     user_embs : torch.Tensor
         User embeddings.
     item_embs : torch.Tensor
-        User embeddings.
+        Item embeddings.
 
     Returns
     -------
@@ -251,7 +251,7 @@ def cosine_score(user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tens
     user_embs : torch.Tensor
         User embeddings.
     item_embs : torch.Tensor
-        User embeddings.
+        Item embeddings.
 
     Returns
     -------
@@ -273,7 +273,7 @@ def dot_score(user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
     user_embs : torch.Tensor
         User embeddings.
     item_embs : torch.Tensor
-        User embeddings.
+        Item embeddings.
 
     Returns
     -------

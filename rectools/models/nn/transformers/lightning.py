@@ -97,7 +97,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.item_embs: torch.Tensor
 
         if u2i_dist not in self.u2i_dist_available:
-            raise ValueError("`u2i_distance` can only be either `Distance.DOT` or `Distance.COSINE`")
+            raise ValueError("`u2i_distance` can only be either `Distance.DOT` or `Distance.COSINE`.")
 
         self.u2i_dist = u2i_dist
         self.scorer, _ = get_scorer(u2i_dist)
