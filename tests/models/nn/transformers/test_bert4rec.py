@@ -12,36 +12,59 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
+import types
 import typing as tp
 from functools import partial
 
 import numpy as np
 import pandas as pd
 import pytest
-import torch
-from pytorch_lightning import Trainer, seed_everything
+
+try:
+    import torch
+    from pytorch_lightning import Trainer, seed_everything
+except ImportError:
+    torch = types.ModuleType("torch")
+    torch.Tensor = object  # type: ignore
+    torch.float = object  # type: ignore
+    Trainer = object  # type: ignore
+
+    def tensor(*args: tp.Any, **kwargs: tp.Any) -> tp.Any:
+        return object()
+
+    torch.tensor = tensor
 
 from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-from rectools.models import BERT4RecModel
-from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-from rectools.models.nn.transformers.base import (
-    LearnableInversePositionalEncoding,
-    PreLNTransformerLayers,
-    TrainerCallable,
-    TransformerLightningModule,
-)
-from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+
+try:
+    from rectools.models import BERT4RecModel
+    from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
+    from rectools.models.nn.transformers.base import (
+        LearnableInversePositionalEncoding,
+        PreLNTransformerLayers,
+        TrainerCallable,
+        TransformerLightningModule,
+    )
+    from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+except ImportError:
+    TrainerCallable = object  # type: ignore
+    BERT4RecDataPreparator = object  # type: ignore
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_second_fit_refits_model,
 )
 
-from .utils import custom_trainer, leave_one_out_mask
+try:
+    from .utils import custom_trainer, leave_one_out_mask
+except NameError:
+    pass
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 class TestBERT4RecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -119,27 +142,33 @@ class TestBERT4RecModel:
                 "cpu",
                 1,
                 "cuda",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+                marks=pytest.mark.skipif(
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
+                ),
             ),
             ("cpu", 2, "cpu"),
             pytest.param(
                 "gpu",
                 1,
                 "cpu",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+                marks=pytest.mark.skipif(
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
+                ),
             ),
             pytest.param(
                 "gpu",
                 1,
                 "cuda",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+                marks=pytest.mark.skipif(
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
+                ),
             ),
             pytest.param(
                 "gpu",
                 2,
                 "cpu",
                 marks=pytest.mark.skipif(
-                    torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
+                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
                     reason="GPU is not available or there is only one gpu device",
                 ),
             ),
@@ -613,6 +642,7 @@ class TestBERT4RecModel:
         )
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 class TestBERT4RecDataPreparator:
 
     def setup_method(self) -> None:
@@ -792,6 +822,7 @@ class TestBERT4RecDataPreparator:
             assert torch.equal(value, val_batch[key])
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
         self._seed_everything()

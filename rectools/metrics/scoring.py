@@ -220,4 +220,4 @@ def calc_metrics(  # noqa  # pylint: disable=too-many-branches,too-many-locals,t
     if len(results) < expected_results_len:
         warnings.warn("Custom metrics are not supported.")
 
-    return results
+    return {k: v.item() if hasattr(v, "item") else v for k, v in results.items()}
