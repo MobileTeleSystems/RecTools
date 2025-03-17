@@ -27,6 +27,7 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
+from rectools.models.rank import Distance
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.transformers.base import (
     LearnableInversePositionalEncoding,
@@ -243,6 +244,7 @@ class TestSASRecModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("u2i_dist", (Distance.DOT, Distance.COSINE))
     def test_u2i(
         self,
         dataset_devices: Dataset,
@@ -253,6 +255,7 @@ class TestSASRecModel:
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
+        u2i_dist: Distance,
     ) -> None:
 
         if devices != 1:
@@ -280,6 +283,7 @@ class TestSASRecModel:
             recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
+            u2i_dist=u2i_dist,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -297,7 +301,7 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "loss,expected",
+        "loss,expected,u2i_dist",
         (
             (
                 "BCE",
@@ -308,6 +312,7 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                Distance.DOT,
             ),
             (
                 "gBCE",
@@ -318,6 +323,29 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                Distance.DOT,
+            ),
+            (
+                "BCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                Distance.COSINE,
+            ),
+            (
+                "gBCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                Distance.COSINE,
             ),
         ),
     )
@@ -327,6 +355,7 @@ class TestSASRecModel:
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        u2i_dist: Distance,
     ) -> None:
         model = SASRecModel(
             n_negatives=2,
@@ -340,6 +369,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
+            u2i_dist=u2i_dist,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -895,6 +925,7 @@ class TestSASRecModelConfiguration:
             "recommend_torch_device": None,
             "recommend_batch_size": 256,
             "train_min_user_interactions": 2,
+            "u2i_dist": Distance.DOT,
             "item_net_block_types": (IdEmbeddingsItemNet,),
             "item_net_constructor_type": SumOfEmbeddingsConstructor,
             "pos_encoding_type": LearnableInversePositionalEncoding,
@@ -947,6 +978,7 @@ class TestSASRecModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "u2i_dist": Distance.DOT.value,
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
