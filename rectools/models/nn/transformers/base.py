@@ -28,6 +28,7 @@ from pytorch_lightning import Trainer
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
+from rectools.models.rank import Distance
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
@@ -178,6 +179,7 @@ class TransformerModelConfig(ModelConfig):
     recommend_batch_size: int = 256
     recommend_torch_device: tp.Optional[str] = None
     train_min_user_interactions: int = 2
+    u2i_dist: Distance = Distance.DOT
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     item_net_constructor_type: ItemNetConstructorType = SumOfEmbeddingsConstructor
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
@@ -233,6 +235,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         train_min_user_interactions: int = 2,
+        u2i_dist: Distance = Distance.DOT,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -268,6 +271,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.recommend_batch_size = recommend_batch_size
         self.recommend_torch_device = recommend_torch_device
         self.train_min_user_interactions = train_min_user_interactions
+        self.u2i_dist = u2i_dist
         self.item_net_block_types = item_net_block_types
         self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
@@ -390,6 +394,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             train_loss_name=self.train_loss_name,
             val_loss_name=self.val_loss_name,
             adam_betas=(0.9, 0.98),
+            u2i_dist=self.u2i_dist,
             **self._get_kwargs(self.lightning_module_kwargs),
         )
 

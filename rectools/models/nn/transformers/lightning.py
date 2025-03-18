@@ -55,7 +55,12 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         Name of the training loss.
     val_loss_name : str, default "val_loss"
         Name of the training loss.
+    u2i_dist : Distance, default Distance.DOT
+        U2I distance metric.
     """
+
+    u2i_dist_available = [Distance.DOT, Distance.COSINE]
+    epsilon_cosine_dist = 1e-8
 
     def __init__(
         self,
@@ -72,6 +77,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        u2i_dist: Distance = Distance.DOT,
         **kwargs: tp.Any,
     ):
         super().__init__()
@@ -89,6 +95,10 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
         self.item_embs: torch.Tensor
+
+        if u2i_dist not in self.u2i_dist_available:
+            raise ValueError("`u2i_distance` can only be either `Distance.DOT` or `Distance.COSINE`.")
+        self.u2i_dist = u2i_dist
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
@@ -212,8 +222,15 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     ) -> tp.Dict[str, torch.Tensor]:
         raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
 
+    def _get_embeddings_norm(self, embeddings: torch.Tensor) -> torch.Tensor:
+        embeddings = embeddings / (torch.norm(embeddings, p=2, dim=1).unsqueeze(dim=1) + self.epsilon_cosine_dist)
+        return embeddings
+
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
+        if self.u2i_dist == Distance.COSINE:
+            session_embs = self._get_embeddings_norm(session_embs)
+            item_embs = self._get_embeddings_norm(item_embs)
         logits = session_embs @ item_embs.T
         return logits
 
@@ -222,6 +239,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         item_embs, session_embs = self.torch_model(x)
         pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
         pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
+        if self.u2i_dist == Distance.COSINE:
+            session_embs = self._get_embeddings_norm(session_embs)
+            item_embs = self._get_embeddings_norm(item_embs)
         # [batch_size, session_max_len, n_negatives + 1]
         logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
         return logits
@@ -337,7 +357,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
         ranker = TorchRanker(
-            distance=Distance.DOT,
+            distance=self.u2i_dist,
             device=item_embs.device,
             subjects_factors=user_embs[user_ids],
             objects_factors=item_embs,
