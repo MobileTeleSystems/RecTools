@@ -28,6 +28,7 @@ from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.transformers.base import TransformerModelBase
+from rectools.models.rank import Distance
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
@@ -317,3 +318,10 @@ class TestTransformerModelBase:
 
         actual_columns = list(pd.read_csv(metrics_path).columns)
         assert actual_columns == expected_columns
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_incorrect_u2i_dist(self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset) -> None:
+        model_config = {"u2i_dist": Distance.EUCLIDEAN}
+        with pytest.raises(ValueError):
+            model = model_cls.from_config(model_config)
+            model.fit(dataset=dataset)
