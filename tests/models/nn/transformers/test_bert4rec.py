@@ -25,7 +25,6 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel
-from rectools.models.rank import Distance
 from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.transformers.base import (
     LearnableInversePositionalEncoding,
@@ -34,6 +33,7 @@ from rectools.models.nn.transformers.base import (
     TransformerLightningModule,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+from rectools.models.rank import Distance
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,

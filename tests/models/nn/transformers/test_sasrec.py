@@ -27,7 +27,6 @@ from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.models import SASRecModel
-from rectools.models.rank import Distance
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.transformers.base import (
     LearnableInversePositionalEncoding,
@@ -36,6 +35,7 @@ from rectools.models.nn.transformers.base import (
     TransformerTorchBackbone,
 )
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
+from rectools.models.rank import Distance
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,

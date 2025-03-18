@@ -20,6 +20,7 @@ import torch
 from torch import nn
 
 from rectools.models.rank import Distance
+
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
