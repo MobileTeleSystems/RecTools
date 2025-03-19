@@ -362,19 +362,19 @@ class TestDataset:
         user_id_map = IdMap.from_values([10, 11, 12, 13, 14])
         df = pd.DataFrame(
             [
-                [0, 0, 1, "2021-09-01"],
-                [4, 2, 1, "2021-09-02"],
-                [2, 1, 1, "2021-09-02"],
-                [2, 2, 1, "2021-09-03"],
-                [3, 2, 1, "2021-09-03"],
-                [3, 3, 1, "2021-09-03"],
-                [3, 4, 1, "2021-09-04"],
-                [1, 2, 1, "2021-09-04"],
-                [3, 1, 1, "2021-09-05"],
-                [4, 2, 1, "2021-09-05"],
-                [3, 3, 1, "2021-09-06"],
+                [0, 0, 1, "2021-09-01", 1],
+                [4, 2, 1, "2021-09-02", 1],
+                [2, 1, 1, "2021-09-02", 1],
+                [2, 2, 1, "2021-09-03", 1],
+                [3, 2, 1, "2021-09-03", 1],
+                [3, 3, 1, "2021-09-03", 1],
+                [3, 4, 1, "2021-09-04", 1],
+                [1, 2, 1, "2021-09-04", 1],
+                [3, 1, 1, "2021-09-05", 1],
+                [4, 2, 1, "2021-09-05", 1],
+                [3, 3, 1, "2021-09-06", 1],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra"],
         ).astype({Columns.Datetime: "datetime64[ns]"})
         interactions = Interactions(df)
         return Dataset(user_id_map, item_id_map, interactions)
@@ -426,12 +426,12 @@ class TestDataset:
         )
         expected_interactions_2x_internal_df = pd.DataFrame(
             [
-                [0, 0, 1, "2021-09-01"],
-                [1, 1, 1, "2021-09-02"],
-                [2, 2, 1, "2021-09-02"],
-                [2, 1, 1, "2021-09-03"],
+                [0, 0, 1, "2021-09-01", 1],
+                [1, 1, 1, "2021-09-02", 1],
+                [2, 2, 1, "2021-09-02", 1],
+                [2, 1, 1, "2021-09-03", 1],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra"],
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
         np.testing.assert_equal(filtered_dataset.user_id_map.external_ids, expected_external_user_ids)
         np.testing.assert_equal(filtered_dataset.item_id_map.external_ids, expected_external_item_ids)
@@ -464,12 +464,12 @@ class TestDataset:
         )
         expected_interactions_2x_internal_df = pd.DataFrame(
             [
-                [0, 0, 1, "2021-09-01"],
-                [1, 1, 1, "2021-09-02"],
-                [2, 2, 1, "2021-09-02"],
-                [2, 1, 1, "2021-09-03"],
+                [0, 0, 1, "2021-09-01", 1],
+                [1, 1, 1, "2021-09-02", 1],
+                [2, 2, 1, "2021-09-02", 1],
+                [2, 1, 1, "2021-09-03", 1],
             ],
-            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra"],
         ).astype({Columns.Datetime: "datetime64[ns]", Columns.Weight: float})
         np.testing.assert_equal(filtered_dataset.user_id_map.external_ids, expected_external_user_ids)
         np.testing.assert_equal(filtered_dataset.item_id_map.external_ids, expected_external_item_ids)
