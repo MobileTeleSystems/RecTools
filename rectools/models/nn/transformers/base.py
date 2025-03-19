@@ -426,7 +426,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
-    
+
     def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
         if not self.is_fitted:
             self.data_preparator.process_dataset_train(dataset)
@@ -446,12 +446,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
+
         self.fit_trainer = deepcopy(self._trainer)
-        self.fit_trainer.fit_loop.max_epochs = epochs
-        self.fit_trainer.fit_loop.min_epochs = epochs
+        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + epochs
+        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + epochs
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
-
-
 
     def _recommend_u2i(
         self,

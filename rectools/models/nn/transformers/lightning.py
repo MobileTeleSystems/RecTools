@@ -88,14 +88,17 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
+        self.is_fitted = False
+        self.optimizer: torch.optim.Adam
         self.item_embs: torch.Tensor
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
-        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        return optimizer
+        if not self.is_fitted:
+            self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
+        return self.optimizer
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
@@ -143,7 +146,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
-        self._xavier_normal_init()
+        if not self.is_fitted:
+            self._xavier_normal_init()
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
@@ -165,6 +169,10 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         self.log(self.train_loss_name, loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
 
         return loss
+
+    def on_train_end(self) -> None:
+        """Save fitted state."""
+        self.is_fitted = True
 
     def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         raise ValueError(f"loss {self.loss} is not supported")
