@@ -317,3 +317,21 @@ class TestTransformerModelBase:
 
         actual_columns = list(pd.read_csv(metrics_path).columns)
         assert actual_columns == expected_columns
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_fit_partial(
+        self,
+        dataset: Dataset,
+        model_cls: tp.Type[TransformerModelBase],
+    ) -> None:
+
+        seed_everything(32, workers=True)
+        model_1 = model_cls.from_config({"epochs": 3})
+        model_1.fit(dataset)
+
+        seed_everything(32, workers=True)
+        model_2 = model_cls.from_config({})
+        model_2.fit_partial(dataset, epochs=2)
+        model_2.fit_partial(dataset, epochs=1)
+
+        self._assert_same_reco(model_1, model_2, dataset)
