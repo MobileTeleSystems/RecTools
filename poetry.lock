@@ -702,6 +702,38 @@ stylecheck = ["autopep8 (==1.5.5)", "flake8 (==3.8.4)", "mypy (==1.4.1)", "pbr (
 test = ["hypothesis (>=6.37.2,<6.55.0)", "mpmath", "packaging", "pytest (>=7.2)"]
 
 [[package]]
+name = "cupy-cuda12x"
+version = "13.4.0"
+description = "CuPy: NumPy & SciPy for GPU"
+optional = true
+python-versions = ">=3.9"
+files = [
+    {file = "cupy_cuda12x-13.4.0-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:bbcaba04ca075d5a6a4b0611bfc930eeb054eaa6337c4a556c359f4bd5c2f5eb"},
+    {file = "cupy_cuda12x-13.4.0-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:c5f8b89f4ea0267e8814656a0ef4b62c02a263083c5dd667ccd2b9e7b8aa04b9"},
+    {file = "cupy_cuda12x-13.4.0-cp310-cp310-win_amd64.whl", hash = "sha256:f1c5c0de613872cc8f5f7637a80a35750f10a1b8ad881518a8261236d539f331"},
+    {file = "cupy_cuda12x-13.4.0-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:f2f796969bfbf4042245060c35cac9503375ba21d884d136e3738ddba620041b"},
+    {file = "cupy_cuda12x-13.4.0-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:6be34823b0de6cbce5ed9fc518f6dc252e37043d4a8e65de8eb1165a41e8e99e"},
+    {file = "cupy_cuda12x-13.4.0-cp311-cp311-win_amd64.whl", hash = "sha256:4c75cd875d18f0f054a537e4948cde3d4e5a7abb9bb442160317c2df794ad7e6"},
+    {file = "cupy_cuda12x-13.4.0-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:bfb0e59d22cf1281bed59628593ebd307de2a53e53c5a53f2c044f2afe99de15"},
+    {file = "cupy_cuda12x-13.4.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:d67efa80c107adf28e4301a87410ef6ed57b1b286943c4101eee902b30330c58"},
+    {file = "cupy_cuda12x-13.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:061ee28b06cb0216ac914b78bc839e99706f930db4f65f6962d004860126f181"},
+    {file = "cupy_cuda12x-13.4.0-cp313-cp313-manylinux2014_aarch64.whl", hash = "sha256:11435c5eebafdceb9227fb0136cd3fc63952b974be043148656246e84930d406"},
+    {file = "cupy_cuda12x-13.4.0-cp313-cp313-manylinux2014_x86_64.whl", hash = "sha256:f72a9e102f56c42ea157154928e5acc0fca2dc5fa60acc2588f9d95164691008"},
+    {file = "cupy_cuda12x-13.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:1ba5d159fda49d46384df92e47c0ca8064ae5ca0ad996fc7ad62cdb2f614a505"},
+    {file = "cupy_cuda12x-13.4.0-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:1928d84ec59b30e63970247807603b6a361c63927c04e637685844d1b9332d3a"},
+    {file = "cupy_cuda12x-13.4.0-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:9b09a0c619468c00e3585f559a27bf4ad0555f7b1a1557bf8ca434be61332da9"},
+    {file = "cupy_cuda12x-13.4.0-cp39-cp39-win_amd64.whl", hash = "sha256:b3ab0fee2caf0826d3c33a93eea95a424de1c368cbe85e2fa3e26f92c64f5676"},
+]
+
+[package.dependencies]
+fastrlock = ">=0.5"
+numpy = ">=1.22,<2.3"
+
+[package.extras]
+all = ["Cython (>=3)", "optuna (>=2.0)", "scipy (>=1.7,<1.17)"]
+test = ["hypothesis (>=6.37.2,<6.55.0)", "mpmath", "packaging", "pytest (>=7.2)"]
+
+[[package]]
 name = "decorator"
 version = "5.1.1"
 description = "Decorators for Humans"
@@ -4498,8 +4530,8 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 type = ["pytest-mypy"]
 
 [extras]
-all = ["cupy-cuda12x", "ipywidgets", "nbformat", "nmslib", "nmslib-metabrainz", "plotly", "pytorch-lightning", "rectools-lightfm", "torch", "torch"]
-cupy = ["cupy-cuda12x"]
+all = ["cupy-cuda12x", "cupy-cuda12x", "ipywidgets", "nbformat", "nmslib", "nmslib-metabrainz", "plotly", "pytorch-lightning", "rectools-lightfm", "torch", "torch"]
+cupy = ["cupy-cuda12x", "cupy-cuda12x"]
 lightfm = ["rectools-lightfm"]
 nmslib = ["nmslib", "nmslib-metabrainz"]
 torch = ["pytorch-lightning", "torch", "torch"]
@@ -4508,4 +4540,4 @@ visuals = ["ipywidgets", "nbformat", "plotly"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9, <3.14"
-content-hash = "1bd64d0d6425a10f94b5d873bdf2feff7c2fde65675f18e98ecbcf2c0cf39c2b"
+content-hash = "5969b19fee44db868c1ca7c817af7e467867faf33085683dcbde7690ce9a0b6a"
