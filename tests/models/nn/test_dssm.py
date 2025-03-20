@@ -17,6 +17,7 @@ import typing as tp
 import numpy as np
 import pandas as pd
 import pytest
+import pytorch_lightning  # noqa  # pylint: disable=unused-import
 from lightning_fabric import seed_everything
 
 from rectools.columns import Columns
@@ -29,8 +30,12 @@ from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_se
 
 from ..data import INTERACTIONS
 
+filter_warnings_decorator = pytest.mark.filterwarnings(
+    "ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning"
+)
 
-@pytest.mark.filterwarnings("ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning")
+
+@filter_warnings_decorator
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestDSSMModel:
     def setup_method(self) -> None:
