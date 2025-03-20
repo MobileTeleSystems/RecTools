@@ -61,7 +61,7 @@ install: .venv .reports
 	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/dataset/torch_datasets.py --ignore=rectools/models/nn --ignore=rectools/models/rank/rank_torch.py --ignore=rectools/tools/ann.py
+	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py
 
 coverage: .venv .reports
 	poetry run coverage run --source ${SOURCES} --module pytest
