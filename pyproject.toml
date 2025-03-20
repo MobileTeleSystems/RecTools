@@ -97,6 +97,7 @@ cupy-cuda12x = [
     {version = "^13.3.0", python = "<3.13", optional = true},
     {version = "^13.4.0", python = ">=3.13", optional = true},
 ]
+fastrlock = {version = "^0.8.3", optional = true}
 
 [tool.poetry.extras]
 lightfm = ["rectools-lightfm"]
