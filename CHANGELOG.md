@@ -10,6 +10,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Tutorial for making custom model inherited from ModelBase ([#236](https://github.com/MobileTeleSystems/RecTools/pull/236))
 
+## [0.12.0] - 24.02.2025
+
+### Added
+- `CatalogCoverage` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266), [#267](https://github.com/MobileTeleSystems/RecTools/pull/267))
+- `divide_by_achievable` argument to `NDCG` metric ([#266](https://github.com/MobileTeleSystems/RecTools/pull/266))
+
+### Changed
+- Interactions extra columns are not dropped in `Dataset.filter_interactions` method [#267](https://github.com/MobileTeleSystems/RecTools/pull/267)
+
+## [0.11.0] - 17.02.2025
+
+### Added
+- `SASRecModel` and `BERT4RecModel` - models based on transformer architecture ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
+- Transfomers extended theory & practice tutorial, advanced training guide and customization guide ([#220](https://github.com/MobileTeleSystems/RecTools/pull/220))
+- `use_gpu` for PureSVD ([#229](https://github.com/MobileTeleSystems/RecTools/pull/229))
+- `from_params` method for models and `model_from_params` function ([#252](https://github.com/MobileTeleSystems/RecTools/pull/252))
+- `TorchRanker` ranker which calculates scores using torch. Supports GPU. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
+- `Ranker` ranker protocol which unify rankers call. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
+
+### Changed
+
+- `ImplicitRanker` `rank` method compatible with `Ranker` protocol. `use_gpu` and `num_threads` params moved from `rank` method to `__init__`. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
+
+## [0.10.0] - 16.01.2025
+
+### Added
+- `ImplicitBPRWrapperModel` model with algorithm description in extended baselines tutorial ([#232](https://github.com/MobileTeleSystems/RecTools/pull/232), [#239](https://github.com/MobileTeleSystems/RecTools/pull/239))
+- All vector models and `EASEModel` support for enabling ranking on GPU and selecting number of threads for CPU ranking. Added `recommend_n_threads` and `recommend_use_gpu_ranking` parameters to `EASEModel`, `ImplicitALSWrapperModel`, `ImplicitBPRWrapperModel`, `PureSVDModel` and `DSSMModel`. Added `recommend_use_gpu_ranking` to `LightFMWrapperModel`. GPU and CPU ranking may provide different ordering of items with identical scores in recommendation table, so this could change ordering items in recommendations since GPU ranking is now used as a default one. ([#218](https://github.com/MobileTeleSystems/RecTools/pull/218))
+
 ## [0.9.0] - 11.12.2024
 
 ### Added

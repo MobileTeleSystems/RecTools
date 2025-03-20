@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -28,22 +28,26 @@ Models
 `models.DSSMModel`
 `models.EASEModel`
 `models.ImplicitALSWrapperModel`
+`models.ImplicitBPRWrapperModel`
 `models.ImplicitItemKNNWrapperModel`
 `models.LightFMWrapperModel`
 `models.PopularModel`
 `models.PopularInCategoryModel`
 `models.PureSVDModel`
 `models.RandomModel`
+`models.nn.bert4rec.BERT4RecModel`
+`models.nn.sasrec.SASRecModel`
 """
 
 from .ease import EASEModel
 from .implicit_als import ImplicitALSWrapperModel
+from .implicit_bpr import ImplicitBPRWrapperModel
 from .implicit_knn import ImplicitItemKNNWrapperModel
 from .popular import PopularModel
 from .popular_in_category import PopularInCategoryModel
 from .pure_svd import PureSVDModel
 from .random import RandomModel
-from .serialization import load_model, model_from_config
+from .serialization import load_model, model_from_config, model_from_params
 
 try:
     from .lightfm import LightFMWrapperModel
@@ -51,14 +55,19 @@ except ImportError:  # pragma: no cover
     from ..compat import LightFMWrapperModel  # type: ignore
 
 try:
-    from .dssm import DSSMModel
+    from .nn.dssm import DSSMModel
+    from .nn.transformers.bert4rec import BERT4RecModel
+    from .nn.transformers.sasrec import SASRecModel
 except ImportError:  # pragma: no cover
-    from ..compat import DSSMModel  # type: ignore
+    from ..compat import BERT4RecModel, DSSMModel, SASRecModel  # type: ignore
 
 
 __all__ = (
+    "SASRecModel",
+    "BERT4RecModel",
     "EASEModel",
     "ImplicitALSWrapperModel",
+    "ImplicitBPRWrapperModel",
     "ImplicitItemKNNWrapperModel",
     "LightFMWrapperModel",
     "PopularModel",
@@ -68,4 +77,5 @@ __all__ = (
     "DSSMModel",
     "load_model",
     "model_from_config",
+    "model_from_params",
 )

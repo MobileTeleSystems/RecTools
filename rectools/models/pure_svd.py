@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 """SVD Model."""
 
 import typing as tp
+import warnings
 
 import numpy as np
 import typing_extensions as tpe
@@ -26,6 +27,15 @@ from rectools.models.base import ModelConfig
 from rectools.models.rank import Distance
 from rectools.models.vector import Factors, VectorModel
 
+try:
+    import cupy as cp
+    from cupyx.scipy.sparse import csr_matrix as cp_csr_matrix
+    from cupyx.scipy.sparse.linalg import svds as cupy_svds
+except ImportError:  # pragma: no cover
+    cupy_svds = None
+    cp_csr_matrix = None
+    cp = None
+
 
 class PureSVDModelConfig(ModelConfig):
     """Config for `PureSVD` model."""
@@ -34,6 +44,9 @@ class PureSVDModelConfig(ModelConfig):
     tol: float = 0
     maxiter: tp.Optional[int] = None
     random_state: tp.Optional[int] = None
+    use_gpu: tp.Optional[bool] = False
+    recommend_n_threads: int = 0
+    recommend_use_gpu_ranking: bool = True
 
 
 class PureSVDModel(VectorModel[PureSVDModelConfig]):
@@ -51,9 +64,22 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
     maxiter : int, optional, default ``None``
         Maximum number of iterations.
     random_state : int, optional, default ``None``
-        Pseudorandom number generator state used to generate resamples.
+        Pseudorandom number generator state used to generate resamples. Omitted if use_gpu is True.
+    use_gpu : bool, default ``False``
+        If ``True``, `cupyx.scipy.sparse.linalg.svds()` is used instead of SciPy. CuPy is required.
     verbose : int, default ``0``
         Degree of verbose output. If ``0``, no output will be provided.
+    recommend_n_threads: int, default 0
+        Number of threads to use for recommendation ranking on CPU.
+        Specifying ``0`` means to default to the number of cores on the machine.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_n_threads` attribute.
+    recommend_use_gpu_ranking: bool, default ``True``
+        Flag to use GPU for recommendation ranking. Please note that GPU and CPU ranking may provide
+        different ordering of items with identical scores in recommendation table.
+        If ``True``, `implicit.gpu.HAS_CUDA` will also be checked before ranking.
+        If you want to change this parameter after model is initialized,
+        you can manually assign new value to model `recommend_use_gpu_ranking` attribute.
     """
 
     recommends_for_warm = False
@@ -70,7 +96,10 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         tol: float = 0,
         maxiter: tp.Optional[int] = None,
         random_state: tp.Optional[int] = None,
+        use_gpu: tp.Optional[bool] = False,
         verbose: int = 0,
+        recommend_n_threads: int = 0,
+        recommend_use_gpu_ranking: bool = True,
     ):
         super().__init__(verbose=verbose)
 
@@ -78,6 +107,18 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
         self.tol = tol
         self.maxiter = maxiter
         self.random_state = random_state
+        self._use_gpu = use_gpu  # for making a config
+        if use_gpu:  # pragma: no cover
+            if not cp:
+                warnings.warn("Forced to use CPU. CuPy is not available.")
+                use_gpu = False
+            elif not cp.cuda.is_available():
+                warnings.warn("Forced to use CPU. GPU is not available.")
+                use_gpu = False
+
+        self.use_gpu = use_gpu
+        self.recommend_n_threads = recommend_n_threads
+        self.recommend_use_gpu_ranking = recommend_use_gpu_ranking
 
         self.user_factors: np.ndarray
         self.item_factors: np.ndarray
@@ -89,7 +130,10 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             tol=self.tol,
             maxiter=self.maxiter,
             random_state=self.random_state,
+            use_gpu=self._use_gpu,
             verbose=self.verbose,
+            recommend_n_threads=self.recommend_n_threads,
+            recommend_use_gpu_ranking=self.recommend_use_gpu_ranking,
         )
 
     @classmethod
@@ -99,16 +143,28 @@ class PureSVDModel(VectorModel[PureSVDModelConfig]):
             tol=config.tol,
             maxiter=config.maxiter,
             random_state=config.random_state,
+            use_gpu=config.use_gpu,
             verbose=config.verbose,
+            recommend_n_threads=config.recommend_n_threads,
+            recommend_use_gpu_ranking=config.recommend_use_gpu_ranking,
         )
 
     def _fit(self, dataset: Dataset) -> None:  # type: ignore
         ui_csr = dataset.get_user_item_matrix(include_weights=True)
 
-        u, sigma, vt = svds(ui_csr, k=self.factors, tol=self.tol, maxiter=self.maxiter, random_state=self.random_state)
+        if self.use_gpu:  # pragma: no cover
+            ui_csr = cp_csr_matrix(ui_csr)
+            # To prevent IndexError, we need to subtract 1 from factors
+            u, sigma, vt = cupy_svds(ui_csr.toarray(), k=self.factors - 1, tol=self.tol, maxiter=self.maxiter)
+            u = u.get()
+            self.item_factors = (cp.diag(sigma) @ vt).T.get()
+        else:
+            u, sigma, vt = svds(
+                ui_csr, k=self.factors, tol=self.tol, maxiter=self.maxiter, random_state=self.random_state
+            )
+            self.item_factors = (np.diag(sigma) @ vt).T
 
         self.user_factors = u
-        self.item_factors = (np.diag(sigma) @ vt).T
 
     def _get_users_factors(self, dataset: Dataset) -> Factors:
         return Factors(self.user_factors)
