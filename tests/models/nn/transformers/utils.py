@@ -25,7 +25,9 @@ except ImportError:
 
 from rectools import Columns
 
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+pytestmark = pytest.mark.skipif(
+    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
+)
 
 
 def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:

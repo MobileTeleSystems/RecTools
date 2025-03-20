@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 
 import numpy as np
@@ -22,14 +21,8 @@ import pytest
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
 from rectools.dataset.features import DenseFeatures
-
-try:
-    from rectools.models.nn.transformers.data_preparator import SequenceDataset, TransformerDataPreparatorBase
-except ImportError:
-    TransformerDataPreparatorBase = object  # type: ignore
+from rectools.models.nn.transformers.data_preparator import SequenceDataset, TransformerDataPreparatorBase
 from tests.testing_utils import assert_feature_set_equal, assert_id_map_equal, assert_interactions_set_equal
-
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 class TestSequenceDataset:

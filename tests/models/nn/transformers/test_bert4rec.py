@@ -13,27 +13,18 @@
 #  limitations under the License.
 
 import sys
-import types
 import typing as tp
 from functools import partial
 
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 
 try:
-    import torch
     from pytorch_lightning import Trainer, seed_everything
 except ImportError:
-    torch = types.ModuleType("torch")
-    torch.Tensor = object  # type: ignore
-    torch.float = object  # type: ignore
     Trainer = object  # type: ignore
-
-    def tensor(*args: tp.Any, **kwargs: tp.Any) -> tp.Any:
-        return object()
-
-    torch.tensor = tensor
 
 from rectools import ExternalIds
 from rectools.columns import Columns
@@ -64,7 +55,7 @@ except NameError:
     pass
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13")
 class TestBERT4RecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -642,7 +633,7 @@ class TestBERT4RecModel:
         )
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13")
 class TestBERT4RecDataPreparator:
 
     def setup_method(self) -> None:
@@ -822,7 +813,7 @@ class TestBERT4RecDataPreparator:
             assert torch.equal(value, val_batch[key])
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13")
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
         self._seed_everything()

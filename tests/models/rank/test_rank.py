@@ -12,26 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 from itertools import product
 
 import numpy as np
 import pytest
-
-try:
-    import torch
-except ImportError:
-    pass
+import torch
 from scipy import sparse
 
-from rectools.models.rank import Distance, ImplicitRanker, Ranker
-
-try:
-    from rectools.models.rank import TorchRanker
-except ImportError:
-    TorchRanker = object  # type: ignore
-
+from rectools.models.rank import Distance, ImplicitRanker, Ranker, TorchRanker
 
 T = tp.TypeVar("T")
 EPS_DIGITS = 5
@@ -39,16 +28,14 @@ pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in tru
 
 
 def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:
-    torch_ranker_args = []
-    if not sys.version_info >= (3, 13):
-        torch_keys = ["device", "batch_size"]
-        torch_vals = list(
-            product(
-                ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"],
-                [128, 1],
-            )
+    torch_keys = ["device", "batch_size"]
+    torch_vals = list(
+        product(
+            ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"],
+            [128, 1],
         )
-        torch_ranker_args = [(TorchRanker, dict(zip(torch_keys, v))) for v in torch_vals]
+    )
+    torch_ranker_args = [(TorchRanker, dict(zip(torch_keys, v))) for v in torch_vals]
 
     implicit_keys = ["use_gpu"]
     implicit_vals = list(

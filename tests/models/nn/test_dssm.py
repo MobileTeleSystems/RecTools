@@ -50,7 +50,9 @@ from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_se
 
 from ..data import INTERACTIONS
 
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+pytestmark = pytest.mark.skipif(
+    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
+)
 
 
 @filter_warnings_decorator

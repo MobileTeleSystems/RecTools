@@ -19,10 +19,10 @@ from tempfile import NamedTemporaryFile
 
 import pandas as pd
 import pytest
+import torch
 from pytest import FixtureRequest
 
 try:
-    import torch
     from pytorch_lightning import Trainer, seed_everything
     from pytorch_lightning.loggers import CSVLogger
 
@@ -46,7 +46,9 @@ try:
 except NameError:
     pass
 
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+pytestmark = pytest.mark.skipif(
+    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
+)
 
 
 class TestTransformerModelBase:

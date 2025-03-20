@@ -15,21 +15,17 @@
 # pylint: disable=too-many-lines
 
 import sys
-import types
 import typing as tp
 from functools import partial
 
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 
 try:
-    import torch
     from pytorch_lightning import Trainer, seed_everything
 except ImportError:
-    torch = types.ModuleType("torch")
-    torch.tensor = lambda x: None  # type: ignore
-    torch.Tensor = object  # type: ignore
     Trainer = object  # type: ignore
 
 from rectools import ExternalIds
@@ -61,7 +57,9 @@ try:
 except NameError:
     pass
 
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
+pytestmark = pytest.mark.skipif(
+    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
+)
 
 
 class TestSASRecModel:

@@ -12,41 +12,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
-import types
 import typing as tp
 from itertools import product
 
 import numpy as np
 import pytest
-
-try:
-    import torch
-except ImportError:
-    torch = types.ModuleType("torch")
-    torch.Tensor = object  # type: ignore
+import torch
 from scipy import sparse
 
-try:
-    from rectools.models.rank import Distance, Ranker, TorchRanker
-except ImportError:
-    TorchRanker = object  # type: ignore
+from rectools.models.rank import Distance, Ranker, TorchRanker
 
 T = tp.TypeVar("T")
 EPS_DIGITS = 5
 pytestmark = pytest.mark.filterwarnings("ignore:invalid value encountered in true_divide")
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 13), reason="`torch` is not compatible with Python >= 3.13")
 
 
 def gen_rankers() -> tp.List[tp.Tuple[tp.Any, tp.Dict[str, tp.Any]]]:
-    cuda_is_available = False
-    if not sys.version_info >= (3, 13):
-        cuda_is_available = torch.cuda.is_available()
-
     keys = ["device", "batch_size"]
     vals = list(
         product(
-            ["cpu", "cuda:0"] if cuda_is_available else ["cpu"],
+            ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"],
             [128, 1],
         )
     )
