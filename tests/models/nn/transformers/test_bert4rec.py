@@ -133,33 +133,27 @@ class TestBERT4RecModel:
                 "cpu",
                 1,
                 "cuda",
-                marks=pytest.mark.skipif(
-                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
-                ),
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             ("cpu", 2, "cpu"),
             pytest.param(
                 "gpu",
                 1,
                 "cpu",
-                marks=pytest.mark.skipif(
-                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
-                ),
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             pytest.param(
                 "gpu",
                 1,
                 "cuda",
-                marks=pytest.mark.skipif(
-                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False, reason="GPU is not available"
-                ),
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
             pytest.param(
                 "gpu",
                 2,
                 "cpu",
                 marks=pytest.mark.skipif(
-                    sys.version_info >= (3, 13) or torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
+                    torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
                     reason="GPU is not available or there is only one gpu device",
                 ),
             ),
