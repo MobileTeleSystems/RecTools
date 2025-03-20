@@ -12,46 +12,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 
 import numpy as np
 import pandas as pd
 import pytest
-
-try:
-    from lightning_fabric import seed_everything
-except ImportError:
-    pass
-
-try:
-    import pytorch_lightning  # noqa  # pylint: disable=unused-import
-
-    filter_warnings_decorator = pytest.mark.filterwarnings(
-        "ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning"
-    )
-except ImportError:
-
-    def filter_warnings_decorator(func):  # type: ignore
-        return func
-
+import pytorch_lightning  # noqa  # pylint: disable=unused-import
+from lightning_fabric import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.exceptions import NotFittedError
-
-try:
-    from rectools.models import DSSMModel
-    from rectools.models.nn.dssm import DSSM
-except ModuleNotFoundError:
-    pass
+from rectools.models import DSSMModel
+from rectools.models.nn.dssm import DSSM
 from rectools.models.vector import ImplicitRanker
 from tests.models.utils import assert_dumps_loads_do_not_change_model, assert_second_fit_refits_model
 
 from ..data import INTERACTIONS
 
-pytestmark = pytest.mark.skipif(
-    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
+filter_warnings_decorator = pytest.mark.filterwarnings(
+    "ignore::pytorch_lightning.utilities.warnings.PossibleUserWarning"
 )
 
 

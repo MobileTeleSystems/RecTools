@@ -12,18 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
-
-try:
-    from pytorch_lightning import seed_everything
-except ImportError:
-    pass
+from pytorch_lightning import seed_everything
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
@@ -37,10 +32,6 @@ from rectools.models.nn.item_net import (
 )
 
 from ..data import DATASET, INTERACTIONS
-
-pytestmark = pytest.mark.skipif(
-    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
-)
 
 
 class TestIdEmbeddingsItemNet:

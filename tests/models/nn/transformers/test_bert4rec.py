@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 from functools import partial
 
@@ -20,42 +19,29 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
-
-try:
-    from pytorch_lightning import Trainer, seed_everything
-except ImportError:
-    Trainer = object  # type: ignore
+from pytorch_lightning import Trainer, seed_everything
 
 from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
-
-try:
-    from rectools.models import BERT4RecModel
-    from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-    from rectools.models.nn.transformers.base import (
-        LearnableInversePositionalEncoding,
-        PreLNTransformerLayers,
-        TrainerCallable,
-        TransformerLightningModule,
-    )
-    from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
-except ImportError:
-    TrainerCallable = object  # type: ignore
-    BERT4RecDataPreparator = object  # type: ignore
+from rectools.models import BERT4RecModel
+from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
+from rectools.models.nn.transformers.base import (
+    LearnableInversePositionalEncoding,
+    PreLNTransformerLayers,
+    TrainerCallable,
+    TransformerLightningModule,
+)
+from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_second_fit_refits_model,
 )
 
-try:
-    from .utils import custom_trainer, leave_one_out_mask
-except NameError:
-    pass
+from .utils import custom_trainer, leave_one_out_mask
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13")
 class TestBERT4RecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -627,7 +613,6 @@ class TestBERT4RecModel:
         )
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13")
 class TestBERT4RecDataPreparator:
 
     def setup_method(self) -> None:
@@ -807,7 +792,6 @@ class TestBERT4RecDataPreparator:
             assert torch.equal(value, val_batch[key])
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13")
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
         self._seed_everything()

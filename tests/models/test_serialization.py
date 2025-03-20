@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 from unittest.mock import MagicMock
@@ -29,12 +28,8 @@ except ImportError:
     LightFM = object  # it's ok in case we're skipping the tests
 
 from rectools.metrics import NDCG
-
-try:
-    from rectools.models import DSSMModel
-except ImportError:
-    DMMSModel = object  # it's ok in case we're skipping the tests
 from rectools.models import (
+    DSSMModel,
     EASEModel,
     ImplicitALSWrapperModel,
     ImplicitBPRWrapperModel,
@@ -48,11 +43,7 @@ from rectools.models import (
     serialization,
 )
 from rectools.models.base import ModelBase, ModelConfig
-
-try:
-    from rectools.models.nn.transformers.base import TransformerModelBase
-except ImportError:
-    TransformerModelBase = object  # type: ignore
+from rectools.models.nn.transformers.base import TransformerModelBase
 from rectools.models.vector import VectorModel
 from rectools.utils.config import BaseConfig
 
@@ -193,7 +184,6 @@ class TestModelFromConfig:
         with pytest.raises(ValidationError):
             model_from_config(config)
 
-    @pytest.mark.skipif(sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python 3.13")
     @pytest.mark.parametrize("model_cls", ("rectools.models.DSSMModel", DSSMModel))
     def test_fails_on_model_cls_without_from_config_support(self, model_cls: tp.Any) -> None:
         config = {"cls": model_cls}

@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import os
-import sys
 import typing as tp
 from tempfile import NamedTemporaryFile
 
@@ -21,34 +20,18 @@ import pandas as pd
 import pytest
 import torch
 from pytest import FixtureRequest
-
-try:
-    from pytorch_lightning import Trainer, seed_everything
-    from pytorch_lightning.loggers import CSVLogger
-
-except ImportError:
-    Trainer = object  # type: ignore
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import CSVLogger
 
 from rectools import Columns
 from rectools.dataset import Dataset
-
-try:
-    from rectools.models import BERT4RecModel, SASRecModel, load_model
-    from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
-    from rectools.models.nn.transformers.base import TransformerModelBase
-except ImportError:
-    TransformerModelBase = object  # type: ignore
+from rectools.models import BERT4RecModel, SASRecModel, load_model
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
+from rectools.models.nn.transformers.base import TransformerModelBase
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
-try:
-    from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
-except NameError:
-    pass
-
-pytestmark = pytest.mark.skipif(
-    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
-)
+from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
 
 
 class TestTransformerModelBase:

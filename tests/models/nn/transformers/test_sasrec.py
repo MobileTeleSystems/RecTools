@@ -14,7 +14,6 @@
 
 # pylint: disable=too-many-lines
 
-import sys
 import typing as tp
 from functools import partial
 
@@ -22,29 +21,20 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
-
-try:
-    from pytorch_lightning import Trainer, seed_everything
-except ImportError:
-    Trainer = object  # type: ignore
+from pytorch_lightning import Trainer, seed_everything
 
 from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset, IdMap, Interactions
-
-try:
-    from rectools.models import SASRecModel
-    from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-    from rectools.models.nn.transformers.base import (
-        LearnableInversePositionalEncoding,
-        TrainerCallable,
-        TransformerLightningModule,
-        TransformerTorchBackbone,
-    )
-    from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
-except ImportError:
-    TrainerCallable = object  # type: ignore
-    SASRecDataPreparator = object  # type: ignore
+from rectools.models import SASRecModel
+from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
+from rectools.models.nn.transformers.base import (
+    LearnableInversePositionalEncoding,
+    TrainerCallable,
+    TransformerLightningModule,
+    TransformerTorchBackbone,
+)
+from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -52,14 +42,7 @@ from tests.models.utils import (
 )
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
-try:
-    from .utils import custom_trainer, leave_one_out_mask
-except NameError:
-    pass
-
-pytestmark = pytest.mark.skipif(
-    sys.version_info >= (3, 13), reason="`pytorch_lightning` is not compatible with Python >= 3.13"
-)
+from .utils import custom_trainer, leave_one_out_mask
 
 
 class TestSASRecModel:
