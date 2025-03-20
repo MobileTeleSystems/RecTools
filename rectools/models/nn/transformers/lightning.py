@@ -280,9 +280,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     def _calc_gbce_loss(
         self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
     ) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
+        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)  # type: ignore
         n_negatives = negatives.shape[2]
-        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
+        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)  # type: ignore
         loss = self._calc_bce_loss(logits, y, w)
         return loss
 
