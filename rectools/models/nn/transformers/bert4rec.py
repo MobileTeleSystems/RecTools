@@ -19,8 +19,6 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
-from rectools.models.rank import Distance
-
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -46,6 +44,7 @@ from .net_blocks import (
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
+from .similarity import SimilarityModuleBase
 
 
 class BERT4RecDataPreparator(TransformerDataPreparatorBase):
@@ -318,13 +317,13 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = True,
         use_causal_attn: bool = False,
-        u2i_dist: Distance = Distance.DOT,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = SimilarityModuleBase,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
@@ -337,6 +336,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        similarity_module_kwargs: tp.Optional[InitKwargs] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -365,7 +365,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
-            u2i_dist=u2i_dist,
+            similarity_module_type=similarity_module_type,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
@@ -378,6 +378,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             item_net_constructor_kwargs=item_net_constructor_kwargs,
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
+            similarity_module_kwargs=similarity_module_kwargs,
         )
 
     def _init_data_preparator(self) -> None:

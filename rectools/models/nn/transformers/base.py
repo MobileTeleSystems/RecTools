@@ -28,7 +28,6 @@ from pytorch_lightning import Trainer
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
-from rectools.models.rank import Distance
 from rectools.types import InternalIdsArray
 from rectools.utils.misc import get_class_or_function_full_path, import_object
 
@@ -47,6 +46,7 @@ from .net_blocks import (
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
+from .similarity import SimilarityModuleBase
 from .torch_backbone import TransformerTorchBackbone
 
 InitKwargs = tp.Dict[str, tp.Any]
@@ -90,6 +90,16 @@ TransformerLayersType = tpe.Annotated[
 
 TransformerLightningModuleType = tpe.Annotated[
     tp.Type[TransformerLightningModuleBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+SimilarityModuleType = tpe.Annotated[
+    tp.Type[SimilarityModuleBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -178,13 +188,13 @@ class TransformerModelConfig(ModelConfig):
     deterministic: bool = False
     recommend_batch_size: int = 256
     recommend_torch_device: tp.Optional[str] = None
-    train_min_user_interactions: int = 2
-    u2i_dist: Distance = Distance.DOT
+    train_min_user_interactions: int = (2,)
     item_net_block_types: ItemNetBlockTypes = (IdEmbeddingsItemNet, CatFeaturesItemNet)
     item_net_constructor_type: ItemNetConstructorType = SumOfEmbeddingsConstructor
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
+    similarity_module_type: SimilarityModuleType = (SimilarityModuleBase,)
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
@@ -235,11 +245,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         train_min_user_interactions: int = 2,
-        u2i_dist: Distance = Distance.DOT,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = SimilarityModuleBase,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
@@ -247,6 +257,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -271,7 +282,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.recommend_batch_size = recommend_batch_size
         self.recommend_torch_device = recommend_torch_device
         self.train_min_user_interactions = train_min_user_interactions
-        self.u2i_dist = u2i_dist
+        self.similarity_module_type = similarity_module_type
         self.item_net_block_types = item_net_block_types
         self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
@@ -283,6 +294,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_constructor_kwargs = item_net_constructor_kwargs
         self.pos_encoding_kwargs = pos_encoding_kwargs
         self.lightning_module_kwargs = lightning_module_kwargs
+        self.similarity_module_kwargs = similarity_module_kwargs
 
         self._init_data_preparator()
         self._init_trainer()
@@ -373,6 +385,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             use_key_padding_mask=self.use_key_padding_mask,
         )
 
+    def _init_similarity_model(self) -> SimilarityModuleBase:
+        return self.similarity_module_type(loss_type=self.loss, **self.similarity_module_kwargs)
+
     def _init_lightning_model(
         self,
         torch_model: TransformerTorchBackbone,
@@ -380,6 +395,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_external_ids: ExternalIds,
         model_config: tp.Dict[str, tp.Any],
     ) -> None:
+        similarity_model = self._init_similarity_model()
         self.lightning_model = self.lightning_module_type(
             torch_model=torch_model,
             dataset_schema=dataset_schema,
@@ -394,7 +410,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             train_loss_name=self.train_loss_name,
             val_loss_name=self.val_loss_name,
             adam_betas=(0.9, 0.98),
-            u2i_dist=self.u2i_dist,
+            similarity_model=similarity_model,
             **self._get_kwargs(self.lightning_module_kwargs),
         )
 

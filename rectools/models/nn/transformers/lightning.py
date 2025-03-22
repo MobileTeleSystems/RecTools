@@ -27,6 +27,7 @@ from rectools.models.rank import Distance, TorchRanker
 from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
+from .similarity import SimilarityModuleBase, SimilarityModuleDistance
 from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Lightning Base Model  --------------  #### #
@@ -73,11 +74,11 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         lr: float,
         gbce_t: float,
         loss: str,
+        similarity_model: SimilarityModuleBase,
         verbose: int = 0,
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
-        u2i_dist: Distance = Distance.DOT,
         **kwargs: tp.Any,
     ):
         super().__init__()
@@ -94,11 +95,8 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
+        self.similarity_model = similarity_model
         self.item_embs: torch.Tensor
-
-        if u2i_dist not in self.u2i_dist_available:
-            raise ValueError("`u2i_distance` can only be either `Distance.DOT` or `Distance.COSINE`.")
-        self.u2i_dist = u2i_dist
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
@@ -228,10 +226,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
         item_embs, session_embs = self.torch_model(x)
-        if self.u2i_dist == Distance.COSINE:
-            session_embs = self._get_embeddings_norm(session_embs)
-            item_embs = self._get_embeddings_norm(item_embs)
-        logits = session_embs @ item_embs.T
+        logits = self.similarity_model(session_embs, item_embs)
         return logits
 
     def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
@@ -239,11 +234,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         item_embs, session_embs = self.torch_model(x)
         pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
         pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        if self.u2i_dist == Distance.COSINE:
-            session_embs = self._get_embeddings_norm(session_embs)
-            item_embs = self._get_embeddings_norm(item_embs)
         # [batch_size, session_max_len, n_negatives + 1]
-        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
+        logits = self.similarity_model(session_embs, pos_neg_embs)
         return logits
 
     def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
@@ -356,12 +348,15 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        ranker = TorchRanker(
-            distance=self.u2i_dist,
-            device=item_embs.device,
-            subjects_factors=user_embs[user_ids],
-            objects_factors=item_embs,
-        )
+        if isinstance(self.similarity_model, SimilarityModuleDistance):
+            ranker = TorchRanker(
+                distance=self.similarity_model.dist,
+                device=item_embs.device,
+                subjects_factors=user_embs[user_ids],
+                objects_factors=item_embs,
+            )
+        else:
+            raise NotImplementedError()
 
         user_ids_indices, all_reco_ids, all_scores = ranker.rank(
             subject_ids=np.arange(len(user_ids)),  # n_rec_users
