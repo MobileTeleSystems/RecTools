@@ -15,7 +15,6 @@
 import typing as tp
 from collections.abc import Hashable
 
-import numpy as np
 import torch
 from pytorch_lightning import LightningModule
 from torch.utils.data import DataLoader
@@ -27,7 +26,6 @@ from rectools.models.rank import Distance, TorchRanker
 from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
-from .similarity import SimilarityModuleBase, SimilarityModuleDistance
 from .torch_backbone import TransformerTorchBackbone
 
 # ####  --------------  Lightning Base Model  --------------  #### #
@@ -56,8 +54,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         Name of the training loss.
     val_loss_name : str, default "val_loss"
         Name of the training loss.
-    u2i_dist : Distance, default Distance.DOT
-        U2I distance metric.
     """
 
     u2i_dist_available = [Distance.DOT, Distance.COSINE]
@@ -74,7 +70,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         lr: float,
         gbce_t: float,
         loss: str,
-        similarity_model: SimilarityModuleBase,
         verbose: int = 0,
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
@@ -95,7 +90,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
-        self.similarity_model = similarity_model
         self.item_embs: torch.Tensor
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
@@ -157,15 +151,17 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         """Training step."""
         x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
-            logits = self._get_full_catalog_logits(x)
+            _, _, logits = self.torch_model(sessions=x)
             loss = self._calc_softmax_loss(logits, y, w)
         elif self.loss == "BCE":
             negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            _, _, logits = self.torch_model(sessions=x, item_ids=pos_neg)
             loss = self._calc_bce_loss(logits, y, w)
         elif self.loss == "gBCE":
             negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            _, _, logits = self.torch_model(sessions=x, item_ids=pos_neg)
             loss = self._calc_gbce_loss(logits, y, w, negatives)
         else:
             loss = self._calc_custom_loss(batch, batch_idx)
@@ -196,17 +192,19 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         x, y, w = batch["x"], batch["y"], batch["yw"]
         outputs = {}
         if self.loss == "softmax":
-            logits = self._get_full_catalog_logits(x)[:, -1:, :]
+            _, _, logits = self.torch_model(sessions=x, last_n_items=1)
             outputs["loss"] = self._calc_softmax_loss(logits, y, w)
             outputs["logits"] = logits.squeeze()
         elif self.loss == "BCE":
             negatives = batch["negatives"]
-            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            _, _, pos_neg_logits = self.torch_model(sessions=x, item_ids=pos_neg, last_n_items=1)
             outputs["loss"] = self._calc_bce_loss(pos_neg_logits, y, w)
             outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         elif self.loss == "gBCE":
             negatives = batch["negatives"]
-            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
+            _, _, pos_neg_logits = self.torch_model(sessions=x, item_ids=pos_neg, last_n_items=1)
             outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
             outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         else:
@@ -219,24 +217,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         self, batch: tp.Dict[str, torch.Tensor], batch_idx: int
     ) -> tp.Dict[str, torch.Tensor]:
         raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
-
-    def _get_embeddings_norm(self, embeddings: torch.Tensor) -> torch.Tensor:
-        embeddings = embeddings / (torch.norm(embeddings, p=2, dim=1).unsqueeze(dim=1) + self.epsilon_cosine_dist)
-        return embeddings
-
-    def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
-        item_embs, session_embs = self.torch_model(x)
-        logits = self.similarity_model(session_embs, item_embs)
-        return logits
-
-    def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
-        # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
-        item_embs, session_embs = self.torch_model(x)
-        pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-        pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        # [batch_size, session_max_len, n_negatives + 1]
-        logits = self.similarity_model(session_embs, pos_neg_embs)
-        return logits
 
     def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
         # https://arxiv.org/pdf/2308.07192.pdf
@@ -348,23 +328,14 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        if isinstance(self.similarity_model, SimilarityModuleDistance):
-            ranker = TorchRanker(
-                distance=self.similarity_model.dist,
-                device=item_embs.device,
-                subjects_factors=user_embs[user_ids],
-                objects_factors=item_embs,
-            )
-        else:
-            raise NotImplementedError()
-
-        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=np.arange(len(user_ids)),  # n_rec_users
+        all_user_ids, all_reco_ids, all_scores = self.torch_model._recommend_u2i(
+            user_embs=user_embs,
+            item_embs=item_embs,
+            user_ids=user_ids,
             k=k,
-            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
-            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
+            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+            ui_csr_for_filter=ui_csr_for_filter,
         )
-        all_user_ids = user_ids[user_ids_indices]
         return all_user_ids, all_reco_ids, all_scores
 
     def _recommend_i2i(

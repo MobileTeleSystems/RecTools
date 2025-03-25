@@ -322,8 +322,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
         parameter to ``False`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
-    u2i_dist : Distance, default Distance.DOT
-        U2I distance metric.
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
@@ -339,6 +337,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
+    similarity_module_type : type(SimilarityModuleBase), default `SimilarityModuleBase`
+        Type of similarity module.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
     get_trainer_func : Callable, default ``None``
@@ -371,6 +371,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Make sure all dict values have JSON serializable types.
     lightning_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `lightning_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    similarity_module_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `similarity_module_type` initialization.
         Make sure all dict values have JSON serializable types.
     """
 

@@ -28,7 +28,7 @@ from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.transformers.base import TransformerModelBase
-from rectools.models.rank import Distance
+from rectools.models.nn.transformers.similarity import SimilarityModuleDistance
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
@@ -113,6 +113,7 @@ class TestTransformerModelBase:
         config = {
             "deterministic": True,
             "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+            "similarity_module_type": SimilarityModuleDistance,
         }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
@@ -151,6 +152,7 @@ class TestTransformerModelBase:
         config = {
             "deterministic": True,
             "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
+            "similarity_module_type": SimilarityModuleDistance,
         }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
@@ -172,6 +174,7 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
+                "similarity_module_type": SimilarityModuleDistance,
             }
         )
         dataset = request.getfixturevalue(test_dataset)
@@ -198,6 +201,7 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
+                "similarity_module_type": SimilarityModuleDistance,
             }
         )
         model.fit(dataset)
@@ -222,6 +226,7 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_multiple_ckpt,
+                "similarity_module_type": SimilarityModuleDistance,
             }
         )
         model.fit(dataset)
@@ -247,6 +252,7 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
+                "similarity_module_type": SimilarityModuleDistance,
             }
         )
         model.fit(dataset)
@@ -260,6 +266,7 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
+                "similarity_module_type": SimilarityModuleDistance,
             }
         )
         with pytest.raises(RuntimeError):
@@ -302,6 +309,7 @@ class TestTransformerModelBase:
                 "verbose": verbose,
                 "get_val_mask_func": get_val_mask_func,
                 "loss": loss,
+                "similarity_module_type": SimilarityModuleDistance,
             }
         )
         model._trainer = trainer  # pylint: disable=protected-access
@@ -320,8 +328,13 @@ class TestTransformerModelBase:
         assert actual_columns == expected_columns
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
-    def test_raises_when_incorrect_u2i_dist(self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset) -> None:
-        model_config = {"u2i_dist": Distance.EUCLIDEAN}
+    def test_raises_when_incorrect_similarity_dist(
+        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
+    ) -> None:
+        model_config = {
+            "similarity_module_type": SimilarityModuleDistance,
+            "similarity_module_kwargs": {"dist": "euclidean"},
+        }
         with pytest.raises(ValueError):
             model = model_cls.from_config(model_config)
             model.fit(dataset=dataset)
