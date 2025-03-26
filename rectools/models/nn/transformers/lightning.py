@@ -150,7 +150,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         x, y, w = batch["x"], batch["y"], batch["yw"]
         if self.loss == "softmax":
             logits = self._get_full_catalog_logits(x)
-            loss = self._calc_softmax_loss(logits, y, w, ingnore_index=0)
+            loss = self._calc_softmax_loss(logits, y, w)
         elif self.loss == "BCE":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
@@ -162,8 +162,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         elif self.loss == "sampled_softmax":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
-            target = (y == 0).long()
-            loss = self._calc_softmax_loss(logits, target, w, ingnore_index=1)
+            logits[:, :, [0, 1]] = logits[:, :, [1, 0]]
+            target = (y != 0).long()
+            loss = self._calc_softmax_loss(logits, target, w)
         else:
             loss = self._calc_custom_loss(batch, batch_idx)
 
@@ -194,7 +195,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         outputs = {}
         if self.loss == "softmax":
             logits = self._get_full_catalog_logits(x)[:, -1:, :]
-            outputs["loss"] = self._calc_softmax_loss(logits, y, w, ingnore_index=0)
+            outputs["loss"] = self._calc_softmax_loss(logits, y, w)
             outputs["logits"] = logits.squeeze()
         elif self.loss == "BCE":
             negatives = batch["negatives"]
@@ -209,8 +210,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         elif self.loss == "sampled_softmax":
             negatives = batch["negatives"]
             pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
-            target = (y == 0).long()
-            outputs["loss"] = self._calc_softmax_loss(pos_neg_logits, target, w, ingnore_index=1)
+            pos_neg_logits[:, :, [0, 1]] = pos_neg_logits[:, :, [1, 0]]
+            target = (y != 0).long()
+            outputs["loss"] = self._calc_softmax_loss(pos_neg_logits, target, w)
             outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         else:
             outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
@@ -256,9 +258,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         return logits
 
     @classmethod
-    def _calc_softmax_loss(
-        cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, ingnore_index: int
-    ) -> torch.Tensor:
+    def _calc_softmax_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
         # We are using CrossEntropyLoss with a multi-dimensional case
 
         # Logits must be passed in form of [batch_size, n_items + n_item_extra_tokens, session_max_len],
@@ -270,7 +270,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         # Loss output will have a shape of [batch_size, session_max_len]
         # and will have zeros for every `0` target label
         loss = torch.nn.functional.cross_entropy(
-            logits.transpose(1, 2), y, ignore_index=ingnore_index, reduction="none"
+            logits.transpose(1, 2), y, ignore_index=0, reduction="none"
         )  # [batch_size, session_max_len]
         loss = loss * w
         n = (loss > 0).to(loss.dtype)

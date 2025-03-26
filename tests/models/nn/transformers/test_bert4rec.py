@@ -290,6 +290,16 @@ class TestBERT4RecModel:
                     }
                 ),
             ),
+            (
+                "sampled_softmax",
+                pd.DataFrame(
+                    {
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 12, 13],
+                        Columns.Rank: [1, 1, 2],
+                    }
+                ),
+            ),
         ),
     )
     def test_u2i_losses(
