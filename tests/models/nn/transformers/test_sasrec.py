@@ -319,6 +319,16 @@ class TestSASRecModel:
                     }
                 ),
             ),
+            (
+                "sampled_softmax",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
         ),
     )
     def test_u2i_losses(

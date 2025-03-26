@@ -159,6 +159,12 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
             loss = self._calc_gbce_loss(logits, y, w, negatives)
+        elif self.loss == "sampled_softmax":
+            negatives = batch["negatives"]
+            logits = self._get_pos_neg_logits(x, y, negatives)
+            logits[:, :, [0, 1]] = logits[:, :, [1, 0]]
+            target = (y != 0).long()
+            loss = self._calc_softmax_loss(logits, target, w)
         else:
             loss = self._calc_custom_loss(batch, batch_idx)
 
@@ -200,6 +206,13 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             negatives = batch["negatives"]
             pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
             outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
+            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
+        elif self.loss == "sampled_softmax":
+            negatives = batch["negatives"]
+            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
+            pos_neg_logits[:, :, [0, 1]] = pos_neg_logits[:, :, [1, 0]]
+            target = (y != 0).long()
+            outputs["loss"] = self._calc_softmax_loss(pos_neg_logits, target, w)
             outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
         else:
             outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
