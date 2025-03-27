@@ -117,14 +117,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, self.session_max_len, self.n_negatives),
-            )  # [batch_size, session_max_len, n_negatives]
-            batch_dict["negatives"] = negatives
-        return batch_dict
+        return self._get_negatives(batch_dict)
 
     def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
@@ -304,6 +297,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         train_min_user_interactions: int = 2,
         loss: str = "softmax",
         n_negatives: int = 1,
+        negative_sampling: str = "uniform",
         gbce_t: float = 0.2,
         lr: float = 0.001,
         batch_size: int = 128,
@@ -349,6 +343,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             dataloader_num_workers=dataloader_num_workers,
             batch_size=batch_size,
             loss=loss,
+            negative_sampling=negative_sampling,
             n_negatives=n_negatives,
             gbce_t=gbce_t,
             lr=lr,
@@ -377,6 +372,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     def _init_data_preparator(self) -> None:
         self.data_preparator: TransformerDataPreparatorBase = self.data_preparator_type(
             session_max_len=self.session_max_len,
+            negative_sampling=self.negative_sampling,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,

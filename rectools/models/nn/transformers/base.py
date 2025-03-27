@@ -224,6 +224,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
+        negative_sampling: str = "uniform",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.001,
@@ -260,6 +261,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.dataloader_num_workers = dataloader_num_workers
         self.batch_size = batch_size
         self.loss = loss
+        self.negative_sampling = negative_sampling
         self.n_negatives = n_negatives
         self.gbce_t = gbce_t
         self.lr = lr
@@ -300,6 +302,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
+            negative_sampling=self.negative_sampling,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             get_val_mask_func=self.get_val_mask_func,
             shuffle_train=True,
