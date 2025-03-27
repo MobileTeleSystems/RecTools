@@ -44,7 +44,7 @@ from .net_blocks import (
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
-from .similarity import SimilarityModuleBase
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 
 
 class BERT4RecDataPreparator(TransformerDataPreparatorBase):
@@ -257,7 +257,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
-    similarity_module_type : type(SimilarityModuleBase), default `SimilarityModuleBase`
+    similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
         Type of similarity module.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
@@ -326,7 +326,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
-        similarity_module_type: tp.Type[SimilarityModuleBase] = SimilarityModuleBase,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,

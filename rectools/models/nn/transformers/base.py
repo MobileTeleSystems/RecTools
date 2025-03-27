@@ -46,7 +46,7 @@ from .net_blocks import (
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
-from .similarity import SimilarityModuleBase
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerTorchBackbone
 
 InitKwargs = tp.Dict[str, tp.Any]
@@ -194,7 +194,7 @@ class TransformerModelConfig(ModelConfig):
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
-    similarity_module_type: SimilarityModuleType = SimilarityModuleBase
+    similarity_module_type: SimilarityModuleType = DistanceSimilarityModule
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
@@ -250,7 +250,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
-        similarity_module_type: tp.Type[SimilarityModuleBase] = SimilarityModuleBase,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,

@@ -35,7 +35,7 @@ from rectools.models.nn.transformers.base import (
     TransformerTorchBackbone,
 )
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
-from rectools.models.nn.transformers.similarity import SimilarityModuleDistance
+from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -283,8 +283,8 @@ class TestSASRecModel:
             recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
-            similarity_module_type=SimilarityModuleDistance,
-            similarity_module_kwargs={"dist": u2i_dist},
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -370,8 +370,8 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
-            similarity_module_type=SimilarityModuleDistance,
-            similarity_module_kwargs={"dist": u2i_dist},
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -412,7 +412,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -453,7 +453,7 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
             get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_item_features)
         users = np.array([10, 30, 40])
@@ -506,7 +506,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -580,7 +580,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -607,7 +607,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=custom_trainer,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -649,7 +649,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([20])
@@ -703,7 +703,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
-            similarity_module_type=SimilarityModuleDistance,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
@@ -727,12 +727,12 @@ class TestSASRecModel:
         )
 
     def test_raises_when_loss_is_not_supported(self, dataset: Dataset) -> None:
-        model = SASRecModel(loss="gbce", similarity_module_type=SimilarityModuleDistance)
+        model = SASRecModel(loss="gbce", similarity_module_type=DistanceSimilarityModule)
         with pytest.raises(ValueError):
             model.fit(dataset=dataset)
 
     def test_torch_model(self, dataset: Dataset) -> None:
-        model = SASRecModel(similarity_module_type=SimilarityModuleDistance)
+        model = SASRecModel(similarity_module_type=DistanceSimilarityModule)
         model.fit(dataset)
         assert isinstance(model.torch_model, TransformerTorchBackbone)
 
@@ -940,7 +940,7 @@ class TestSASRecModelConfiguration:
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
-            "similarity_module_type": SimilarityModuleDistance,
+            "similarity_module_type": DistanceSimilarityModule,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
             "data_preparator_kwargs": None,
@@ -948,7 +948,7 @@ class TestSASRecModelConfiguration:
             "item_net_constructor_kwargs": None,
             "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
-            "similarity_module_kwargs": {"dist": "dot"},
+            "similarity_module_kwargs": None,
         }
         return config
 
@@ -988,8 +988,7 @@ class TestSASRecModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
-                "similarity_module_type": "rectools.models.nn.transformers.similarity.SimilarityModuleDistance",
-                "similarity_module_kwargs": {"dist": "dot"},
+                "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
@@ -1024,13 +1023,12 @@ class TestSASRecModelConfiguration:
 
         model_1 = model.from_config(initial_config)
         reco_1 = get_reco(model_1)
-        config_1 = model_1.get_config(mode="pydantic", simple_types=False)
-        print(f"CONFIG 1: {config_1}")
+        config_1 = model_1.get_config(simple_types=simple_types)
 
         self._seed_everything()
         model_2 = model.from_config(config_1)
         reco_2 = get_reco(model_2)
-        config_2 = model_2.get_config(mode="pydantic", simple_types=False)
+        config_2 = model_2.get_config(simple_types=simple_types)
 
         assert config_1 == config_2
         pd.testing.assert_frame_equal(reco_1, reco_2)

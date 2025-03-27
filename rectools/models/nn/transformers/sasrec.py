@@ -44,7 +44,7 @@ from .net_blocks import (
     PositionalEncodingBase,
     TransformerLayersBase,
 )
-from .similarity import SimilarityModuleBase
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):
@@ -337,7 +337,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
-    similarity_module_type : type(SimilarityModuleBase), default `SimilarityModuleBase`
+    similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
         Type of similarity module.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
@@ -405,7 +405,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
-        similarity_module_type: tp.Type[SimilarityModuleBase] = SimilarityModuleBase,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,

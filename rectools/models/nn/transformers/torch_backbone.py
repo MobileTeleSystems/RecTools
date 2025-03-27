@@ -15,10 +15,6 @@
 import typing as tp
 
 import torch
-from scipy import sparse
-
-from rectools.models.base import InternalRecoTriplet
-from rectools.types import InternalIdsArray
 
 from ..item_net import ItemNetBase
 from .net_blocks import PositionalEncodingBase, TransformerLayersBase
@@ -168,8 +164,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         self,
         sessions: torch.Tensor,  # [batch_size, session_max_len],
         item_ids: tp.Optional[torch.Tensor] = None,
-        last_n_items: tp.Optional[int] = None,
-    ) -> tp.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         """
         Forward pass to get item and session embeddings.
         Get item embeddings.
@@ -179,34 +174,14 @@ class TransformerTorchBackbone(torch.nn.Module):
         ----------
         sessions : torch.Tensor
             User sessions in the form of sequences of items ids.
-        TODO
+        item_ids : optional(torch.Tensor), default ``None``
+            Defined item ids for similarity calculation.
 
         Returns
         -------
-        (torch.Tensor, torch.Tensor, torch.Tensor)
+        torch.Tensor
         """
         item_embs = self.item_model.get_all_embeddings()  # [n_items + n_item_extra_tokens, n_factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
         logits = self.similarity_module(session_embs, item_embs, item_ids)
-        if last_n_items:
-            logits = logits[:, -last_n_items:, :]
-        return item_embs, session_embs, logits
-
-    def _recommend_u2i(
-        self,
-        user_embs: torch.Tensor,
-        item_embs: torch.Tensor,
-        user_ids: InternalIdsArray,
-        k: int,
-        sorted_item_ids_to_recommend: InternalIdsArray,
-        ui_csr_for_filter: tp.Optional[sparse.csr_matrix],
-    ) -> InternalRecoTriplet:
-        """Recommend to users."""
-        return self.similarity_module._recommend_u2i(
-            user_embs=user_embs,
-            item_embs=item_embs,
-            user_ids=user_ids,
-            k=k,
-            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
-            ui_csr_for_filter=ui_csr_for_filter,
-        )
+        return logits

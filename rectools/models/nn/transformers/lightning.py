@@ -94,6 +94,20 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
+    @property
+    def requires_negatives(self) -> tp.Optional[bool]:
+        """Indicator for determining the need for negatives for loss functions."""
+        if self.loss == "softmax":
+            return False
+
+        if self.loss == "BCE":
+            return True
+
+        if self.loss == "gBCE":
+            return True
+
+        return None
+
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
         optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
@@ -150,18 +164,20 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
         x, y, w = batch["x"], batch["y"], batch["yw"]
+
+        if self.requires_negatives:
+            negatives = batch["negatives"]
+            # [batch_size, session_max_len, n_negatives + 1]
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
+            logits = self.torch_model(sessions=x, item_ids=pos_neg)
+        elif self.requires_negatives is not None:
+            logits = self.torch_model(sessions=x)
+
         if self.loss == "softmax":
-            _, _, logits = self.torch_model(sessions=x)
             loss = self._calc_softmax_loss(logits, y, w)
         elif self.loss == "BCE":
-            negatives = batch["negatives"]
-            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-            _, _, logits = self.torch_model(sessions=x, item_ids=pos_neg)
             loss = self._calc_bce_loss(logits, y, w)
         elif self.loss == "gBCE":
-            negatives = batch["negatives"]
-            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-            _, _, logits = self.torch_model(sessions=x, item_ids=pos_neg)
             loss = self._calc_gbce_loss(logits, y, w, negatives)
         else:
             loss = self._calc_custom_loss(batch, batch_idx)
@@ -190,23 +206,29 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         # y: [batch_size, 1]
         # yw: [batch_size, 1]
         x, y, w = batch["x"], batch["y"], batch["yw"]
+
+        if self.requires_negatives:
+            negatives = batch["negatives"]
+            # [batch_size, session_max_len, n_negatives + 1]
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
+            logits = self.torch_model(sessions=x, item_ids=pos_neg)
+        elif self.requires_negatives is not None:
+            logits = self.torch_model(sessions=x)
+
+        if self.requires_negatives is not None:
+            logits = logits[:, -1:, :]
+
         outputs = {}
         if self.loss == "softmax":
-            _, _, logits = self.torch_model(sessions=x, last_n_items=1)
             outputs["loss"] = self._calc_softmax_loss(logits, y, w)
             outputs["logits"] = logits.squeeze()
         elif self.loss == "BCE":
             negatives = batch["negatives"]
-            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-            _, _, pos_neg_logits = self.torch_model(sessions=x, item_ids=pos_neg, last_n_items=1)
-            outputs["loss"] = self._calc_bce_loss(pos_neg_logits, y, w)
-            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
+            outputs["loss"] = self._calc_bce_loss(logits, y, w)
+            outputs["pos_neg_logits"] = logits.squeeze()
         elif self.loss == "gBCE":
-            negatives = batch["negatives"]
-            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-            _, _, pos_neg_logits = self.torch_model(sessions=x, item_ids=pos_neg, last_n_items=1)
-            outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
-            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
+            outputs["loss"] = self._calc_gbce_loss(logits, y, w, negatives)
+            outputs["pos_neg_logits"] = logits.squeeze()
         else:
             outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
 
@@ -328,7 +350,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        all_user_ids, all_reco_ids, all_scores = self.torch_model._recommend_u2i(
+        all_user_ids, all_reco_ids, all_scores = self.torch_model.similarity_module._recommend_u2i(
             user_embs=user_embs,
             item_embs=item_embs,
             user_ids=user_ids,
