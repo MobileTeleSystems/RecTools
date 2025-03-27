@@ -42,7 +42,7 @@ class SimilarityModuleBase(torch.nn.Module):
 class DistanceSimilarityModule(SimilarityModuleBase):
     """Distandce similarity module."""
 
-    dist_available: tp.List[str] = ["dot", "cosine"]
+    dist_available: tp.List[str] = [Distance.DOT, Distance.COSINE]
     epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
 
     def __init__(self, distance: str = "dot") -> None:
@@ -50,7 +50,7 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         if distance not in self.dist_available:
             raise ValueError("`dist` can only be either `dot` or `cosine`.")
 
-        self.distance = distance
+        self.distance = Distance(distance)
 
     def _get_full_catalog_logits(self, session_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         logits = session_embs @ item_embs.T
@@ -73,7 +73,7 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         self, session_embs: torch.Tensor, item_embs: torch.Tensor, item_ids: tp.Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """Forward pass to get logits."""
-        if self.distance == "cosine":
+        if self.distance == Distance.COSINE:
             session_embs = self._get_embeddings_norm(session_embs)
             item_embs = self._get_embeddings_norm(item_embs)
 
@@ -94,7 +94,7 @@ class DistanceSimilarityModule(SimilarityModuleBase):
     ) -> InternalRecoTriplet:
         """Recommend to users."""
         ranker = TorchRanker(
-            distance=Distance.DOT if self.distance == "dot" else Distance.COSINE,
+            distance=self.distance,
             device=item_embs.device,
             subjects_factors=user_embs[user_ids],
             objects_factors=item_embs,
