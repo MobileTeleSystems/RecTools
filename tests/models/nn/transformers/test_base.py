@@ -28,7 +28,6 @@ from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.transformers.base import TransformerModelBase
-from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
@@ -113,7 +112,6 @@ class TestTransformerModelBase:
         config = {
             "deterministic": True,
             "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
-            "similarity_module_type": DistanceSimilarityModule,
         }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
@@ -152,7 +150,6 @@ class TestTransformerModelBase:
         config = {
             "deterministic": True,
             "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
-            "similarity_module_type": DistanceSimilarityModule,
         }
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
@@ -174,7 +171,6 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
-                "similarity_module_type": DistanceSimilarityModule,
             }
         )
         dataset = request.getfixturevalue(test_dataset)
@@ -201,7 +197,6 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
-                "similarity_module_type": DistanceSimilarityModule,
             }
         )
         model.fit(dataset)
@@ -226,7 +221,6 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_multiple_ckpt,
-                "similarity_module_type": DistanceSimilarityModule,
             }
         )
         model.fit(dataset)
@@ -252,7 +246,6 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
-                "similarity_module_type": DistanceSimilarityModule,
             }
         )
         model.fit(dataset)
@@ -266,7 +259,6 @@ class TestTransformerModelBase:
                 "deterministic": True,
                 "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
-                "similarity_module_type": DistanceSimilarityModule,
             }
         )
         with pytest.raises(RuntimeError):
@@ -309,7 +301,6 @@ class TestTransformerModelBase:
                 "verbose": verbose,
                 "get_val_mask_func": get_val_mask_func,
                 "loss": loss,
-                "similarity_module_type": DistanceSimilarityModule,
             }
         )
         model._trainer = trainer  # pylint: disable=protected-access
@@ -332,7 +323,6 @@ class TestTransformerModelBase:
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
     ) -> None:
         model_config = {
-            "similarity_module_type": DistanceSimilarityModule,
             "similarity_module_kwargs": {"distance": "euclidean"},
         }
         with pytest.raises(ValueError):

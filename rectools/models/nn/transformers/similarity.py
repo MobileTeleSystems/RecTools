@@ -78,10 +78,8 @@ class DistanceSimilarityModule(SimilarityModuleBase):
             item_embs = self._get_embeddings_norm(item_embs)
 
         if item_ids is None:
-            logits = self._get_full_catalog_logits(session_embs, item_embs)
-        else:
-            logits = self._get_pos_neg_logits(session_embs, item_embs, item_ids)
-        return logits
+            return self._get_full_catalog_logits(session_embs, item_embs)
+        return self._get_pos_neg_logits(session_embs, item_embs, item_ids)
 
     def _recommend_u2i(
         self,

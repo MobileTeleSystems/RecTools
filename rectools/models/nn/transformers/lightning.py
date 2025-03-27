@@ -223,7 +223,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             outputs["loss"] = self._calc_softmax_loss(logits, y, w)
             outputs["logits"] = logits.squeeze()
         elif self.loss == "BCE":
-            negatives = batch["negatives"]
             outputs["loss"] = self._calc_bce_loss(logits, y, w)
             outputs["pos_neg_logits"] = logits.squeeze()
         elif self.loss == "gBCE":
