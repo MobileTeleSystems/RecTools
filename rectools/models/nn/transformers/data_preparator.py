@@ -169,7 +169,7 @@ class TransformerDataPreparatorBase:
         return DenseFeatures.from_iterables(values=full_feature_values, names=raw_features.names)
 
     def _filter_train_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
-        """Filter train interactions"""
+        """Filter train interactions."""
         train_interactions = interactions.copy()
         user_stats = train_interactions[Columns.User].value_counts()
         users = user_stats[user_stats >= self.train_min_user_interactions].index
