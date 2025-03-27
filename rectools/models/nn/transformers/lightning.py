@@ -350,13 +350,15 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        all_user_ids, all_reco_ids, all_scores = self.torch_model.similarity_module._recommend_u2i(
-            user_embs=user_embs,
-            item_embs=item_embs,
-            user_ids=user_ids,
-            k=k,
-            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
-            ui_csr_for_filter=ui_csr_for_filter,
+        all_user_ids, all_reco_ids, all_scores = (
+            self.torch_model.similarity_module._recommend_u2i(  # pylint: disable=protected-access
+                user_embs=user_embs,
+                item_embs=item_embs,
+                user_ids=user_ids,
+                k=k,
+                sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+                ui_csr_for_filter=ui_csr_for_filter,
+            )
         )
         return all_user_ids, all_reco_ids, all_scores
 
