@@ -119,6 +119,7 @@ class TransformerDataPreparatorBase:
         dataloader_num_workers: int,
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
+        negative_sampling: str = "uniform",
         n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
         **kwargs: tp.Any,
@@ -128,6 +129,7 @@ class TransformerDataPreparatorBase:
         self.train_dataset: Dataset
         self.val_interactions: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
+        self.negative_sampling = negative_sampling
         self.n_negatives = n_negatives
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
@@ -375,3 +377,30 @@ class TransformerDataPreparatorBase:
         batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
+
+    def _get_negatives(self, x: torch.Tensor) -> torch.Tensor:
+        if self.negative_sampling == "uniform":
+            return self._get_uniform_negatives(x)
+        elif self.negative_sampling == "in_batch":
+            return self._get_in_batch_negatives(x)
+        raise ValueError(f"negative sampling {self.negative_sampling} is not supported")
+
+    def _get_uniform_negatives(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.randint(
+            low=self.n_item_extra_tokens,
+            high=self.item_id_map.size,
+            size=(x.shape[0], self.session_max_len, self.n_negatives),
+        )  # [batch_size, session_max_len, n_negatives]
+
+
+    def _get_in_batch_negatives(self, x: torch.Tensor) -> torch.Tensor:
+        batch_items = set(x.flatten().tolist()) - set(self.extra_token_ids.values())
+        n_negatives = min(self.n_negatives, len(batch_items))
+        distribution = torch.zeros(self.item_id_map.size)
+        distribution[list(batch_items)] = 1
+        negatives = torch.multinomial(
+            distribution.expand(x.shape[0] * self.session_max_len, -1),
+            num_samples=n_negatives,
+            replacement=False,
+        )
+        return negatives.view(x.shape[0], self.session_max_len, n_negatives)
