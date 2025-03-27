@@ -26,7 +26,6 @@ from pytorch_lightning.loggers import CSVLogger
 from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
-from rectools.models.nn.item_net import CatFeaturesItemNet, IdEmbeddingsItemNet
 from rectools.models.nn.transformers.base import TransformerModelBase
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
@@ -109,10 +108,7 @@ class TestTransformerModelBase:
         dataset: Dataset,
         default_trainer: bool,
     ) -> None:
-        config = {
-            "deterministic": True,
-            "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        }
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
         model = model_cls.from_config(config)
@@ -147,10 +143,7 @@ class TestTransformerModelBase:
         dataset_item_features: Dataset,
         default_trainer: bool,
     ) -> None:
-        config = {
-            "deterministic": True,
-            "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
-        }
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
         if not default_trainer:
             config["get_trainer_func"] = custom_trainer
         model = model_cls.from_config(config)
@@ -169,7 +162,6 @@ class TestTransformerModelBase:
         model = model_cls.from_config(
             {
                 "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
             }
         )
@@ -195,7 +187,6 @@ class TestTransformerModelBase:
         model = model_cls.from_config(
             {
                 "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
             }
         )
@@ -219,7 +210,6 @@ class TestTransformerModelBase:
         model = model_cls.from_config(
             {
                 "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_multiple_ckpt,
             }
         )
@@ -244,7 +234,6 @@ class TestTransformerModelBase:
         model = model_cls.from_config(
             {
                 "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
             }
         )
@@ -257,7 +246,6 @@ class TestTransformerModelBase:
         model_unfitted = model_cls.from_config(
             {
                 "deterministic": True,
-                "item_net_block_types": (IdEmbeddingsItemNet, CatFeaturesItemNet),
                 "get_trainer_func": custom_trainer_ckpt,
             }
         )
