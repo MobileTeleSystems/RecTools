@@ -119,7 +119,7 @@ class TransformerDataPreparatorBase:
         dataloader_num_workers: int,
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
-        n_negatives: int = 0,
+        n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
         **kwargs: tp.Any,
     ) -> None:

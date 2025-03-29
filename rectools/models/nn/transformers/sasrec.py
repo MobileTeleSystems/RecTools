@@ -71,7 +71,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives > 0:
+        if self.n_negatives is not None:
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
                 high=self.item_id_map.size,
@@ -97,7 +97,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives > 0:
+        if self.n_negatives is not None:
             negatives = torch.randint(
                 low=self.n_item_extra_tokens,
                 high=self.item_id_map.size,
