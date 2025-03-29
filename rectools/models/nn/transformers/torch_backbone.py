@@ -18,6 +18,7 @@ import torch
 
 from ..item_net import ItemNetBase
 from .net_blocks import PositionalEncodingBase, TransformerLayersBase
+from .similarity import SimilarityModuleBase
 
 
 class TransformerTorchBackbone(torch.nn.Module):
@@ -36,6 +37,8 @@ class TransformerTorchBackbone(torch.nn.Module):
         Positional encoding layer.
     transformer_layers : TransformerLayersBase
         Transformer layers.
+    similarity_module : SimilarityModuleBase
+        Similarity module.
     use_causal_attn : bool, default True
         If ``True``, causal mask is used in multi-head self-attention.
     use_key_padding_mask : bool, default False
@@ -49,6 +52,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         item_model: ItemNetBase,
         pos_encoding_layer: PositionalEncodingBase,
         transformer_layers: TransformerLayersBase,
+        similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
     ) -> None:
@@ -58,6 +62,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         self.pos_encoding_layer = pos_encoding_layer
         self.emb_dropout = torch.nn.Dropout(dropout_rate)
         self.transformer_layers = transformer_layers
+        self.similarity_module = similarity_module
         self.use_causal_attn = use_causal_attn
         self.use_key_padding_mask = use_key_padding_mask
         self.n_heads = n_heads
@@ -157,8 +162,9 @@ class TransformerTorchBackbone(torch.nn.Module):
 
     def forward(
         self,
-        sessions: torch.Tensor,  # [batch_size, session_max_len]
-    ) -> tp.Tuple[torch.Tensor, torch.Tensor]:
+        sessions: torch.Tensor,  # [batch_size, session_max_len],
+        item_ids: tp.Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
         Forward pass to get item and session embeddings.
         Get item embeddings.
@@ -168,11 +174,14 @@ class TransformerTorchBackbone(torch.nn.Module):
         ----------
         sessions : torch.Tensor
             User sessions in the form of sequences of items ids.
+        item_ids : optional(torch.Tensor), default ``None``
+            Defined item ids for similarity calculation.
 
         Returns
         -------
-        (torch.Tensor, torch.Tensor)
+        torch.Tensor
         """
         item_embs = self.item_model.get_all_embeddings()  # [n_items + n_item_extra_tokens, n_factors]
         session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
-        return item_embs, session_embs
+        logits = self.similarity_module(session_embs, item_embs, item_ids)
+        return logits

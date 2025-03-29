@@ -33,6 +33,7 @@ from rectools.models.nn.transformers.base import (
     TransformerLightningModule,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -212,6 +213,7 @@ class TestBERT4RecModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
     def test_u2i(
         self,
         dataset_devices: Dataset,
@@ -223,6 +225,7 @@ class TestBERT4RecModel:
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
         expected_gpu_2: pd.DataFrame,
+        u2i_dist: str,
     ) -> None:
         if n_devices != 1:
             pytest.skip("DEBUG: skipping multi-device tests")
@@ -249,6 +252,8 @@ class TestBERT4RecModel:
             recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -292,12 +297,14 @@ class TestBERT4RecModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
     def test_u2i_losses(
         self,
         dataset_devices: Dataset,
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        u2i_dist: str,
     ) -> None:
         model = BERT4RecModel(
             n_negatives=2,
@@ -313,6 +320,8 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -366,6 +375,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -440,6 +450,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -466,6 +477,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=custom_trainer,
+            similarity_module_type=DistanceSimilarityModule,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -508,6 +520,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([20])
@@ -528,7 +541,7 @@ class TestBERT4RecModel:
             def __init__(
                 self,
                 session_max_len: int,
-                n_negatives: tp.Optional[int],
+                n_negatives: int,
                 batch_size: int,
                 dataloader_num_workers: int,
                 train_min_user_interactions: int,
@@ -585,6 +598,7 @@ class TestBERT4RecModel:
             get_trainer_func=get_trainer_func,
             data_preparator_type=NextActionDataPreparator,
             data_preparator_kwargs={"n_last_targets": 1},
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
 
@@ -829,6 +843,7 @@ class TestBERT4RecModelConfiguration:
             "transformer_layers_type": PreLNTransformerLayers,
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
+            "similarity_module_type": DistanceSimilarityModule,
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
@@ -837,6 +852,7 @@ class TestBERT4RecModelConfiguration:
             "item_net_constructor_kwargs": None,
             "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
+            "similarity_module_kwargs": None,
         }
         return config
 
@@ -876,6 +892,7 @@ class TestBERT4RecModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.bert4rec.BERT4RecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
