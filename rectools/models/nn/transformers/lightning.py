@@ -136,7 +136,9 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         if n_negatives is not None:
             alpha = n_negatives / (n_items - 1)  # sampling rate
         else:
-            raise ValueError("`n_negatives` is not defined. Please ensure that `n_negatives` is set.")
+            raise ValueError(
+                "`n_negatives` is not defined. Please ensure that `n_negatives` is set."
+            )  # pragma: no cover
         beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
 
         pos_logits = logits[:, :, 0:1].to(dtype)
