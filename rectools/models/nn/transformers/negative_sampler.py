@@ -31,12 +31,10 @@ class TransformerNegativeSamplerBase:
 
     def __init__(
         self,
-        session_max_len: int,
         n_negatives: int,
         **kwargs: tp.Any,
     ) -> None:
         self.n_negatives = n_negatives
-        self.session_max_len = session_max_len
 
     def get_negatives(self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int) -> torch.Tensor:
         """Return sampled negatives."""
@@ -51,6 +49,6 @@ class CatalogUniformSampler(TransformerNegativeSamplerBase):
         negatives = torch.randint(
             low=n_item_extra_tokens,
             high=n_items,
-            size=(batch_dict["x"].shape[0], self.session_max_len, self.n_negatives),
+            size=(batch_dict["x"].shape[0], batch_dict["x"].shape[1], self.n_negatives),
         )  # [batch_size, session_max_len, n_negatives]
         return negatives

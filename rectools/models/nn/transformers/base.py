@@ -339,7 +339,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _init_negative_sampler(self) -> TransformerNegativeSamplerBase:
         return self.negative_sampler_type(
-            session_max_len=self.session_max_len,
             n_negatives=self.n_negatives,
             **self._get_kwargs(self.negative_sampler_kwargs),
         )

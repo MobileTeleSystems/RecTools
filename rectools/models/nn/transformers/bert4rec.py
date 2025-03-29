@@ -376,7 +376,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         )
 
     def _init_data_preparator(self) -> None:
-        negative_sampler = self._init_negative_sampler()
         self.data_preparator: TransformerDataPreparatorBase = self.data_preparator_type(
             session_max_len=self.session_max_len,
             negative_sampler=self._init_negative_sampler() if self.loss != "softmax" else None,
