@@ -95,7 +95,11 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
-    def get_loss_calculator(self) -> tp.Tuple[tp.Optional[tp.Callable], tp.Optional[bool]]:
+    def get_loss_calculator(
+        self,
+    ) -> tp.Tuple[
+        tp.Optional[tp.Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]], tp.Optional[bool]
+    ]:
         """Return loss calculator and indicator for determining the need for negatives for loss functions."""
         if self.loss == "softmax":
             return self._calc_softmax_loss, False
