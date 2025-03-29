@@ -168,9 +168,8 @@ class TransformerDataPreparatorBase:
         full_feature_values = np.vstack([extra_token_feature_values, sorted_features.values])
         return DenseFeatures.from_iterables(values=full_feature_values, names=raw_features.names)
 
-    def _filter_train_interactions(self, interactions: pd.DataFrame) -> pd.DataFrame:
+    def _filter_train_interactions(self, train_interactions: pd.DataFrame) -> pd.DataFrame:
         """Filter train interactions."""
-        train_interactions = interactions.copy()
         user_stats = train_interactions[Columns.User].value_counts()
         users = user_stats[user_stats >= self.train_min_user_interactions].index
         train_interactions = train_interactions[(train_interactions[Columns.User].isin(users))]

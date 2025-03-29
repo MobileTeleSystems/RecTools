@@ -40,7 +40,7 @@ class SimilarityModuleBase(torch.nn.Module):
 
 
 class DistanceSimilarityModule(SimilarityModuleBase):
-    """Distandce similarity module."""
+    """Distance similarity module."""
 
     dist_available: tp.List[str] = [Distance.DOT, Distance.COSINE]
     epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
