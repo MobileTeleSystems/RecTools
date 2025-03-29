@@ -317,7 +317,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            n_negatives=self.n_negatives if self.loss != "softmax" else 0,
             get_val_mask_func=self.get_val_mask_func,
             shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
