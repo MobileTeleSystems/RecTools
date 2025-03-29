@@ -541,7 +541,7 @@ class TestBERT4RecModel:
             def __init__(
                 self,
                 session_max_len: int,
-                n_negatives: tp.Optional[int],
+                n_negatives: int,
                 batch_size: int,
                 dataloader_num_workers: int,
                 train_min_user_interactions: int,
