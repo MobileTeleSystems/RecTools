@@ -29,6 +29,7 @@ from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
 from .constants import PADDING_VALUE
+from .negative_sampler import TransformerNegativeSamplerBase
 
 
 class SequenceDataset(TorchDataset):
@@ -119,10 +120,8 @@ class TransformerDataPreparatorBase:
         dataloader_num_workers: int,
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
-        negative_sampling: str = "uniform",
-        mixing_coefficient: float = 0.5,
-        n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+        negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -130,10 +129,7 @@ class TransformerDataPreparatorBase:
         self.train_dataset: Dataset
         self.val_interactions: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
-        self.negative_sampling = negative_sampling
-        self.mixing_coefficient = mixing_coefficient
-        self.n_negatives = n_negatives
-        self.mixing_coefficient = mixing_coefficient
+        self.negative_sampler = negative_sampler
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
         self.train_min_user_interactions = train_min_user_interactions
@@ -380,49 +376,3 @@ class TransformerDataPreparatorBase:
         batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
-
-    def _get_negatives(self, batch_dict: tp.Dict) -> tp.Dict:
-        if self.negative_sampling == "uniform":
-            return self._get_uniform_negatives(batch_dict)
-        if self.negative_sampling == "in_batch":
-            return self._get_in_batch_negatives(batch_dict)
-        if self.negative_sampling == "mixed":
-            return
-        raise ValueError(f"{self.negative_sampling} negative sampling is not supported")
-
-    def _get_uniform_negatives(self, batch_dict: tp.Dict) -> tp.Dict:
-        if self.n_negatives is not None:
-            batch_dict["negatives"] = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_dict["x"].shape[0], self.session_max_len, self.n_negatives),
-            )  # [batch_size, session_max_len, n_negatives]
-        return batch_dict
-
-    def _get_in_batch_negatives(self, batch_dict: tp.Dict) -> tp.Dict:
-        if self.n_negatives is not None:
-            batch_items = torch.unique(batch_dict["x"].flatten())[len(self.item_extra_tokens):]
-            neg_inds = torch.randint(
-                0, len(batch_items), size=(batch_dict["x"].shape[0], self.session_max_len, self.n_negatives)
-            )
-            negatives = batch_items[neg_inds]
-            # replace negatives equal to target
-            mask = negatives == batch_dict["y"].unsqueeze(-1)
-            replacement_inds = torch.randint(
-                0, len(batch_items), size=(batch_dict["x"].shape[0], self.session_max_len, self.n_negatives)
-            )
-            negatives[mask] = batch_items[replacement_inds][mask]
-            batch_dict["negatives"] = negatives
-            
-            # batch_items = torch.unique(batch_dict["x"].flatten())[len(self.item_extra_tokens):]
-            # n_negatives = min(self.n_negatives, len(batch_dict["x"]))
-            # distribution = torch.zeros(self.item_id_map.size)
-            # distribution[batch_items] = 1
-            # batch_dict["negatives"] = torch.multinomial(
-            #     distribution.expand(batch_dict["x"].shape[0] * self.session_max_len, -1),
-            #     num_samples=n_negatives,
-            #     replacement=False,
-            # ).view(batch_dict["x"].shape[0], self.session_max_len, n_negatives)
-        return batch_dict
-
-

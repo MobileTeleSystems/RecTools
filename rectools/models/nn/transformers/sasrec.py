@@ -38,6 +38,7 @@ from .base import (
     ValMaskCallable,
 )
 from .data_preparator import TransformerDataPreparatorBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PointWiseFeedForward,
@@ -70,7 +71,11 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        return self._get_negatives(batch_dict)
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+            )
+        return batch_dict
 
     def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
@@ -89,7 +94,11 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        return self._get_negatives(batch_dict)
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+            )
+        return batch_dict
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
@@ -368,8 +377,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         session_max_len: int = 100,
         train_min_user_interactions: int = 2,
         loss: str = "softmax",
-        negative_sampling: str = "uniform",
-        mixing_coefficient: float = 0.5,
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.001,
@@ -387,6 +394,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
@@ -398,6 +406,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -413,8 +422,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             dataloader_num_workers=dataloader_num_workers,
             batch_size=batch_size,
             loss=loss,
-            negative_sampling=negative_sampling,
-            mixing_coefficient=mixing_coefficient,
             n_negatives=n_negatives,
             gbce_t=gbce_t,
             lr=lr,
@@ -430,6 +437,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            negative_sampler_type=negative_sampler_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
             data_preparator_kwargs=data_preparator_kwargs,
@@ -437,4 +445,5 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_constructor_kwargs=item_net_constructor_kwargs,
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
+            negative_sampler_kwargs=negative_sampler_kwargs,
         )

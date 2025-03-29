@@ -40,6 +40,7 @@ from ..item_net import (
 )
 from .data_preparator import TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
@@ -99,6 +100,16 @@ TransformerLightningModuleType = tpe.Annotated[
 
 TransformerDataPreparatorType = tpe.Annotated[
     tp.Type[TransformerDataPreparatorBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+TransformerNegativeSamplerType = tpe.Annotated[
+    tp.Type[TransformerNegativeSamplerBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -183,6 +194,7 @@ class TransformerModelConfig(ModelConfig):
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
+    negative_sampler_type: TransformerNegativeSamplerType = CatalogUniformSampler
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
@@ -224,7 +236,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataloader_num_workers: int = 0,
         batch_size: int = 128,
         loss: str = "softmax",
-        negative_sampling: str = "uniform",
         n_negatives: int = 1,
         gbce_t: float = 0.2,
         lr: float = 0.001,
@@ -238,6 +249,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
@@ -245,6 +257,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -261,7 +274,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.dataloader_num_workers = dataloader_num_workers
         self.batch_size = batch_size
         self.loss = loss
-        self.negative_sampling = negative_sampling
         self.n_negatives = n_negatives
         self.gbce_t = gbce_t
         self.lr = lr
@@ -274,6 +286,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
+        self.negative_sampler_type = negative_sampler_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
         self.data_preparator_kwargs = data_preparator_kwargs
@@ -281,6 +294,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_constructor_kwargs = item_net_constructor_kwargs
         self.pos_encoding_kwargs = pos_encoding_kwargs
         self.lightning_module_kwargs = lightning_module_kwargs
+        self.negative_sampler_kwargs = negative_sampler_kwargs
 
         self._init_data_preparator()
         self._init_trainer()
@@ -302,8 +316,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
-            negative_sampling=self.negative_sampling,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            negative_sampler=self._init_negative_sampler() if self.loss != "softmax" else None,
             get_val_mask_func=self.get_val_mask_func,
             shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
@@ -323,6 +336,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             )
         else:
             self._trainer = self.get_trainer_func()
+
+    def _init_negative_sampler(self) -> TransformerNegativeSamplerBase:
+        return self.negative_sampler_type(
+            session_max_len=self.session_max_len,
+            n_negatives=self.n_negatives,
+            **self._get_kwargs(self.negative_sampler_kwargs),
+        )
 
     def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset(
