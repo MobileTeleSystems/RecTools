@@ -162,6 +162,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         elif self.loss == "sampled_softmax":
             negatives = batch["negatives"]
             logits = self._get_pos_neg_logits(x, y, negatives)
+            # We put positive logits at index 1 since index 0 is used to ignore padding
             logits[:, :, [0, 1]] = logits[:, :, [1, 0]]
             target = (y != 0).long()
             loss = self._calc_softmax_loss(logits, target, w)
