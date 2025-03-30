@@ -312,12 +312,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         return kwargs
 
     def _init_data_preparator(self) -> None:
+        requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),

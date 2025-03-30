@@ -85,7 +85,8 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.data_preparator = data_preparator
         self.lr = lr
         self.loss = loss
-        self.loss_calculator, self.requires_negatives = self.get_loss_calculator()
+        self.loss_calculator = self.get_loss_calculator()
+        self._requires_negatives = self.requires_negatives(loss)
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
         self.verbose = verbose
@@ -95,22 +96,31 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
+    @staticmethod
+    def requires_negatives(loss: str) -> tp.Optional[bool]:
+        """Return flag for determining the need for negatives."""
+        if loss == "softmax":
+            return False
+
+        if loss in ["BCE", "gBCE"]:
+            return True
+
+        return None
+
     def get_loss_calculator(
         self,
-    ) -> tp.Tuple[
-        tp.Optional[tp.Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]], tp.Optional[bool]
-    ]:
-        """Return loss calculator and indicator for determining the need for negatives for loss functions."""
+    ) -> tp.Optional[tp.Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]]:
+        """Return loss calculator."""
         if self.loss == "softmax":
-            return self._calc_softmax_loss, False
+            return self._calc_softmax_loss
 
         if self.loss == "BCE":
-            return self._calc_bce_loss, True
+            return self._calc_bce_loss
 
         if self.loss == "gBCE":
-            return self._calc_gbce_loss, True
+            return self._calc_gbce_loss
 
-        return None, None
+        return None
 
     @classmethod
     def _calc_softmax_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
@@ -231,7 +241,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     def get_batch_logits(self, batch: tp.Dict[str, torch.Tensor]) -> torch.Tensor:
         """Get bacth logits."""
         x = batch["x"]  # x: [batch_size, session_max_len]
-        if self.requires_negatives:
+        if self._requires_negatives:
             y, negatives = batch["y"], batch["negatives"]
             pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
             logits = self.torch_model(sessions=x, item_ids=pos_neg)
@@ -274,7 +284,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             logits = self.get_batch_logits(batch)
             logits = logits[:, -1:, :]
             loss = self.loss_calculator(logits, y, w)
-            type_logits = "pos_neg_logits" if self.requires_negatives else "logits"
+            type_logits = "pos_neg_logits" if self._requires_negatives else "logits"
             outputs = {
                 "loss": loss,
                 type_logits: logits,
