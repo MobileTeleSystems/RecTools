@@ -57,7 +57,7 @@ class DistanceSimilarityModule(SimilarityModuleBase):
     """Distance similarity module."""
 
     dist_available: tp.List[str] = [Distance.DOT, Distance.COSINE]
-    epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
+    epsilon_cosine_dist: torch.nn.Parameter = torch.nn.Parameter(torch.Tensor([1e-8]), requires_grad=False)
 
     def __init__(self, distance: str = "dot") -> None:
         super().__init__()
@@ -79,7 +79,6 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         return logits
 
     def _get_embeddings_norm(self, embeddings: torch.Tensor) -> torch.Tensor:
-        self.epsilon_cosine_dist.to(embeddings.device)
         embedding_norm = torch.norm(embeddings, p=2, dim=1).unsqueeze(dim=1)
         embeddings = embeddings / torch.max(embedding_norm, self.epsilon_cosine_dist)
         return embeddings
