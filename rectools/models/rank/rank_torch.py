@@ -74,8 +74,6 @@ class TorchRanker:
         self.subjects_factors = self._normalize_tensor(subjects_factors)
         self.objects_factors = self._normalize_tensor(objects_factors)
 
-        self.epsilon_cosine_dist.to(self.device)
-
     def rank(
         self,
         subject_ids: InternalIds,
@@ -198,8 +196,12 @@ class TorchRanker:
         return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
 
     def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
-        user_embs = user_embs / torch.max(torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist)
-        item_embs = item_embs / torch.max(torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist)
+        user_embs = user_embs / torch.max(
+            torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist.to(user_embs)
+        )
+        item_embs = item_embs / torch.max(
+            torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist.to(user_embs)
+        )
 
         return user_embs @ item_embs.T
 
