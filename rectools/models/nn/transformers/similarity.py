@@ -65,6 +65,7 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         return logits
 
     def _get_embeddings_norm(self, embeddings: torch.Tensor) -> torch.Tensor:
+        self.epsilon_cosine_dist.to(embeddings.device)
         embedding_norm = torch.norm(embeddings, p=2, dim=1).unsqueeze(dim=1)
         embeddings = embeddings / torch.max(embedding_norm, self.epsilon_cosine_dist)
         return embeddings

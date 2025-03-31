@@ -74,6 +74,8 @@ class TorchRanker:
         self.subjects_factors = self._normalize_tensor(subjects_factors)
         self.objects_factors = self._normalize_tensor(objects_factors)
 
+        self.epsilon_cosine_dist.to(self.device)
+
     def rank(
         self,
         subject_ids: InternalIds,
