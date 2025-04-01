@@ -54,6 +54,8 @@ class TorchRanker:
         Conversion is skipped if provided dtype is ``None``.
     """
 
+    epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
+
     def __init__(
         self,
         distance: Distance,
@@ -194,8 +196,12 @@ class TorchRanker:
         return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
 
     def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
-        user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
-        item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
+        user_embs = user_embs / torch.max(
+            torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist.to(user_embs)
+        )
+        item_embs = item_embs / torch.max(
+            torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist.to(user_embs)
+        )
 
         return user_embs @ item_embs.T
 
