@@ -47,6 +47,11 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @property
+    def out_dim(self) -> int:
+        """Return item embedding output dimension."""
+        raise NotImplementedError()
+
+    @property
     def device(self) -> torch.device:
         """Return ItemNet device."""
         return next(self.parameters()).device
@@ -222,6 +227,11 @@ class CatFeaturesItemNet(ItemNetBase):
             )
         return None
 
+    @property
+    def out_dim(self) -> int:
+        """Return categorical item embedding output dimension."""
+        return self.embedding_bag.embedding_dim
+
 
 class IdEmbeddingsItemNet(ItemNetBase):
     """
@@ -316,6 +326,11 @@ class IdEmbeddingsItemNet(ItemNetBase):
         """
         n_items = dataset_schema.items.n_hot
         return cls(n_factors, n_items, dropout_rate)
+
+    @property
+    def out_dim(self) -> int:
+        """Return item embedding output dimension."""
+        return self.ids_emb.embedding_dim
 
 
 class ItemNetConstructorBase(ItemNetBase):

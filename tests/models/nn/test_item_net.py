@@ -60,6 +60,12 @@ class TestIdEmbeddingsItemNet:
         expected_item_ids = item_id_embeddings(items)
         assert expected_item_ids.shape == (n_items, n_factors)
 
+    @pytest.mark.parametrize("n_factors", ((2), (10)))
+    def test_out_dim(self, n_factors: int) -> None:
+        item_id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=n_factors, dropout_rate=0.5)
+        out_dim = item_id_embeddings.out_dim
+        assert out_dim == n_factors
+
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestCatFeaturesItemNet:
@@ -294,6 +300,15 @@ class TestCatFeaturesItemNet:
             Ignoring `CatFeaturesItemNet` block because dataset item features do not contain categorical features.
             """
         )
+
+    @pytest.mark.parametrize("n_factors", ((2), (10)))
+    def test_out_dim(self, dataset_item_features: Dataset, n_factors: int) -> None:
+        cat_item_embeddings = CatFeaturesItemNet.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5
+        )
+        if cat_item_embeddings is not None:
+            out_dim = cat_item_embeddings.out_dim
+            assert out_dim == n_factors
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
