@@ -449,6 +449,11 @@ class ItemNetConstructorBase(ItemNetBase):
         """
         raise NotImplementedError()
 
+    @property
+    def out_dim(self) -> int:
+        """Return item net constructor output dimension."""
+        raise NotImplementedError()
+
 
 class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
     """
@@ -482,3 +487,8 @@ class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
             item_emb = self.item_net_blocks[idx_block](items)
             item_embs.append(item_emb)
         return torch.sum(torch.stack(item_embs, dim=0), dim=0)
+
+    @property
+    def out_dim(self) -> int:
+        """Return item net constructor output dimension."""
+        return self.item_net_blocks[0].out_dim
