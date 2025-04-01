@@ -449,11 +449,6 @@ class ItemNetConstructorBase(ItemNetBase):
         """
         raise NotImplementedError()
 
-    @property
-    def out_dim(self) -> int:
-        """Return item net constructor output dimension."""
-        raise NotImplementedError()
-
 
 class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
     """
