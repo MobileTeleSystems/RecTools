@@ -21,7 +21,101 @@ from .net_blocks import PositionalEncodingBase, TransformerLayersBase
 from .similarity import SimilarityModuleBase
 
 
-class TransformerTorchBackbone(torch.nn.Module):
+class TransformerBackboneBase(torch.nn.Module):
+    """Base class for transformer torch backbone."""
+
+    def __init__(
+        self,
+        n_heads: int,
+        dropout_rate: float,
+        item_model: ItemNetBase,
+        pos_encoding_layer: PositionalEncodingBase,
+        transformer_layers: TransformerLayersBase,
+        similarity_module: SimilarityModuleBase,
+        use_causal_attn: bool = True,
+        use_key_padding_mask: bool = False,
+        **kwargs: tp.Any,
+    ) -> None:
+        """
+        Initialize transformer torch backbone.
+
+        Parameters
+        ----------
+        n_heads : int
+            Number of attention heads.
+        dropout_rate : float
+            Probability of a hidden unit to be zeroed.
+        item_model : ItemNetBase
+            Network for item embeddings.
+        pos_encoding_layer : PositionalEncodingBase
+            Positional encoding layer.
+        transformer_layers : TransformerLayersBase
+            Transformer layers.
+        similarity_module : SimilarityModuleBase
+            Similarity module.
+        use_causal_attn : bool, default True
+            If ``True``, causal mask is used in multi-head self-attention.
+        use_key_padding_mask : bool, default False
+            If ``True``, key padding mask is used in multi-head self-attention.
+        **kwargs : Any
+            Additional keyword arguments for future extensions.
+        """
+        super().__init__()
+
+        self.item_model = item_model
+        self.pos_encoding_layer = pos_encoding_layer
+        self.emb_dropout = torch.nn.Dropout(dropout_rate)
+        self.transformer_layers = transformer_layers
+        self.similarity_module = similarity_module
+        self.use_causal_attn = use_causal_attn
+        self.use_key_padding_mask = use_key_padding_mask
+        self.n_heads = n_heads
+
+    def encode_sessions(self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor) -> torch.Tensor:
+        """
+        Pass user history through item embeddings.
+        Add positional encoding.
+        Pass history through transformer blocks.
+
+        Parameters
+        ----------
+        batch : Dict[str, torch.Tensor]
+            Dictionary containing user sessions data.
+        item_embs : torch.Tensor
+            Item embeddings.
+
+        Returns
+        -------
+        torch.Tensor. [batch_size, session_max_len, n_factors]
+            Encoded session embeddings.
+        """
+        raise NotImplementedError()
+
+    def forward(
+        self,
+        batch: tp.Dict[str, torch.Tensor],  # batch["x"]: [batch_size, session_max_len]
+        candidate_item_ids: tp.Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Forward pass to get item and session embeddings.
+        Get item embeddings.
+        Pass user sessions through transformer blocks.
+
+        Parameters
+        ----------
+        batch : Dict[str, torch.Tensor]
+            Dictionary containing user sessions data, with "x" key containing session tensor.
+        candidate_item_ids : optional(torch.Tensor), default ``None``
+            Defined item ids for similarity calculation.
+
+        Returns
+        -------
+        torch.Tensor
+        """
+        raise NotImplementedError()
+
+
+class TransformerTorchBackbone(TransformerBackboneBase):
     """
     Torch model for encoding user sessions based on transformer architecture.
 
@@ -43,6 +137,8 @@ class TransformerTorchBackbone(torch.nn.Module):
         If ``True``, causal mask is used in multi-head self-attention.
     use_key_padding_mask : bool, default False
         If ``True``, key padding mask is used in multi-head self-attention.
+    **kwargs : Any
+        Additional keyword arguments for future extensions.
     """
 
     def __init__(
@@ -55,17 +151,19 @@ class TransformerTorchBackbone(torch.nn.Module):
         similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
+        **kwargs: tp.Any,
     ) -> None:
-        super().__init__()
-
-        self.item_model = item_model
-        self.pos_encoding_layer = pos_encoding_layer
-        self.emb_dropout = torch.nn.Dropout(dropout_rate)
-        self.transformer_layers = transformer_layers
-        self.similarity_module = similarity_module
-        self.use_causal_attn = use_causal_attn
-        self.use_key_padding_mask = use_key_padding_mask
-        self.n_heads = n_heads
+        super().__init__(
+            n_heads=n_heads,
+            dropout_rate=dropout_rate,
+            item_model=item_model,
+            pos_encoding_layer=pos_encoding_layer,
+            transformer_layers=transformer_layers,
+            similarity_module=similarity_module,
+            use_causal_attn=use_causal_attn,
+            use_key_padding_mask=use_key_padding_mask,
+            **kwargs,
+        )
 
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:

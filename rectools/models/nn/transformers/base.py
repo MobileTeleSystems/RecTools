@@ -47,7 +47,7 @@ from .net_blocks import (
     TransformerLayersBase,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
-from .torch_backbone import TransformerTorchBackbone
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 InitKwargs = tp.Dict[str, tp.Any]
 
@@ -108,8 +108,8 @@ SimilarityModuleType = tpe.Annotated[
     ),
 ]
 
-TransformerTorchBackboneType = tpe.Annotated[
-    tp.Type[TransformerTorchBackbone],
+TransformerBackboneType = tpe.Annotated[
+    tp.Type[TransformerBackboneBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -205,7 +205,7 @@ class TransformerModelConfig(ModelConfig):
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
     similarity_module_type: SimilarityModuleType = DistanceSimilarityModule
-    torch_backbone_type: TransformerTorchBackboneType = TransformerTorchBackbone
+    torch_backbone_type: TransformerBackboneType = TransformerTorchBackbone
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
@@ -262,7 +262,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
-        torch_backbone_type: tp.Type[TransformerTorchBackbone] = TransformerTorchBackbone,
+        torch_backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
