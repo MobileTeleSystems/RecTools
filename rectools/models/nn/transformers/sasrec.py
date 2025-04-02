@@ -44,6 +44,7 @@ from .net_blocks import (
     PositionalEncodingBase,
     TransformerLayersBase,
 )
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):
@@ -336,6 +337,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
+    similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
+        Type of similarity module.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
     get_trainer_func : Callable, default ``None``
@@ -369,6 +372,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     lightning_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `lightning_module_type` initialization.
         Make sure all dict values have JSON serializable types.
+    similarity_module_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `similarity_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
     """
 
     config_class = SASRecModelConfig
@@ -399,6 +405,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
@@ -410,6 +417,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        similarity_module_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -436,6 +444,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
+            similarity_module_type=similarity_module_type,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
@@ -447,4 +456,5 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_constructor_kwargs=item_net_constructor_kwargs,
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
+            similarity_module_kwargs=similarity_module_kwargs,
         )

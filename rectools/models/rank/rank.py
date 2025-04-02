@@ -22,12 +22,12 @@ from rectools.models.base import Scores
 from rectools.types import InternalIdsArray
 
 
-class Distance(Enum):
+class Distance(str, Enum):
     """Distance metric"""
 
-    DOT = 1  # Bigger value means closer vectors
-    COSINE = 2  # Bigger value means closer vectors
-    EUCLIDEAN = 3  # Smaller value means closer vectors
+    DOT = "dot"  # Bigger value means closer vectors
+    COSINE = "cosine"  # Bigger value means closer vectors
+    EUCLIDEAN = "euclidean"  # Smaller value means closer vectors
 
 
 class Ranker(tp.Protocol):

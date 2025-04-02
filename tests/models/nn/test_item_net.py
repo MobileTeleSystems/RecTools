@@ -60,6 +60,12 @@ class TestIdEmbeddingsItemNet:
         expected_item_ids = item_id_embeddings(items)
         assert expected_item_ids.shape == (n_items, n_factors)
 
+    @pytest.mark.parametrize("n_factors", ((2), (10)))
+    def test_out_dim(self, n_factors: int) -> None:
+        item_id_embeddings = IdEmbeddingsItemNet.from_dataset(DATASET, n_factors=n_factors, dropout_rate=0.5)
+        out_dim = item_id_embeddings.out_dim
+        assert out_dim == n_factors
+
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestCatFeaturesItemNet:
@@ -295,6 +301,15 @@ class TestCatFeaturesItemNet:
             """
         )
 
+    @pytest.mark.parametrize("n_factors", ((2), (10)))
+    def test_out_dim(self, dataset_item_features: Dataset, n_factors: int) -> None:
+        cat_item_embeddings = CatFeaturesItemNet.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5
+        )
+        assert isinstance(cat_item_embeddings, CatFeaturesItemNet)
+        out_dim = cat_item_embeddings.out_dim
+        assert out_dim == n_factors
+
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestSumOfEmbeddingsConstructor:
@@ -485,3 +500,20 @@ class TestSumOfEmbeddingsConstructor:
             SumOfEmbeddingsConstructor.from_dataset(
                 ds, n_factors=10, dropout_rate=0.5, item_net_block_types=item_net_block_types
             )
+
+    @pytest.mark.parametrize(
+        "item_net_block_types,n_factors",
+        (
+            ((IdEmbeddingsItemNet,), 8),
+            ((IdEmbeddingsItemNet, CatFeaturesItemNet), 16),
+            ((CatFeaturesItemNet,), 16),
+        ),
+    )
+    def test_out_dim(
+        self, dataset_item_features: Dataset, item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]], n_factors: int
+    ) -> None:
+        item_net = SumOfEmbeddingsConstructor.from_dataset(
+            dataset_item_features, n_factors=n_factors, dropout_rate=0.5, item_net_block_types=item_net_block_types
+        )
+        out_dim = item_net.out_dim
+        assert out_dim == n_factors

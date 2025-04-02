@@ -15,7 +15,6 @@
 import typing as tp
 from collections.abc import Hashable
 
-import numpy as np
 import torch
 from pytorch_lightning import LightningModule
 from torch.utils.data import DataLoader
@@ -57,6 +56,9 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         Name of the training loss.
     """
 
+    u2i_dist_available = [Distance.DOT, Distance.COSINE]
+    epsilon_cosine_dist = 1e-8
+
     def __init__(
         self,
         torch_model: TransformerTorchBackbone,
@@ -83,6 +85,8 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.data_preparator = data_preparator
         self.lr = lr
         self.loss = loss
+        self.loss_calculator = self.get_loss_calculator()
+        self._requires_negatives = self.requires_negatives(loss)
         self.adam_betas = adam_betas
         self.gbce_t = gbce_t
         self.verbose = verbose
@@ -91,6 +95,105 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.item_embs: torch.Tensor
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
+
+    @staticmethod
+    def requires_negatives(loss: str) -> tp.Optional[bool]:
+        """Return flag for determining the need for negatives."""
+        if loss == "softmax":
+            return False
+
+        if loss in ["BCE", "gBCE", "sampled_softmax"]:
+            return True
+
+        return None
+
+    def get_loss_calculator(
+        self,
+    ) -> tp.Optional[tp.Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]]:
+        """Return loss calculator."""
+        if self.loss == "softmax":
+            return self._calc_softmax_loss
+
+        if self.loss == "BCE":
+            return self._calc_bce_loss
+
+        if self.loss == "gBCE":
+            return self._calc_gbce_loss
+
+        if self.loss == "sampled_softmax":
+            return self._calc_sampled_softmax_loss
+
+        return None
+
+    @classmethod
+    def _calc_softmax_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        # We are using CrossEntropyLoss with a multi-dimensional case
+
+        # Logits must be passed in form of [batch_size, n_items + n_item_extra_tokens, session_max_len],
+        #  where n_items + n_item_extra_tokens is number of classes
+
+        # Target label indexes must be passed in a form of [batch_size, session_max_len]
+        # (`0` index for "PAD" ix excluded from loss)
+
+        # Loss output will have a shape of [batch_size, session_max_len]
+        # and will have zeros for every `0` target label
+        loss = torch.nn.functional.cross_entropy(
+            logits.transpose(1, 2), y, ignore_index=0, reduction="none"
+        )  # [batch_size, session_max_len]
+        loss = loss * w
+        n = (loss > 0).to(loss.dtype)
+        loss = torch.sum(loss) / torch.sum(n)
+        return loss
+
+    def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int) -> torch.Tensor:
+        # https://arxiv.org/pdf/2308.07192.pdf
+
+        dtype = torch.float64  # for consistency with the original implementation
+        n_negatives = self.data_preparator.n_negatives
+        if n_negatives is not None:
+            alpha = n_negatives / (n_items - 1)  # sampling rate
+        else:
+            raise ValueError(
+                "`n_negatives` is not defined. Please ensure that `n_negatives` is set."
+            )  # pragma: no cover
+        beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
+
+        pos_logits = logits[:, :, 0:1].to(dtype)
+        neg_logits = logits[:, :, 1:].to(dtype)
+
+        epsilon = 1e-10
+        pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
+        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(dtype).max)
+        pos_probs_adjusted = torch.clamp(torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(dtype).max)
+        pos_logits_transformed = torch.log(pos_probs_adjusted)
+        logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
+        return logits
+
+    @classmethod
+    def _calc_bce_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        mask = y != 0
+        target = torch.zeros_like(logits)
+        target[:, :, 0] = 1
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            logits, target, reduction="none"
+        )  # [batch_size, session_max_len, n_negatives + 1]
+        loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
+        loss = torch.sum(loss) / torch.sum(mask)
+        return loss
+
+    def _calc_gbce_loss(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
+        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items)
+        loss = self._calc_bce_loss(logits, y, w)
+        return loss
+
+    def _calc_sampled_softmax_loss(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        # We put positive logits at index 1 since index 0 is used to ignore padding
+        logits[:, :, [0, 1]] = logits[:, :, [1, 0]]
+        target = (y != 0).long()
+        loss = self._calc_softmax_loss(logits, target, w)
+        return loss
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
@@ -145,32 +248,27 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         """Initialize parameters with values from Xavier normal distribution."""
         self._xavier_normal_init()
 
+    def get_batch_logits(self, batch: tp.Dict[str, torch.Tensor]) -> torch.Tensor:
+        """Get bacth logits."""
+        x = batch["x"]  # x: [batch_size, session_max_len]
+        if self._requires_negatives:
+            y, negatives = batch["y"], batch["negatives"]
+            pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
+            logits = self.torch_model(sessions=x, item_ids=pos_neg)
+        else:
+            logits = self.torch_model(sessions=x)
+        return logits
+
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
-        x, y, w = batch["x"], batch["y"], batch["yw"]
-        if self.loss == "softmax":
-            logits = self._get_full_catalog_logits(x)
-            loss = self._calc_softmax_loss(logits, y, w)
-        elif self.loss == "BCE":
-            negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
-            loss = self._calc_bce_loss(logits, y, w)
-        elif self.loss == "gBCE":
-            negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
-            loss = self._calc_gbce_loss(logits, y, w, negatives)
-        elif self.loss == "sampled_softmax":
-            negatives = batch["negatives"]
-            logits = self._get_pos_neg_logits(x, y, negatives)
-            # We put positive logits at index 1 since index 0 is used to ignore padding
-            logits[:, :, [0, 1]] = logits[:, :, [1, 0]]
-            target = (y != 0).long()
-            loss = self._calc_softmax_loss(logits, target, w)
+        if self.loss_calculator is not None:
+            y, w = batch["y"], batch["yw"]
+            logits = self.get_batch_logits(batch)
+            loss = self.loss_calculator(logits, y, w)
         else:
             loss = self._calc_custom_loss(batch, batch_idx)
 
         self.log(self.train_loss_name, loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
-
         return loss
 
     def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -189,32 +287,18 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def validation_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> tp.Dict[str, torch.Tensor]:
         """Validate step."""
-        # x: [batch_size, session_max_len]
-        # y: [batch_size, 1]
-        # yw: [batch_size, 1]
-        x, y, w = batch["x"], batch["y"], batch["yw"]
-        outputs = {}
-        if self.loss == "softmax":
-            logits = self._get_full_catalog_logits(x)[:, -1:, :]
-            outputs["loss"] = self._calc_softmax_loss(logits, y, w)
-            outputs["logits"] = logits.squeeze()
-        elif self.loss == "BCE":
-            negatives = batch["negatives"]
-            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
-            outputs["loss"] = self._calc_bce_loss(pos_neg_logits, y, w)
-            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
-        elif self.loss == "gBCE":
-            negatives = batch["negatives"]
-            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
-            outputs["loss"] = self._calc_gbce_loss(pos_neg_logits, y, w, negatives)
-            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
-        elif self.loss == "sampled_softmax":
-            negatives = batch["negatives"]
-            pos_neg_logits = self._get_pos_neg_logits(x, y, negatives)[:, -1:, :]
-            pos_neg_logits[:, :, [0, 1]] = pos_neg_logits[:, :, [1, 0]]
-            target = (y != 0).long()
-            outputs["loss"] = self._calc_softmax_loss(pos_neg_logits, target, w)
-            outputs["pos_neg_logits"] = pos_neg_logits.squeeze()
+        if self.loss_calculator is not None:
+            # y: [batch_size, 1]
+            # yw: [batch_size, 1]
+            y, w = batch["y"], batch["yw"]
+            logits = self.get_batch_logits(batch)
+            logits = logits[:, -1:, :]
+            loss = self.loss_calculator(logits, y, w)
+            type_logits = "pos_neg_logits" if self._requires_negatives else "logits"
+            outputs = {
+                "loss": loss,
+                type_logits: logits,
+            }
         else:
             outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
 
@@ -225,80 +309,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         self, batch: tp.Dict[str, torch.Tensor], batch_idx: int
     ) -> tp.Dict[str, torch.Tensor]:
         raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
-
-    def _get_full_catalog_logits(self, x: torch.Tensor) -> torch.Tensor:
-        item_embs, session_embs = self.torch_model(x)
-        logits = session_embs @ item_embs.T
-        return logits
-
-    def _get_pos_neg_logits(self, x: torch.Tensor, y: torch.Tensor, negatives: torch.Tensor) -> torch.Tensor:
-        # [n_items + n_item_extra_tokens, n_factors], [batch_size, session_max_len, n_factors]
-        item_embs, session_embs = self.torch_model(x)
-        pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)  # [batch_size, session_max_len, n_negatives + 1]
-        pos_neg_embs = item_embs[pos_neg]  # [batch_size, session_max_len, n_negatives + 1, n_factors]
-        # [batch_size, session_max_len, n_negatives + 1]
-        logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
-        return logits
-
-    def _get_reduced_overconfidence_logits(self, logits: torch.Tensor, n_items: int, n_negatives: int) -> torch.Tensor:
-        # https://arxiv.org/pdf/2308.07192.pdf
-
-        dtype = torch.float64  # for consistency with the original implementation
-        alpha = n_negatives / (n_items - 1)  # sampling rate
-        beta = alpha * (self.gbce_t * (1 - 1 / alpha) + 1 / alpha)
-
-        pos_logits = logits[:, :, 0:1].to(dtype)
-        neg_logits = logits[:, :, 1:].to(dtype)
-
-        epsilon = 1e-10
-        pos_probs = torch.clamp(torch.sigmoid(pos_logits), epsilon, 1 - epsilon)
-        pos_probs_adjusted = torch.clamp(pos_probs.pow(-beta), 1 + epsilon, torch.finfo(dtype).max)
-        pos_probs_adjusted = torch.clamp(torch.div(1, (pos_probs_adjusted - 1)), epsilon, torch.finfo(dtype).max)
-        pos_logits_transformed = torch.log(pos_probs_adjusted)
-        logits = torch.cat([pos_logits_transformed, neg_logits], dim=-1)
-        return logits
-
-    @classmethod
-    def _calc_softmax_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        # We are using CrossEntropyLoss with a multi-dimensional case
-
-        # Logits must be passed in form of [batch_size, n_items + n_item_extra_tokens, session_max_len],
-        #  where n_items + n_item_extra_tokens is number of classes
-
-        # Target label indexes must be passed in a form of [batch_size, session_max_len]
-        # (`0` index for "PAD" ix excluded from loss)
-
-        # Loss output will have a shape of [batch_size, session_max_len]
-        # and will have zeros for every `0` target label
-        loss = torch.nn.functional.cross_entropy(
-            logits.transpose(1, 2), y, ignore_index=0, reduction="none"
-        )  # [batch_size, session_max_len]
-        loss = loss * w
-        n = (loss > 0).to(loss.dtype)
-        loss = torch.sum(loss) / torch.sum(n)
-        return loss
-
-    @classmethod
-    def _calc_bce_loss(cls, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        mask = y != 0
-        target = torch.zeros_like(logits)
-        target[:, :, 0] = 1
-
-        loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            logits, target, reduction="none"
-        )  # [batch_size, session_max_len, n_negatives + 1]
-        loss = loss.mean(-1) * mask * w  # [batch_size, session_max_len]
-        loss = torch.sum(loss) / torch.sum(mask)
-        return loss
-
-    def _calc_gbce_loss(
-        self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor, negatives: torch.Tensor
-    ) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
-        n_negatives = negatives.shape[2]
-        logits = self._get_reduced_overconfidence_logits(logits, n_actual_items, n_negatives)
-        loss = self._calc_bce_loss(logits, y, w)
-        return loss
 
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
@@ -350,20 +360,16 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        ranker = TorchRanker(
-            distance=Distance.DOT,
-            device=item_embs.device,
-            subjects_factors=user_embs[user_ids],
-            objects_factors=item_embs,
+        all_user_ids, all_reco_ids, all_scores = (
+            self.torch_model.similarity_module._recommend_u2i(  # pylint: disable=protected-access
+                user_embs=user_embs,
+                item_embs=item_embs,
+                user_ids=user_ids,
+                k=k,
+                sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+                ui_csr_for_filter=ui_csr_for_filter,
+            )
         )
-
-        user_ids_indices, all_reco_ids, all_scores = ranker.rank(
-            subject_ids=np.arange(len(user_ids)),  # n_rec_users
-            k=k,
-            filter_pairs_csr=ui_csr_for_filter,  # [n_rec_users x n_items + n_item_extra_tokens]
-            sorted_object_whitelist=sorted_item_ids_to_recommend,  # model_internal
-        )
-        all_user_ids = user_ids[user_ids_indices]
         return all_user_ids, all_reco_ids, all_scores
 
     def _recommend_i2i(
