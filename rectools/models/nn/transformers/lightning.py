@@ -240,13 +240,12 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def get_batch_logits(self, batch: tp.Dict[str, torch.Tensor]) -> torch.Tensor:
         """Get bacth logits."""
-        x = batch["x"]  # x: [batch_size, session_max_len]
         if self._requires_negatives:
             y, negatives = batch["y"], batch["negatives"]
             pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
-            logits = self.torch_model(sessions=x, item_ids=pos_neg)
+            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg)
         else:
-            logits = self.torch_model(sessions=x)
+            logits = self.torch_model(batch=batch)
         return logits
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -328,7 +327,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             item_embs = self.torch_model.item_model.get_all_embeddings()
             user_embs = []
             for batch in recommend_dataloader:
-                batch_embs = self.torch_model.encode_sessions(batch["x"].to(device), item_embs)[:, -1, :]
+                batch = {k: v.to(device) for k, v in batch.items()}
+                batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
                 user_embs.append(batch_embs)
 
         return torch.cat(user_embs), item_embs

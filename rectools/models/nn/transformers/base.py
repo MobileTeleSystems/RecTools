@@ -108,6 +108,16 @@ SimilarityModuleType = tpe.Annotated[
     ),
 ]
 
+TransformerTorchBackboneType = tpe.Annotated[
+    tp.Type[TransformerTorchBackbone],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
 TransformerDataPreparatorType = tpe.Annotated[
     tp.Type[TransformerDataPreparatorBase],
     BeforeValidator(_get_class_obj),
@@ -195,6 +205,7 @@ class TransformerModelConfig(ModelConfig):
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
     similarity_module_type: SimilarityModuleType = DistanceSimilarityModule
+    torch_backbone_type: TransformerTorchBackboneType = TransformerTorchBackbone
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
@@ -251,6 +262,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
+        torch_backbone_type: tp.Type[TransformerTorchBackbone] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
@@ -288,6 +300,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
+        self.torch_backbone_type = torch_backbone_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
         self.data_preparator_kwargs = data_preparator_kwargs
@@ -381,7 +394,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         pos_encoding_layer = self._init_pos_encoding_layer()
         transformer_layers = self._init_transformer_layers()
         similarity_module = self._init_similarity_module()
-        return TransformerTorchBackbone(
+        return self.torch_backbone_type(
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
             item_model=item_model,

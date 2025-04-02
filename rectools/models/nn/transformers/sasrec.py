@@ -45,6 +45,7 @@ from .net_blocks import (
     TransformerLayersBase,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
+from .torch_backbone import TransformerTorchBackbone
 
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):
@@ -339,6 +340,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of lightning module defining training procedure.
     similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
         Type of similarity module.
+    torch_backbone_type : type(TransformerTorchBackbone), default `TransformerTorchBackbone`
+        Type of torch backbone.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
     get_trainer_func : Callable, default ``None``
@@ -406,6 +409,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
+        torch_backbone_type: tp.Type[TransformerTorchBackbone] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
@@ -449,6 +453,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            torch_backbone_type=torch_backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
             data_preparator_kwargs=data_preparator_kwargs,

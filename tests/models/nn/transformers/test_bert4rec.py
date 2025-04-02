@@ -32,8 +32,9 @@ from rectools.models.nn.transformers.base import (
     TrainerCallable,
     TransformerLightningModule,
 )
-from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable 
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
+from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -844,6 +845,7 @@ class TestBERT4RecModelConfiguration:
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
             "similarity_module_type": DistanceSimilarityModule,
+            "torch_backbone_type": TransformerTorchBackbone,
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
@@ -893,6 +895,7 @@ class TestBERT4RecModelConfiguration:
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
+                "torch_backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:

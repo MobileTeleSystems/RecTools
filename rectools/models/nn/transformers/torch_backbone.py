@@ -119,7 +119,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         torch.diagonal(res, dim1=1, dim2=2).zero_()
         return res
 
-    def encode_sessions(self, sessions: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
+    def encode_sessions(self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor) -> torch.Tensor:
         """
         Pass user history through item embeddings.
         Add positional encoding.
@@ -127,8 +127,8 @@ class TransformerTorchBackbone(torch.nn.Module):
 
         Parameters
         ----------
-        sessions :  torch.Tensor
-            User sessions in the form of sequences of items ids.
+        batch : Dict[str, torch.Tensor]
+            Dictionary containing user sessions data.
         item_embs : torch.Tensor
             Item embeddings.
 
@@ -137,6 +137,7 @@ class TransformerTorchBackbone(torch.nn.Module):
         torch.Tensor. [batch_size, session_max_len, n_factors]
             Encoded session embeddings.
         """
+        sessions = batch["x"]  # [batch_size, session_max_len]
         session_max_len = sessions.shape[1]
         attn_mask = None
         key_padding_mask = None
@@ -162,8 +163,8 @@ class TransformerTorchBackbone(torch.nn.Module):
 
     def forward(
         self,
-        sessions: torch.Tensor,  # [batch_size, session_max_len],
-        item_ids: tp.Optional[torch.Tensor] = None,
+        batch: tp.Dict[str, torch.Tensor],  # batch["x"]: [batch_size, session_max_len]
+        candidate_item_ids: tp.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Forward pass to get item and session embeddings.
@@ -172,9 +173,9 @@ class TransformerTorchBackbone(torch.nn.Module):
 
         Parameters
         ----------
-        sessions : torch.Tensor
-            User sessions in the form of sequences of items ids.
-        item_ids : optional(torch.Tensor), default ``None``
+        batch : Dict[str, torch.Tensor]
+            Dictionary containing user sessions data, with "x" key containing session tensor.
+        candidate_item_ids : optional(torch.Tensor), default ``None``
             Defined item ids for similarity calculation.
 
         Returns
@@ -182,6 +183,6 @@ class TransformerTorchBackbone(torch.nn.Module):
         torch.Tensor
         """
         item_embs = self.item_model.get_all_embeddings()  # [n_items + n_item_extra_tokens, n_factors]
-        session_embs = self.encode_sessions(sessions, item_embs)  # [batch_size, session_max_len, n_factors]
-        logits = self.similarity_module(session_embs, item_embs, item_ids)
+        session_embs = self.encode_sessions(batch, item_embs)  # [batch_size, session_max_len, n_factors]
+        logits = self.similarity_module(session_embs, item_embs, candidate_item_ids)
         return logits
