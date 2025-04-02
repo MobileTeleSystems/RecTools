@@ -296,6 +296,16 @@ class TestBERT4RecModel:
                     }
                 ),
             ),
+            (
+                "sampled_softmax",
+                pd.DataFrame(
+                    {
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 12, 13],
+                        Columns.Rank: [1, 1, 2],
+                    }
+                ),
+            ),
         ),
     )
     @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
