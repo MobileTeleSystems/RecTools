@@ -24,18 +24,21 @@ from rectools.types import InternalIdsArray
 
 
 class SimilarityModuleBase(torch.nn.Module):
-    """Similarity module base."""
+    """Base class for similarity module."""
 
     def _get_full_catalog_logits(self, session_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
     def _get_pos_neg_logits(
-        self, session_embs: torch.Tensor, item_embs: torch.Tensor, item_ids: torch.Tensor
+        self, session_embs: torch.Tensor, item_embs: torch.Tensor, candidate_item_ids: torch.Tensor
     ) -> torch.Tensor:
         raise NotImplementedError()
 
     def forward(
-        self, session_embs: torch.Tensor, item_embs: torch.Tensor, item_ids: tp.Optional[torch.Tensor] = None
+        self,
+        session_embs: torch.Tensor,
+        item_embs: torch.Tensor,
+        candidate_item_ids: tp.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Forward pass to get logits."""
         raise NotImplementedError()
@@ -71,9 +74,10 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         return logits
 
     def _get_pos_neg_logits(
-        self, session_embs: torch.Tensor, item_embs: torch.Tensor, item_ids: torch.Tensor
+        self, session_embs: torch.Tensor, item_embs: torch.Tensor, candidate_item_ids: torch.Tensor
     ) -> torch.Tensor:
-        pos_neg_embs = item_embs[item_ids]  # [batch_size, session_max_len, len(item_ids), n_factors]
+        # [batch_size, session_max_len, len(candidate_item_ids), n_factors]
+        pos_neg_embs = item_embs[candidate_item_ids]
         # [batch_size, session_max_len,len(item_ids)]
         logits = (pos_neg_embs @ session_embs.unsqueeze(-1)).squeeze(-1)
         return logits
@@ -84,16 +88,19 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         return embeddings
 
     def forward(
-        self, session_embs: torch.Tensor, item_embs: torch.Tensor, item_ids: tp.Optional[torch.Tensor] = None
+        self,
+        session_embs: torch.Tensor,
+        item_embs: torch.Tensor,
+        candidate_item_ids: tp.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Forward pass to get logits."""
         if self.distance == Distance.COSINE:
             session_embs = self._get_embeddings_norm(session_embs)
             item_embs = self._get_embeddings_norm(item_embs)
 
-        if item_ids is None:
+        if candidate_item_ids is None:
             return self._get_full_catalog_logits(session_embs, item_embs)
-        return self._get_pos_neg_logits(session_embs, item_embs, item_ids)
+        return self._get_pos_neg_logits(session_embs, item_embs, candidate_item_ids)
 
     def _recommend_u2i(
         self,

@@ -45,6 +45,7 @@ from .net_blocks import (
     TransformerLayersBase,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
 class BERT4RecDataPreparator(TransformerDataPreparatorBase):
@@ -259,6 +260,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Type of lightning module defining training procedure.
     similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
         Type of similarity module.
+    backbone_type : type(TransformerBackboneBase), default `TransformerTorchBackbone`
+        Type of torch backbone.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
     get_trainer_func : Callable, default ``None``
@@ -295,6 +298,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     similarity_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `similarity_module_type` initialization.
         Make sure all dict values have JSON serializable types.
+    backbone_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `backbone_type` initialization.
+        Make sure all dict values have JSON serializable types.
     """
 
     config_class = BERT4RecModelConfig
@@ -327,6 +333,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
+        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
@@ -340,6 +347,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
+        backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -373,6 +381,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
             data_preparator_kwargs=data_preparator_kwargs,
@@ -382,6 +391,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
             similarity_module_kwargs=similarity_module_kwargs,
+            backbone_kwargs=backbone_kwargs,
         )
 
     def _init_data_preparator(self) -> None:
