@@ -102,7 +102,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         if loss == "softmax":
             return False
 
-        if loss in ["BCE", "gBCE"]:
+        if loss in ["BCE", "gBCE", "sampled_softmax"]:
             return True
 
         return None
@@ -119,6 +119,9 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
         if self.loss == "gBCE":
             return self._calc_gbce_loss
+
+        if self.loss == "sampled_softmax":
+            return self._calc_sampled_softmax_loss
 
         return None
 
@@ -183,6 +186,13 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
         logits = self._get_reduced_overconfidence_logits(logits, n_actual_items)
         loss = self._calc_bce_loss(logits, y, w)
+        return loss
+
+    def _calc_sampled_softmax_loss(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        # We put positive logits at index 1 since index 0 is used to ignore padding
+        logits[:, :, [0, 1]] = logits[:, :, [1, 0]]
+        target = (y != 0).long()
+        loss = self._calc_softmax_loss(logits, target, w)
         return loss
 
     def configure_optimizers(self) -> torch.optim.Adam:

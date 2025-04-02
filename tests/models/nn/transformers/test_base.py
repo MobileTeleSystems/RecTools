@@ -261,7 +261,7 @@ class TestTransformerModelBase:
             (True, ["epoch", "step", "train_loss", "val_loss"]),
         ),
     )
-    @pytest.mark.parametrize("loss", ("softmax", "BCE", "gBCE"))
+    @pytest.mark.parametrize("loss", ("softmax", "BCE", "gBCE", "sampled_softmax"))
     def test_log_metrics(
         self,
         model_cls: tp.Type[TransformerModelBase],

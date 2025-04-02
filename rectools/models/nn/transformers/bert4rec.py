@@ -209,7 +209,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater
         than 1.
-    loss : {"softmax", "BCE", "gBCE"}, default "softmax"
+    loss : {"softmax", "BCE", "gBCE", "sampled_softmax"}, default "softmax"
         Loss function.
     n_negatives : int, default 1
         Number of negatives for BCE and gBCE losses.
