@@ -393,7 +393,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def _init_similarity_module(self) -> SimilarityModuleBase:
         return self.similarity_module_type(**self._get_kwargs(self.similarity_module_kwargs))
 
-    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
+    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerBackboneBase:
         pos_encoding_layer = self._init_pos_encoding_layer()
         transformer_layers = self._init_transformer_layers()
         similarity_module = self._init_similarity_module()
@@ -411,7 +411,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _init_lightning_model(
         self,
-        torch_model: TransformerTorchBackbone,
+        torch_model: TransformerBackboneBase,
         dataset_schema: DatasetSchemaDict,
         item_external_ids: ExternalIds,
         model_config: tp.Dict[str, tp.Any],
@@ -507,7 +507,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         )
 
     @property
-    def torch_model(self) -> TransformerTorchBackbone:
+    def torch_model(self) -> TransformerBackboneBase:
         """Pytorch model."""
         return self.lightning_model.torch_model
 

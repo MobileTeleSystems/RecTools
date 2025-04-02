@@ -26,7 +26,7 @@ from rectools.models.rank import Distance, TorchRanker
 from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
-from .torch_backbone import TransformerTorchBackbone
+from .torch_backbone import TransformerBackboneBase
 
 # ####  --------------  Lightning Base Model  --------------  #### #
 
@@ -38,7 +38,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
     Parameters
     ----------
-    torch_model : TransformerTorchBackbone
+    torch_model : TransformerBackboneBase
         Torch model to make recommendations.
     lr : float
         Learning rate.
@@ -61,7 +61,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
     def __init__(
         self,
-        torch_model: TransformerTorchBackbone,
+        torch_model: TransformerBackboneBase,
         model_config: tp.Dict[str, tp.Any],
         dataset_schema: DatasetSchemaDict,
         item_external_ids: ExternalIds,
@@ -350,17 +350,14 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         user_embs, item_embs = self._get_user_item_embeddings(recommend_dataloader, torch_device)
 
-        all_user_ids, all_reco_ids, all_scores = (
-            self.torch_model.similarity_module._recommend_u2i(  # pylint: disable=protected-access
-                user_embs=user_embs,
-                item_embs=item_embs,
-                user_ids=user_ids,
-                k=k,
-                sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
-                ui_csr_for_filter=ui_csr_for_filter,
-            )
+        return self.torch_model.similarity_module._recommend_u2i(  # pylint: disable=protected-access
+            user_embs=user_embs,
+            item_embs=item_embs,
+            user_ids=user_ids,
+            k=k,
+            sorted_item_ids_to_recommend=sorted_item_ids_to_recommend,
+            ui_csr_for_filter=ui_csr_for_filter,
         )
-        return all_user_ids, all_reco_ids, all_scores
 
     def _recommend_i2i(
         self,
