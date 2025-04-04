@@ -36,7 +36,9 @@ class TransformerNegativeSamplerBase:
     ) -> None:
         self.n_negatives = n_negatives
 
-    def get_negatives(self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int) -> torch.Tensor:
+    def get_negatives(
+        self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int, validation: bool = False
+    ) -> torch.Tensor:
         """Return sampled negatives."""
         raise NotImplementedError()
 
@@ -44,11 +46,17 @@ class TransformerNegativeSamplerBase:
 class CatalogUniformSampler(TransformerNegativeSamplerBase):
     """Class to sample negatives uniformly from all catalog items."""
 
-    def get_negatives(self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int) -> torch.Tensor:
+    def get_negatives(
+        self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int, validation: bool = False
+    ) -> torch.Tensor:
         """Return sampled negatives."""
+        if validation:
+            session_len = 1
+        else:
+            session_len = batch_dict["x"].shape[1]
         negatives = torch.randint(
             low=n_item_extra_tokens,
             high=n_items,
-            size=(batch_dict["x"].shape[0], batch_dict["x"].shape[1], self.n_negatives),
+            size=(batch_dict["x"].shape[0], session_len, self.n_negatives),
         )  # [batch_size, session_max_len, n_negatives]
         return negatives
