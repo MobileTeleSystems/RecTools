@@ -149,7 +149,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size, validation=True
             )
         return batch_dict
 
@@ -396,9 +396,11 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         )
 
     def _init_data_preparator(self) -> None:
+        requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
         self.data_preparator: TransformerDataPreparatorBase = self.data_preparator_type(
             session_max_len=self.session_max_len,
-            negative_sampler=self._init_negative_sampler() if self.loss != "softmax" else None,
+            n_negatives=self.n_negatives if requires_negatives else None,
+            negative_sampler=self._init_negative_sampler() if requires_negatives else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,

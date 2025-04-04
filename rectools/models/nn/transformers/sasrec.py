@@ -98,7 +98,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size, validation=True
             )
         return batch_dict
 

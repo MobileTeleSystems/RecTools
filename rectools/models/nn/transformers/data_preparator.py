@@ -121,6 +121,7 @@ class TransformerDataPreparatorBase:
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+        n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         **kwargs: tp.Any,
     ) -> None:
@@ -130,6 +131,7 @@ class TransformerDataPreparatorBase:
         self.val_interactions: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
         self.negative_sampler = negative_sampler
+        self.n_negatives = n_negatives
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
         self.train_min_user_interactions = train_min_user_interactions
