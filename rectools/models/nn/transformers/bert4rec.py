@@ -38,6 +38,7 @@ from .base import (
 )
 from .constants import MASKING_VALUE, PADDING_VALUE
 from .data_preparator import TransformerDataPreparatorBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
@@ -61,6 +62,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int,
+        negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         mask_prob: float = 0.15,
         shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
@@ -69,6 +71,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         super().__init__(
             session_max_len=session_max_len,
             n_negatives=n_negatives,
+            negative_sampler=negative_sampler,
             batch_size=batch_size,
             dataloader_num_workers=dataloader_num_workers,
             train_min_user_interactions=train_min_user_interactions,
@@ -119,13 +122,10 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -len(ses) :] = ses_weights  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, self.session_max_len, self.n_negatives),
-            )  # [batch_size, session_max_len, n_negatives]
-            batch_dict["negatives"] = negatives
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+            )
         return batch_dict
 
     def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
@@ -147,13 +147,10 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, 1, self.n_negatives),
-            )  # [batch_size, 1, n_negatives]
-            batch_dict["negatives"] = negatives
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size, validation=True
+            )
         return batch_dict
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
@@ -332,6 +329,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = PreLNTransformerLayers,
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
@@ -346,6 +344,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
@@ -381,6 +380,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            negative_sampler_type=negative_sampler_type,
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
@@ -390,14 +390,17 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             item_net_constructor_kwargs=item_net_constructor_kwargs,
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
+            negative_sampler_kwargs=negative_sampler_kwargs,
             similarity_module_kwargs=similarity_module_kwargs,
             backbone_kwargs=backbone_kwargs,
         )
 
     def _init_data_preparator(self) -> None:
+        requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
         self.data_preparator: TransformerDataPreparatorBase = self.data_preparator_type(
             session_max_len=self.session_max_len,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            n_negatives=self.n_negatives if requires_negatives else None,
+            negative_sampler=self._init_negative_sampler() if requires_negatives else None,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,

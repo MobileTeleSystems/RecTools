@@ -38,6 +38,7 @@ from .base import (
     ValMaskCallable,
 )
 from .data_preparator import TransformerDataPreparatorBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PointWiseFeedForward,
@@ -72,13 +73,10 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, self.session_max_len, self.n_negatives),
-            )  # [batch_size, session_max_len, n_negatives]
-            batch_dict["negatives"] = negatives
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+            )
         return batch_dict
 
     def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
@@ -98,13 +96,10 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, 1, self.n_negatives),
-            )  # [batch_size, 1, n_negatives]
-            batch_dict["negatives"] = negatives
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size, validation=True
+            )
         return batch_dict
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
@@ -411,6 +406,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
@@ -424,6 +420,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
@@ -457,6 +454,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            negative_sampler_type=negative_sampler_type,
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
@@ -465,6 +463,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             item_net_constructor_kwargs=item_net_constructor_kwargs,
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
+            negative_sampler_kwargs=negative_sampler_kwargs,
             similarity_module_kwargs=similarity_module_kwargs,
             backbone_kwargs=backbone_kwargs,
         )

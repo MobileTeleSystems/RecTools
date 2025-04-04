@@ -29,6 +29,7 @@ from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
 from .constants import PADDING_VALUE
+from .negative_sampler import TransformerNegativeSamplerBase
 
 
 class SequenceDataset(TorchDataset):
@@ -119,8 +120,9 @@ class TransformerDataPreparatorBase:
         dataloader_num_workers: int,
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
-        n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+        n_negatives: tp.Optional[int] = None,
+        negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -128,6 +130,7 @@ class TransformerDataPreparatorBase:
         self.train_dataset: Dataset
         self.val_interactions: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
+        self.negative_sampler = negative_sampler
         self.n_negatives = n_negatives
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
