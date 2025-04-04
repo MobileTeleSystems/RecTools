@@ -45,6 +45,8 @@ from .net_blocks import (
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
 class BERT4RecDataPreparator(TransformerDataPreparatorBase):
@@ -205,7 +207,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater
         than 1.
-    loss : {"softmax", "BCE", "gBCE"}, default "softmax"
+    loss : {"softmax", "BCE", "gBCE", "sampled_softmax"}, default "softmax"
         Loss function.
     n_negatives : int, default 1
         Number of negatives for BCE and gBCE losses.
@@ -253,6 +255,10 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
+    similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
+        Type of similarity module.
+    backbone_type : type(TransformerBackboneBase), default `TransformerTorchBackbone`
+        Type of torch backbone.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
     get_trainer_func : Callable, default ``None``
@@ -286,6 +292,12 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     lightning_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `lightning_module_type` initialization.
         Make sure all dict values have JSON serializable types.
+    similarity_module_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `similarity_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    backbone_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `backbone_type` initialization.
+        Make sure all dict values have JSON serializable types.
     """
 
     config_class = BERT4RecModelConfig
@@ -318,6 +330,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = BERT4RecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
+        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         recommend_batch_size: int = 256,
@@ -331,6 +345,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
         negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
+        similarity_module_kwargs: tp.Optional[InitKwargs] = None,
+        backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
         self.mask_prob = mask_prob
 
@@ -359,11 +375,13 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
+            similarity_module_type=similarity_module_type,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
             negative_sampler_type=negative_sampler_type,
+            backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
             data_preparator_kwargs=data_preparator_kwargs,
@@ -373,6 +391,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
             negative_sampler_kwargs=negative_sampler_kwargs,
+            similarity_module_kwargs=similarity_module_kwargs,
+            backbone_kwargs=backbone_kwargs,
         )
 
     def _init_data_preparator(self) -> None:

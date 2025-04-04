@@ -169,6 +169,18 @@ class TransformerDataPreparatorBase:
         full_feature_values = np.vstack([extra_token_feature_values, sorted_features.values])
         return DenseFeatures.from_iterables(values=full_feature_values, names=raw_features.names)
 
+    def _filter_train_interactions(self, train_interactions: pd.DataFrame) -> pd.DataFrame:
+        """Filter train interactions."""
+        user_stats = train_interactions[Columns.User].value_counts()
+        users = user_stats[user_stats >= self.train_min_user_interactions].index
+        train_interactions = train_interactions[(train_interactions[Columns.User].isin(users))]
+        train_interactions = (
+            train_interactions.sort_values(Columns.Datetime, kind="stable")
+            .groupby(Columns.User, sort=False)
+            .tail(self.session_max_len + self.train_session_max_len_addition)
+        )
+        return train_interactions
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
@@ -180,14 +192,7 @@ class TransformerDataPreparatorBase:
             interactions = raw_interactions[~val_mask]
 
         # Filter train interactions
-        user_stats = interactions[Columns.User].value_counts()
-        users = user_stats[user_stats >= self.train_min_user_interactions].index
-        interactions = interactions[(interactions[Columns.User].isin(users))]
-        interactions = (
-            interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User, sort=False)
-            .tail(self.session_max_len + self.train_session_max_len_addition)
-        )
+        interactions = self._filter_train_interactions(interactions)
 
         # Prepare id maps
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
