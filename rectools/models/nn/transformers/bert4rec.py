@@ -124,7 +124,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size
+                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
             )
         return batch_dict
 
@@ -149,7 +149,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, n_item_extra_tokens=self.n_item_extra_tokens, n_items=self.item_id_map.size, validation=True
+                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
             )
         return batch_dict
 
@@ -255,6 +255,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
+    negative_sampler_type: type(TransformerNegativeSamplerBase), default `CatalogUniformSampler`
+        Type of negative sampler.
     similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
         Type of similarity module.
     backbone_type : type(TransformerBackboneBase), default `TransformerTorchBackbone`
@@ -291,6 +293,9 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Make sure all dict values have JSON serializable types.
     lightning_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `lightning_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    negative_sampler_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `negative_sampler_type` initialization.
         Make sure all dict values have JSON serializable types.
     similarity_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `similarity_module_type` initialization.

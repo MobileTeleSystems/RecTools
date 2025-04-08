@@ -33,6 +33,7 @@ from rectools.models.nn.transformers.base import (
     TrainerCallable,
     TransformerLightningModule,
 )
+from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
@@ -962,6 +963,7 @@ class TestSASRecModelConfiguration:
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
+            "negative_sampler_type": CatalogUniformSampler,
             "similarity_module_type": DistanceSimilarityModule,
             "backbone_type": TransformerTorchBackbone,
             "get_val_mask_func": leave_one_out_mask,
@@ -1011,6 +1013,7 @@ class TestSASRecModelConfiguration:
                 "transformer_layers_type": "rectools.models.nn.transformers.sasrec.SASRecTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
+                "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
                 "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",

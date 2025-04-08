@@ -18,13 +18,11 @@ import torch
 
 
 class TransformerNegativeSamplerBase:
-    """Base class for negative sampler. To negative sampling inherit
-    from this class and pass your custom data preparator to your model parameters.
+    """Base class for negative sampler. To create custom sampling logic inherit
+    from this class and pass your custom negative sampler to your model parameters.
 
     Parameters
     ----------
-    session_max_len : int
-        Maximum length of user sequence.
     n_negatives : int
         Number of negatives.
     """
@@ -37,7 +35,12 @@ class TransformerNegativeSamplerBase:
         self.n_negatives = n_negatives
 
     def get_negatives(
-        self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int, validation: bool = False
+        self,
+        batch_dict: tp.Dict,
+        lowest_id: int,
+        highest_id: int,
+        session_len_limit: tp.Optional[int] = None,
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """Return sampled negatives."""
         raise NotImplementedError()
@@ -47,16 +50,18 @@ class CatalogUniformSampler(TransformerNegativeSamplerBase):
     """Class to sample negatives uniformly from all catalog items."""
 
     def get_negatives(
-        self, batch_dict: tp.Dict, n_item_extra_tokens: int, n_items: int, validation: bool = False
+        self,
+        batch_dict: tp.Dict,
+        lowest_id: int,
+        highest_id: int,
+        session_len_limit: tp.Optional[int] = None,
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """Return sampled negatives."""
-        if validation:
-            session_len = 1
-        else:
-            session_len = batch_dict["x"].shape[1]
+        session_len = session_len_limit if session_len_limit is not None else batch_dict["x"].shape[1]
         negatives = torch.randint(
-            low=n_item_extra_tokens,
-            high=n_items,
+            low=lowest_id,
+            high=highest_id,
             size=(batch_dict["x"].shape[0], session_len, self.n_negatives),
         )  # [batch_size, session_max_len, n_negatives]
         return negatives
