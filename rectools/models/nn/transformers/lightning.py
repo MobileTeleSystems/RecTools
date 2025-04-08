@@ -296,7 +296,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             type_logits = "pos_neg_logits" if self._requires_negatives else "logits"
             outputs = {
                 "loss": loss,
-                type_logits: logits,
+                type_logits: logits.squeeze(),
             }
         else:
             outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover

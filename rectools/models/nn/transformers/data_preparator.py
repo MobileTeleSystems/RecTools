@@ -192,6 +192,7 @@ class TransformerDataPreparatorBase:
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(raw_interactions)
             interactions = raw_interactions[~val_mask]
+            interactions.reset_index(drop=True, inplace=True)
 
         # Filter train interactions
         interactions = self._filter_train_interactions(interactions)
