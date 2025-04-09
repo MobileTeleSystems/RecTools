@@ -40,6 +40,7 @@ from ..item_net import (
 )
 from .data_preparator import TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
@@ -128,6 +129,16 @@ TransformerDataPreparatorType = tpe.Annotated[
     ),
 ]
 
+TransformerNegativeSamplerType = tpe.Annotated[
+    tp.Type[TransformerNegativeSamplerBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
 
 ItemNetConstructorType = tpe.Annotated[
     tp.Type[ItemNetConstructorBase],
@@ -204,6 +215,7 @@ class TransformerModelConfig(ModelConfig):
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
+    negative_sampler_type: TransformerNegativeSamplerType = CatalogUniformSampler
     similarity_module_type: SimilarityModuleType = DistanceSimilarityModule
     backbone_type: TransformerBackboneType = TransformerTorchBackbone
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
@@ -262,6 +274,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
@@ -271,6 +284,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
@@ -302,6 +316,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
+        self.negative_sampler_type = negative_sampler_type
         self.backbone_type = backbone_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
@@ -310,6 +325,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.item_net_constructor_kwargs = item_net_constructor_kwargs
         self.pos_encoding_kwargs = pos_encoding_kwargs
         self.lightning_module_kwargs = lightning_module_kwargs
+        self.negative_sampler_kwargs = negative_sampler_kwargs
         self.similarity_module_kwargs = similarity_module_kwargs
         self.backbone_kwargs = backbone_kwargs
 
@@ -334,6 +350,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
+            negative_sampler=self._init_negative_sampler() if requires_negatives else None,
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             shuffle_train=True,
@@ -354,6 +371,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             )
         else:
             self._trainer = self.get_trainer_func()
+
+    def _init_negative_sampler(self) -> TransformerNegativeSamplerBase:
+        return self.negative_sampler_type(
+            n_negatives=self.n_negatives,
+            **self._get_kwargs(self.negative_sampler_kwargs),
+        )
 
     def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset(

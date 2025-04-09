@@ -29,6 +29,7 @@ from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
 from .constants import PADDING_VALUE
+from .negative_sampler import TransformerNegativeSamplerBase
 
 
 class SequenceDataset(TorchDataset):
@@ -104,6 +105,10 @@ class TransformerDataPreparatorBase:
         Minimum length of user sequence. Cannot be less than 2.
     get_val_mask_func : Callable, default None
         Function to get validation mask.
+    n_negatives : optional(int), default ``None``
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
+    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
+        Negative sampler.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -119,8 +124,9 @@ class TransformerDataPreparatorBase:
         dataloader_num_workers: int,
         shuffle_train: bool = True,
         train_min_user_interactions: int = 2,
-        n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+        n_negatives: tp.Optional[int] = None,
+        negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -128,6 +134,7 @@ class TransformerDataPreparatorBase:
         self.train_dataset: Dataset
         self.val_interactions: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
+        self.negative_sampler = negative_sampler
         self.n_negatives = n_negatives
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
@@ -189,6 +196,7 @@ class TransformerDataPreparatorBase:
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(raw_interactions)
             interactions = raw_interactions[~val_mask]
+            interactions.reset_index(drop=True, inplace=True)
 
         # Filter train interactions
         interactions = self._filter_train_interactions(interactions)

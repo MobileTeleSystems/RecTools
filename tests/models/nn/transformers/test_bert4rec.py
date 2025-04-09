@@ -33,6 +33,7 @@ from rectools.models.nn.transformers.base import (
     TransformerLightningModule,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
 from tests.models.data import DATASET
@@ -557,6 +558,7 @@ class TestBERT4RecModel:
                 dataloader_num_workers: int,
                 train_min_user_interactions: int,
                 mask_prob: float = 0.15,
+                negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
                 shuffle_train: bool = True,
                 get_val_mask_func: tp.Optional[ValMaskCallable] = None,
                 n_last_targets: int = 1,  # custom kwarg
@@ -567,6 +569,7 @@ class TestBERT4RecModel:
                     batch_size=batch_size,
                     dataloader_num_workers=dataloader_num_workers,
                     train_min_user_interactions=train_min_user_interactions,
+                    negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
                     get_val_mask_func=get_val_mask_func,
                     mask_prob=mask_prob,
@@ -587,13 +590,10 @@ class TestBERT4RecModel:
                     x[i, -len(ses) :] = ses
                     x[i, -self.n_last_targets] = self.extra_token_ids[MASKING_VALUE]  # Replace last tokens with "MASK"
                 batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-                if self.n_negatives is not None:
-                    negatives = torch.randint(
-                        low=self.n_item_extra_tokens,
-                        high=self.item_id_map.size,
-                        size=(batch_size, self.session_max_len, self.n_negatives),
+                if self.negative_sampler is not None:
+                    batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                        batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
                     )
-                    batch_dict["negatives"] = negatives
                 return batch_dict
 
         model = BERT4RecModel(
@@ -854,6 +854,7 @@ class TestBERT4RecModelConfiguration:
             "transformer_layers_type": PreLNTransformerLayers,
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
+            "negative_sampler_type": CatalogUniformSampler,
             "similarity_module_type": DistanceSimilarityModule,
             "backbone_type": TransformerTorchBackbone,
             "mask_prob": 0.15,
@@ -904,6 +905,7 @@ class TestBERT4RecModelConfiguration:
                 "transformer_layers_type": "rectools.models.nn.transformers.net_blocks.PreLNTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.transformers.bert4rec.BERT4RecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
+                "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
                 "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",

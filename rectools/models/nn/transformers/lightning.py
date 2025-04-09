@@ -40,8 +40,18 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
     ----------
     torch_model : TransformerBackboneBase
         Torch model to make recommendations.
+    model_config: Dict[str, Any]
+        Model config.
+    dataset_schema: DatasetSchemaDict
+        Dataset schema.
+    item_external_ids: ExternalIds
+        External item ids from train dataset.
+    item_extra_tokens : Sequence(Hashable)
+        Elements used for sequence padding.
     lr : float
         Learning rate.
+    gbce_t : float
+        Calibration parameter for gBCE loss.
     loss : str, default "softmax"
         Loss function.
     adam_betas : Tuple[float, float], default (0.9, 0.98)
@@ -240,7 +250,37 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
 
 class TransformerLightningModule(TransformerLightningModuleBase):
-    """Lightning module to train transformer models."""
+    """Lightning module to train transformer models.
+
+    Parameters
+    ----------
+    torch_model : TransformerBackboneBase
+        Torch model to make recommendations.
+    model_config: Dict[str, Any]
+        Model config.
+    dataset_schema: DatasetSchemaDict
+        Dataset schema.
+    item_external_ids: ExternalIds
+        External item ids from train dataset.
+    item_extra_tokens : Sequence(Hashable)
+        Elements used for sequence padding.
+    lr : float
+        Learning rate.
+    gbce_t : float
+        Calibration parameter for gBCE loss.
+    loss : str, default "softmax"
+        Loss function.
+    adam_betas : Tuple[float, float], default (0.9, 0.98)
+        Coefficients for running averages of gradient and its square.
+    data_preparator : TransformerDataPreparatorBase
+        Data preparator.
+    verbose : int, default 0
+        Verbosity level.
+    train_loss_name : str, default "train_loss"
+        Name of the training loss.
+    val_loss_name : str, default "val_loss"
+        Name of the training loss.
+    """
 
     i2i_dist = Distance.COSINE
 
@@ -296,7 +336,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             type_logits = "pos_neg_logits" if self._requires_negatives else "logits"
             outputs = {
                 "loss": loss,
-                type_logits: logits,
+                type_logits: logits.squeeze(),
             }
         else:
             outputs = self._calc_custom_loss_outputs(batch, batch_idx)  # pragma: no cover
@@ -339,7 +379,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             for batch in recommend_dataloader:
                 batch = {k: v.to(device) for k, v in batch.items()}
                 batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
-                user_embs.append(batch_embs)
+                user_embs.append(batch_embs.cpu())
 
         return torch.cat(user_embs), item_embs
 
