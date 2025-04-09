@@ -47,7 +47,13 @@ class TransformerNegativeSamplerBase:
 
 
 class CatalogUniformSampler(TransformerNegativeSamplerBase):
-    """Class to sample negatives uniformly from all catalog items."""
+    """Class to sample negatives uniformly from all catalog items.
+
+    Parameters
+    ----------
+    n_negatives : int
+        Number of negatives.
+    """
 
     def get_negatives(
         self,

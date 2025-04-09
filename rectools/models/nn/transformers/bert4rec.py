@@ -50,7 +50,29 @@ from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
 class BERT4RecDataPreparator(TransformerDataPreparatorBase):
-    """Data Preparator for BERT4RecModel."""
+    """Data Preparator for BERT4RecModel.
+
+    Parameters
+    ----------
+    session_max_len : int
+        Maximum length of user sequence.
+    batch_size : int
+        How many samples per batch to load.
+    dataloader_num_workers : int
+        Number of loader worker processes.
+    shuffle_train : bool, default True
+        If ``True``, reshuffles data at each epoch.
+    train_min_user_interactions : int, default 2
+        Minimum length of user sequence. Cannot be less than 2.
+    get_val_mask_func : Callable, default None
+        Function to get validation mask.
+    n_negatives : optional(int), default ``None``
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
+    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
+        Negative sampler.
+    mask_prob : float, default 0.15
+        Probability of masking an item in interactions sequence.
+    """
 
     train_session_max_len_addition: int = 0
     item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE, MASKING_VALUE)
@@ -210,7 +232,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
     loss : {"softmax", "BCE", "gBCE", "sampled_softmax"}, default "softmax"
         Loss function.
     n_negatives : int, default 1
-        Number of negatives for BCE and gBCE losses.
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
     gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
     lr : float, default 0.001

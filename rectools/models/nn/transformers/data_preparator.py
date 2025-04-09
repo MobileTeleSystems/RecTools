@@ -105,6 +105,10 @@ class TransformerDataPreparatorBase:
         Minimum length of user sequence. Cannot be less than 2.
     get_val_mask_func : Callable, default None
         Function to get validation mask.
+    n_negatives : optional(int), default ``None``
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
+    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
+        Negative sampler.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len

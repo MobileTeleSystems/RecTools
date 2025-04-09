@@ -50,7 +50,29 @@ from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):
-    """Data preparator for SASRecModel."""
+    """Data preparator for SASRecModel.
+
+    Parameters
+    ----------
+    session_max_len : int
+        Maximum length of user sequence.
+    batch_size : int
+        How many samples per batch to load.
+    dataloader_num_workers : int
+        Number of loader worker processes.
+    item_extra_tokens : Sequence(Hashable)
+        Which element to use for sequence padding.
+    shuffle_train : bool, default True
+        If ``True``, reshuffles data at each epoch.
+    train_min_user_interactions : int, default 2
+        Minimum length of user sequence. Cannot be less than 2.
+    get_val_mask_func : Callable, default None
+        Function to get validation mask.
+    n_negatives : optional(int), default ``None``
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
+    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
+        Negative sampler.
+    """
 
     train_session_max_len_addition: int = 1
 
@@ -288,7 +310,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     loss : {"softmax", "BCE", "gBCE", "sampled_softmax"}, default "softmax"
         Loss function.
     n_negatives : int, default 1
-        Number of negatives for BCE and gBCE losses.
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
     gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
     lr : float, default 0.001
