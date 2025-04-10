@@ -973,6 +973,7 @@ class TestSASRecModelConfiguration:
             "item_net_constructor_kwargs": None,
             "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
+            "negative_sampler_kwargs": None,
             "similarity_module_kwargs": None,
             "backbone_kwargs": None,
         }

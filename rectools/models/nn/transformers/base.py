@@ -225,6 +225,7 @@ class TransformerModelConfig(ModelConfig):
     item_net_constructor_kwargs: tp.Optional[InitKwargs] = None
     pos_encoding_kwargs: tp.Optional[InitKwargs] = None
     lightning_module_kwargs: tp.Optional[InitKwargs] = None
+    negative_sampler_kwargs: tp.Optional[InitKwargs] = None
     similarity_module_kwargs: tp.Optional[InitKwargs] = None
     backbone_kwargs: tp.Optional[InitKwargs] = None
 
