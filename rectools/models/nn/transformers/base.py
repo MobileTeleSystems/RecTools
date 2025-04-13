@@ -161,7 +161,7 @@ ItemNetBlockTypes = tpe.Annotated[
 ]
 
 
-ValMaskCallable = Callable[[], np.ndarray]
+ValMaskCallable = Callable[..., np.ndarray]
 
 ValMaskCallableSerialized = tpe.Annotated[
     ValMaskCallable,
@@ -173,7 +173,7 @@ ValMaskCallableSerialized = tpe.Annotated[
     ),
 ]
 
-TrainerCallable = Callable[[], Trainer]
+TrainerCallable = Callable[..., Trainer]
 
 TrainerCallableSerialized = tpe.Annotated[
     TrainerCallable,
