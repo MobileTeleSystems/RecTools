@@ -220,6 +220,8 @@ class TransformerModelConfig(ModelConfig):
     backbone_type: TransformerBackboneType = TransformerTorchBackbone
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
+    get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None
+    get_trainer_func_kwargs: tp.Optional[InitKwargs] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
     transformer_layers_kwargs: tp.Optional[InitKwargs] = None
     item_net_constructor_kwargs: tp.Optional[InitKwargs] = None
@@ -280,6 +282,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
         transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
@@ -321,6 +325,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.backbone_type = backbone_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
+        self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
+        self.get_trainer_func_kwargs = get_trainer_func_kwargs
         self.data_preparator_kwargs = data_preparator_kwargs
         self.transformer_layers_kwargs = transformer_layers_kwargs
         self.item_net_constructor_kwargs = item_net_constructor_kwargs
@@ -371,7 +377,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 devices=1,
             )
         else:
-            self._trainer = self.get_trainer_func()
+            self._trainer = self.get_trainer_func(**self._get_kwargs(self.get_trainer_func_kwargs))
 
     def _init_negative_sampler(self) -> TransformerNegativeSamplerBase:
         return self.negative_sampler_type(
