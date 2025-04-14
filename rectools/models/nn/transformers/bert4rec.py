@@ -88,6 +88,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         mask_prob: float = 0.15,
         shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -99,6 +100,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             train_min_user_interactions=train_min_user_interactions,
             shuffle_train=shuffle_train,
             get_val_mask_func=get_val_mask_func,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs
         )
         self.mask_prob = mask_prob
 
@@ -361,6 +363,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
@@ -411,6 +415,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            get_val_mask_func_kwargs = get_val_mask_func_kwargs,
+            get_trainer_func_kwargs  = get_trainer_func_kwargs,
             data_preparator_kwargs=data_preparator_kwargs,
             transformer_layers_kwargs=transformer_layers_kwargs,
             item_net_block_kwargs=item_net_block_kwargs,
@@ -433,6 +439,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
+            get_val_mask_func_kwargs= self.get_val_mask_func_kwargs,
             shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
         )

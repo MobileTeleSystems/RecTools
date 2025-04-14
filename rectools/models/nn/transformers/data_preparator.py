@@ -27,10 +27,10 @@ from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
-
 from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
+InitKwargs = tp.Dict[str, tp.Any]
 
 class SequenceDataset(TorchDataset):
     """
@@ -127,6 +127,7 @@ class TransformerDataPreparatorBase:
         get_val_mask_func: tp.Optional[tp.Callable] = None,
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -141,7 +142,7 @@ class TransformerDataPreparatorBase:
         self.train_min_user_interactions = train_min_user_interactions
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
-
+        self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
         return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
@@ -149,6 +150,13 @@ class TransformerDataPreparatorBase:
     def get_known_item_ids(self) -> np.ndarray:
         """Return external item ids from processed dataset in sorted order."""
         return self.item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
+
+    @staticmethod
+    def _get_kwargs(actual_kwargs: tp.Optional[InitKwargs]) -> InitKwargs:
+        kwargs = {}
+        if actual_kwargs is not None:
+            kwargs = actual_kwargs
+        return kwargs
 
     @property
     def n_item_extra_tokens(self) -> int:
@@ -194,7 +202,7 @@ class TransformerDataPreparatorBase:
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
         if self.get_val_mask_func is not None:
-            val_mask = self.get_val_mask_func(raw_interactions)
+            val_mask = self.get_val_mask_func(raw_interactions, **self._get_kwargs(self.get_val_mask_func_kwargs))
             interactions = raw_interactions[~val_mask]
             interactions.reset_index(drop=True, inplace=True)
 

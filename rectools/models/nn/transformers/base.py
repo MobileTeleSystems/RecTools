@@ -360,6 +360,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             negative_sampler=self._init_negative_sampler() if requires_negatives else None,
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
+            get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
             shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
