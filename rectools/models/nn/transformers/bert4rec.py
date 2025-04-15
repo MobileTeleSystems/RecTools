@@ -100,7 +100,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             train_min_user_interactions=train_min_user_interactions,
             shuffle_train=shuffle_train,
             get_val_mask_func=get_val_mask_func,
-            get_val_mask_func_kwargs=get_val_mask_func_kwargs
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
         )
         self.mask_prob = mask_prob
 
@@ -415,8 +415,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
-            get_val_mask_func_kwargs = get_val_mask_func_kwargs,
-            get_trainer_func_kwargs  = get_trainer_func_kwargs,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+            get_trainer_func_kwargs=get_trainer_func_kwargs,
             data_preparator_kwargs=data_preparator_kwargs,
             transformer_layers_kwargs=transformer_layers_kwargs,
             item_net_block_kwargs=item_net_block_kwargs,

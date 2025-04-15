@@ -44,6 +44,8 @@ from tests.models.utils import (
 
 from .utils import custom_trainer, leave_one_out_mask
 
+InitKwargs = tp.Dict[str, tp.Any]
+
 
 class TestBERT4RecModel:
     def setup_method(self) -> None:
@@ -561,6 +563,7 @@ class TestBERT4RecModel:
                 negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
                 shuffle_train: bool = True,
                 get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+                get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
                 n_last_targets: int = 1,  # custom kwarg
             ) -> None:
                 super().__init__(
@@ -572,6 +575,7 @@ class TestBERT4RecModel:
                     negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
                     get_val_mask_func=get_val_mask_func,
+                    get_val_mask_func_kwargs = get_val_mask_func_kwargs,
                     mask_prob=mask_prob,
                 )
                 self.n_last_targets = n_last_targets

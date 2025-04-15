@@ -27,10 +27,12 @@ from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
+
 from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
+
 
 class SequenceDataset(TorchDataset):
     """
@@ -143,6 +145,7 @@ class TransformerDataPreparatorBase:
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
+
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
         return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
