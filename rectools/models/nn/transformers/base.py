@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import io
+import os
 import typing as tp
 from collections.abc import Callable
 from copy import deepcopy
@@ -393,14 +394,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             **self._get_kwargs(self.lightning_module_kwargs),
         )
 
-    def _fit(
-        self,
-        dataset: Dataset,
-    ) -> None:
+    def _build_model_from_dataset(self, dataset: Dataset) -> None:
         self.data_preparator.process_dataset_train(dataset)
-        train_dataloader = self.data_preparator.get_dataloader_train()
-        val_dataloader = self.data_preparator.get_dataloader_val()
-
         item_model = self._construct_item_net(self.data_preparator.train_dataset)
         torch_model = self._init_torch_model(item_model)
 
@@ -414,7 +409,16 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             model_config=model_config,
         )
 
+    def _fit(
+        self,
+        dataset: Dataset,
+    ) -> None:
+        self._build_model_from_dataset(dataset)
+
         self.fit_trainer = deepcopy(self._trainer)
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
+
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
@@ -429,28 +433,29 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
         if not self.is_fitted:
-            self.data_preparator.process_dataset_train(dataset)
+            self._build_model_from_dataset(dataset)
 
-            item_model = self._construct_item_net(self.data_preparator.train_dataset)
-            torch_model = self._init_torch_model(item_model)
-
-            dataset_schema = self.data_preparator.train_dataset.get_schema()
-            item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
-            model_config = self.get_config(simple_types=True)
-            self._init_lightning_model(
-                torch_model=torch_model,
-                dataset_schema=dataset_schema,
-                item_external_ids=item_external_ids,
-                model_config=model_config,
-            )
+        if self.fit_trainer is None:
+            cur_epochs = 0
+            train_ckpt = None
+        else:
+            cur_epochs = self.fit_trainer.current_epoch
+            if self.fit_trainer.log_dir is None:
+                raise ValueError("No log dir")
+            train_ckpt = os.path.join(self.fit_trainer.log_dir, "trainer_checkpoints", "fit_partial_checkpoint.ckpt")
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
         self.fit_trainer = deepcopy(self._trainer)
-        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + epochs
-        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + epochs
-        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
+        self.fit_trainer.fit_loop.max_epochs = cur_epochs + epochs
+        self.fit_trainer.fit_loop.min_epochs = cur_epochs + epochs
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader, ckpt_path=train_ckpt)
+        if self.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        self.fit_trainer.save_checkpoint(
+            os.path.join(self.fit_trainer.log_dir, "trainer_checkpoints", "fit_partial_checkpoint.ckpt")
+        )
 
     def _recommend_u2i(
         self,
