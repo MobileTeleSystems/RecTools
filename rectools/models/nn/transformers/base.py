@@ -414,11 +414,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataset: Dataset,
     ) -> None:
         self._build_model_from_dataset(dataset)
-
-        self.fit_trainer = deepcopy(self._trainer)
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
-
+        self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
@@ -435,27 +433,21 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if not self.is_fitted:
             self._build_model_from_dataset(dataset)
 
-        if self.fit_trainer is None:
-            cur_epochs = 0
-            train_ckpt = None
-        else:
-            cur_epochs = self.fit_trainer.current_epoch
-            if self.fit_trainer.log_dir is None:
-                raise ValueError("No log dir")
-            train_ckpt = os.path.join(self.fit_trainer.log_dir, "trainer_checkpoints", "fit_partial_checkpoint.ckpt")
-
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        self.fit_trainer = deepcopy(self._trainer)
-        self.fit_trainer.fit_loop.max_epochs = cur_epochs + epochs
-        self.fit_trainer.fit_loop.min_epochs = cur_epochs + epochs
-        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader, ckpt_path=train_ckpt)
-        if self.fit_trainer.log_dir is None:
-            raise ValueError("No log dir")
-        self.fit_trainer.save_checkpoint(
-            os.path.join(self.fit_trainer.log_dir, "trainer_checkpoints", "fit_partial_checkpoint.ckpt")
-        )
+        ckpt_path = "fit_partial_checkpoint.ckpt"
+        if self.fit_trainer is None:
+            self.fit_trainer = deepcopy(self._trainer)
+            self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
+        else:
+            cur_epochs = self.fit_trainer.current_epoch
+            self.fit_trainer = deepcopy(self._trainer)
+            self.fit_trainer.fit_loop.max_epochs = cur_epochs + epochs
+            self.fit_trainer.fit_loop.min_epochs = cur_epochs + epochs
+            self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader, ckpt_path=ckpt_path)
+
+        self.fit_trainer.save_checkpoint(ckpt_path)
 
     def _recommend_u2i(
         self,
