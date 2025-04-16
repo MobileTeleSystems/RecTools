@@ -312,6 +312,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Will be omitted if `get_trainer_func` is specified.
     dataloader_num_workers : int, default 0
         Number of loader worker processes.
+    shuffle_train: bool, default ``True``
+        If ``True``, shuffle train dataset.
     use_pos_emb : bool, default ``True``
         If ``True``, learnable positional encoding will be added to session item embeddings.
     use_key_padding_mask : bool, default ``False``
@@ -390,6 +392,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         deterministic: bool = False,
         verbose: int = 0,
         dataloader_num_workers: int = 0,
+        shuffle_train: bool = True,
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
@@ -423,6 +426,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             dropout_rate=dropout_rate,
             session_max_len=session_max_len,
             dataloader_num_workers=dataloader_num_workers,
+            shuffle_train=shuffle_train,
             batch_size=batch_size,
             loss=loss,
             n_negatives=n_negatives,

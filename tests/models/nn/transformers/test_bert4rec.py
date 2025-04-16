@@ -812,6 +812,7 @@ class TestBERT4RecModelConfiguration:
             "dropout_rate": 0.5,
             "session_max_len": 10,
             "dataloader_num_workers": 0,
+            "shuffle_train": True,
             "batch_size": 1024,
             "loss": "softmax",
             "n_negatives": 10,

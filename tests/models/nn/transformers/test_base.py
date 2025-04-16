@@ -326,11 +326,11 @@ class TestTransformerModelBase:
     ) -> None:
 
         seed_everything(32, workers=True)
-        model_1 = model_cls.from_config({"epochs": 3})
+        model_1 = model_cls.from_config({"epochs": 3, "shuffle_train": False})
         model_1.fit(dataset)
 
         seed_everything(32, workers=True)
-        model_2 = model_cls.from_config({})
+        model_2 = model_cls.from_config({"shuffle_train": False})
         model_2.fit_partial(dataset, epochs=2)
         model_2.fit_partial(dataset, epochs=1)
 
