@@ -120,7 +120,7 @@ class TransformerDataPreparatorBase:
         train_min_user_interactions: int = 2,
         n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
-        shuffle_train: tp.Optional[bool] = True,
+        shuffle_train: bool = True,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap

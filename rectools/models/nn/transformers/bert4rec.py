@@ -61,7 +61,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         train_min_user_interactions: int,
         mask_prob: float = 0.15,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
-        shuffle_train: tp.Optional[bool] = True,
+        shuffle_train: bool = True,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(

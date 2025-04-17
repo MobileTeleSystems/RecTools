@@ -533,7 +533,7 @@ class TestBERT4RecModel:
                 dataloader_num_workers: int,
                 train_min_user_interactions: int,
                 mask_prob: float = 0.15,
-                shuffle_train: tp.Optional[bool] = True,
+                shuffle_train: bool = True,
                 get_val_mask_func: tp.Optional[ValMaskCallable] = None,
                 n_last_targets: int = 1,  # custom kwarg
             ) -> None:

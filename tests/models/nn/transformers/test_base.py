@@ -356,7 +356,7 @@ class TestTransformerModelBase:
         recovered_fit_partial_model = model_cls.load_from_checkpoint(ckpt_path)
 
         seed_everything(32, workers=True)
-        fit_partial_model.fit_trainer = deepcopy(fit_partial_model._trainer)
+        fit_partial_model.fit_trainer = deepcopy(fit_partial_model._trainer)  # pylint: disable=protected-access
         fit_partial_model.lightning_model.optimizer = None
         fit_partial_model.fit_partial(dataset, epochs=1)
 
