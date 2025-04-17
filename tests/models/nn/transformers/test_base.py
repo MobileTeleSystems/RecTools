@@ -352,6 +352,8 @@ class TestTransformerModelBase:
         recovered_fit_partial_model.fit_partial(dataset, epochs=1)
 
         self._assert_same_reco(fit_partial_model, recovered_fit_partial_model, dataset)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     def test_raises_when_incorrect_similarity_dist(
         self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
     ) -> None:

@@ -124,12 +124,9 @@ class TransformerDataPreparatorBase:
         dataloader_num_workers: int,
         train_min_user_interactions: int = 2,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
-<<<<<<< HEAD
         shuffle_train: bool = True,
-=======
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
->>>>>>> 6ffd25bf3ca8517c8bd1a7207d6b0e64c8e1912a
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
