@@ -327,11 +327,11 @@ class TestTransformerModelBase:
     ) -> None:
 
         seed_everything(32, workers=True)
-        model_1 = model_cls.from_config({"epochs": 3, "shuffle_train": False})
+        model_1 = model_cls.from_config({"epochs": 3, "data_preparator_kwargs": {"shuffle_train": False}})
         model_1.fit(dataset)
 
         seed_everything(32, workers=True)
-        model_2 = model_cls.from_config({"shuffle_train": False})
+        model_2 = model_cls.from_config({"data_preparator_kwargs": {"shuffle_train": False}})
         model_2.fit_partial(dataset, epochs=2)
         model_2.fit_partial(dataset, epochs=1)
 
@@ -343,7 +343,9 @@ class TestTransformerModelBase:
         dataset: Dataset,
         model_cls: tp.Type[TransformerModelBase],
     ) -> None:
-        fit_partial_model = model_cls.from_config({"shuffle_train": False, "get_trainer_func": custom_trainer_ckpt})
+        fit_partial_model = model_cls.from_config(
+            {"data_preparator_kwargs": {"shuffle_train": False}, "get_trainer_func": custom_trainer_ckpt}
+        )
         fit_partial_model.fit_partial(dataset, epochs=1)
 
         assert fit_partial_model.fit_trainer is not None

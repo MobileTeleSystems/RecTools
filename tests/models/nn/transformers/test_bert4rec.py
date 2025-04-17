@@ -533,7 +533,7 @@ class TestBERT4RecModel:
                 dataloader_num_workers: int,
                 train_min_user_interactions: int,
                 mask_prob: float = 0.15,
-                shuffle_train: bool = True,
+                shuffle_train: tp.Optional[bool] = True,
                 get_val_mask_func: tp.Optional[ValMaskCallable] = None,
                 n_last_targets: int = 1,  # custom kwarg
             ) -> None:
@@ -675,7 +675,6 @@ class TestBERT4RecDataPreparator:
             batch_size=4,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
-            shuffle_train=True,
             mask_prob=0.5,
         )
 
@@ -746,7 +745,6 @@ class TestBERT4RecDataPreparator:
             batch_size=14,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
-            shuffle_train=True,
             mask_prob=0.5,
         )
         data_preparator.process_dataset_train(dataset_one_session)
@@ -812,7 +810,6 @@ class TestBERT4RecModelConfiguration:
             "dropout_rate": 0.5,
             "session_max_len": 10,
             "dataloader_num_workers": 0,
-            "shuffle_train": True,
             "batch_size": 1024,
             "loss": "softmax",
             "n_negatives": 10,

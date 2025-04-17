@@ -167,7 +167,6 @@ class TransformerModelConfig(ModelConfig):
     dropout_rate: float = 0.2
     session_max_len: int = 100
     dataloader_num_workers: int = 0
-    shuffle_train: bool = True
     batch_size: int = 128
     loss: str = "softmax"
     n_negatives: int = 1
@@ -223,7 +222,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dropout_rate: float = 0.2,
         session_max_len: int = 100,
         dataloader_num_workers: int = 0,
-        shuffle_train: bool = True,
         batch_size: int = 128,
         loss: str = "softmax",
         n_negatives: int = 1,
@@ -260,7 +258,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.dropout_rate = dropout_rate
         self.session_max_len = session_max_len
         self.dataloader_num_workers = dataloader_num_workers
-        self.shuffle_train = shuffle_train
         self.batch_size = batch_size
         self.loss = loss
         self.n_negatives = n_negatives
@@ -305,7 +302,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             train_min_user_interactions=self.train_min_user_interactions,
             n_negatives=self.n_negatives if self.loss != "softmax" else None,
             get_val_mask_func=self.get_val_mask_func,
-            shuffle_train=self.shuffle_train,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
 

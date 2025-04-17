@@ -60,8 +60,8 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         dataloader_num_workers: int,
         train_min_user_interactions: int,
         mask_prob: float = 0.15,
-        shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        shuffle_train: tp.Optional[bool] = True,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -232,8 +232,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         Will be omitted if `get_trainer_func` is specified.
     dataloader_num_workers : int, default 0
         Number of loader worker processes.
-    shuffle_train: bool, default ``True``
-        If ``True``, shuffle train dataset.
     use_pos_emb : bool, default ``True``
         If ``True``, learnable positional encoding will be added to session item embeddings.
     use_key_padding_mask : bool, default ``True``
@@ -313,7 +311,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         deterministic: bool = False,
         verbose: int = 0,
         dataloader_num_workers: int = 0,
-        shuffle_train: bool = True,
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = True,
         use_causal_attn: bool = False,
@@ -350,7 +347,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             dropout_rate=dropout_rate,
             session_max_len=session_max_len,
             dataloader_num_workers=dataloader_num_workers,
-            shuffle_train=shuffle_train,
             batch_size=batch_size,
             loss=loss,
             n_negatives=n_negatives,
@@ -387,6 +383,5 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
-            shuffle_train=self.shuffle_train,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
