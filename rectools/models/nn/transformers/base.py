@@ -434,50 +434,18 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def _fit_partial(self, dataset: Dataset, epochs: int) -> None:
         if not self.is_fitted:
             self._build_model_from_dataset(dataset)
-        else:
-            self.lightning_model.train()
+            self.fit_trainer = deepcopy(self._trainer)
+        elif self.fit_trainer is None:
+            self.data_preparator.process_dataset_train(dataset)
+            self.fit_trainer = deepcopy(self._trainer)
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        ckpt_save_path = "fit_partial_checkpoint.ckpt"
-        if self.fit_trainer is None:
-            cur_epochs = 0
-            ckpt_path = None
-        else:
-            cur_epochs = self.fit_trainer.current_epoch
-            ckpt_path = ckpt_save_path
-
-        self.fit_trainer = deepcopy(self._trainer)
-        self.fit_trainer.fit_loop.max_epochs = cur_epochs + epochs
-        self.fit_trainer.fit_loop.min_epochs = cur_epochs + epochs
-        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader, ckpt_path=ckpt_path)
-
-        self.fit_trainer.save_checkpoint(ckpt_save_path)
-        # if not self.is_fitted:
-        #     self.data_preparator.process_dataset_train(dataset)
-
-        #     item_model = self._construct_item_net(self.data_preparator.train_dataset)
-        #     torch_model = self._init_torch_model(item_model)
-
-        #     dataset_schema = self.data_preparator.train_dataset.get_schema()
-        #     item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
-        #     model_config = self.get_config(simple_types=True)
-        #     self._init_lightning_model(
-        #         torch_model=torch_model,
-        #         dataset_schema=dataset_schema,
-        #         item_external_ids=item_external_ids,
-        #         model_config=model_config,
-        #     )
-        #     self.fit_trainer = deepcopy(self._trainer)
-
-        # train_dataloader = self.data_preparator.get_dataloader_train()
-        # val_dataloader = self.data_preparator.get_dataloader_val()
-        # self.lightning_model.train()
-        # # self.fit_trainer = deepcopy(self._trainer)
-        # self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + epochs
-        # self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + epochs
-        # self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
+        self.lightning_model.train()
+        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + epochs
+        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + epochs
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _recommend_u2i(
         self,
@@ -558,6 +526,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             item_external_ids=item_external_ids,
             model_config=model_config,
         )
+        loaded.lightning_model.is_fitted = True
         loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
         return loaded

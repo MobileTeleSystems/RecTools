@@ -14,6 +14,7 @@
 
 import os
 import typing as tp
+from copy import deepcopy
 from tempfile import NamedTemporaryFile
 
 import pandas as pd
@@ -335,3 +336,29 @@ class TestTransformerModelBase:
         model_2.fit_partial(dataset, epochs=1)
 
         self._assert_same_reco(model_1, model_2, dataset)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_fit_partial_from_checkpoint(
+        self,
+        dataset: Dataset,
+        model_cls: tp.Type[TransformerModelBase],
+    ) -> None:
+        fit_partial_model = model_cls.from_config({"shuffle_train": False, "get_trainer_func": custom_trainer_ckpt})
+        fit_partial_model.fit_partial(dataset, epochs=1)
+
+        assert fit_partial_model.fit_trainer is not None
+        if fit_partial_model.fit_trainer.log_dir is None:
+            raise ValueError("No log dir")
+        ckpt_path = os.path.join(fit_partial_model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
+        assert os.path.isfile(ckpt_path)
+        recovered_fit_partial_model = model_cls.load_from_checkpoint(ckpt_path)
+
+        seed_everything(32, workers=True)
+        fit_partial_model.fit_trainer = deepcopy(fit_partial_model._trainer)
+        fit_partial_model.lightning_model.optimizer = None
+        fit_partial_model.fit_partial(dataset, epochs=1)
+
+        seed_everything(32, workers=True)
+        recovered_fit_partial_model.fit_partial(dataset, epochs=1)
+
+        self._assert_same_reco(fit_partial_model, recovered_fit_partial_model, dataset)

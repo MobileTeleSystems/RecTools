@@ -89,14 +89,14 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
         self.is_fitted = False
-        self.optimizer: torch.optim.Adam
+        self.optimizer: tp.Optional[torch.optim.Adam] = None
         self.item_embs: torch.Tensor
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
-        if not self.is_fitted:
+        if self.optimizer is None:
             self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
         return self.optimizer
 
