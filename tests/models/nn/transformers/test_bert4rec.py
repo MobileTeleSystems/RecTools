@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import inspect
 import typing as tp
 from functools import partial
 
@@ -31,6 +32,7 @@ from rectools.models.nn.transformers.base import (
     PreLNTransformerLayers,
     TrainerCallable,
     TransformerLightningModule,
+    ValMaskCallable,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
@@ -43,6 +45,8 @@ from tests.models.utils import (
 )
 
 from .utils import custom_trainer, leave_one_out_mask
+
+InitKwargs = tp.Dict[str, tp.Any]
 
 
 class TestBERT4RecModel:
@@ -113,6 +117,14 @@ class TestBERT4RecModel:
             )
 
         return get_trainer
+
+    @pytest.fixture
+    def factory_get_trainer_func(self) -> TrainerCallable:
+        def get_trainer_with_kwargs(**get_trainer_kwargs) -> Trainer:
+            get_trainer_kwargs = get_trainer_kwargs or {}
+            return Trainer(**get_trainer_kwargs)
+
+        return get_trainer_with_kwargs
 
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_torch_device",
@@ -310,14 +322,29 @@ class TestBERT4RecModel:
         ),
     )
     @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
+    @pytest.mark.parametrize(
+        "get_trainer_func_kwargs",
+        (
+            {
+                "max_epochs": 2,
+                "min_epochs": 2,
+                "deterministic": True,
+                "accelerator": "cpu",
+                "enable_checkpointing": False,
+                "devices": 1,
+            },
+        ),
+    )
     def test_u2i_losses(
         self,
         dataset_devices: Dataset,
         loss: str,
-        get_trainer_func: TrainerCallable,
+        factory_get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
         u2i_dist: str,
+        get_trainer_func_kwargs: InitKwargs,
     ) -> None:
+        assert set(get_trainer_func_kwargs.keys()).issubset(inspect.signature(Trainer.__init__).parameters.keys())
         model = BERT4RecModel(
             n_negatives=2,
             n_factors=32,
@@ -330,7 +357,8 @@ class TestBERT4RecModel:
             deterministic=True,
             mask_prob=0.6,
             item_net_block_types=(IdEmbeddingsItemNet,),
-            get_trainer_func=get_trainer_func,
+            get_trainer_func=factory_get_trainer_func,
+            get_trainer_func_kwargs=get_trainer_func_kwargs,
             loss=loss,
             similarity_module_type=DistanceSimilarityModule,
             similarity_module_kwargs={"distance": u2i_dist},
@@ -561,6 +589,7 @@ class TestBERT4RecModel:
                 negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
                 shuffle_train: bool = True,
                 get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+                get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
                 n_last_targets: int = 1,  # custom kwarg
             ) -> None:
                 super().__init__(
@@ -572,6 +601,7 @@ class TestBERT4RecModel:
                     negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
                     get_val_mask_func=get_val_mask_func,
+                    get_val_mask_func_kwargs=get_val_mask_func_kwargs,
                     mask_prob=mask_prob,
                 )
                 self.n_last_targets = n_last_targets
@@ -728,6 +758,35 @@ class TestBERT4RecDataPreparator:
             get_val_mask_func=get_val_mask_func,
         )
 
+    @pytest.fixture
+    def factory_data_preparator_val_mask_with_kwargs(self) -> ValMaskCallable:
+        def data_preparator_val_mask_with_kwargs(get_val_mask_func_kwargs) -> BERT4RecDataPreparator:
+            def get_val_mask(interactions: pd.DataFrame, **kwargs) -> np.ndarray:
+                val_users = kwargs.get("val_users")
+                rank = (
+                    interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
+                    .groupby(Columns.User, sort=False)
+                    .cumcount()
+                    + 1
+                )
+                val_mask = (interactions[Columns.User].isin(val_users)) & (rank <= 1)
+                return val_mask.values
+
+            assert "val_users" in get_val_mask_func_kwargs
+
+            return BERT4RecDataPreparator(
+                session_max_len=4,
+                n_negatives=2,
+                train_min_user_interactions=2,
+                mask_prob=0.5,
+                batch_size=4,
+                dataloader_num_workers=0,
+                get_val_mask_func=get_val_mask,
+                get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+            )
+
+        return data_preparator_val_mask_with_kwargs
+
     @pytest.mark.parametrize(
         "train_batch",
         (
@@ -816,6 +875,35 @@ class TestBERT4RecDataPreparator:
         for key, value in actual.items():
             assert torch.equal(value, val_batch[key])
 
+    @pytest.mark.parametrize("val_users", ([10, 30],))
+    @pytest.mark.parametrize(
+        "val_batch",
+        (
+            (
+                {
+                    "x": torch.tensor([[0, 2, 4, 1]]),
+                    "y": torch.tensor([[3]]),
+                    "yw": torch.tensor([[1.0]]),
+                    "negatives": torch.tensor([[[5, 2]]]),
+                }
+            ),
+        ),
+    )
+    def test_get_dataloader_val_with_kwargs(
+        self,
+        dataset: Dataset,
+        factory_data_preparator_val_mask_with_kwargs,
+        val_users: tp.Dict[tp.Any, tp.Any],
+        val_batch: tp.List,
+    ) -> None:
+        kwargs = {"val_users": val_users}
+        data_preparator_val_mask = factory_data_preparator_val_mask_with_kwargs(get_val_mask_func_kwargs=kwargs)
+        data_preparator_val_mask.process_dataset_train(dataset)
+        dataloader = data_preparator_val_mask.get_dataloader_val()
+        actual = next(iter(dataloader))  # type: ignore
+        for key, value in actual.items():
+            assert torch.equal(value, val_batch[key])
+
 
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
@@ -860,6 +948,8 @@ class TestBERT4RecModelConfiguration:
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
+            "get_val_mask_func_kwargs": None,
+            "get_trainer_func_kwargs": None,
             "data_preparator_kwargs": None,
             "transformer_layers_kwargs": None,
             "item_net_constructor_kwargs": None,

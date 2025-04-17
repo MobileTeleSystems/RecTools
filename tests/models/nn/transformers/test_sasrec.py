@@ -968,6 +968,8 @@ class TestSASRecModelConfiguration:
             "backbone_type": TransformerTorchBackbone,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
+            "get_val_mask_func_kwargs": None,
+            "get_trainer_func_kwargs": None,
             "data_preparator_kwargs": None,
             "transformer_layers_kwargs": None,
             "item_net_constructor_kwargs": None,
