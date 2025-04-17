@@ -32,6 +32,7 @@ from rectools.models.nn.transformers.base import (
     PreLNTransformerLayers,
     TrainerCallable,
     TransformerLightningModule,
+    ValMaskCallable,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
@@ -341,7 +342,7 @@ class TestBERT4RecModel:
         factory_get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
         u2i_dist: str,
-        get_trainer_func_kwargs,
+        get_trainer_func_kwargs: InitKwargs,
     ) -> None:
         assert set(get_trainer_func_kwargs.keys()).issubset(inspect.signature(Trainer.__init__).parameters.keys())
         model = BERT4RecModel(
@@ -758,7 +759,7 @@ class TestBERT4RecDataPreparator:
         )
 
     @pytest.fixture
-    def factory_data_preparator_val_mask_with_kwargs(self):
+    def factory_data_preparator_val_mask_with_kwargs(self) -> ValMaskCallable:
         def data_preparator_val_mask_with_kwargs(get_val_mask_func_kwargs) -> BERT4RecDataPreparator:
             def get_val_mask(interactions: pd.DataFrame, **kwargs) -> np.ndarray:
                 val_users = kwargs.get("val_users")
