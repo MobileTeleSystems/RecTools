@@ -29,6 +29,7 @@ from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
 from rectools.dataset.identifiers import IdMap
 
 from .constants import PADDING_VALUE
+from .negative_sampler import TransformerNegativeSamplerBase
 
 
 class SequenceDataset(TorchDataset):
@@ -104,6 +105,10 @@ class TransformerDataPreparatorBase:
         Minimum length of user sequence. Cannot be less than 2.
     get_val_mask_func : Callable, default None
         Function to get validation mask.
+    n_negatives : optional(int), default ``None``
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
+    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
+        Negative sampler.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -118,9 +123,13 @@ class TransformerDataPreparatorBase:
         batch_size: int,
         dataloader_num_workers: int,
         train_min_user_interactions: int = 2,
-        n_negatives: tp.Optional[int] = None,
         get_val_mask_func: tp.Optional[tp.Callable] = None,
+<<<<<<< HEAD
         shuffle_train: bool = True,
+=======
+        n_negatives: tp.Optional[int] = None,
+        negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
+>>>>>>> 6ffd25bf3ca8517c8bd1a7207d6b0e64c8e1912a
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -128,6 +137,7 @@ class TransformerDataPreparatorBase:
         self.train_dataset: Dataset
         self.val_interactions: tp.Optional[pd.DataFrame] = None
         self.session_max_len = session_max_len
+        self.negative_sampler = negative_sampler
         self.n_negatives = n_negatives
         self.batch_size = batch_size
         self.dataloader_num_workers = dataloader_num_workers
@@ -168,6 +178,18 @@ class TransformerDataPreparatorBase:
         full_feature_values = np.vstack([extra_token_feature_values, sorted_features.values])
         return DenseFeatures.from_iterables(values=full_feature_values, names=raw_features.names)
 
+    def _filter_train_interactions(self, train_interactions: pd.DataFrame) -> pd.DataFrame:
+        """Filter train interactions."""
+        user_stats = train_interactions[Columns.User].value_counts()
+        users = user_stats[user_stats >= self.train_min_user_interactions].index
+        train_interactions = train_interactions[(train_interactions[Columns.User].isin(users))]
+        train_interactions = (
+            train_interactions.sort_values(Columns.Datetime, kind="stable")
+            .groupby(Columns.User, sort=False)
+            .tail(self.session_max_len + self.train_session_max_len_addition)
+        )
+        return train_interactions
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
@@ -177,16 +199,10 @@ class TransformerDataPreparatorBase:
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(raw_interactions)
             interactions = raw_interactions[~val_mask]
+            interactions.reset_index(drop=True, inplace=True)
 
         # Filter train interactions
-        user_stats = interactions[Columns.User].value_counts()
-        users = user_stats[user_stats >= self.train_min_user_interactions].index
-        interactions = interactions[(interactions[Columns.User].isin(users))]
-        interactions = (
-            interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User, sort=False)
-            .tail(self.session_max_len + self.train_session_max_len_addition)
-        )
+        interactions = self._filter_train_interactions(interactions)
 
         # Prepare id maps
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
