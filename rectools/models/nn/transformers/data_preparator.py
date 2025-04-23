@@ -111,6 +111,8 @@ class TransformerDataPreparatorBase:
         Number of negatives for BCE, gBCE and sampled_softmax losses.
     negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
         Negative sampler.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_val_mask_func.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len

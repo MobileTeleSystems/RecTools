@@ -72,7 +72,10 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         Negative sampler.
     mask_prob : float, default 0.15
         Probability of masking an item in interactions sequence.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional arguments for the get_val_mask_func.
     """
+
 
     train_session_max_len_addition: int = 0
     item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE, MASKING_VALUE)
@@ -303,6 +306,10 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_torch_device` attribute.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_val_mask_func.
+    get_trainer_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_trainer_func.
     data_preparator_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `data_preparator_type` initialization.
         Make sure all dict values have JSON serializable types.

@@ -72,6 +72,8 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         Number of negatives for BCE, gBCE and sampled_softmax losses.
     negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
         Negative sampler.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional arguments for the get_val_mask_func.
     """
 
     train_session_max_len_addition: int = 1
