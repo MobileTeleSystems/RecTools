@@ -76,6 +76,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         Additional arguments for the get_val_mask_func.
     """
 
+
     train_session_max_len_addition: int = 0
     item_extra_tokens: tp.Sequence[Hashable] = (PADDING_VALUE, MASKING_VALUE)
 
