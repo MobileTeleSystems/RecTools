@@ -13,6 +13,8 @@
 #  limitations under the License.
 
 import typing as tp
+from typing import TypedDict
+from typing_extensions import Unpack
 from functools import partial
 
 import numpy as np
@@ -46,6 +48,9 @@ from .utils import custom_trainer, leave_one_out_mask
 
 InitKwargs = tp.Dict[str, tp.Any]
 
+class KwargsSpec(TypedDict):
+    max_epochs: int
+    accelerator: str
 
 class TestBERT4RecModel:
     def setup_method(self) -> None:
@@ -118,7 +123,7 @@ class TestBERT4RecModel:
 
     @pytest.fixture
     def get_custom_trainer_func(self) -> TrainerCallable:
-        def get_trainer_func(**kwargs) -> Trainer:
+        def get_trainer_func(**kwargs: Unpack[KwargsSpec]) -> Trainer:
             # internal logic for kwargs
             max_epochs=kwargs["max_epochs"]
             accelerator=kwargs["accelerator"]
@@ -908,11 +913,11 @@ class TestBERT4RecDataPreparator:
     def test_get_dataloader_val_with_kwargs(
         self,
         dataset: Dataset,
-        val_users: tp.Dict[tp.Any, tp.Any],
-        val_batch: tp.List,
+        val_batch: tp.Dict[tp.Any, tp.Any],
+        val_users: tp.List,
     ) -> None:
 
-        def get_custom_val_mask_func(interactions: pd.DataFrame, **kwargs) -> np.ndarray:
+        def get_custom_val_mask_func(interactions: pd.DataFrame, **kwargs: tp.Dict[str, tp.List]) -> np.ndarray:
             val_users = kwargs.get("val_users")
             rank = (
                 interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
