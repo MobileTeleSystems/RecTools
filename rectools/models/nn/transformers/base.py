@@ -18,6 +18,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from flatten_dict import flatten, unflatten
 
 import numpy as np
 import torch
@@ -601,7 +602,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.__dict__.update(loaded.__dict__)
 
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: tp.Union[str, Path],
+        map_location: tp.Union[str, torch.device, None] = None,
+        config_update: tp.Dict[str, tp.Any] = {},
+    ) -> tpe.Self:
         """
         Load model from Lightning checkpoint path.
 
@@ -609,12 +615,20 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         ----------
         checkpoint_path: Union[str, Path]
             Path to checkpoint location.
-
+        map_location: Union[str, torch.device, None], default None
+            Target device to load the checkpoint (e.g., 'cpu', 'cuda:0').
+            If None, will use the device the checkpoint was saved on.
+        config_update: tp.Dict[str, tp.Any], default '{}'
+            Сontains custom values for checkpoint['hyper_parameters']
         Returns
         -------
         Model instance.
         """
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+        prev_config = checkpoint["hyper_parameters"]
+        prev_config_flatten = flatten(prev_config, reducer='dot')
+        prev_config_flatten.update(flatten(config_update, reducer='dot'))
+        checkpoint["hyper_parameters"] = unflatten(prev_config_flatten, splitter='dot')
         loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
 
