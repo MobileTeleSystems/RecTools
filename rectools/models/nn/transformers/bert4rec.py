@@ -27,7 +27,6 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
-    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLightningModule,
@@ -37,7 +36,7 @@ from .base import (
     ValMaskCallable,
 )
 from .constants import MASKING_VALUE, PADDING_VALUE
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -445,7 +444,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
-            get_val_mask_func_kwargs= self.get_val_mask_func_kwargs,
+            get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
             shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
         )

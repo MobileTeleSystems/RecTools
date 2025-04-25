@@ -38,7 +38,7 @@ from ..item_net import (
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
@@ -49,8 +49,6 @@ from .net_blocks import (
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
-
-InitKwargs = tp.Dict[str, tp.Any]
 
 # ####  --------------  Transformer Model Config  --------------  #### #
 

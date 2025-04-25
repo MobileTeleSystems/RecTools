@@ -27,7 +27,6 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
-    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLayersType,
@@ -37,7 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -493,8 +492,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
-            get_val_mask_func_kwargs = get_val_mask_func_kwargs,
-            get_trainer_func_kwargs = get_trainer_func_kwargs,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+            get_trainer_func_kwargs=get_trainer_func_kwargs,
             data_preparator_kwargs=data_preparator_kwargs,
             transformer_layers_kwargs=transformer_layers_kwargs,
             item_net_constructor_kwargs=item_net_constructor_kwargs,
