@@ -18,11 +18,11 @@ from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from flatten_dict import flatten, unflatten
 
 import numpy as np
 import torch
 import typing_extensions as tpe
+from flatten_dict import flatten, unflatten
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 
@@ -608,8 +608,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         map_location: tp.Union[str, torch.device, None] = None,
         config_update: tp.Dict[str, tp.Any] = {},
     ) -> tpe.Self:
-        """
-        Load model from Lightning checkpoint path.
+        """Load model from Lightning checkpoint path.
 
         Parameters
         ----------
@@ -619,16 +618,18 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             Target device to load the checkpoint (e.g., 'cpu', 'cuda:0').
             If None, will use the device the checkpoint was saved on.
         config_update: tp.Dict[str, tp.Any], default '{}'
-            Сontains custom values for checkpoint['hyper_parameters']
+            Contains custom values for checkpoint['hyper_parameters'].
+            Config_update has to be flattened with 'dot' reducer, before passed.
+
         Returns
         -------
         Model instance.
         """
         checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
         prev_config = checkpoint["hyper_parameters"]
-        prev_config_flatten = flatten(prev_config, reducer='dot')
-        prev_config_flatten.update(flatten(config_update, reducer='dot'))
-        checkpoint["hyper_parameters"] = unflatten(prev_config_flatten, splitter='dot')
+        prev_config_flatten = flatten(prev_config, reducer="dot")
+        prev_config_flatten.update(config_update)
+        checkpoint["hyper_parameters"] = unflatten(prev_config_flatten, splitter="dot")
         loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
 

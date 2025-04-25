@@ -19,6 +19,7 @@ from tempfile import NamedTemporaryFile
 import pandas as pd
 import pytest
 import torch
+from flatten_dict import flatten
 from pytest import FixtureRequest
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
@@ -152,10 +153,24 @@ class TestTransformerModelBase:
 
     @pytest.mark.parametrize("test_dataset", ("dataset", "dataset_item_features"))
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    @pytest.mark.parametrize("map_location", ("cpu", torch.device("cuda:0"), None))
+    @pytest.mark.parametrize(
+        "config_update",
+        (
+            {
+                "model_config": {
+                    "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                    "get_trainer_func": "tests.models.nn.transformers.utils.custom_trainer",
+                }
+            },
+        ),
+    )
     def test_load_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
         test_dataset: str,
+        map_location: tp.Union[str, torch.device, None],
+        config_update: tp.Dict[str, tp.Any],
         request: FixtureRequest,
     ) -> None:
 
@@ -173,7 +188,10 @@ class TestTransformerModelBase:
             raise ValueError("No log dir")
         ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
         assert os.path.isfile(ckpt_path)
-        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
+        config_update_flatten = flatten(config_update, reducer="dot")
+        recovered_model = model_cls.load_from_checkpoint(
+            ckpt_path, map_location=map_location, config_update=config_update_flatten
+        )
         assert isinstance(recovered_model, model_cls)
 
         self._assert_same_reco(model, recovered_model, dataset)
