@@ -28,6 +28,7 @@ from rectools import Columns
 from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.transformers.base import TransformerModelBase
+from rectools.models.nn.transformers.lightning import TransformerLightningModule
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
@@ -314,12 +315,29 @@ class TestTransformerModelBase:
         model_cls: tp.Type[TransformerModelBase],
     ) -> None:
 
+        class FixSeedLightningModule(TransformerLightningModule):
+            def on_train_epoch_start(self) -> None:
+                seed_everything(32, workers=True)
+
         seed_everything(32, workers=True)
-        model_1 = model_cls.from_config({"epochs": 3, "data_preparator_kwargs": {"shuffle_train": False}})
+        model_1 = model_cls.from_config(
+            {
+                "epochs": 3,
+                "data_preparator_kwargs": {"shuffle_train": False},
+                "get_trainer_func": custom_trainer,
+                "lightning_module_type": FixSeedLightningModule,
+            }
+        )
         model_1.fit(dataset)
 
         seed_everything(32, workers=True)
-        model_2 = model_cls.from_config({"data_preparator_kwargs": {"shuffle_train": False}})
+        model_2 = model_cls.from_config(
+            {
+                "data_preparator_kwargs": {"shuffle_train": False},
+                "get_trainer_func": custom_trainer,
+                "lightning_module_type": FixSeedLightningModule,
+            }
+        )
         model_2.fit_partial(dataset, epochs=2)
         model_2.fit_partial(dataset, epochs=1)
 
