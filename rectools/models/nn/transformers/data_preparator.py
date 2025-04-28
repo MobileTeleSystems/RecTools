@@ -86,6 +86,9 @@ class SequenceDataset(TorchDataset):
         return cls(sessions=sessions, weights=weights)
 
 
+# pylint: disable=too-many-instance-attributes
+
+
 class TransformerDataPreparatorBase:
     """
     Base class for data preparator. To change train/recommend dataset processing, train/recommend dataloaders inherit

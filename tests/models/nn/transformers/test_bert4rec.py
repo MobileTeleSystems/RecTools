@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+# pylint: disable=too-many-lines
 import typing as tp
 from functools import partial
 from typing import TypedDict
@@ -591,19 +592,25 @@ class TestBERT4RecModel:
     @pytest.mark.parametrize(
         "get_custom_trainer_func_kwargs, get_custom_val_mask_func_kwargs",
         (
-            (
+            pytest.param(
                 {
                     "max_epochs": 2,
                     "accelerator": "cpu",
                 },
                 {"val_users": [30, 40]},
+                id="cpu_config"
             ),
-            (
+            pytest.param(
                 {
                     "max_epochs": 3,
                     "accelerator": "gpu",
                 },
                 {"val_users": [20, 30]},
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason="GPU is not available"
+                ),
+                id="gpu_config"
             ),
         ),
     )
