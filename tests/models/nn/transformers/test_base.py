@@ -338,8 +338,8 @@ class TestTransformerModelBase:
                 "lightning_module_type": FixSeedLightningModule,
             }
         )
-        model_2.fit_partial(dataset, epochs=2)
-        model_2.fit_partial(dataset, epochs=1)
+        model_2.fit_partial(dataset, min_epochs=2, max_epochs=2)
+        model_2.fit_partial(dataset, min_epochs=1, max_epochs=1)
 
         self._assert_same_reco(model_1, model_2, dataset)
 
@@ -352,7 +352,7 @@ class TestTransformerModelBase:
         fit_partial_model = model_cls.from_config(
             {"data_preparator_kwargs": {"shuffle_train": False}, "get_trainer_func": custom_trainer_ckpt}
         )
-        fit_partial_model.fit_partial(dataset, epochs=1)
+        fit_partial_model.fit_partial(dataset, min_epochs=1, max_epochs=1)
 
         assert fit_partial_model.fit_trainer is not None
         if fit_partial_model.fit_trainer.log_dir is None:
@@ -364,10 +364,10 @@ class TestTransformerModelBase:
         seed_everything(32, workers=True)
         fit_partial_model.fit_trainer = deepcopy(fit_partial_model._trainer)  # pylint: disable=protected-access
         fit_partial_model.lightning_model.optimizer = None
-        fit_partial_model.fit_partial(dataset, epochs=1)
+        fit_partial_model.fit_partial(dataset, min_epochs=1, max_epochs=1)
 
         seed_everything(32, workers=True)
-        recovered_fit_partial_model.fit_partial(dataset, epochs=1)
+        recovered_fit_partial_model.fit_partial(dataset, min_epochs=1, max_epochs=1)
 
         self._assert_same_reco(fit_partial_model, recovered_fit_partial_model, dataset)
 
