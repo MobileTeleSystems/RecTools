@@ -22,7 +22,6 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 import torch
 import typing_extensions as tpe
-from flatten_dict import flatten, unflatten
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 
@@ -30,7 +29,7 @@ from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.types import InternalIdsArray
-from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
 
 from ..item_net import (
     CatFeaturesItemNet,
@@ -605,8 +604,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def load_from_checkpoint(
         cls,
         checkpoint_path: tp.Union[str, Path],
-        map_location: tp.Union[str, torch.device, None] = None,
-        config_update: tp.Dict[str, tp.Any] = {},
+        map_location: tp.Optional[tp.Union[str, torch.device]] = None,
+        model_params_update: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ) -> tpe.Self:
         """Load model from Lightning checkpoint path.
 
@@ -614,22 +613,24 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         ----------
         checkpoint_path: Union[str, Path]
             Path to checkpoint location.
-        map_location: Union[str, torch.device, None], default None
+        map_location: Union[str, torch.device], optional
             Target device to load the checkpoint (e.g., 'cpu', 'cuda:0').
             If None, will use the device the checkpoint was saved on.
-        config_update: tp.Dict[str, tp.Any], default '{}'
-            Contains custom values for checkpoint['hyper_parameters'].
-            Config_update has to be flattened with 'dot' reducer, before passed.
-
+        model_params_update: Dict[str, tp.Any], optional
+            Contains custom values for checkpoint['hyper_parameters']['model_config'].
+            Has to be flattened with 'dot' reducer, before passed.
+            You can use this argument to remove training-specific parameters that are not needed anymore.
+             e.g. 'get_trainer_func'
         Returns
         -------
         Model instance.
         """
         checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
-        prev_config = checkpoint["hyper_parameters"]
-        prev_config_flatten = flatten(prev_config, reducer="dot")
-        prev_config_flatten.update(config_update)
-        checkpoint["hyper_parameters"] = unflatten(prev_config_flatten, splitter="dot")
+        prev_model_config = checkpoint["hyper_parameters"]["model_config"]
+        if model_params_update:
+            prev_config_flatten = make_dict_flat(prev_model_config)
+            prev_config_flatten.update(model_params_update)
+            checkpoint["hyper_parameters"]["model_config"] = unflatten_dict(prev_config_flatten)
         loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
 
