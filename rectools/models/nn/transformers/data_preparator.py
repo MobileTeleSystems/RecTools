@@ -31,6 +31,8 @@ from rectools.dataset.identifiers import IdMap
 from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
+InitKwargs = tp.Dict[str, tp.Any]
+
 
 class SequenceDataset(TorchDataset):
     """
@@ -84,6 +86,9 @@ class SequenceDataset(TorchDataset):
         return cls(sessions=sessions, weights=weights)
 
 
+# pylint: disable=too-many-instance-attributes
+
+
 class TransformerDataPreparatorBase:
     """
     Base class for data preparator. To change train/recommend dataset processing, train/recommend dataloaders inherit
@@ -109,6 +114,9 @@ class TransformerDataPreparatorBase:
         Number of negatives for BCE, gBCE and sampled_softmax losses.
     negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
         Negative sampler.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -127,6 +135,7 @@ class TransformerDataPreparatorBase:
         get_val_mask_func: tp.Optional[tp.Callable] = None,
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -141,6 +150,7 @@ class TransformerDataPreparatorBase:
         self.train_min_user_interactions = train_min_user_interactions
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
+        self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -149,6 +159,13 @@ class TransformerDataPreparatorBase:
     def get_known_item_ids(self) -> np.ndarray:
         """Return external item ids from processed dataset in sorted order."""
         return self.item_id_map.get_external_sorted_by_internal()[self.n_item_extra_tokens :]
+
+    @staticmethod
+    def _get_kwargs(actual_kwargs: tp.Optional[InitKwargs]) -> InitKwargs:
+        kwargs = {}
+        if actual_kwargs is not None:
+            kwargs = actual_kwargs
+        return kwargs
 
     @property
     def n_item_extra_tokens(self) -> int:
@@ -194,7 +211,7 @@ class TransformerDataPreparatorBase:
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
         if self.get_val_mask_func is not None:
-            val_mask = self.get_val_mask_func(raw_interactions)
+            val_mask = self.get_val_mask_func(raw_interactions, **self._get_kwargs(self.get_val_mask_func_kwargs))
             interactions = raw_interactions[~val_mask]
             interactions.reset_index(drop=True, inplace=True)
 
