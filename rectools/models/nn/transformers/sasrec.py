@@ -73,6 +73,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         Negative sampler.
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
     """
 
     train_session_max_len_addition: int = 1
@@ -382,8 +383,10 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         you can manually assign new value to model `recommend_torch_device` attribute.
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
     get_trainer_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_trainer_func.
+        Make sure all dict values have JSON serializable types.
     data_preparator_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `data_preparator_type` initialization.
         Make sure all dict values have JSON serializable types.

@@ -116,6 +116,7 @@ class TransformerDataPreparatorBase:
         Negative sampler.
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len

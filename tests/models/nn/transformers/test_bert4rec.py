@@ -15,14 +15,12 @@
 # pylint: disable=too-many-lines
 import typing as tp
 from functools import partial
-from typing import TypedDict
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
-from typing_extensions import Unpack
 
 from rectools import ExternalIds
 from rectools.columns import Columns
@@ -49,9 +47,6 @@ from tests.models.utils import (
 from .utils import custom_trainer, leave_one_out_mask
 
 
-class KwargsSpec(TypedDict):
-    max_epochs: int
-    accelerator: str
 
 
 class TestBERT4RecModel:
@@ -125,10 +120,7 @@ class TestBERT4RecModel:
 
     @pytest.fixture
     def get_custom_trainer_func(self) -> TrainerCallable:
-        def get_trainer_func(**kwargs: Unpack[KwargsSpec]) -> Trainer:
-            # internal logic for kwargs
-            max_epochs = kwargs["max_epochs"]
-            accelerator = kwargs["accelerator"]
+        def get_trainer_func(max_epochs: int,  accelerator: str) -> Trainer:
             return Trainer(
                 max_epochs=max_epochs,
                 min_epochs=2,
@@ -142,8 +134,7 @@ class TestBERT4RecModel:
 
     @pytest.fixture
     def get_custom_val_mask_func(self) -> ValMaskCallable:
-        def get_val_mask_func(interactions: pd.DataFrame, **kwargs: InitKwargs) -> np.ndarray:
-            val_users = kwargs["val_users"]
+        def get_val_mask_func(interactions: pd.DataFrame, val_users: tp.List[int]) -> np.ndarray:
             rank = (
                 interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
                 .groupby(Columns.User, sort=False)
