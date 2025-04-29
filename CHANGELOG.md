@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Uncommited
+
+### Added 
+- `map_location` and `config_update` params for the function `load_from_checkpoint`. Use `map_location` to explicitly specify the computing device and `config_update` in flattened form to update config
+
+
 ## [0.13.0] - 10.04.2025
 
 ### Added 
