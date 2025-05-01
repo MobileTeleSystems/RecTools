@@ -33,6 +33,9 @@ from rectools.models.nn.transformers.base import (
     TransformerLightningModule,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
+from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
+from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
+from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -212,6 +215,7 @@ class TestBERT4RecModel:
             ),
         ),
     )
+    @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
     def test_u2i(
         self,
         dataset_devices: Dataset,
@@ -223,6 +227,7 @@ class TestBERT4RecModel:
         expected_cpu_2: pd.DataFrame,
         expected_gpu_1: pd.DataFrame,
         expected_gpu_2: pd.DataFrame,
+        u2i_dist: str,
     ) -> None:
         if n_devices != 1:
             pytest.skip("DEBUG: skipping multi-device tests")
@@ -249,6 +254,8 @@ class TestBERT4RecModel:
             recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -290,14 +297,26 @@ class TestBERT4RecModel:
                     }
                 ),
             ),
+            (
+                "sampled_softmax",
+                pd.DataFrame(
+                    {
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 12, 13],
+                        Columns.Rank: [1, 1, 2],
+                    }
+                ),
+            ),
         ),
     )
+    @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
     def test_u2i_losses(
         self,
         dataset_devices: Dataset,
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        u2i_dist: str,
     ) -> None:
         model = BERT4RecModel(
             n_negatives=2,
@@ -313,6 +332,8 @@ class TestBERT4RecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -366,6 +387,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -440,6 +462,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         target_items = np.array([12, 14, 17])
@@ -466,6 +489,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=custom_trainer,
+            similarity_module_type=DistanceSimilarityModule,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -508,6 +532,7 @@ class TestBERT4RecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
         users = np.array([20])
@@ -528,11 +553,12 @@ class TestBERT4RecModel:
             def __init__(
                 self,
                 session_max_len: int,
-                n_negatives: tp.Optional[int],
+                n_negatives: int,
                 batch_size: int,
                 dataloader_num_workers: int,
                 train_min_user_interactions: int,
                 mask_prob: float = 0.15,
+                negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
                 shuffle_train: bool = True,
                 get_val_mask_func: tp.Optional[ValMaskCallable] = None,
                 n_last_targets: int = 1,  # custom kwarg
@@ -543,6 +569,7 @@ class TestBERT4RecModel:
                     batch_size=batch_size,
                     dataloader_num_workers=dataloader_num_workers,
                     train_min_user_interactions=train_min_user_interactions,
+                    negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
                     get_val_mask_func=get_val_mask_func,
                     mask_prob=mask_prob,
@@ -563,13 +590,10 @@ class TestBERT4RecModel:
                     x[i, -len(ses) :] = ses
                     x[i, -self.n_last_targets] = self.extra_token_ids[MASKING_VALUE]  # Replace last tokens with "MASK"
                 batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-                if self.n_negatives is not None:
-                    negatives = torch.randint(
-                        low=self.n_item_extra_tokens,
-                        high=self.item_id_map.size,
-                        size=(batch_size, self.session_max_len, self.n_negatives),
+                if self.negative_sampler is not None:
+                    batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                        batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
                     )
-                    batch_dict["negatives"] = negatives
                 return batch_dict
 
         model = BERT4RecModel(
@@ -585,6 +609,7 @@ class TestBERT4RecModel:
             get_trainer_func=get_trainer_func,
             data_preparator_type=NextActionDataPreparator,
             data_preparator_kwargs={"n_last_targets": 1},
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
 
@@ -829,6 +854,9 @@ class TestBERT4RecModelConfiguration:
             "transformer_layers_type": PreLNTransformerLayers,
             "data_preparator_type": BERT4RecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
+            "negative_sampler_type": CatalogUniformSampler,
+            "similarity_module_type": DistanceSimilarityModule,
+            "backbone_type": TransformerTorchBackbone,
             "mask_prob": 0.15,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
@@ -837,6 +865,9 @@ class TestBERT4RecModelConfiguration:
             "item_net_constructor_kwargs": None,
             "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
+            "negative_sampler_kwargs": None,
+            "similarity_module_kwargs": None,
+            "backbone_kwargs": None,
         }
         return config
 
@@ -875,7 +906,10 @@ class TestBERT4RecModelConfiguration:
                 "transformer_layers_type": "rectools.models.nn.transformers.net_blocks.PreLNTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.transformers.bert4rec.BERT4RecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
+                "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
                 "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
+                "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
