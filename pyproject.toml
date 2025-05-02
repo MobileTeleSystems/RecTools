@@ -100,6 +100,10 @@ cupy-cuda12x = [
     {version = "^13.3.0", python = "<3.13", optional = true},
     {version = "^13.4.0", python = ">=3.13", optional = true},
 ]
+# This is a dependency of cupy-cuda12x
+# poetry can't resolve appropriate version of fastrlock for Python 3.13
+# and cupy-cuda12x, so we add the version restriction here manually to avoid
+# installing older version of fastrlock which is incompatible with Python 3.13
 fastrlock = {version = "^0.8.3", optional = true}
 
 [tool.poetry.extras]
