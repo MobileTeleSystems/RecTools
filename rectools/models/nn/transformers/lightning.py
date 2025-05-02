@@ -193,7 +193,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         return loss
 
     def _calc_gbce_loss(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
+        n_actual_items = tp.cast(int, self.torch_model.item_model.n_items) - len(self.item_extra_tokens)
         logits = self._get_reduced_overconfidence_logits(logits, n_actual_items)
         loss = self._calc_bce_loss(logits, y, w)
         return loss

@@ -7,19 +7,15 @@ build:
   jobs:
     pre_build:
       - cp -r examples docs/source/
+    post_create_environment:
+      - pip install poetry
     post_install:
-      - pip install --no-cache-dir poetry==1.8.5
-      - poetry export -f requirements.txt -o requirements.txt -E all --without-hashes
-      - pip install --no-cache-dir -r requirements.txt
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install -E all --no-root --with docs
 
 sphinx:
   builder: html
   configuration: docs/source/conf.py
   fail_on_warning: false
-
-python:
-   install:
-   - requirements: docs/requirements.txt
 
 formats:
   - pdf
