@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Python 3.13 support ([#227](https://github.com/MobileTeleSystems/RecTools/pull/227))
 - `fit_partial` implementation for transformer-based models ([#273](https://github.com/MobileTeleSystems/RecTools/pull/273))
 
 ## [0.13.0] - 10.04.2025
