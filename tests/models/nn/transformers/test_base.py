@@ -152,7 +152,17 @@ class TestTransformerModelBase:
 
     @pytest.mark.parametrize("test_dataset", ("dataset", "dataset_item_features"))
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
-    @pytest.mark.parametrize("map_location", ("cpu", torch.device("cuda:0"), None))
+    @pytest.mark.parametrize(
+        "map_location",
+        (
+            "cpu",
+            pytest.param(
+                "cuda:0",
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+            ),
+            None,
+        ),
+    )
     @pytest.mark.parametrize(
         "model_params_update",
         (
@@ -164,15 +174,15 @@ class TestTransformerModelBase:
                 "get_val_mask_func": None,
                 "get_trainer_func": None,
             },
-            None
+            None,
         ),
     )
     def test_load_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
         test_dataset: str,
-        map_location: tp.Union[str, torch.device, None],
-        model_params_update: tp.Dict[str, tp.Any],
+        map_location: tp.Optional[tp.Union[str, torch.device]],
+        model_params_update: tp.Optional[tp.Dict[str, tp.Any]],
         request: FixtureRequest,
     ) -> None:
 
