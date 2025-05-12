@@ -47,8 +47,6 @@ from tests.models.utils import (
 from .utils import custom_trainer, leave_one_out_mask
 
 
-
-
 class TestBERT4RecModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -120,7 +118,7 @@ class TestBERT4RecModel:
 
     @pytest.fixture
     def get_custom_trainer_func(self) -> TrainerCallable:
-        def get_trainer_func(max_epochs: int,  accelerator: str) -> Trainer:
+        def get_trainer_func(max_epochs: int, accelerator: str) -> Trainer:
             return Trainer(
                 max_epochs=max_epochs,
                 min_epochs=2,
@@ -589,7 +587,7 @@ class TestBERT4RecModel:
                     "accelerator": "cpu",
                 },
                 {"val_users": [30, 40]},
-                id="cpu_config"
+                id="cpu_config",
             ),
             pytest.param(
                 {
@@ -597,11 +595,8 @@ class TestBERT4RecModel:
                     "accelerator": "gpu",
                 },
                 {"val_users": [20, 30]},
-                marks=pytest.mark.skipif(
-                    not torch.cuda.is_available(),
-                    reason="GPU is not available"
-                ),
-                id="gpu_config"
+                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available"),
+                id="gpu_config",
             ),
         ),
     )
@@ -913,8 +908,7 @@ class TestBERT4RecDataPreparator:
         val_users: tp.List,
     ) -> None:
 
-        def get_custom_val_mask_func(interactions: pd.DataFrame, **kwargs: tp.Dict[str, tp.List]) -> np.ndarray:
-            val_users = kwargs.get("val_users")
+        def get_custom_val_mask_func(interactions: pd.DataFrame, val_users: tp.List[int]) -> np.ndarray:
             rank = (
                 interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
                 .groupby(Columns.User, sort=False)

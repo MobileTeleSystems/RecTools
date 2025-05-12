@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Uncommited
 
 ### Added 
-- `get_val_mask_func_kwargs` and  `get_trainer_func_kwargs` kwargs for corresponding functions 
+- `get_val_mask_func_kwargs` and  `get_trainer_func_kwargs` arguments for Transformer-based models to allow keyword arguments in custom functions used for model training.
 
 
 ## [0.13.0] - 10.04.2025
