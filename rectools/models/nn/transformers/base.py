@@ -507,9 +507,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
-        self.lightning_model.train()
-        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + min_epochs
-        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + max_epochs
+        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + max_epochs
+        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + min_epochs
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _recommend_u2i(
