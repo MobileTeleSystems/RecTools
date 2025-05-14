@@ -626,8 +626,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         Model instance.
         """
         checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
-        prev_model_config = checkpoint["hyper_parameters"]["model_config"]
         if model_params_update:
+            prev_model_config = checkpoint["hyper_parameters"]["model_config"]
             prev_config_flatten = make_dict_flat(prev_model_config)
             prev_config_flatten.update(model_params_update)
             checkpoint["hyper_parameters"]["model_config"] = unflatten_dict(prev_config_flatten)
