@@ -154,10 +154,37 @@ class TestTransformerModelBase:
 
     @pytest.mark.parametrize("test_dataset", ("dataset", "dataset_item_features"))
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    @pytest.mark.parametrize(
+        "map_location",
+        (
+            "cpu",
+            pytest.param(
+                "cuda:0",
+                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
+            ),
+            None,
+        ),
+    )
+    @pytest.mark.parametrize(
+        "model_params_update",
+        (
+            {
+                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "get_trainer_func": "tests.models.nn.transformers.utils.custom_trainer",
+            },
+            {
+                "get_val_mask_func": None,
+                "get_trainer_func": None,
+            },
+            None,
+        ),
+    )
     def test_load_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
         test_dataset: str,
+        map_location: tp.Optional[tp.Union[str, torch.device]],
+        model_params_update: tp.Optional[tp.Dict[str, tp.Any]],
         request: FixtureRequest,
     ) -> None:
 
@@ -175,7 +202,9 @@ class TestTransformerModelBase:
             raise ValueError("No log dir")
         ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
         assert os.path.isfile(ckpt_path)
-        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
+        recovered_model = model_cls.load_from_checkpoint(
+            ckpt_path, map_location=map_location, model_params_update=model_params_update
+        )
         assert isinstance(recovered_model, model_cls)
 
         self._assert_same_reco(model, recovered_model, dataset)

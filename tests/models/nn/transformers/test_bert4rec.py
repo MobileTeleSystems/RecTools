@@ -451,6 +451,7 @@ class TestBERT4RecModel:
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
     ) -> None:
+
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
