@@ -29,7 +29,7 @@ from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.types import InternalIdsArray
-from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
 
 from ..item_net import (
     CatFeaturesItemNet,
@@ -359,7 +359,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
-            shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
 
@@ -462,14 +461,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             **self._get_kwargs(self.lightning_module_kwargs),
         )
 
-    def _fit(
-        self,
-        dataset: Dataset,
-    ) -> None:
+    def _build_model_from_dataset(self, dataset: Dataset) -> None:
         self.data_preparator.process_dataset_train(dataset)
-        train_dataloader = self.data_preparator.get_dataloader_train()
-        val_dataloader = self.data_preparator.get_dataloader_val()
-
         item_model = self._construct_item_net(self.data_preparator.train_dataset)
         torch_model = self._init_torch_model(item_model)
 
@@ -483,6 +476,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             model_config=model_config,
         )
 
+    def _fit(
+        self,
+        dataset: Dataset,
+    ) -> None:
+        self._build_model_from_dataset(dataset)
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
@@ -495,6 +495,27 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
+
+    def _fit_partial(
+        self,
+        dataset: Dataset,
+        min_epochs: int,
+        max_epochs: int,
+    ) -> None:
+        if not self.is_fitted:
+            self._build_model_from_dataset(dataset)
+            self.fit_trainer = deepcopy(self._trainer)
+        elif self.fit_trainer is None:
+            self.data_preparator.process_dataset_train(dataset)
+            self.fit_trainer = deepcopy(self._trainer)
+
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
+
+        self.lightning_model.train()
+        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + max_epochs
+        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + min_epochs
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _recommend_u2i(
         self,
@@ -575,6 +596,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             item_external_ids=item_external_ids,
             model_config=model_config,
         )
+        loaded.lightning_model.is_fitted = True
         loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
         return loaded
@@ -606,20 +628,36 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.__dict__.update(loaded.__dict__)
 
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
-        """
-        Load model from Lightning checkpoint path.
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: tp.Union[str, Path],
+        map_location: tp.Optional[tp.Union[str, torch.device]] = None,
+        model_params_update: tp.Optional[tp.Dict[str, tp.Any]] = None,
+    ) -> tpe.Self:
+        """Load model from Lightning checkpoint path.
 
         Parameters
         ----------
         checkpoint_path: Union[str, Path]
             Path to checkpoint location.
-
+        map_location: Union[str, torch.device], optional
+            Target device to load the checkpoint (e.g., 'cpu', 'cuda:0').
+            If None, will use the device the checkpoint was saved on.
+        model_params_update: Dict[str, tp.Any], optional
+            Contains custom values for checkpoint['hyper_parameters']['model_config'].
+            Has to be flattened with 'dot' reducer, before passed.
+            You can use this argument to remove training-specific parameters that are not needed anymore.
+             e.g. 'get_trainer_func'
         Returns
         -------
         Model instance.
         """
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+        if model_params_update:
+            prev_model_config = checkpoint["hyper_parameters"]["model_config"]
+            prev_config_flatten = make_dict_flat(prev_model_config)
+            prev_config_flatten.update(model_params_update)
+            checkpoint["hyper_parameters"]["model_config"] = unflatten_dict(prev_config_flatten)
         loaded = cls._model_from_checkpoint(checkpoint)
         return loaded
 

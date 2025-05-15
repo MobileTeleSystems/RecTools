@@ -481,6 +481,7 @@ class TestBERT4RecModel:
         whitelist: tp.Optional[np.ndarray],
         expected: pd.DataFrame,
     ) -> None:
+
         model = BERT4RecModel(
             n_factors=32,
             n_blocks=2,
@@ -762,7 +763,6 @@ class TestBERT4RecDataPreparator:
             batch_size=4,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
-            shuffle_train=True,
             mask_prob=0.5,
         )
 
@@ -833,7 +833,6 @@ class TestBERT4RecDataPreparator:
             batch_size=14,
             dataloader_num_workers=0,
             train_min_user_interactions=2,
-            shuffle_train=True,
             mask_prob=0.5,
         )
         data_preparator.process_dataset_train(dataset_one_session)

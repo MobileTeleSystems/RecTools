@@ -88,8 +88,8 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         train_min_user_interactions: int,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         mask_prob: float = 0.15,
-        shuffle_train: bool = True,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
+        shuffle_train: bool = True,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
@@ -448,6 +448,5 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
-            shuffle_train=True,
             **self._get_kwargs(self.data_preparator_kwargs),
         )

@@ -102,6 +102,8 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.verbose = verbose
         self.train_loss_name = train_loss_name
         self.val_loss_name = val_loss_name
+        self.is_fitted = False
+        self.optimizer: tp.Optional[torch.optim.Adam] = None
         self.item_embs: torch.Tensor
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
@@ -193,7 +195,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         return loss
 
     def _calc_gbce_loss(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        n_actual_items = self.torch_model.item_model.n_items - len(self.item_extra_tokens)
+        n_actual_items = tp.cast(int, self.torch_model.item_model.n_items) - len(self.item_extra_tokens)
         logits = self._get_reduced_overconfidence_logits(logits, n_actual_items)
         loss = self._calc_bce_loss(logits, y, w)
         return loss
@@ -207,8 +209,9 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
-        optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        return optimizer
+        if self.optimizer is None:
+            self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
+        return self.optimizer
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
@@ -286,7 +289,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
     def on_train_start(self) -> None:
         """Initialize parameters with values from Xavier normal distribution."""
-        self._xavier_normal_init()
+        if not self.is_fitted:
+            self._xavier_normal_init()
 
     def get_batch_logits(self, batch: tp.Dict[str, torch.Tensor]) -> torch.Tensor:
         """Get bacth logits."""
@@ -309,6 +313,10 @@ class TransformerLightningModule(TransformerLightningModuleBase):
 
         self.log(self.train_loss_name, loss, on_step=False, on_epoch=True, prog_bar=self.verbose > 0)
         return loss
+
+    def on_train_end(self) -> None:
+        """Save fitted state."""
+        self.is_fitted = True
 
     def _calc_custom_loss(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         raise ValueError(f"loss {self.loss} is not supported")
