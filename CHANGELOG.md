@@ -11,12 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python 3.13 support ([#227](https://github.com/MobileTeleSystems/RecTools/pull/227))
 - `fit_partial` implementation for transformer-based models ([#273](https://github.com/MobileTeleSystems/RecTools/pull/273))
 - `map_location` and `model_params_update` arguments for the function `load_from_checkpoint` for Transformer-based models. Use `map_location` to explicitly specify the computing new device and `model_params_update` to update original model parameters (e.g. remove training-specific parameters that are not needed anymore) ([#281](https://github.com/MobileTeleSystems/RecTools/pull/281))
-
-## [Unreleased]
-
-### Added
-
-- `get_val_mask_func_kwargs` and  `get_trainer_func_kwargs` arguments for Transformer-based models to allow keyword arguments in custom functions used for model training.
+- `get_val_mask_func_kwargs` and  `get_trainer_func_kwargs` arguments for Transformer-based models to allow keyword arguments in custom functions used for model training. ([#280](https://github.com/MobileTeleSystems/RecTools/pull/280))
 
 ## [0.13.0] - 10.04.2025
 
