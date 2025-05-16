@@ -27,7 +27,6 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
-    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLayersType,
@@ -37,7 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -72,6 +71,9 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         Number of negatives for BCE, gBCE and sampled_softmax losses.
     negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
         Negative sampler.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
     """
 
     train_session_max_len_addition: int = 1
@@ -379,6 +381,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_torch_device` attribute.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
+    get_trainer_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_trainer_func.
+        Make sure all dict values have JSON serializable types.
     data_preparator_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `data_preparator_type` initialization.
         Make sure all dict values have JSON serializable types.
@@ -438,6 +446,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
@@ -485,6 +495,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+            get_trainer_func_kwargs=get_trainer_func_kwargs,
             data_preparator_kwargs=data_preparator_kwargs,
             transformer_layers_kwargs=transformer_layers_kwargs,
             item_net_constructor_kwargs=item_net_constructor_kwargs,

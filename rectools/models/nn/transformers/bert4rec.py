@@ -27,7 +27,6 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
-    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLightningModule,
@@ -37,7 +36,7 @@ from .base import (
     ValMaskCallable,
 )
 from .constants import MASKING_VALUE, PADDING_VALUE
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -72,6 +71,9 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         Negative sampler.
     mask_prob : float, default 0.15
         Probability of masking an item in interactions sequence.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
     """
 
     train_session_max_len_addition: int = 0
@@ -88,6 +90,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         mask_prob: float = 0.15,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         shuffle_train: bool = True,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -99,6 +102,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             train_min_user_interactions=train_min_user_interactions,
             shuffle_train=shuffle_train,
             get_val_mask_func=get_val_mask_func,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
         )
         self.mask_prob = mask_prob
 
@@ -301,6 +305,12 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_torch_device` attribute.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
+    get_trainer_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_trainer_func.
+        Make sure all dict values have JSON serializable types.
     data_preparator_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `data_preparator_type` initialization.
         Make sure all dict values have JSON serializable types.
@@ -361,6 +371,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
@@ -411,6 +423,8 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+            get_trainer_func_kwargs=get_trainer_func_kwargs,
             data_preparator_kwargs=data_preparator_kwargs,
             transformer_layers_kwargs=transformer_layers_kwargs,
             item_net_block_kwargs=item_net_block_kwargs,
@@ -433,5 +447,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             train_min_user_interactions=self.train_min_user_interactions,
             mask_prob=self.mask_prob,
             get_val_mask_func=self.get_val_mask_func,
+            get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
