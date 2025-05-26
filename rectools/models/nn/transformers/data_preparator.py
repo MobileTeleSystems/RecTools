@@ -19,6 +19,7 @@ from collections.abc import Hashable
 import numpy as np
 import pandas as pd
 import torch
+from joblib.testing import param
 from scipy import sparse
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
@@ -32,7 +33,7 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
-
+PayloadsSpec = tp.Dict[str, tp.List[tp.Any]]
 
 class SequenceDataset(TorchDataset):
     """
@@ -46,9 +47,12 @@ class SequenceDataset(TorchDataset):
         Weight of each interaction from the session.
     """
 
-    def __init__(self, sessions: tp.List[tp.List[int]], weights: tp.List[tp.List[float]]):
+    def __init__(self, sessions: tp.List[tp.List[int]],
+                 weights: tp.List[tp.List[float]],
+                 payloads: tp.Optional[PayloadsSpec] = None):
         self.sessions = sessions
         self.weights = weights
+        self.payloads = payloads
 
     def __len__(self) -> int:
         return len(self.sessions)
@@ -56,6 +60,12 @@ class SequenceDataset(TorchDataset):
     def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float]]:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
+        if self.payloads:
+            payloads = {
+                feature_name : features[index]
+                for features, feature_name  in self.payloads.items()
+            }
+            return session, weights, payloads
         return session, weights
 
     @classmethod
@@ -63,6 +73,7 @@ class SequenceDataset(TorchDataset):
         cls,
         interactions: pd.DataFrame,
         sort_users: bool = False,
+        extra_cols: tp.Optional[tp.List[str]] = None,
     ) -> "SequenceDataset":
         """
         Group interactions by user.
@@ -73,17 +84,27 @@ class SequenceDataset(TorchDataset):
         interactions : pd.DataFrame
             User-item interactions.
         """
+        cols_to_agg = [col for col in interactions.columns if col != Columns.User]
+
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User, sort=sort_users)[[Columns.Item, Columns.Weight]]
+            .groupby(Columns.User, sort=sort_users)[cols_to_agg]
             .agg(list)
         )
-        sessions, weights = (
+
+        sessions_items, weights = (
             sessions[Columns.Item].to_list(),
             sessions[Columns.Weight].to_list(),
         )
 
-        return cls(sessions=sessions, weights=weights)
+        if extra_cols:
+            payloads = {
+                col: sessions[col].to_list()
+                for col in extra_cols
+            }
+            return cls(sessions=sessions_items, weights=weights, payloads=payloads)
+
+        return cls(sessions=sessions_items, weights=weights)
 
 
 class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attributes
@@ -133,6 +154,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        extra_cols_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -148,6 +170,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
+        self.extra_cols_kwargs = extra_cols_kwargs
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -261,7 +284,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
-        sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df)
+        sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
         train_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_train,
