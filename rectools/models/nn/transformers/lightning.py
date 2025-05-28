@@ -206,11 +206,12 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         target = (y != 0).long()
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
-
+    #TODO Simple change
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
         if self.optimizer is None:
             self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
+        #self.optimizer = torch.optim.AdamW(self.torch_model.parameters(), weight_decay=0, lr=self.lr, betas=self.adam_betas)
         return self.optimizer
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:

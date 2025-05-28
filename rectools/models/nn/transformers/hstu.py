@@ -13,12 +13,13 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import nn
-
+import math
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -45,13 +46,14 @@ from .net_blocks import (
     TransformerLayersBase,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
-from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
+from .torch_backbone import HSTUTorchBackbone, TransformerBackboneBase
 
 from rectools import Columns
 
-class SASRecDataPreparator(TransformerDataPreparatorBase):
-    """Data preparator for SASRecModel.
 
+class HSTUDataPreparator(TransformerDataPreparatorBase):
+    """Data preparator for SASRecModel.
+    TODO
     Parameters
     ----------
     session_max_len : int
@@ -79,9 +81,13 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
 
     train_session_max_len_addition: int = 1
 
+    def datetime64_to_unixtime(self,dt_list: list) -> list:
+        epoch = np.datetime64("1970-01-01T00:00:00")
+        return [int((dt - epoch) / np.timedelta64(1, "s")) for dt in dt_list]
+
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
+        batch: List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep `session_max_len` items.
@@ -90,37 +96,52 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
+        t = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        payloads_train = {}
+        for i, (ses, ses_weights, payloads) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+            t[i, -len(ses) + 1:] = self.datetime64_to_unixtime(payloads[Columns.Datetime])[:-1]
+            len_to_pad = self.session_max_len-len(ses) +1
+            if len_to_pad > 0:
+                pad_time = self.datetime64_to_unixtime(payloads[Columns.Datetime])[0]
+                t[i, :len_to_pad] = torch.tensor(pad_time).broadcast_to(len_to_pad)
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        payloads_train.update({Columns.Datetime:torch.LongTensor(t)})
+        batch_dict = {"x": torch.LongTensor(x),"payloads": payloads_train , "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
             )
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
+        t = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights) in enumerate(batch):
+        payloads_val = {}
+        for i, (ses, ses_weights, payloads) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
-
+            input_timestamps = [payloads[Columns.Datetime][idx] for idx, weight in enumerate(ses_weights) if weight == 0]
+            input_timestamps = self.datetime64_to_unixtime(input_timestamps)
             # take only first target for leave-one-strategy
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
-
+            pad_time = input_timestamps[0]
+            t[i, -len(input_timestamps) :] = input_timestamps[-self.session_max_len :]
+            len_to_pad = self.session_max_len-len(input_timestamps)
+            if len_to_pad > 0:
+                pad_time = self.datetime64_to_unixtime(payloads[Columns.Datetime])[0]
+                t[i, :len_to_pad] = torch.tensor(pad_time).broadcast_to(len_to_pad)
             # ses: [session_len] -> x[i]: [session_max_len]
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        payloads_val.update({Columns.Datetime: torch.LongTensor(t)})
+        batch_dict = {"x": torch.LongTensor(x),"payloads": payloads_val, "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
@@ -134,9 +155,73 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
         return {"x": torch.LongTensor(x)}
 
-class SASRecTransformerLayer(nn.Module):
+class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
     """
-    Exactly SASRec author's transformer block architecture but with pytorch Multi-Head Attention realisation.
+    Bucketizes timespans based on ts(next-item) - ts(current-item).
+    """
+
+    def __init__(
+        self,
+        max_seq_len: int,
+        num_buckets: int,
+        bucketization_fn: Callable[[torch.Tensor], torch.Tensor],
+    ) -> None:
+        super().__init__()
+
+        self._max_seq_len: int = max_seq_len
+        self._ts_w = torch.nn.Parameter(
+            torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
+        )
+        self._pos_w = torch.nn.Parameter(
+            torch.empty(2 * max_seq_len - 1).normal_(mean=0, std=0.02),
+        )
+        self._num_buckets: int = num_buckets
+        self._bucketization_fn: Callable[[torch.Tensor], torch.Tensor] = (
+            bucketization_fn
+        )
+
+    def forward(
+        self,
+        all_timestamps: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Args:
+            all_timestamps: (B, N).
+        Returns:
+            (B, N, N).
+        """
+        B = all_timestamps.size(0)
+        N = self._max_seq_len
+        t = F.pad(self._pos_w[: 2 * N - 1], [0, N]).repeat(N)
+        t = t[..., :-N].reshape(1, N, 3 * N - 2)
+        r = (2 * N - 1) // 2
+
+
+        #здесь кажется ошибка у них, дата лик
+        #первый токен уже знает о времени второго
+
+            # [B, N + 1] to simplify tensor manipulations.
+        ext_timestamps = torch.cat(
+            [all_timestamps, all_timestamps[:, N - 1 : N]], dim=1
+        )
+        # causal masking. Otherwise [:, :-1] - [:, 1:] works
+        bucketed_timestamps = torch.clamp(
+            self._bucketization_fn(
+                ext_timestamps[:, 1:].unsqueeze(2) - ext_timestamps[:, :-1].unsqueeze(1)
+            ),
+            min=0,
+            max=self._num_buckets,
+        ).detach()
+
+        rel_pos_bias = t[:, :, r:-r]
+        rel_ts_bias = torch.index_select(
+            self._ts_w, dim=0, index=bucketed_timestamps.view(-1)
+        ).view(B, N, N)
+        return rel_pos_bias + rel_ts_bias
+
+class STU(nn.Module):
+    """
+    TODO
 
     Parameters
     ----------
@@ -153,24 +238,61 @@ class SASRecTransformerLayer(nn.Module):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
+        linear_hidden_dim:int,
+        attention_dim: int,
+        attn_dropout_ratio: float,
+        session_max_len: int,
+        epsilon: float = 1e-6,
     ):
         super().__init__()
-        # important: original architecture had another version of MHA
-        self.multi_head_attn = torch.nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True)
-        self.q_layer_norm = nn.LayerNorm(n_factors)
-        self.ff_layer_norm = nn.LayerNorm(n_factors)
-        self.feed_forward = PointWiseFeedForward(n_factors, n_factors, dropout_rate, torch.nn.ReLU())
-        self.dropout = torch.nn.Dropout(dropout_rate)
+        self._rel_attn_bias = RelativeBucketedTimeAndPositionBasedBias(
+                            max_seq_len=session_max_len,
+                            num_buckets=128,
+                            bucketization_fn=lambda x: (
+                                torch.log(torch.abs(x).clamp(min=1)) / 0.301
+                            ).long(),
+        )
+        self._embedding_dim: int = n_factors
+        self._num_heads = n_heads
+        self._linear_dim: int = linear_hidden_dim
+        self._attention_dim: int = attention_dim
+        self._dropout_ratio: float = dropout_rate
+        self._attn_dropout_ratio: float = attn_dropout_ratio
+        self._eps: float = epsilon
+        self._uvqk: torch.nn.Parameter = torch.nn.Parameter(
+            torch.empty(
+                (
+                    n_factors,
+                    self._linear_dim * 2 * n_heads
+                    + attention_dim * n_heads * 2,
+                )
+            ).normal_(mean=0, std=0.02),
+        )
+        self._o = torch.nn.Linear(
+            in_features=linear_hidden_dim * n_heads,
+            out_features=self._embedding_dim,
+        )
+        torch.nn.init.xavier_uniform_(self._o.weight)
+
+    def _norm_input(self, x: torch.Tensor) -> torch.Tensor:
+        return F.layer_norm(x, normalized_shape=[self._embedding_dim], eps=self._eps)
+
+    def _norm_attn_output(self, x: torch.Tensor) -> torch.Tensor:
+        return F.layer_norm(
+            x, normalized_shape=[self._linear_dim * self._num_heads], eps=self._eps
+        )
 
     def forward(
         self,
-        seqs: torch.Tensor,
-        attn_mask: tp.Optional[torch.Tensor],
+        x: torch.Tensor,
+        payloads: tp.Optional[Dict[str, torch.Tensor]],
+        attn_mask: torch.Tensor,
+        timeline_mask: torch.Tensor,
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
         Forward pass through transformer block.
-
+        TODO
         Parameters
         ----------
         seqs : torch.Tensor
@@ -186,19 +308,54 @@ class SASRecTransformerLayer(nn.Module):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        q = self.q_layer_norm(seqs)
-        mha_output, _ = self.multi_head_attn(
-            q, seqs, seqs, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False
+        B, N, _ = x.shape
+        normed_x = self._norm_input(x)
+        batched_mm_output = F.silu(torch.matmul(normed_x, self._uvqk)) # optional
+        u, v, q, k = torch.split(
+            batched_mm_output,
+            [
+                self._linear_dim * self._num_heads,
+                self._linear_dim * self._num_heads,
+                self._attention_dim * self._num_heads,
+                self._attention_dim * self._num_heads,
+            ],
+            dim=-1,
         )
-        seqs = q + mha_output
-        ff_input = self.ff_layer_norm(seqs)
-        seqs = self.feed_forward(ff_input)
-        seqs = self.dropout(seqs)
-        seqs += ff_input
-        return seqs
+        qk_attn = torch.einsum(
+            "bnhd,bmhd->bhnm",
+            q.view(B, N, self._num_heads, self._attention_dim),
+            k.view(B, N, self._num_heads, self._attention_dim),
+        )
+        time_line_mask_reducted = timeline_mask.squeeze(-1)
+        time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
+
+        if payloads[Columns.Datetime] is not None:
+            qk_attn = qk_attn + self._rel_attn_bias(payloads[Columns.Datetime]).unsqueeze(1) * time_line_mask_fix.unsqueeze(1)
+        qk_attn = F.silu(qk_attn) / N
+        qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0)
+        attn_output = torch.einsum(
+                "bhnm,bmhd->bnhd",
+                qk_attn,
+                v.reshape(B, N, self._num_heads, self._linear_dim),
+        ).reshape(B, N, self._num_heads * self._linear_dim)
+
+        o_input = u * self._norm_attn_output(attn_output)
+
+        new_outputs = (
+            self._o(
+                F.dropout(
+                    o_input,
+                    p=self._dropout_ratio,
+                    training=self.training,
+                )
+            )
+            + x
+        )
+
+        return new_outputs
 
 
-class SASRecTransformerLayers(TransformerLayersBase):
+class STULayers(TransformerLayersBase):
     """
     SASRec transformer blocks.
 
@@ -220,16 +377,26 @@ class SASRecTransformerLayers(TransformerLayersBase):
         n_factors: int,
         n_heads: int,
         dropout_rate: float,
+        linear_hidden_dim: int,
+        attention_dim: int,
+        attn_dropout_ratio: float,
+        session_max_len: int,
+        epsilon: float = 1e-6,
         **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
-        self.transformer_blocks = nn.ModuleList(
+        self.stu_blocks = nn.ModuleList(
             [
-                SASRecTransformerLayer(
+                STU(
                     n_factors,
                     n_heads,
                     dropout_rate,
+                    linear_hidden_dim,
+                    attention_dim,
+                    attn_dropout_ratio,
+                    session_max_len,
+                    epsilon
                 )
                 for _ in range(self.n_blocks)
             ]
@@ -239,6 +406,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
     def forward(
         self,
         seqs: torch.Tensor,
+        payloads: tp.Optional[Dict[str, torch.Tensor]],
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -265,21 +433,72 @@ class SASRecTransformerLayers(TransformerLayersBase):
         """
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
-            seqs = self.transformer_blocks[i](seqs, attn_mask, key_padding_mask)
+            seqs = self.stu_blocks[i](seqs, payloads, attn_mask, timeline_mask, key_padding_mask)
         seqs *= timeline_mask
-        seqs = self.last_layernorm(seqs)
+        return seqs / torch.clamp(
+            torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
+            min=1e-6,
+        )
         return seqs
 
 
-class SASRecModelConfig(TransformerModelConfig):
+class HSTUModelConfig(TransformerModelConfig):
     """SASRecModel config."""
 
-    data_preparator_type: TransformerDataPreparatorType = SASRecDataPreparator
-    transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
+    data_preparator_type: TransformerDataPreparatorType = HSTUDataPreparator
+    transformer_layers_type: TransformerLayersType = STU
     use_causal_attn: bool = True
 
 
-class SASRecModel(TransformerModelBase[SASRecModelConfig]):
+def truncated_normal(x: torch.Tensor, mean: float, std: float) -> torch.Tensor:
+    with torch.no_grad():
+        size = x.shape
+        tmp = x.new_empty(size + (4,)).normal_()
+        valid = (tmp < 2) & (tmp > -2)
+        ind = valid.max(-1, keepdim=True)[1]
+        x.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+        x.data.mul_(std).add_(mean)
+        return x
+
+class LearnablePositionalEncoding(PositionalEncodingBase):
+    def __init__(
+        self,
+        use_pos_emb: bool,
+        max_sequence_len: int,
+        embedding_dim: int,
+    ) -> None:
+        super().__init__()
+
+        self._embedding_dim: int = embedding_dim
+        self._pos_emb: torch.nn.Embedding = torch.nn.Embedding(
+            max_sequence_len,
+            self._embedding_dim,
+        )
+        #TODO
+        plug_drop_rate = 0.2
+        self._dropout_rate: float = plug_drop_rate
+        self._emb_dropout = torch.nn.Dropout(p=plug_drop_rate)
+        self.reset_state()
+
+
+    def reset_state(self) -> None:
+        truncated_normal(
+            self._pos_emb.weight.data,
+            mean=0.0,
+            std=math.sqrt(1.0 / self._embedding_dim),
+        )
+
+    def forward(self, sessions_embeddings: torch.Tensor) -> torch.Tensor:
+        B, N,D = sessions_embeddings.size()
+        #print("PAST_IDS", past_ids)
+        user_embeddings = sessions_embeddings * (D**0.5) + self._pos_emb(
+            torch.arange(N, device=sessions_embeddings.device).unsqueeze(0).repeat(B, 1)
+        )
+        user_embeddings = self._emb_dropout(user_embeddings)
+
+        return user_embeddings
+
+class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     """
     SASRec model: transformer-based sequential model with unidirectional attention mechanism and
     "Shifted Sequence" training objective.
@@ -413,7 +632,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Make sure all dict values have JSON serializable types.
     """
 
-    config_class = SASRecModelConfig
+    config_class = HSTUModelConfig
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
@@ -437,13 +656,13 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         use_causal_attn: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
-        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
-        data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnablePositionalEncoding,
+        transformer_layers_type: tp.Type[TransformerLayersBase] = STULayers,
+        data_preparator_type: tp.Type[TransformerDataPreparatorBase] = HSTUDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
-        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
+        backbone_type: tp.Type[TransformerBackboneBase] = HSTUTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,

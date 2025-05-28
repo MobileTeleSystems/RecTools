@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
+from typing import Union, Tuple, List, Dict, Any
 import warnings
 from collections.abc import Hashable
 
@@ -34,6 +35,10 @@ from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
 PayloadsSpec = tp.Dict[str, tp.List[tp.Any]]
+BatchElement = Union[
+    Tuple[List[int], List[float]],
+    Tuple[List[int], List[float], Dict[str, List[Any]]]   #с payload
+]
 
 class SequenceDataset(TorchDataset):
     """
@@ -63,7 +68,7 @@ class SequenceDataset(TorchDataset):
         if self.payloads:
             payloads = {
                 feature_name : features[index]
-                for features, feature_name  in self.payloads.items()
+                for  feature_name, features in self.payloads.items()
             }
             return session, weights, payloads
         return session, weights
@@ -171,6 +176,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols_kwargs = extra_cols_kwargs
+        print(extra_cols_kwargs)
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -270,7 +276,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
-
+            print(self.val_interactions)
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
         self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
@@ -284,6 +290,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
+        print(self.extra_cols_kwargs)
         sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
         train_dataloader = DataLoader(
             sequence_dataset,
@@ -306,7 +313,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if self.val_interactions is None:
             return None
 
-        sequence_dataset = SequenceDataset.from_interactions(self.val_interactions)
+        sequence_dataset = SequenceDataset.from_interactions(self.val_interactions,**self._ensure_kwargs_dict(self.extra_cols_kwargs))
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -412,18 +419,18 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def _collate_fn_train(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_val(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
