@@ -417,8 +417,8 @@ class HSTUTorchBackbone(TransformerBackboneBase):
         D = seqs.shape[-1]
         seqs = self.pos_encoding_layer(seqs)
         if self.use_causal_attn:
-            attn_mask = ~torch.tril(
-                torch.ones((session_max_len, session_max_len), dtype=torch.bool, device=sessions.device)
+            attn_mask = torch.tril(
+                torch.ones((session_max_len, session_max_len), dtype=torch.int, device=sessions.device)
             )
         if self.use_key_padding_mask:
             key_padding_mask = sessions == 0

@@ -84,6 +84,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        temperature:  float  = 1,
         **kwargs: tp.Any,
     ):
         super().__init__()
@@ -105,7 +106,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.is_fitted = False
         self.optimizer: tp.Optional[torch.optim.Adam] = None
         self.item_embs: torch.Tensor
-
+        self.temperature = temperature
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
     @staticmethod
@@ -207,11 +208,13 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
     #TODO Simple change
-    def configure_optimizers(self) -> torch.optim.Adam:
+    def configure_optimizers(self) -> torch.optim.AdamW:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
+        for name, param in self.torch_model.named_parameters():
+            print(name, param.shape)
         if self.optimizer is None:
             self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        #self.optimizer = torch.optim.AdamW(self.torch_model.parameters(), weight_decay=0, lr=self.lr, betas=self.adam_betas)
+        self.optimizer = torch.optim.AdamW(self.torch_model.parameters(), weight_decay=0, lr=self.lr, betas=self.adam_betas)
         return self.optimizer
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -298,9 +301,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         if self._requires_negatives:
             y, negatives = batch["y"], batch["negatives"]
             pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
-            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg)
+            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg)/self.temperature
         else:
-            logits = self.torch_model(batch=batch)
+            logits = self.torch_model(batch=batch)/self.temperature
         return logits
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:

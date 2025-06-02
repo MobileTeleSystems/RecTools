@@ -96,21 +96,24 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
-        t = np.zeros((batch_size, self.session_max_len))
+        t = np.zeros((batch_size, self.session_max_len+1))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
         payloads_train = {}
         for i, (ses, ses_weights, payloads) in enumerate(batch):
+            #print(ses)
+            #print(ses_weights)
+            ##print(payloads)
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            t[i, -len(ses) + 1:] = self.datetime64_to_unixtime(payloads[Columns.Datetime])[:-1]
-            len_to_pad = self.session_max_len-len(ses) +1
+            t[i, -len(ses):] = self.datetime64_to_unixtime(payloads[Columns.Datetime])
+            len_to_pad = self.session_max_len-len(ses)
             if len_to_pad > 0:
-                pad_time = self.datetime64_to_unixtime(payloads[Columns.Datetime])[0]
-                t[i, :len_to_pad] = torch.tensor(pad_time).broadcast_to(len_to_pad)
+                t[i, :len_to_pad] = t[i, len_to_pad]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
         payloads_train.update({Columns.Datetime:torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x),"payloads": payloads_train , "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        #print(batch_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
@@ -120,28 +123,29 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
     def _collate_fn_val(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
-        t = np.zeros((batch_size, self.session_max_len))
+        t = np.zeros((batch_size, self.session_max_len+1))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         payloads_val = {}
         for i, (ses, ses_weights, payloads) in enumerate(batch):
+            #print(ses)
+            #print(ses_weights)
+            #print(self.datetime64_to_unixtime(payloads[Columns.Datetime]))
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
-            input_timestamps = [payloads[Columns.Datetime][idx] for idx, weight in enumerate(ses_weights) if weight == 0]
-            input_timestamps = self.datetime64_to_unixtime(input_timestamps)
-            # take only first target for leave-one-strategy
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
-            pad_time = input_timestamps[0]
-            t[i, -len(input_timestamps) :] = input_timestamps[-self.session_max_len :]
-            len_to_pad = self.session_max_len-len(input_timestamps)
+            #print(self.datetime64_to_unixtime(payloads[Columns.Datetime]))
+            #print(t[i, -len(ses):])
+            t[i, -len(ses)+1:] = self.datetime64_to_unixtime(payloads[Columns.Datetime])[1:]
+            len_to_pad = self.session_max_len-len(ses)
             if len_to_pad > 0:
-                pad_time = self.datetime64_to_unixtime(payloads[Columns.Datetime])[0]
-                t[i, :len_to_pad] = torch.tensor(pad_time).broadcast_to(len_to_pad)
+                t[i, :len_to_pad] = t[i, len_to_pad]
             # ses: [session_len] -> x[i]: [session_max_len]
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
         payloads_val.update({Columns.Datetime: torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x),"payloads": payloads_val, "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        #print(batch_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
@@ -163,11 +167,11 @@ class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
     def __init__(
         self,
         max_seq_len: int,
+        attention_mode:str,
         num_buckets: int,
         bucketization_fn: Callable[[torch.Tensor], torch.Tensor],
     ) -> None:
         super().__init__()
-
         self._max_seq_len: int = max_seq_len
         self._ts_w = torch.nn.Parameter(
             torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
@@ -179,6 +183,7 @@ class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
         self._bucketization_fn: Callable[[torch.Tensor], torch.Tensor] = (
             bucketization_fn
         )
+        self._attention_mode = attention_mode
 
     def forward(
         self,
@@ -217,7 +222,15 @@ class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
         rel_ts_bias = torch.index_select(
             self._ts_w, dim=0, index=bucketed_timestamps.view(-1)
         ).view(B, N, N)
-        return rel_pos_bias + rel_ts_bias
+        rel_pos_bias=  rel_pos_bias[:,:-1,:-1] # (1,N-1, N-1) # last one is supervision time
+        rel_ts_bias = rel_ts_bias[:,:-1,:-1] # (B, N-1, N-1)
+        if self._attention_mode == "rel_pos_bias":
+            return rel_pos_bias
+        elif self._attention_mode == "rel_ts_bias":
+            return rel_ts_bias
+        elif self._attention_mode == "rel_pos_ts_bias":
+            return rel_pos_bias + rel_ts_bias
+
 
 class STU(nn.Module):
     """
@@ -242,11 +255,13 @@ class STU(nn.Module):
         attention_dim: int,
         attn_dropout_ratio: float,
         session_max_len: int,
+        attention_mode :str,
         epsilon: float = 1e-6,
     ):
         super().__init__()
         self._rel_attn_bias = RelativeBucketedTimeAndPositionBasedBias(
-                            max_seq_len=session_max_len,
+                            max_seq_len=session_max_len+1, # add supervision time
+                            attention_mode = attention_mode,
                             num_buckets=128,
                             bucketization_fn=lambda x: (
                                 torch.log(torch.abs(x).clamp(min=1)) / 0.301
@@ -268,10 +283,15 @@ class STU(nn.Module):
                 )
             ).normal_(mean=0, std=0.02),
         )
+        in_dim = self._uvqk.shape[0]
+        out_dim = self._uvqk.shape[1]
+        #self.linear_layer = nn.Linear(in_dim, out_dim, bias=False)
+        #self.linear_layer.weight.data = self._uvqk.t()
         self._o = torch.nn.Linear(
             in_features=linear_hidden_dim * n_heads,
             out_features=self._embedding_dim,
         )
+        self._attention_mode = attention_mode
         torch.nn.init.xavier_uniform_(self._o.weight)
 
     def _norm_input(self, x: torch.Tensor) -> torch.Tensor:
@@ -332,7 +352,7 @@ class STU(nn.Module):
         if payloads[Columns.Datetime] is not None:
             qk_attn = qk_attn + self._rel_attn_bias(payloads[Columns.Datetime]).unsqueeze(1) * time_line_mask_fix.unsqueeze(1)
         qk_attn = F.silu(qk_attn) / N
-        qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0)
+        qk_attn = qk_attn * attn_mask
         attn_output = torch.einsum(
                 "bhnm,bmhd->bnhd",
                 qk_attn,
@@ -381,6 +401,7 @@ class STULayers(TransformerLayersBase):
         attention_dim: int,
         attn_dropout_ratio: float,
         session_max_len: int,
+        attention_mode: str,
         epsilon: float = 1e-6,
         **kwargs: tp.Any,
     ):
@@ -396,6 +417,7 @@ class STULayers(TransformerLayersBase):
                     attention_dim,
                     attn_dropout_ratio,
                     session_max_len,
+                    attention_mode,
                     epsilon
                 )
                 for _ in range(self.n_blocks)
