@@ -77,5 +77,5 @@ class CatFeaturesContextNet(ContextNetBase):
 
     @property
     def out_dim(self) -> int:
-        """Return categorical item embedding output dimension."""
+        """Return output dimension."""
         return self.embedding_bag.embedding_dim
