@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -36,7 +36,8 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import InitKwargs, TransformerDataPreparatorBase
+from .context_net import CatFeaturesContextNet, ContextNetBase
+from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -80,7 +81,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
+        batch: List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep `session_max_len` items.
@@ -91,47 +92,81 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+
+        payloads_keys = batch[0][2].keys()
+        train_payloads = np.zeros((len(payloads_keys), batch_size, self.session_max_len))
+
+        for i, (ses, ses_weights, payloads) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+            for j, key in enumerate(payloads_keys):
+                train_payloads[j, i, -len(ses) + 1 :] = payloads[key][:-1]
+        batch_dict = {
+            "x": torch.LongTensor(x),
+            "y": torch.LongTensor(y),
+            "yw": torch.FloatTensor(yw),
+        }
+        payloads_dict = {key: torch.LongTensor(train_payloads[j]) for j, key in enumerate(payloads_keys)}
+        batch_dict.update(payloads_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
             )
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(
+        self,
+        batch: List[BatchElement],
+    ) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights) in enumerate(batch):
-            input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
-            # take only first target for leave-one-strategy
-            target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
+        payloads_keys = batch[0][2].keys()
+        train_payloads = np.zeros((len(payloads_keys), batch_size, self.session_max_len))
+
+        for i, (ses_list, ses_weights_list, payloads) in enumerate(batch):
+            input_mask = np.array(ses_weights_list) == 0
+            ses = np.array(ses_list)
+            ses_weights = np.array(ses_weights_list)
+            input_session = ses[input_mask]
 
             # ses: [session_len] -> x[i]: [session_max_len]
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
-            y[i, -1:] = ses[target_idx]  # y[i]: [1]
-            yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
+            y[i, -1:] = ses[~input_mask][0]  # y[i]: [1] take only first target for leave-one-strategy
+            yw[i, -1:] = ses_weights[~input_mask][0]  # yw[i]: [1]
+            for j, key in enumerate(payloads_keys):
+                train_payloads[j, i, -len(input_session) :] = np.array(payloads[key])[input_mask][
+                    -self.session_max_len :
+                ]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        payloads_dict = {key: torch.LongTensor(train_payloads[j]) for j, key in enumerate(payloads_keys)}
+        batch_dict.update(payloads_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
             )
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(
+        self,
+        batch: List[BatchElement],
+    ) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        payloads_keys = batch[0][2].keys()
+        train_payloads = np.zeros((len(payloads_keys), len(batch), self.session_max_len))
+        for i, (ses, _, payloads) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
-        return {"x": torch.LongTensor(x)}
+            for j, key in enumerate(payloads_keys):
+                train_payloads[j, i, -len(ses) :] = payloads[key][-self.session_max_len :]
+        batch_dict: Dict[str, torch.Tensor] = {"x": torch.LongTensor(x)}
+        payloads_dict = {key: torch.LongTensor(train_payloads[j]) for j, key in enumerate(payloads_keys)}
+        batch_dict.update(payloads_dict)
+        return batch_dict
 
 
 class SASRecTransformerLayer(nn.Module):
@@ -444,6 +479,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
+        context_net_type: tp.Type[ContextNetBase] = CatFeaturesContextNet,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
@@ -460,6 +496,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
+        context_net_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -493,6 +530,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lightning_module_type=lightning_module_type,
             negative_sampler_type=negative_sampler_type,
             backbone_type=backbone_type,
+            context_net_type=context_net_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
             get_val_mask_func_kwargs=get_val_mask_func_kwargs,
@@ -505,4 +543,5 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             negative_sampler_kwargs=negative_sampler_kwargs,
             similarity_module_kwargs=similarity_module_kwargs,
             backbone_kwargs=backbone_kwargs,
+            context_net_kwargs=context_net_kwargs,
         )

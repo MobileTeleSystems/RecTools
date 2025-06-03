@@ -38,6 +38,7 @@ from ..item_net import (
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
+from .context_net import CatFeaturesContextNet, ContextNetBase
 from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
@@ -109,6 +110,16 @@ SimilarityModuleType = tpe.Annotated[
 
 TransformerBackboneType = tpe.Annotated[
     tp.Type[TransformerBackboneBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+ContextNetType = tpe.Annotated[
+    tp.Type[ContextNetBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -216,6 +227,7 @@ class TransformerModelConfig(ModelConfig):
     negative_sampler_type: TransformerNegativeSamplerType = CatalogUniformSampler
     similarity_module_type: SimilarityModuleType = DistanceSimilarityModule
     backbone_type: TransformerBackboneType = TransformerTorchBackbone
+    context_net_type: ContextNetType = CatFeaturesContextNet
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
     get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None
@@ -228,6 +240,7 @@ class TransformerModelConfig(ModelConfig):
     negative_sampler_kwargs: tp.Optional[InitKwargs] = None
     similarity_module_kwargs: tp.Optional[InitKwargs] = None
     backbone_kwargs: tp.Optional[InitKwargs] = None
+    context_net_kwargs: tp.Optional[InitKwargs] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -278,6 +291,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
+        context_net_type: tp.Type[ContextNetBase] = CatFeaturesContextNet,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
@@ -290,6 +304,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
+        context_net_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -321,6 +336,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.lightning_module_type = lightning_module_type
         self.negative_sampler_type = negative_sampler_type
         self.backbone_type = backbone_type
+        self.context_net_type = context_net_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
@@ -333,7 +349,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.negative_sampler_kwargs = negative_sampler_kwargs
         self.similarity_module_kwargs = similarity_module_kwargs
         self.backbone_kwargs = backbone_kwargs
-
+        self.context_net_kwargs = context_net_kwargs
         self._init_data_preparator()
         self._init_trainer()
 
@@ -392,6 +408,16 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             **self._get_kwargs(self.item_net_constructor_kwargs),
         )
 
+    def _construct_context_net(self, dataset_schema: DatasetSchema) -> tp.Optional[ContextNetBase]:
+        if dataset_schema.interactions is None:
+            return None
+        return self.context_net_type.from_dataset_schema(
+            dataset_schema,
+            self.n_factors,
+            self.dropout_rate,
+            **self._get_kwargs(self.context_net_kwargs),
+        )
+
     def _construct_item_net_from_dataset_schema(self, dataset_schema: DatasetSchema) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset_schema(
             dataset_schema,
@@ -421,7 +447,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def _init_similarity_module(self) -> SimilarityModuleBase:
         return self.similarity_module_type(**self._get_kwargs(self.similarity_module_kwargs))
 
-    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerBackboneBase:
+    def _init_torch_model(
+        self, item_model: ItemNetBase, context_net: tp.Optional[ContextNetBase]
+    ) -> TransformerBackboneBase:
         pos_encoding_layer = self._init_pos_encoding_layer()
         transformer_layers = self._init_transformer_layers()
         similarity_module = self._init_similarity_module()
@@ -429,6 +457,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
             item_model=item_model,
+            context_net=context_net,
             pos_encoding_layer=pos_encoding_layer,
             transformer_layers=transformer_layers,
             similarity_module=similarity_module,
@@ -464,7 +493,10 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def _build_model_from_dataset(self, dataset: Dataset) -> None:
         self.data_preparator.process_dataset_train(dataset)
         item_model = self._construct_item_net(self.data_preparator.train_dataset)
-        torch_model = self._init_torch_model(item_model)
+        context_net = self._construct_context_net(
+            DatasetSchema.model_validate(self.data_preparator.train_dataset.get_schema())
+        )
+        torch_model = self._init_torch_model(item_model, context_net)
 
         dataset_schema = self.data_preparator.train_dataset.get_schema()
         item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
@@ -589,7 +621,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
         # Init and update torch model and lightning model
         item_model = loaded._construct_item_net_from_dataset_schema(dataset_schema)
-        torch_model = loaded._init_torch_model(item_model)
+        context_net = loaded._construct_context_net(dataset_schema)
+        torch_model = loaded._init_torch_model(item_model, context_net)
         loaded._init_lightning_model(
             torch_model=torch_model,
             dataset_schema=dataset_schema,

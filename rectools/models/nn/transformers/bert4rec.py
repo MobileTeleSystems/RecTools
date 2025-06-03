@@ -36,7 +36,7 @@ from .base import (
     ValMaskCallable,
 )
 from .constants import MASKING_VALUE, PADDING_VALUE
-from .data_preparator import InitKwargs, TransformerDataPreparatorBase
+from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -128,7 +128,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
+        batch: List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Mask session elements to receive `x`.
@@ -141,7 +141,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             masked_session, target = self._mask_session(ses)
             x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len]
@@ -154,12 +154,12 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # until only leave-one-strategy
         yw = np.zeros((batch_size, 1))  # until only leave-one-strategy
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
             session = input_session.copy()
 
@@ -179,14 +179,14 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
         """
         Right truncation, left padding to `session_max_len`
         During inference model will use (`session_max_len` - 1) interactions
         and one extra "MASK" token will be added for making predictions.
         """
         x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        for i, (ses, _, _) in enumerate(batch):
             session = ses.copy()
             session = session + [self.extra_token_ids[MASKING_VALUE]]
             x[i, -len(ses) - 1 :] = session[-self.session_max_len :]

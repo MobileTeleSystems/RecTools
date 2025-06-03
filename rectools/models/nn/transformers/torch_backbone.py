@@ -34,6 +34,7 @@ class TransformerBackboneBase(torch.nn.Module):
         similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
+        context_net: tp.Optional[torch.nn.Module] = None,
         **kwargs: tp.Any,
     ) -> None:
         """
@@ -70,6 +71,7 @@ class TransformerBackboneBase(torch.nn.Module):
         self.use_causal_attn = use_causal_attn
         self.use_key_padding_mask = use_key_padding_mask
         self.n_heads = n_heads
+        self.context_net = context_net
 
     def encode_sessions(self, batch: tp.Dict[str, torch.Tensor], item_embs: torch.Tensor) -> torch.Tensor:
         """
@@ -151,6 +153,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
+        context_net: tp.Optional[torch.nn.Module] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -162,6 +165,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
             similarity_module=similarity_module,
             use_causal_attn=use_causal_attn,
             use_key_padding_mask=use_key_padding_mask,
+            context_net=context_net,
             **kwargs,
         )
 
@@ -243,6 +247,8 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
 
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
+        if self.context_net is not None:
+            seqs += self.context_net(seqs, batch)
         seqs = self.pos_encoding_layer(seqs)
         seqs = self.emb_dropout(seqs)
 
