@@ -103,8 +103,7 @@ class SequenceDataset(TorchDataset):
 
                 # Combine all feature values into a single "inputs" column
                 interactions["context_cat_inputs"] = features_mapped[list(mappings.keys())].values  # .tolist()
-                interactions["context_cat_offsets"] = len(mappings.keys())
-                extra_cols.extend(["context_cat_inputs", "context_cat_offsets"])
+                extra_cols.extend(["context_cat_inputs"])
 
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
@@ -289,7 +288,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
-            self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+            self.val_interactions = Interactions.from_raw(
+                val_interactions, user_id_map, item_id_map, keep_extra_cols=True
+            ).df
 
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
@@ -451,18 +452,18 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def _collate_fn_train(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_val(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()

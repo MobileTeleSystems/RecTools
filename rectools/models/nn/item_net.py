@@ -486,4 +486,4 @@ class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
     @property
     def out_dim(self) -> int:
         """Return item net constructor output dimension."""
-        return self.item_net_blocks[0].out_dim  # type: ignore[return-value]
+        return self.item_net_blocks[0].out_dim

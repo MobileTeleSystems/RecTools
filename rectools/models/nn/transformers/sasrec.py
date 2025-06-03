@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -78,7 +78,6 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
     """
 
     train_session_max_len_addition: int = 1
-    non_pad_payload_keys: List[str] = []  # ["context_cat_offsets"]
 
     def _collate_fn_train(
         self,
@@ -94,7 +93,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
 
-        payloads_keys = [key for key in batch[0][2].keys() if key not in self.non_pad_payload_keys]
+        payloads_keys = batch[0][2].keys()
         train_payloads = np.zeros((len(payloads_keys), batch_size, self.session_max_len))
 
         for i, (ses, ses_weights, payloads) in enumerate(batch):
@@ -109,8 +108,6 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             "yw": torch.FloatTensor(yw),
         }
         payloads_dict = {key: torch.LongTensor(train_payloads[j]) for j, key in enumerate(payloads_keys)}
-        for key in self.non_pad_payload_keys:
-            payloads_dict[key] = torch.LongTensor(payloads[key])
         batch_dict.update(payloads_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
@@ -118,7 +115,10 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(
+        self,
+        batch: List[BatchElement],
+    ) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
@@ -127,8 +127,10 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         payloads_keys = batch[0][2].keys()
         train_payloads = np.zeros((len(payloads_keys), batch_size, self.session_max_len))
 
-        for i, (ses, ses_weights, payloads) in enumerate(batch):
-            input_mask = ses_weights == 0
+        for i, (ses_list, ses_weights_list, payloads) in enumerate(batch):
+            input_mask = np.array(ses_weights_list) == 0
+            ses = np.array(ses_list)
+            ses_weights = np.array(ses_weights_list)
             input_session = ses[input_mask]
 
             # ses: [session_len] -> x[i]: [session_max_len]
@@ -136,7 +138,9 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             y[i, -1:] = ses[~input_mask][0]  # y[i]: [1] take only first target for leave-one-strategy
             yw[i, -1:] = ses_weights[~input_mask][0]  # yw[i]: [1]
             for j, key in enumerate(payloads_keys):
-                train_payloads[j, i, -len(input_session) :] = payloads[key][input_mask][-self.session_max_len :]
+                train_payloads[j, i, -len(input_session) :] = np.array(payloads[key])[input_mask][
+                    -self.session_max_len :
+                ]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         payloads_dict = {key: torch.LongTensor(train_payloads[j]) for j, key in enumerate(payloads_keys)}
@@ -147,7 +151,10 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(
+        self,
+        batch: List[BatchElement],
+    ) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
         payloads_keys = batch[0][2].keys()
@@ -156,7 +163,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
             for j, key in enumerate(payloads_keys):
                 train_payloads[j, i, -len(ses) :] = payloads[key][-self.session_max_len :]
-        batch_dict = {"x": torch.LongTensor(x)}
+        batch_dict: Dict[str, torch.Tensor] = {"x": torch.LongTensor(x)}
         payloads_dict = {key: torch.LongTensor(train_payloads[j]) for j, key in enumerate(payloads_keys)}
         batch_dict.update(payloads_dict)
         return batch_dict

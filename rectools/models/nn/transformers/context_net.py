@@ -36,11 +36,19 @@ class ContextNetBase(torch.nn.Module):
 class CatFeaturesContextNet(ContextNetBase):
     """TODO."""
 
-    def __init__(self, n_factors: int, dropout_rate: float, n_cat_feature_values: int, **kwargs: tp.Any) -> None:
+    def __init__(
+        self,
+        n_factors: int,
+        dropout_rate: float,
+        n_cat_feature_values: int,
+        batch_key: str = "context_cat_inputs",
+        **kwargs: tp.Any,
+    ) -> None:
         super().__init__(n_factors, dropout_rate, **kwargs)
         print(n_cat_feature_values)
         self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors, mode="sum")
         self.dropout = nn.Dropout(dropout_rate)
+        self.batch_key = batch_key
 
     @classmethod
     def from_dataset_schema(  # TODO: decide about target aware schema
@@ -60,18 +68,12 @@ class CatFeaturesContextNet(ContextNetBase):
 
     def forward(self, seqs: torch.Tensor, batch: tp.Dict[str, torch.Tensor]) -> torch.Tensor:
         """TODO."""
-        # TODO: check correctness and remove offsets from batch
-        b, l, f = seqs.shape
-        offsets = batch["context_cat_offsets"].view(-1)
-        offsets = torch.cat([torch.zeros(1, dtype=offsets.dtype, device=offsets.device), offsets])
-        offsets = offsets.cumsum(dim=0)[:-1]
-
-        inputs = batch["context_cat_inputs"]
-        new_inputs = inputs.view(b * l, -1)
-        context_embs = self.embedding_bag(input=new_inputs)
+        batch_size, session_max_len, n_factors = seqs.shape
+        inputs = batch[self.batch_key].view(batch_size * session_max_len, -1)
+        context_embs = self.embedding_bag(input=inputs)
         context_embs = self.dropout(context_embs)
-        context_embs = context_embs.view(b, l, f)
-        return seqs + context_embs
+        context_embs = context_embs.view(batch_size, session_max_len, n_factors)
+        return context_embs
 
     @property
     def out_dim(self) -> int:

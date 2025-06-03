@@ -248,7 +248,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
 
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
         if self.context_net is not None:
-            seqs = self.context_net(seqs, batch)
+            seqs += self.context_net(seqs, batch)
         seqs = self.pos_encoding_layer(seqs)
         seqs = self.emb_dropout(seqs)
 
