@@ -78,6 +78,14 @@ class SparseFeaturesSchema(BaseFeaturesSchema):
     cat_n_stored_values: int
 
 
+class InteractionsFeaturesSchema(BaseConfig):
+    """Interactions features schema."""
+
+    cat_feature_names: tp.List[str]
+    cat_feature_names_w_values: tp.List[tp.Tuple[str, str]]
+    direct_feature_names: tp.List[str]
+
+
 FeaturesSchema = tp.Union[DenseFeaturesSchema, SparseFeaturesSchema]
 
 
@@ -102,6 +110,7 @@ class DatasetSchema(BaseConfig):
     n_interactions: int
     users: EntitySchema
     items: EntitySchema
+    interactions: tp.Optional[InteractionsFeaturesSchema] = None
 
 
 @attr.s(slots=True, frozen=True)
@@ -135,6 +144,7 @@ class Dataset:
     interactions: Interactions = attr.ib()
     user_features: tp.Optional[Features] = attr.ib(default=None)
     item_features: tp.Optional[Features] = attr.ib(default=None)
+    interactions_schema: tp.Optional[InteractionsFeaturesSchema] = attr.ib(default=None)
 
     @staticmethod
     def _get_feature_schema(features: tp.Optional[Features]) -> tp.Optional[FeaturesSchema]:
@@ -170,6 +180,7 @@ class Dataset:
             n_interactions=self.interactions.df.shape[0],
             users=user_schema,
             items=item_schema,
+            interactions=self.interactions_schema,
         )
         return schema.model_dump(mode="json")
 
@@ -206,7 +217,7 @@ class Dataset:
         return self.item_features.take(range(self.n_hot_items))
 
     @classmethod
-    def construct(
+    def construct(  # pylint: disable=too-many-locals
         cls,
         interactions_df: pd.DataFrame,
         user_features_df: tp.Optional[pd.DataFrame] = None,
@@ -216,6 +227,8 @@ class Dataset:
         cat_item_features: tp.Iterable[str] = (),
         make_dense_item_features: bool = False,
         keep_extra_cols: bool = False,
+        interactions_cat_features: tp.Iterable[str] = (),
+        interactions_direct_features: tp.Iterable[str] = (),
     ) -> "Dataset":
         """Class method for convenient `Dataset` creation.
 
@@ -249,6 +262,10 @@ class Dataset:
             - if ``True``,  `DenseFeatures.from_dataframe` method will be used.
         keep_extra_cols: bool, default ``False``
             Flag to keep all columns from interactions besides the default ones.
+        interactions_cat_features : tp.Iterable[str], default ``()``
+            List of categorical feature names in interactions dataframe.
+        interactions_direct_features : tp.Iterable[str], default ``()``
+            List of direct (non-categorical) feature names in interactions dataframe.
 
         Returns
         -------
@@ -258,6 +275,32 @@ class Dataset:
         for col in (Columns.User, Columns.Item):
             if col not in interactions_df:
                 raise KeyError(f"Column '{col}' must be present in `interactions_df`")
+
+        # Validate interactions features
+        cat_features = set(interactions_cat_features)
+        direct_features = set(interactions_direct_features)
+        required_columns = cat_features | direct_features
+        actual_columns = set(interactions_df.columns)
+        if not actual_columns >= required_columns:
+            raise KeyError(f"Missed columns {required_columns - actual_columns}")
+
+        # Create interactions feature schema
+        cat_feature_names_w_values = []
+        for cat_feature in cat_features:
+            values = interactions_df[cat_feature].unique()  # TODO: decide NaN values
+            for value in values:
+                cat_feature_names_w_values.append((cat_feature, value))
+
+        interactions_schema = (
+            InteractionsFeaturesSchema(
+                cat_feature_names=list(cat_features),
+                direct_feature_names=list(direct_features),
+                cat_feature_names_w_values=cat_feature_names_w_values,
+            )
+            if cat_features or direct_features
+            else None
+        )
+
         user_id_map = IdMap.from_values(interactions_df[Columns.User].values)
         item_id_map = IdMap.from_values(interactions_df[Columns.Item].values)
         interactions = Interactions.from_raw(interactions_df, user_id_map, item_id_map, keep_extra_cols)
@@ -278,7 +321,14 @@ class Dataset:
             Columns.Item,
             "item",
         )
-        return cls(user_id_map, item_id_map, interactions, user_features, item_features)
+        return cls(
+            user_id_map=user_id_map,
+            item_id_map=item_id_map,
+            interactions=interactions,
+            user_features=user_features,
+            item_features=item_features,
+            interactions_schema=interactions_schema,
+        )
 
     @staticmethod
     def _make_features(
