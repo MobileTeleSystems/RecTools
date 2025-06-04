@@ -37,11 +37,9 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import InitKwargs, PayloadsSpec,BatchElement, TransformerDataPreparatorBase
+from .data_preparator import InitKwargs,  BatchElement, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
-    LearnableInversePositionalEncoding,
-    PointWiseFeedForward,
     PositionalEncodingBase,
     TransformerLayersBase,
 )
@@ -50,7 +48,8 @@ from .torch_backbone import HSTUTorchBackbone, TransformerBackboneBase
 
 from rectools import Columns
 
-
+check_split_train_dataset = True
+check_split_val_dataset = True
 class HSTUDataPreparator(TransformerDataPreparatorBase):
     """Data preparator for SASRecModel.
     TODO
@@ -81,6 +80,18 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
 
     train_session_max_len_addition: int = 1
 
+    def append_list_to_file(self,filename, data, separator=", "):
+        """
+        Дописывает элементы списка `data` в файл `filename`, объединяя их через `separator` в одной строке.
+
+        Параметры:
+            filename (str): Имя файла.
+            data (list): Список строк или объектов, которые можно преобразовать в строки.
+            separator (str): Разделитель между элементами (например, пробел, запятая и т.д.).
+        """
+        with open(filename, "a", encoding="utf-8") as file:
+            # Преобразуем элементы в строки и объединяем через разделитель
+            file.write(separator.join(map(str, data)) + "\n")
     def datetime64_to_unixtime(self,dt_list: list) -> list:
         epoch = np.datetime64("1970-01-01T00:00:00")
         return [int((dt - epoch) / np.timedelta64(1, "s")) for dt in dt_list]
@@ -101,25 +112,32 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         yw = np.zeros((batch_size, self.session_max_len))
         payloads_train = {}
         for i, (ses, ses_weights, payloads) in enumerate(batch):
-            #print(ses)
-            #print(ses_weights)
-            ##print(payloads)
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             t[i, -len(ses):] = self.datetime64_to_unixtime(payloads[Columns.Datetime])
-            len_to_pad = self.session_max_len-len(ses)
+            len_to_pad = self.session_max_len+1 - len(ses)
             if len_to_pad > 0:
                 t[i, :len_to_pad] = t[i, len_to_pad]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
         payloads_train.update({Columns.Datetime:torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x),"payloads": payloads_train , "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        #print(batch_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
             )
         return batch_dict
+    """
+    [324, 849, 515, 775, 2137], 376 #train collate fn
+          [_______________________]
+    324, 849, 515, 775, 2137 - X,
+    849, 515, 775, 2137, 376 - Y
 
+    324, [849, 515, 775, 2137, 376], 890  #val collate fn
+                                    [___]
+    лоо некст должно быть
+    849, 515, 775, 2137, 376 - X
+    515, 775, 2137, 376, [890] - один таргет на валидации
+    """
     def _collate_fn_val(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
@@ -128,15 +146,15 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         payloads_val = {}
         for i, (ses, ses_weights, payloads) in enumerate(batch):
-            #print(ses)
-            #print(ses_weights)
-            #print(self.datetime64_to_unixtime(payloads[Columns.Datetime]))
+            ses = ses[1:]
+            ses_weights = ses_weights[1:]
+            payloads[Columns.Datetime] = payloads[Columns.Datetime][1:]
+
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
-            #print(self.datetime64_to_unixtime(payloads[Columns.Datetime]))
-            #print(t[i, -len(ses):])
-            t[i, -len(ses)+1:] = self.datetime64_to_unixtime(payloads[Columns.Datetime])[1:]
-            len_to_pad = self.session_max_len-len(ses)
+
+            t[i, -len(ses):] = self.datetime64_to_unixtime(payloads[Columns.Datetime])
+            len_to_pad = self.session_max_len+1 -len(ses)
             if len_to_pad > 0:
                 t[i, :len_to_pad] = t[i, len_to_pad]
             # ses: [session_len] -> x[i]: [session_max_len]
@@ -145,7 +163,6 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
         payloads_val.update({Columns.Datetime: torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x),"payloads": payloads_val, "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        #print(batch_dict)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
@@ -155,9 +172,11 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
+        payloads_recommend = {}
         for i, (ses, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
-        return {"x": torch.LongTensor(x)}
+        payloads_recommend.update({Columns.Datetime: None})
+        return {"x": torch.LongTensor(x), "payloads": payloads_recommend}
 
 class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
     """
@@ -330,7 +349,8 @@ class STU(nn.Module):
         """
         B, N, _ = x.shape
         normed_x = self._norm_input(x)
-        batched_mm_output = F.silu(torch.matmul(normed_x, self._uvqk)) # optional
+        general_trasform = torch.matmul(normed_x, self._uvqk)
+        batched_mm_output = F.silu(general_trasform) # optional
         u, v, q, k = torch.split(
             batched_mm_output,
             [
@@ -350,9 +370,9 @@ class STU(nn.Module):
         time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
 
         if payloads[Columns.Datetime] is not None:
-            qk_attn = qk_attn + self._rel_attn_bias(payloads[Columns.Datetime]).unsqueeze(1) * time_line_mask_fix.unsqueeze(1)
+            qk_attn = qk_attn + self._rel_attn_bias(payloads[Columns.Datetime]).unsqueeze(1)
         qk_attn = F.silu(qk_attn) / N
-        qk_attn = qk_attn * attn_mask
+        qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0)
         attn_output = torch.einsum(
                 "bhnm,bmhd->bnhd",
                 qk_attn,
@@ -512,7 +532,6 @@ class LearnablePositionalEncoding(PositionalEncodingBase):
 
     def forward(self, sessions_embeddings: torch.Tensor) -> torch.Tensor:
         B, N,D = sessions_embeddings.size()
-        #print("PAST_IDS", past_ids)
         user_embeddings = sessions_embeddings * (D**0.5) + self._pos_emb(
             torch.arange(N, device=sessions_embeddings.device).unsqueeze(0).repeat(B, 1)
         )

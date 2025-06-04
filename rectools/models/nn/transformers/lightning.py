@@ -27,6 +27,7 @@ from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
 from .torch_backbone import TransformerBackboneBase
+import torch.nn.functional as F
 
 # ####  --------------  Lightning Base Model  --------------  #### #
 
@@ -207,6 +208,14 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         target = (y != 0).long()
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
+    def  _calc_short_SS(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        #same results
+        target = (y != 0).long() # (B,)
+        jagged_loss = -F.log_softmax(
+            logits, dim=-1
+        )[:, :, 0].squeeze(-1)# -> (B,1)
+        return (jagged_loss*target).sum()/target.sum()
+
     #TODO Simple change
     def configure_optimizers(self) -> torch.optim.AdamW:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""

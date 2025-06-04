@@ -36,7 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import InitKwargs, PayloadsSpec,BatchElement, TransformerDataPreparatorBase
+from .data_preparator import InitKwargs,  TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -46,8 +46,6 @@ from .net_blocks import (
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
-
-from rectools import Columns
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):
     """Data preparator for SASRecModel.
@@ -110,6 +108,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         for i, (ses, ses_weights) in enumerate(batch):
+            #print(len(ses))
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
             # take only first target for leave-one-strategy
@@ -403,8 +402,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Additional keyword arguments to pass during `lightning_module_type` initialization.
         Make sure all dict values have JSON serializable types.
     negative_sampler_kwargs: optional(dict), default ``None``
-        Additional keyword arguments to pass during `negative_sampler_type` initialization.
-        Make sure all dict values have JSON serializable types.
+        Additional keyword arguments to pass during `negative_sampler_type` initialization    Make sure all dict values have JSON serializable types.
     similarity_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `similarity_module_type` initialization.
         Make sure all dict values have JSON serializable types.
