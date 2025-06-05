@@ -371,8 +371,8 @@ class STU(nn.Module):
 
         if payloads[Columns.Datetime] is not None:
             qk_attn = qk_attn + self._rel_attn_bias(payloads[Columns.Datetime]).unsqueeze(1)
-        qk_attn = F.silu(qk_attn) / N
-        qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0)
+        qk_attn = F.silu(qk_attn) / (N+11)
+        qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0) *time_line_mask_fix.unsqueeze(1)
         attn_output = torch.einsum(
                 "bhnm,bmhd->bnhd",
                 qk_attn,

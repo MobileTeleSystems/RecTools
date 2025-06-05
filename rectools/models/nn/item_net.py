@@ -88,8 +88,8 @@ class CatFeaturesItemNet(ItemNetBase):
         **kwargs: tp.Any,
     ):
         super().__init__()
-
         self.n_cat_feature_values = n_cat_feature_values
+        print("asdasdas",n_cat_feature_values)
         self.embedding_bag = nn.EmbeddingBag(num_embeddings=n_cat_feature_values, embedding_dim=n_factors, mode="sum")
         self.dropout = nn.Dropout(dropout_rate)
 

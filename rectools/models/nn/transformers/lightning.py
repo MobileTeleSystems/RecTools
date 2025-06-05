@@ -371,8 +371,17 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
 
     def _xavier_normal_init(self) -> None:
-        for _, param in self.torch_model.named_parameters():
-            if param.data.dim() > 1:
+        params_not_init = ["transformer_layers.stu_blocks.1._uvqk",
+                           "transformer_layers.stu_blocks.0._uvqk",
+                           "transformer_layers.stu_blocks.1._rel_attn_bias._ts_w",
+                           "transformer_layers.stu_blocks.1._rel_attn_bias._pos_w",
+                           "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w",
+                           "transformer_layers.stu_blocks.1._rel_attn_bias._pos_w"
+                           "item_model.item_net_blocks.0.ids_emb.weight"
+                           "pos_encoding_layer.pos_emb.weight"
+                           ]
+        for name, param in self.torch_model.named_parameters():
+            if param.data.dim() > 1 and name not in params_not_init:
                 torch.nn.init.xavier_normal_(param.data)
 
     def _prepare_for_inference(self, torch_device: tp.Optional[str]) -> None:
