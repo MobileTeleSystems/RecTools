@@ -41,7 +41,7 @@ from .data_preparator import InitKwargs,  BatchElement, TransformerDataPreparato
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     PositionalEncodingBase,
-    TransformerLayersBase,
+    TransformerLayersBase, LearnableInversePositionalEncoding,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import HSTUTorchBackbone, TransformerBackboneBase
@@ -94,7 +94,8 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             file.write(separator.join(map(str, data)) + "\n")
     def datetime64_to_unixtime(self,dt_list: list) -> list:
         epoch = np.datetime64("1970-01-01T00:00:00")
-        return [int((dt - epoch) / np.timedelta64(1, "s")) for dt in dt_list]
+        res = [int((dt - epoch) / np.timedelta64(1, "s")) for dt in dt_list]
+        return res
 
     def _collate_fn_train(
         self,
@@ -348,9 +349,9 @@ class STU(nn.Module):
             User sequences passed through transformer layers.
         """
         B, N, _ = x.shape
-        normed_x = self._norm_input(x)
+        normed_x = self._norm_input(x)*timeline_mask
         general_trasform = torch.matmul(normed_x, self._uvqk)
-        batched_mm_output = F.silu(general_trasform) # optional
+        batched_mm_output = F.silu(general_trasform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
@@ -371,7 +372,7 @@ class STU(nn.Module):
 
         if payloads[Columns.Datetime] is not None:
             qk_attn = qk_attn + self._rel_attn_bias(payloads[Columns.Datetime]).unsqueeze(1)
-        qk_attn = F.silu(qk_attn) / (N+11)
+        qk_attn = F.silu(qk_attn) / N
         qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0) *time_line_mask_fix.unsqueeze(1)
         attn_output = torch.einsum(
                 "bhnm,bmhd->bnhd",
@@ -379,7 +380,7 @@ class STU(nn.Module):
                 v.reshape(B, N, self._num_heads, self._linear_dim),
         ).reshape(B, N, self._num_heads * self._linear_dim)
 
-        o_input = u * self._norm_attn_output(attn_output)
+        o_input = u * self._norm_attn_output(attn_output) * timeline_mask
 
         new_outputs = (
             self._o(
@@ -488,7 +489,7 @@ class HSTUModelConfig(TransformerModelConfig):
     """SASRecModel config."""
 
     data_preparator_type: TransformerDataPreparatorType = HSTUDataPreparator
-    transformer_layers_type: TransformerLayersType = STU
+    transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
 
 
@@ -531,10 +532,24 @@ class LearnablePositionalEncoding(PositionalEncodingBase):
         )
 
     def forward(self, sessions_embeddings: torch.Tensor) -> torch.Tensor:
-        B, N,D = sessions_embeddings.size()
-        user_embeddings = sessions_embeddings * (D**0.5) + self._pos_emb(
-            torch.arange(N, device=sessions_embeddings.device).unsqueeze(0).repeat(B, 1)
-        )
+        B, N, D = sessions_embeddings.size()
+
+        # Найдём маску реальных токенов (не padding): True для ненулевых
+        is_real = (sessions_embeddings.abs().sum(dim=-1) != 0)  # shape: [B, N]
+
+        # Найдём длину padding'а слева (сколько нулей перед первым ненулевым)
+        first_nonzero_idx = is_real.int().argmax(dim=1)  # shape: [B], индекс первого ненулевого
+
+        # Создадим матрицу позиций, где позиции начинаются с 0 после padding'а
+        positions = torch.arange(N, device=sessions_embeddings.device).expand(B, N)
+        shifted_positions = (positions - first_nonzero_idx.view(-1, 1))  # вычитаем сдвиг
+        shifted_positions = shifted_positions.masked_fill(~is_real, 0)  # заменяем отрицательные/ненастоящие на 0
+
+        # Применяем positional embeddings
+        pos_embeddings = self._pos_emb(shifted_positions)
+
+        # Теперь собираем финальное представление
+        user_embeddings = sessions_embeddings * (D ** 0.5) + pos_embeddings
         user_embeddings = self._emb_dropout(user_embeddings)
 
         return user_embeddings
@@ -697,7 +712,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         use_causal_attn: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
-        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnablePositionalEncoding,
+        pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = STULayers,
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = HSTUDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,

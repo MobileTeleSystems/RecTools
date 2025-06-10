@@ -31,6 +31,15 @@ import torch.nn.functional as F
 
 # ####  --------------  Lightning Base Model  --------------  #### #
 
+def truncated_normal(x: torch.Tensor, mean: float, std: float) -> torch.Tensor:
+    with torch.no_grad():
+        size = x.shape
+        tmp = x.new_empty(size + (4,)).normal_()
+        valid = (tmp < 2) & (tmp > -2)
+        ind = valid.max(-1, keepdim=True)[1]
+        x.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+        x.data.mul_(std).add_(mean)
+        return x
 
 class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-many-instance-attributes
     """
@@ -209,12 +218,13 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
     def  _calc_short_SS(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        #same results
+        #same results to above
+        #just view as 2-label classification
         target = (y != 0).long() # (B,)
-        jagged_loss = -F.log_softmax(
+        posititve_loss = -F.log_softmax(
             logits, dim=-1
         )[:, :, 0].squeeze(-1)# -> (B,1)
-        return (jagged_loss*target).sum()/target.sum()
+        return (posititve_loss*target).sum()/target.sum()
 
     #TODO Simple change
     def configure_optimizers(self) -> torch.optim.AdamW:
@@ -376,13 +386,22 @@ class TransformerLightningModule(TransformerLightningModuleBase):
                            "transformer_layers.stu_blocks.1._rel_attn_bias._ts_w",
                            "transformer_layers.stu_blocks.1._rel_attn_bias._pos_w",
                            "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w",
-                           "transformer_layers.stu_blocks.1._rel_attn_bias._pos_w"
+                           "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w"
                            "item_model.item_net_blocks.0.ids_emb.weight"
                            "pos_encoding_layer.pos_emb.weight"
                            ]
         for name, param in self.torch_model.named_parameters():
             if param.data.dim() > 1 and name not in params_not_init:
                 torch.nn.init.xavier_normal_(param.data)
+            else:
+                print(
+                    f"Initialize {name} as original distribution: {param.data.size()} params"
+                )
+            if "ids_emb" in name:
+                print(
+                    f"Initialize {name} as truncated normal: {param.data.size()} params"
+                )
+                truncated_normal(param, mean=0.0, std=0.02)
 
     def _prepare_for_inference(self, torch_device: tp.Optional[str]) -> None:
         if torch_device is None:

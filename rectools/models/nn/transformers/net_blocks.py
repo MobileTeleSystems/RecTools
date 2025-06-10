@@ -289,7 +289,7 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         torch.Tensor
             Encoded user sessions with added positional encoding if `use_pos_emb` is ``True``.
         """
-        batch_size, session_max_len, _ = sessions.shape
+        batch_size, session_max_len, D = sessions.shape
 
         if self.pos_emb is not None:
             # Inverse positions are appropriate for variable length sequences across different batches
@@ -297,6 +297,7 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
             positions = torch.tile(
                 torch.arange(session_max_len - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_max_len]
-            sessions += self.pos_emb(positions.to(sessions.device))
+            sessions_norm = sessions
+            sessions_norm += self.pos_emb(positions.to(sessions.device))
 
         return sessions

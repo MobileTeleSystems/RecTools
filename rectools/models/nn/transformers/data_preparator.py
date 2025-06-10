@@ -250,7 +250,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
-
+        #item_id_map = item_id_map.add_ids(range(3647,4000,1))
         # Prepare item features
         item_features = None
         if dataset.item_features is not None:

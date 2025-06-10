@@ -425,7 +425,6 @@ class HSTUTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
-
         seqs = self.transformer_layers(seqs, batch["payloads"], timeline_mask, attn_mask, key_padding_mask)
         seqs = seqs / torch.clamp(
             torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
