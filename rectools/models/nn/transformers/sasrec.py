@@ -190,7 +190,6 @@ class SASRecTransformerLayer(nn.Module):
             q, seqs, seqs, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False
         )
         seqs = q + mha_output
-        torch.matmul()
         ff_input = self.ff_layer_norm(seqs)
         seqs = self.feed_forward(ff_input)
         seqs = self.dropout(seqs)
