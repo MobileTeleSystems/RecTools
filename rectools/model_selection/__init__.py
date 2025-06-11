@@ -31,7 +31,7 @@ Model selection tools
 `model_selection.cross_validate` - run cross validation on multiple models with multiple metrics
 """
 
-from .cross_validate import cross_validate
+from .cross_validate import cross_validate, cross_validate_hstu
 from .last_n_split import LastNSplitter
 from .random_split import RandomSplitter
 from .splitter import Splitter
@@ -43,4 +43,5 @@ __all__ = (
     "LastNSplitter",
     "TimeRangeSplitter",
     "cross_validate",
+    "cross_validate_hstu",
 )

@@ -276,7 +276,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
-            print(self.val_interactions)
+            #print(self.val_interactions)
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
         self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
@@ -336,7 +336,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
+
+        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,

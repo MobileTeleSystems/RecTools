@@ -172,11 +172,20 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
+        #хотим, чтоб сюда приходило
         x = np.zeros((len(batch), self.session_max_len))
+        t = np.zeros((len(batch), self.session_max_len + 1))
         payloads_recommend = {}
-        for i, (ses, _) in enumerate(batch):
-            x[i, -len(ses) :] = ses[-self.session_max_len :]
-        payloads_recommend.update({Columns.Datetime: None})
+        for i, (ses, _, payloads) in enumerate(batch):
+            ses = ses [:-1] # drop dummy item
+            x[i, -len(ses):] = ses[-self.session_max_len:]
+            #x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+            t[i, -len(ses)-1:] = self.datetime64_to_unixtime(payloads[Columns.Datetime])[-self.session_max_len-1:]
+            len_to_pad = self.session_max_len- len(ses)
+            if len_to_pad > 0:
+                t[i, :len_to_pad] = t[i, len_to_pad]
+            #print(payloads)
+        payloads_recommend.update({Columns.Datetime: torch.LongTensor(t)})
         return {"x": torch.LongTensor(x), "payloads": payloads_recommend}
 
 class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
@@ -222,10 +231,7 @@ class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
         r = (2 * N - 1) // 2
 
 
-        #здесь кажется ошибка у них, дата лик
-        #первый токен уже знает о времени второго
-
-            # [B, N + 1] to simplify tensor manipulations.
+        #[B, N + 1] to simplify tensor manipulations.
         ext_timestamps = torch.cat(
             [all_timestamps, all_timestamps[:, N - 1 : N]], dim=1
         )
@@ -349,7 +355,7 @@ class STU(nn.Module):
             User sequences passed through transformer layers.
         """
         B, N, _ = x.shape
-        normed_x = self._norm_input(x)*timeline_mask
+        normed_x = self._norm_input(x)*timeline_mask # prevent null emb convert to (b,b, ,,, b)
         general_trasform = torch.matmul(normed_x, self._uvqk)
         batched_mm_output = F.silu(general_trasform) * timeline_mask
         u, v, q, k = torch.split(

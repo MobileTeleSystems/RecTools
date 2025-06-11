@@ -19,7 +19,7 @@ import torch
 from pytorch_lightning import LightningModule
 from torch.utils.data import DataLoader
 
-from rectools import ExternalIds
+from rectools import ExternalIds, Columns
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict
 from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, TorchRanker
@@ -219,7 +219,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         return loss
     def  _calc_short_SS(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
         #same results to above
-        #just view as 2-label classification
+        #just view as 2-label classification. Distribution have prob = 1 on only one positive
         target = (y != 0).long() # (B,)
         posititve_loss = -F.log_softmax(
             logits, dim=-1
@@ -380,28 +380,36 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     ) -> tp.Dict[str, torch.Tensor]:
         raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
 
-    def _xavier_normal_init(self) -> None:
-        params_not_init = ["transformer_layers.stu_blocks.1._uvqk",
+    def _test_semi_xavier_normal_init(self) -> None:
+        params_orig_init = ["transformer_layers.stu_blocks.1._uvqk",
                            "transformer_layers.stu_blocks.0._uvqk",
                            "transformer_layers.stu_blocks.1._rel_attn_bias._ts_w",
                            "transformer_layers.stu_blocks.1._rel_attn_bias._pos_w",
                            "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w",
-                           "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w"
-                           "item_model.item_net_blocks.0.ids_emb.weight"
-                           "pos_encoding_layer.pos_emb.weight"
+                           "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w",
+                           "item_model.item_net_blocks.0.ids_emb.weight",
+                           "pos_encoding_layer.pos_emb.weight",
                            ]
         for name, param in self.torch_model.named_parameters():
-            if param.data.dim() > 1 and name not in params_not_init:
-                torch.nn.init.xavier_normal_(param.data)
-            else:
+            if param.data.dim() > 1 and name  in params_orig_init:
                 print(
                     f"Initialize {name} as original distribution: {param.data.size()} params"
+                )
+            elif param.data.dim() > 1 and name not in params_orig_init :
+                torch.nn.init.xavier_normal_(param.data)
+                print(
+                    f"Initialize {name} as xavier_normal distribution: {param.data.size()} params"
                 )
             if "ids_emb" in name:
                 print(
                     f"Initialize {name} as truncated normal: {param.data.size()} params"
                 )
                 truncated_normal(param, mean=0.0, std=0.02)
+
+    def _xavier_normal_init(self) -> None:
+        for _, param in self.torch_model.named_parameters():
+            if param.data.dim() > 1:
+                torch.nn.init.xavier_normal_(param.data)
 
     def _prepare_for_inference(self, torch_device: tp.Optional[str]) -> None:
         if torch_device is None:
@@ -421,12 +429,14 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         """
         self._prepare_for_inference(torch_device)
         device = self.torch_model.item_model.device
-
+        tensor_type_payload = set(Columns.Datetime) # Could be expand
         with torch.no_grad():
             item_embs = self.torch_model.item_model.get_all_embeddings()
             user_embs = []
             for batch in recommend_dataloader:
-                batch = {k: v.to(device) for k, v in batch.items()}
+                batch["x"] = batch["x"].to(device)
+                if batch.get("payloads") is not None:
+                    batch["payloads"][Columns.Datetime] = batch["payloads"][Columns.Datetime].to(device)
                 batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
                 user_embs.append(batch_embs.cpu())
 

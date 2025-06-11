@@ -465,7 +465,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.data_preparator.process_dataset_train(dataset)
         item_model = self._construct_item_net(self.data_preparator.train_dataset)
         torch_model = self._init_torch_model(item_model)
-
         dataset_schema = self.data_preparator.train_dataset.get_schema()
         item_external_ids = self.data_preparator.train_dataset.item_id_map.external_ids
         model_config = self.get_config(simple_types=True)
