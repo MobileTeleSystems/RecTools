@@ -199,6 +199,7 @@ class TransformerModelConfig(ModelConfig):
     dataloader_num_workers: int = 0
     batch_size: int = 128
     loss: str = "softmax"
+    datetime_spec: tp.Optional[str] = None
     n_negatives: int = 1
     gbce_t: float = 0.2
     lr: float = 0.001
