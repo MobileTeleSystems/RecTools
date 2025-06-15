@@ -271,6 +271,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         train_min_user_interactions: int = 2,
+        datetime_spec: tp.Optional[str] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -333,6 +334,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.negative_sampler_kwargs = negative_sampler_kwargs
         self.similarity_module_kwargs = similarity_module_kwargs
         self.backbone_kwargs = backbone_kwargs
+        self.datetime_spec = datetime_spec
 
         self._init_data_preparator()
         self._init_trainer()
@@ -359,6 +361,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
+            datetime_spec = self.datetime_spec,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
 

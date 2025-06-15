@@ -415,6 +415,8 @@ class HSTUTorchBackbone(TransformerBackboneBase):
 
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
         D = seqs.shape[-1]
+        # scale emb in sqrt(D) here instead changing LIPE module
+        seqs = seqs * (D**0.5)
         seqs = self.pos_encoding_layer(seqs)
         if self.use_causal_attn:
             attn_mask = torch.tril(
@@ -425,12 +427,9 @@ class HSTUTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
-        seqs = self.transformer_layers(seqs, batch["payloads"], timeline_mask, attn_mask, key_padding_mask)
-        seqs = seqs / torch.clamp(
-            torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
-            min=1e-6,
-        )
 
+        seqs = self.transformer_layers(seqs, batch["payloads"], timeline_mask, attn_mask, key_padding_mask)
+        # Done TODO remove l2 norn in transformer_layers
         return seqs
 
     def forward(

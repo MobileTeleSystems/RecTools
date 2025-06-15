@@ -22,6 +22,7 @@ import pandas as pd
 import torch
 from joblib.testing import param
 from scipy import sparse
+from tomlkit.items import String
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
@@ -160,6 +161,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         extra_cols_kwargs: tp.Optional[InitKwargs] = None,
+        datetime_spec: tp.Optional[str] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -176,7 +178,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols_kwargs = extra_cols_kwargs
-        print(extra_cols_kwargs)
+        self.datetime_spec = datetime_spec
+        print("Extra cols: ",extra_cols_kwargs)
+        print(f"Datetime spec: {datetime_spec}.")
+
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -290,8 +295,13 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
-        print(self.extra_cols_kwargs)
-        sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
+        prep_df = self.train_dataset.interactions.df
+        if self.datetime_spec is not None:
+            assert self.datetime_spec in ["s","h","d"]
+            if self.datetime_spec == "s":
+                prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        sequence_dataset = SequenceDataset.from_interactions(prep_df, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
+
         train_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_train,
@@ -312,8 +322,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         if self.val_interactions is None:
             return None
-
-        sequence_dataset = SequenceDataset.from_interactions(self.val_interactions,**self._ensure_kwargs_dict(self.extra_cols_kwargs))
+        prep_df = self.val_interactions
+        if self.datetime_spec is not None:
+            assert self.datetime_spec in ["s","h","d"]
+            if self.datetime_spec == "s":
+                prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        sequence_dataset = SequenceDataset.from_interactions(prep_df,**self._ensure_kwargs_dict(self.extra_cols_kwargs))
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -336,8 +350,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-
-        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
+        prep_df = dataset.interactions.df
+        if self.datetime_spec is not None:
+            assert self.datetime_spec in ["s","h","d"]
+            if self.datetime_spec == "s":
+                prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,
@@ -435,3 +453,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
+
+    def preproc_recommend_context(
+        self,
+        recommend,
+        context
+    ) -> tp.Dict[str, torch.Tensor]:
+        return recommend

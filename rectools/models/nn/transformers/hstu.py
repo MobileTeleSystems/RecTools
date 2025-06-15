@@ -45,9 +45,9 @@ from .net_blocks import (
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import HSTUTorchBackbone, TransformerBackboneBase
-
+import pandas as pd
 from rectools import Columns
-
+from rectools.dataset import Dataset
 check_split_train_dataset = True
 check_split_val_dataset = True
 class HSTUDataPreparator(TransformerDataPreparatorBase):
@@ -114,7 +114,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         payloads_train = {}
         for i, (ses, ses_weights, payloads) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            t[i, -len(ses):] = self.datetime64_to_unixtime(payloads[Columns.Datetime])
+            t[i, -len(ses):] = payloads[Columns.Datetime]
             len_to_pad = self.session_max_len+1 - len(ses)
             if len_to_pad > 0:
                 t[i, :len_to_pad] = t[i, len_to_pad]
@@ -154,7 +154,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
 
-            t[i, -len(ses):] = self.datetime64_to_unixtime(payloads[Columns.Datetime])
+            t[i, -len(ses):] = payloads[Columns.Datetime]
             len_to_pad = self.session_max_len+1 -len(ses)
             if len_to_pad > 0:
                 t[i, :len_to_pad] = t[i, len_to_pad]
@@ -180,13 +180,34 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             ses = ses [:-1] # drop dummy item
             x[i, -len(ses):] = ses[-self.session_max_len:]
             #x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            t[i, -len(ses)-1:] = self.datetime64_to_unixtime(payloads[Columns.Datetime])[-self.session_max_len-1:]
+            t[i, -len(ses)-1:] = payloads[Columns.Datetime][-self.session_max_len-1:]
             len_to_pad = self.session_max_len- len(ses)
             if len_to_pad > 0:
                 t[i, :len_to_pad] = t[i, len_to_pad]
             #print(payloads)
         payloads_recommend.update({Columns.Datetime: torch.LongTensor(t)})
         return {"x": torch.LongTensor(x), "payloads": payloads_recommend}
+
+    def preproc_recommend_context(
+        self,
+        recommend_dataset,
+        context # контекст в пандасе допустим
+    ) -> tp.Dict[str, torch.Tensor]:
+        model_known_external_ids = self.get_known_item_ids() # возвращает во внешней индексации
+        dummy_common_item = np.intersect1d(recommend_dataset.item_id_map.external_ids, model_known_external_ids)[0]
+        #TODO прокинуть политику аккуратно
+        #сейчас политика такая, чтобы не пришло в контексте, дёргаем самый ранний таймстемп
+        print(f"common dummy id:{dummy_common_item}")
+        in_external_view_recommend = recommend_dataset.get_raw_interactions()
+        in_external_view_context = context.copy()
+        first_interaction_indices = in_external_view_context.groupby(Columns.User)[Columns.Datetime].idxmin()
+
+        in_external_view_context_policy = in_external_view_context.loc[first_interaction_indices]
+        in_external_view_context_policy[Columns.Item] = dummy_common_item
+
+        union = pd.concat([in_external_view_recommend, in_external_view_context_policy])
+        new_dataset_recommend = Dataset.construct(union)
+        return new_dataset_recommend
 
 class RelativeBucketedTimeAndPositionBasedBias(torch.nn.Module):
     """
@@ -488,7 +509,7 @@ class STULayers(TransformerLayersBase):
             torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
             min=1e-6,
         )
-        return seqs
+        #return seqs
 
 
 class HSTUModelConfig(TransformerModelConfig):
@@ -716,6 +737,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
+        datetime_spec: tp.Optional[str] = None,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -761,6 +783,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             lr=lr,
             epochs=epochs,
             verbose=verbose,
+            datetime_spec = datetime_spec,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,
