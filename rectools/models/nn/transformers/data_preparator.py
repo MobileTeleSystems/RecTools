@@ -294,6 +294,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
+        #TODO assmp only s in [...], remove if
         prep_df = self.train_dataset.interactions.df
         if self.datetime_spec is not None:
             assert self.datetime_spec in ["s","h","d"]

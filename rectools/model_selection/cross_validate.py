@@ -128,6 +128,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         for model_name in ref_models or []:
             model = models[model_name]
             model.fit(fold_dataset)
+            #TODO model.preproc_recommend_context data_preparator(internaly), if model_require_context
             preproc_fold_dataset = model.data_preparator.preproc_recommend_context(fold_dataset,interactions_df_test)
             ref_reco[model_name] = model.recommend(
                 users=test_users,
