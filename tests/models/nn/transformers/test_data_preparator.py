@@ -63,9 +63,7 @@ class TestSequenceDataset:
         expected_weights: tp.List[tp.List[float]],
         expected_extra_column: tp.Dict[str, tp.List[tp.Any]],
     ) -> None:
-        actual = SequenceDataset.from_interactions(
-            interactions=interactions_df, sort_users=True, extra_cols=["extra_column"]
-        )
+        actual = SequenceDataset.from_interactions(interactions=interactions_df, sort_users=True)
         assert len(actual.sessions) == len(expected_sessions)
         assert all(
             actual_list == expected_list for actual_list, expected_list in zip(actual.sessions, expected_sessions)
@@ -169,7 +167,7 @@ class TestTransformerDataPreparatorBase:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        data_preparator.extra_cols_kwargs = {"extra_cols": "extra_column"}
+        data_preparator.extra_cols = ["extra_column"]
         data_preparator.process_dataset_train(dataset)
         actual = data_preparator.train_dataset
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
@@ -228,7 +226,7 @@ class TestTransformerDataPreparatorBase:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        data_preparator.extra_cols_kwargs = {"extra_cols": "extra_column"}
+        data_preparator.extra_cols = ["extra_column"]
         data_preparator.process_dataset_train(dataset)
         users = [10, 20]
         actual = data_preparator.transform_dataset_u2i(dataset, users)

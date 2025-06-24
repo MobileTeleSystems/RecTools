@@ -72,7 +72,6 @@ class SequenceDataset(TorchDataset):
         cls,
         interactions: pd.DataFrame,
         sort_users: bool = False,
-        extra_cols: tp.Optional[tp.List[str]] = None,
     ) -> "SequenceDataset":
         """
         Group interactions by user.
@@ -93,7 +92,8 @@ class SequenceDataset(TorchDataset):
             sessions[Columns.Item].to_list(),
             sessions[Columns.Weight].to_list(),
         )
-        extras = {col: sessions[col].to_list() for col in extra_cols} if extra_cols else None
+        extra_cols = [col for col in interactions.columns if col not in Columns.Interactions]
+        extras = {col: sessions[col].to_list() for col in extra_cols} if len(extra_cols) > 0 else None
         return cls(sessions=sessions_items, weights=weights, extras=extras)
 
 
@@ -144,7 +144,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
-        extra_cols_kwargs: tp.Optional[InitKwargs] = None,
+        extra_cols: tp.Optional[tp.List[str]] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -160,7 +160,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
-        self.extra_cols_kwargs = extra_cols_kwargs
+        self.extra_cols = extra_cols
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -216,7 +216,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
-        raw_interactions = dataset.get_raw_interactions()
+        if self.extra_cols is None:
+            raw_interactions = dataset.get_raw_interactions(include_extra_cols=False)
+        else:
+            raw_interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
 
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
@@ -244,9 +247,11 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         # Prepare train dataset
         # User features are dropped for now because model doesn't support them
-        keep_extra_cols = self.extra_cols_kwargs is not None
         final_interactions = Interactions.from_raw(
-            interactions, user_id_map, item_id_map, keep_extra_cols=keep_extra_cols
+            interactions,
+            user_id_map,
+            item_id_map,
+            keep_extra_cols=self.extra_cols is not None,
         )
         self.train_dataset = Dataset(user_id_map, item_id_map, final_interactions, item_features=item_features)
         self.item_id_map = self.train_dataset.item_id_map
@@ -263,7 +268,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(
-                val_interactions, user_id_map, item_id_map, keep_extra_cols=keep_extra_cols
+                val_interactions, user_id_map, item_id_map, keep_extra_cols=self.extra_cols is not None
             ).df
 
     def _init_extra_token_ids(self) -> None:
@@ -279,9 +284,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
-        sequence_dataset = SequenceDataset.from_interactions(
-            self.train_dataset.interactions.df, **self._ensure_kwargs_dict(self.extra_cols_kwargs)
-        )
+        sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df)
         train_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_train,
@@ -303,9 +306,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if self.val_interactions is None:
             return None
 
-        sequence_dataset = SequenceDataset.from_interactions(
-            self.val_interactions, **self._ensure_kwargs_dict(self.extra_cols_kwargs)
-        )
+        sequence_dataset = SequenceDataset.from_interactions(self.val_interactions)
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -328,9 +329,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        sequence_dataset = SequenceDataset.from_interactions(
-            interactions=dataset.interactions.df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs)
-        )
+        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,
@@ -364,7 +363,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final item_id_map is model item_id_map constructed during training.
         """
         # Filter interactions in dataset internal ids
-        interactions = dataset.interactions.df
+        if self.extra_cols is None:
+            interactions = dataset.interactions.df[Columns.Interactions]
+        else:
+            interactions = dataset.interactions.df[Columns.Interactions + self.extra_cols]
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]
@@ -383,9 +385,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""
             warnings.warn(explanation)
-        keep_extra_cols = self.extra_cols_kwargs is not None
         filtered_interactions = Interactions.from_raw(
-            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=keep_extra_cols
+            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=self.extra_cols is not None
         )
         filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
@@ -408,11 +409,13 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final user_id_map is the same as dataset original.
             Final item_id_map is model item_id_map constructed during training.
         """
-        interactions = dataset.get_raw_interactions()
+        if self.extra_cols is None:
+            interactions = dataset.get_raw_interactions(include_extra_cols=False)
+        else:
+            interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
-        keep_extra_cols = self.extra_cols_kwargs is not None
         filtered_interactions = Interactions.from_raw(
-            interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols
+            interactions, dataset.user_id_map, self.item_id_map, self.extra_cols is not None
         )
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
