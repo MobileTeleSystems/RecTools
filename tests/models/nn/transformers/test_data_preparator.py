@@ -47,12 +47,12 @@ class TestSequenceDataset:
         return interactions_df
 
     @pytest.mark.parametrize(
-        "expected_sessions, expected_weights, expected_extra_column",
+        "expected_sessions, expected_weights, expected_extras",
         (
             (
                 [[14, 11, 12, 13], [15, 12, 11], [11, 17], [16]],
                 [[1, 1, 4, 1], [1, 2, 1], [1, 8], [1]],
-                [[0, 1, 1, 0], [1, 1, 0], [2, 1], [0]],
+                {"extra_column": [[0, 1, 1, 0], [1, 1, 0], [2, 1], [0]]},
             ),
         ),
     )
@@ -61,7 +61,7 @@ class TestSequenceDataset:
         interactions_df: pd.DataFrame,
         expected_sessions: tp.List[tp.List[int]],
         expected_weights: tp.List[tp.List[float]],
-        expected_extra_column: tp.Dict[str, tp.List[tp.Any]],
+        expected_extras: tp.Dict[str, tp.List[tp.Any]],
     ) -> None:
         actual = SequenceDataset.from_interactions(interactions=interactions_df, sort_users=True)
         assert len(actual.sessions) == len(expected_sessions)
@@ -71,10 +71,10 @@ class TestSequenceDataset:
         assert len(actual.weights) == len(expected_weights)
         assert all(actual_list == expected_list for actual_list, expected_list in zip(actual.weights, expected_weights))
         assert actual.extras is not None
-        assert len(actual.extras["extra_column"]) == len(expected_extra_column)
+        assert len(actual.extras["extra_column"]) == len(expected_extras["extra_column"])
         assert all(
             actual_list == expected_list
-            for actual_list, expected_list in zip(actual.extras["extra_column"], expected_extra_column)
+            for actual_list, expected_list in zip(actual.extras["extra_column"], expected_extras["extra_column"])
         )
 
 
