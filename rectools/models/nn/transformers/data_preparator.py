@@ -34,7 +34,7 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
-PayloadsSpec = tp.Dict[str, tp.List[tp.Any]]
+ExtrasSpec = tp.Dict[str, tp.List[tp.Any]]
 BatchElement = Union[
     Tuple[List[int], List[float]],
     Tuple[List[int], List[float], Dict[str, List[Any]]]   #с payload
@@ -54,10 +54,10 @@ class SequenceDataset(TorchDataset):
 
     def __init__(self, sessions: tp.List[tp.List[int]],
                  weights: tp.List[tp.List[float]],
-                 payloads: tp.Optional[PayloadsSpec] = None):
+                 extras: tp.Optional[ExtrasSpec] = None):
         self.sessions = sessions
         self.weights = weights
-        self.payloads = payloads
+        self.extras = extras
 
     def __len__(self) -> int:
         return len(self.sessions)
@@ -65,13 +65,14 @@ class SequenceDataset(TorchDataset):
     def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float]]:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
-        if self.payloads:
-            payloads = {
+        if self.extras:
+            extras = {
                 feature_name : features[index]
-                for  feature_name, features in self.payloads.items()
+                for  feature_name, features in self.extras.items()
             }
-            return session, weights, payloads
-        return session, weights
+            return session, weights, extras
+        extras = {}
+        return session, weights, extras
 
     @classmethod
     def from_interactions(
@@ -103,11 +104,11 @@ class SequenceDataset(TorchDataset):
         )
 
         if extra_cols:
-            payloads = {
+            extras = {
                 col: sessions[col].to_list()
                 for col in extra_cols
             }
-            return cls(sessions=sessions_items, weights=weights, payloads=payloads)
+            return cls(sessions=sessions_items, weights=weights, extras=extras)
 
         return cls(sessions=sessions_items, weights=weights)
 
@@ -159,8 +160,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
-        extra_cols_kwargs: tp.Optional[InitKwargs] = None,
-        datetime_spec: tp.Optional[str] = None,
+        extra_cols_kwargs: tp.Optional[InitKwargs] = None, # TODO suggest default {}, not None
+        convert_time: bool = True,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -177,9 +178,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols_kwargs = extra_cols_kwargs
-        self.datetime_spec = datetime_spec
+        self.convert_time = convert_time
         print("Extra cols: ",extra_cols_kwargs)
-        print(f"Datetime spec: {datetime_spec}.")
+        print(f"Convert time: {convert_time}.")
 
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
@@ -296,10 +297,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         #TODO assmp only s in [...], remove if
         prep_df = self.train_dataset.interactions.df
-        if self.datetime_spec is not None:
-            assert self.datetime_spec in ["s","h","d"]
-            if self.datetime_spec == "s":
-                prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        if self.convert_time:
+            prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
         sequence_dataset = SequenceDataset.from_interactions(prep_df, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
 
         train_dataloader = DataLoader(
@@ -323,10 +322,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if self.val_interactions is None:
             return None
         prep_df = self.val_interactions
-        if self.datetime_spec is not None:
-            assert self.datetime_spec in ["s","h","d"]
-            if self.datetime_spec == "s":
-                prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        if self.convert_time:
+            prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
         sequence_dataset = SequenceDataset.from_interactions(prep_df,**self._ensure_kwargs_dict(self.extra_cols_kwargs))
         val_dataloader = DataLoader(
             sequence_dataset,
@@ -351,10 +348,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
         prep_df = dataset.interactions.df
-        if self.datetime_spec is not None:
-            assert self.datetime_spec in ["s","h","d"]
-            if self.datetime_spec == "s":
-                prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        if self.convert_time:
+            prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
         sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
         recommend_dataloader = DataLoader(
             sequence_dataset,
@@ -453,10 +448,3 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
-
-    def preproc_recommend_context(
-        self,
-        recommend,
-        context
-    ) -> tp.Dict[str, torch.Tensor]:
-        return recommend

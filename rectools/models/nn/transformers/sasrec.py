@@ -90,7 +90,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
@@ -107,7 +107,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             #print(len(ses))
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
@@ -129,7 +129,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        for i, (ses, _, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
         return {"x": torch.LongTensor(x)}
 
@@ -262,6 +262,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
+
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
             seqs = self.transformer_blocks[i](seqs, attn_mask, key_padding_mask)
@@ -433,6 +434,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
+        convert_time: bool = True,
+        require_recommend_context: bool = False,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -478,6 +481,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             lr=lr,
             epochs=epochs,
             verbose=verbose,
+            convert_time=convert_time,
+            require_recommend_context=require_recommend_context,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,

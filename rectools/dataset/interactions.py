@@ -63,7 +63,6 @@ class Interactions:
 
         try:
             df[Columns.Datetime] = df[Columns.Datetime].astype("datetime64[ns]")
-            #print(df)
         except ValueError:
             raise TypeError(f"Column '{Columns.Datetime}' must be convertible to 'datetime64' type")
 

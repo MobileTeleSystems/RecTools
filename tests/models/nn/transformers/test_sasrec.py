@@ -978,6 +978,8 @@ class TestSASRecModelConfiguration:
             "negative_sampler_kwargs": None,
             "similarity_module_kwargs": None,
             "backbone_kwargs": None,
+            "convert_time": True,
+            "require_recommend_context": False,
         }
         return config
 
@@ -1024,7 +1026,8 @@ class TestSASRecModelConfiguration:
             expected.update(simple_types_params)
             if use_custom_trainer:
                 expected["get_trainer_func"] = "tests.models.nn.transformers.utils.custom_trainer"
-
+        print(actual)
+        print(expected)
         assert actual == expected
 
     @pytest.mark.parametrize("use_custom_trainer", (True, False))

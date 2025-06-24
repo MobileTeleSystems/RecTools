@@ -31,16 +31,6 @@ import torch.nn.functional as F
 
 # ####  --------------  Lightning Base Model  --------------  #### #
 
-def truncated_normal(x: torch.Tensor, mean: float, std: float) -> torch.Tensor:
-    with torch.no_grad():
-        size = x.shape
-        tmp = x.new_empty(size + (4,)).normal_()
-        valid = (tmp < 2) & (tmp > -2)
-        ind = valid.max(-1, keepdim=True)[1]
-        x.data.copy_(tmp.gather(-1, ind).squeeze(-1))
-        x.data.mul_(std).add_(mean)
-        return x
-
 class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-many-instance-attributes
     """
     Base class for transfofmers lightning module. To change train procedure inherit
@@ -380,32 +370,6 @@ class TransformerLightningModule(TransformerLightningModuleBase):
     ) -> tp.Dict[str, torch.Tensor]:
         raise ValueError(f"loss {self.loss} is not supported")  # pragma: no cover
 
-    def _test_semi_xavier_normal_init(self) -> None:
-        params_orig_init = ["transformer_layers.stu_blocks.1._uvqk",
-                           "transformer_layers.stu_blocks.0._uvqk",
-                           "transformer_layers.stu_blocks.1._rel_attn_bias._ts_w",
-                           "transformer_layers.stu_blocks.1._rel_attn_bias._pos_w",
-                           "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w",
-                           "transformer_layers.stu_blocks.0._rel_attn_bias._pos_w",
-                           "item_model.item_net_blocks.0.ids_emb.weight",
-                           "pos_encoding_layer.pos_emb.weight",
-                           ]
-        for name, param in self.torch_model.named_parameters():
-            if param.data.dim() > 1 and name  in params_orig_init:
-                print(
-                    f"Initialize {name} as original distribution: {param.data.size()} params"
-                )
-            elif param.data.dim() > 1 and name not in params_orig_init :
-                torch.nn.init.xavier_normal_(param.data)
-                print(
-                    f"Initialize {name} as xavier_normal distribution: {param.data.size()} params"
-                )
-            if "ids_emb" in name:
-                print(
-                    f"Initialize {name} as truncated normal: {param.data.size()} params"
-                )
-                truncated_normal(param, mean=0.0, std=0.02)
-
     def _xavier_normal_init(self) -> None:
         for _, param in self.torch_model.named_parameters():
             if param.data.dim() > 1:
@@ -435,8 +399,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             user_embs = []
             for batch in recommend_dataloader:
                 batch["x"] = batch["x"].to(device)
-                if batch.get("payloads") is not None:
-                    batch["payloads"][Columns.Datetime] = batch["payloads"][Columns.Datetime].to(device)
+                #TODO  extras is None anymore, always either {} or {data}
+                if batch.get("extras") is not None:
+                    batch["extras"][Columns.Datetime] = batch["extras"][Columns.Datetime].to(device)
                 batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
                 user_embs.append(batch_embs.cpu())
 

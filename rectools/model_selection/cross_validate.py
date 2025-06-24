@@ -121,15 +121,15 @@ def cross_validate(  # pylint: disable=too-many-locals
         prev_interactions = fold_dataset.get_raw_interactions()
         catalog = prev_interactions[Columns.Item].unique()
 
-
-
         # ### Train ref models if any
         ref_reco = {}
         for model_name in ref_models or []:
             model = models[model_name]
             model.fit(fold_dataset)
-            #TODO model.preproc_recommend_context data_preparator(internaly), if model_require_context
-            preproc_fold_dataset = model.data_preparator.preproc_recommend_context(fold_dataset,interactions_df_test)
+            #Done TODO model.preproc_recommend_context data_preparator(internaly), if model_require_context
+            preproc_fold_dataset = fold_dataset
+            if model.require_recommend_context:
+                preproc_fold_dataset = model.preproc_recommend_context(fold_dataset,interactions_df_test)
             ref_reco[model_name] = model.recommend(
                 users=test_users,
                 dataset=preproc_fold_dataset,
@@ -148,7 +148,9 @@ def cross_validate(  # pylint: disable=too-many-locals
                 reco = ref_reco[model_name]
             else:
                 model.fit(fold_dataset)
-                preproc_fold_dataset = model.data_preparator.preproc_recommend_context(fold_dataset,interactions_df_test)
+                preproc_fold_dataset = fold_dataset
+                if model.require_recommend_context:
+                    preproc_fold_dataset = model.preproc_recommend_context(fold_dataset,interactions_df_test)
                 reco = model.recommend(
                     users=test_users,
                     dataset=preproc_fold_dataset,

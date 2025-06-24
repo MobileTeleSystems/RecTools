@@ -19,8 +19,7 @@ import torch
 from ..item_net import ItemNetBase
 from .net_blocks import PositionalEncodingBase, TransformerLayersBase
 from .similarity import SimilarityModuleBase
-
-
+from rectools import Columns
 class TransformerBackboneBase(torch.nn.Module):
     """Base class for transformer torch backbone."""
 
@@ -255,7 +254,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
-
+        #TODO batch
         seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
@@ -288,7 +287,8 @@ class TransformerTorchBackbone(TransformerBackboneBase):
 
 class HSTUTorchBackbone(TransformerBackboneBase):
     """
-    Torch model for encoding user sessions based on TODO architecture.
+    Torch model for encoding user sessions based on
+    TODO docstings architecture
 
     Parameters
     ----------
@@ -322,6 +322,8 @@ class HSTUTorchBackbone(TransformerBackboneBase):
         similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
+        use_timestamp_embeddings: bool = False,
+        num_time_buckets: int = 128,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -335,7 +337,11 @@ class HSTUTorchBackbone(TransformerBackboneBase):
             use_key_padding_mask=use_key_padding_mask,
             **kwargs,
         )
-
+        self.use_timestamp_embeddings = use_timestamp_embeddings
+        self.num_time_buckets = num_time_buckets
+        #TODO  it's plug
+        self.embedding_dim = 50  # размерность эмбеддинга
+        self.timestamp_embedding = torch.nn.Embedding(num_embeddings=self.num_buckets + 1,embedding_dim=self.embedding_dim)
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:
         return torch.zeros_like(mask, dtype=query.dtype).masked_fill_(mask, float("-inf"))
@@ -418,6 +424,16 @@ class HSTUTorchBackbone(TransformerBackboneBase):
         # scale emb in sqrt(D) here instead changing LIPE module
         seqs = seqs * (D**0.5)
         seqs = self.pos_encoding_layer(seqs)
+        if  self.use_timestamp_embeddings:
+            all_timestamps = batch["extras"][Columns.Datetime]
+            diffs = torch.diff(all_timestamps, dim=1)
+            diffs = self.bucketization_fn(diffs)[0] # 1 is device type
+            bucketed_timestamps = torch.clamp(diffs,
+                min=0,
+                max=self.num_buckets,
+            ).detach()
+            embeddings = self.timestamp_embedding(bucketed_timestamps)
+            seqs+= embeddings
         if self.use_causal_attn:
             attn_mask = torch.tril(
                 torch.ones((session_max_len, session_max_len), dtype=torch.int, device=sessions.device)
@@ -427,9 +443,8 @@ class HSTUTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
-
-        seqs = self.transformer_layers(seqs, batch["payloads"], timeline_mask, attn_mask, key_padding_mask)
-        # Done TODO remove l2 norn in transformer_layers
+        # TODO  batch["seqs"] = seqs
+        seqs = self.transformer_layers(seqs, batch["extras"], timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
     def forward(

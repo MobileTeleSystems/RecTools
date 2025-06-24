@@ -25,6 +25,7 @@ import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 
+from pandas import  DataFrame
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
@@ -199,7 +200,9 @@ class TransformerModelConfig(ModelConfig):
     dataloader_num_workers: int = 0
     batch_size: int = 128
     loss: str = "softmax"
-    datetime_spec: tp.Optional[str] = None
+    convert_time: bool = True
+    # TODO ask is it worth pass require_recommend_context = False here.
+    require_recommend_context: bool = False
     n_negatives: int = 1
     gbce_t: float = 0.2
     lr: float = 0.001
@@ -272,7 +275,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         train_min_user_interactions: int = 2,
-        datetime_spec: tp.Optional[str] = None,
+        convert_time: bool = True,
+        require_recommend_context: bool = False,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -294,7 +298,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         backbone_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
-        super().__init__(verbose=verbose)
+        super().__init__(verbose=verbose, require_recommend_context = require_recommend_context) # TODO look at this
         self.transformer_layers_type = transformer_layers_type
         self.data_preparator_type = data_preparator_type
         self.n_blocks = n_blocks
@@ -335,7 +339,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.negative_sampler_kwargs = negative_sampler_kwargs
         self.similarity_module_kwargs = similarity_module_kwargs
         self.backbone_kwargs = backbone_kwargs
-        self.datetime_spec = datetime_spec
+        self.convert_time = convert_time
 
         self._init_data_preparator()
         self._init_trainer()
@@ -362,7 +366,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
-            datetime_spec = self.datetime_spec,
+            convert_time = self.convert_time,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
 
@@ -677,3 +681,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             raise RuntimeError("Model weights cannot be loaded from checkpoint into unfitted model")
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.lightning_model.load_state_dict(checkpoint["state_dict"])
+
+    def preproc_recommend_context(
+        self,
+        recommend: Dataset,
+        context: DataFrame,
+    ) -> tp.Dict[str, torch.Tensor]:
+        raise NotImplementedError()
+
