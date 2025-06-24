@@ -62,7 +62,11 @@ class DistanceSimilarityModule(SimilarityModuleBase):
     dist_available: tp.List[str] = [Distance.DOT, Distance.COSINE]
     epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
 
-    def __init__(self, distance: str = "dot") -> None:
+    def __init__(
+        self,
+        distance: str = "dot",
+        **kwargs: tp.Any,
+    ) -> None:
         super().__init__()
         if distance not in self.dist_available:
             raise ValueError("`dist` can only be either `dot` or `cosine`.")

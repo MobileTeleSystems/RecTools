@@ -46,23 +46,33 @@ class SequenceDataset(TorchDataset):
         Weight of each interaction from the session.
     """
 
-    def __init__(self, sessions: tp.List[tp.List[int]], weights: tp.List[tp.List[float]]):
+    def __init__(
+        self,
+        sessions: tp.List[tp.List[int]],
+        weights: tp.List[tp.List[float]],
+        extras: tp.Optional[tp.Dict[str, tp.List[tp.Any]]] = None,
+    ):
         self.sessions = sessions
         self.weights = weights
+        self.extras = extras
 
     def __len__(self) -> int:
         return len(self.sessions)
 
-    def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float]]:
+    def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
-        return session, weights
+        extras = (
+            {feature_name: features[index] for feature_name, features in self.extras.items()} if self.extras else {}
+        )
+        return session, weights, extras
 
     @classmethod
     def from_interactions(
         cls,
         interactions: pd.DataFrame,
         sort_users: bool = False,
+        extra_cols: tp.Optional[tp.List[str]] = None,
     ) -> "SequenceDataset":
         """
         Group interactions by user.
@@ -73,17 +83,18 @@ class SequenceDataset(TorchDataset):
         interactions : pd.DataFrame
             User-item interactions.
         """
+        cols_to_agg = [col for col in interactions.columns if col != Columns.User]
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User, sort=sort_users)[[Columns.Item, Columns.Weight]]
+            .groupby(Columns.User, sort=sort_users)[cols_to_agg]
             .agg(list)
         )
-        sessions, weights = (
+        sessions_items, weights = (
             sessions[Columns.Item].to_list(),
             sessions[Columns.Weight].to_list(),
         )
-
-        return cls(sessions=sessions, weights=weights)
+        extras = {col: sessions[col].to_list() for col in extra_cols} if extra_cols else None
+        return cls(sessions=sessions_items, weights=weights, extras=extras)
 
 
 class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attributes
@@ -133,6 +144,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        extra_cols_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -148,6 +160,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
+        self.extra_cols_kwargs = extra_cols_kwargs
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -231,7 +244,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         # Prepare train dataset
         # User features are dropped for now because model doesn't support them
-        final_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
+        keep_extra_cols = self.extra_cols_kwargs is not None
+        final_interactions = Interactions.from_raw(
+            interactions, user_id_map, item_id_map, keep_extra_cols=keep_extra_cols
+        )
         self.train_dataset = Dataset(user_id_map, item_id_map, final_interactions, item_features=item_features)
         self.item_id_map = self.train_dataset.item_id_map
         self._init_extra_token_ids()
@@ -246,7 +262,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
-            self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+            self.val_interactions = Interactions.from_raw(
+                val_interactions, user_id_map, item_id_map, keep_extra_cols=keep_extra_cols
+            ).df
 
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
@@ -261,7 +279,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
-        sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df)
+        sequence_dataset = SequenceDataset.from_interactions(
+            self.train_dataset.interactions.df, **self._ensure_kwargs_dict(self.extra_cols_kwargs)
+        )
         train_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_train,
@@ -283,7 +303,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if self.val_interactions is None:
             return None
 
-        sequence_dataset = SequenceDataset.from_interactions(self.val_interactions)
+        sequence_dataset = SequenceDataset.from_interactions(
+            self.val_interactions, **self._ensure_kwargs_dict(self.extra_cols_kwargs)
+        )
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -306,7 +328,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
+        sequence_dataset = SequenceDataset.from_interactions(
+            interactions=dataset.interactions.df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs)
+        )
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,
@@ -359,7 +383,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""
             warnings.warn(explanation)
-        filtered_interactions = Interactions.from_raw(interactions, rec_user_id_map, self.item_id_map)
+        keep_extra_cols = self.extra_cols_kwargs is not None
+        filtered_interactions = Interactions.from_raw(
+            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=keep_extra_cols
+        )
         filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
@@ -383,24 +410,27 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         interactions = dataset.get_raw_interactions()
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
-        filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
+        keep_extra_cols = self.extra_cols_kwargs is not None
+        filtered_interactions = Interactions.from_raw(
+            interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols
+        )
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
     def _collate_fn_train(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_val(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
