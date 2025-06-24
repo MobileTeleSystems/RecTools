@@ -45,11 +45,12 @@ from .net_blocks import (
     TransformerLayersBase, LearnableInversePositionalEncoding,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
-from .torch_backbone import HSTUTorchBackbone, TransformerBackboneBase
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 from rectools import Columns
 from rectools.dataset import Dataset
 check_split_train_dataset = True
 check_split_val_dataset = True
+
 class HSTUDataPreparator(TransformerDataPreparatorBase):
     """Data preparator for HSTUModel.
 
@@ -438,8 +439,7 @@ class STULayers(TransformerLayersBase):
 
     def forward(
         self,
-        seqs: torch.Tensor,
-        extras: tp.Optional[Dict[str, torch.Tensor]],
+        batch: Dict[str, torch.Tensor],
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -464,9 +464,14 @@ class STULayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
+        seqs = batch["seqs"]
+        D = seqs.shape[-1]
+        # scale emb in sqrt(D) here instead changing LIPE module
+        seqs = seqs * (D**0.5)
+        attn_mask = (~attn_mask).long()
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
-            seqs = self.stu_blocks[i](seqs, extras, attn_mask, timeline_mask, key_padding_mask)
+            seqs = self.stu_blocks[i](seqs, batch["extras"], attn_mask, timeline_mask, key_padding_mask)
         seqs *= timeline_mask
         return seqs / torch.clamp(
             torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
@@ -649,7 +654,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
-        backbone_type: tp.Type[TransformerBackboneBase] = HSTUTorchBackbone,
+        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
