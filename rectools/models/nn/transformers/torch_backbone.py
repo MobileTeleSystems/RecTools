@@ -341,7 +341,7 @@ class HSTUTorchBackbone(TransformerBackboneBase):
         self.num_time_buckets = num_time_buckets
         #TODO  it's plug
         self.embedding_dim = 50  # размерность эмбеддинга
-        self.timestamp_embedding = torch.nn.Embedding(num_embeddings=self.num_buckets + 1,embedding_dim=self.embedding_dim)
+        self.timestamp_embedding = torch.nn.Embedding(num_embeddings=self.num_time_buckets + 1,embedding_dim=self.embedding_dim)
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:
         return torch.zeros_like(mask, dtype=query.dtype).masked_fill_(mask, float("-inf"))

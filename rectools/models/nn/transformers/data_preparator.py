@@ -79,7 +79,6 @@ class SequenceDataset(TorchDataset):
         cls,
         interactions: pd.DataFrame,
         sort_users: bool = False,
-        extra_cols: tp.Optional[tp.List[str]] = None,
     ) -> "SequenceDataset":
         """
         Group interactions by user.
@@ -90,7 +89,8 @@ class SequenceDataset(TorchDataset):
         interactions : pd.DataFrame
             User-item interactions.
         """
-        cols_to_agg = [col for col in interactions.columns if col != Columns.User]
+        exclude_cols = {Columns.User}
+        cols_to_agg = [col for col in interactions.columns if col not in exclude_cols]
 
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
@@ -103,14 +103,20 @@ class SequenceDataset(TorchDataset):
             sessions[Columns.Weight].to_list(),
         )
 
+        exclude_cols.add(Columns.Item)
+        exclude_cols.add(Columns.Weight)
+
+        extra_cols = [col for col in cols_to_agg if col not in exclude_cols]
+
         if extra_cols:
             extras = {
                 col: sessions[col].to_list()
                 for col in extra_cols
             }
             return cls(sessions=sessions_items, weights=weights, extras=extras)
-
-        return cls(sessions=sessions_items, weights=weights)
+        else:
+            extras = {}
+            return cls(sessions=sessions_items, weights=weights, extras=extras)
 
 
 class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attributes
@@ -160,8 +166,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
-        extra_cols_kwargs: tp.Optional[InitKwargs] = None, # TODO suggest default {}, not None
-        convert_time: bool = True,
+        extra_cols: tp.Optional[List[tp.Any]] = [], # TODO suggest default {}, not None
+        add_unix_ts: bool = True,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -177,10 +183,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
-        self.extra_cols_kwargs = extra_cols_kwargs
-        self.convert_time = convert_time
-        print("Extra cols: ",extra_cols_kwargs)
-        print(f"Convert time: {convert_time}.")
+        self.extra_cols = extra_cols
+        self.add_unix_ts = add_unix_ts
+        self.base_extra_cols = [Columns.User, Columns.Item, Columns.Weight] + extra_cols
+        print("Keep columns: ",  self.base_extra_cols )
+        print("Extra cols: ",extra_cols)
+        print(f"add_unix_ts: {add_unix_ts}.")
 
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
@@ -234,13 +242,14 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             .tail(self.session_max_len + self.train_session_max_len_addition)
         )
         return train_interactions
-
+    def _filter_columns_interactions_(self, interactions):
+        return interactions[self.base_extra_cols]
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
 
-        # Exclude val interaction targets from train if needed
-        interactions = raw_interactions
+        #Exclude val interactions targets from train if needed
+        interactions = self._filter_columns_interactions_(raw_interactions)
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(
                 raw_interactions, **self._ensure_kwargs_dict(self.get_val_mask_func_kwargs)
@@ -296,10 +305,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Train dataloader.
         """
         #TODO assmp only s in [...], remove if
-        prep_df = self.train_dataset.interactions.df
-        if self.convert_time:
+        prep_df = self.train_dataset.interactions.df.copy()
+        if self.add_unix_ts:
             prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        sequence_dataset = SequenceDataset.from_interactions(prep_df, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
+        sequence_dataset = SequenceDataset.from_interactions(prep_df)
 
         train_dataloader = DataLoader(
             sequence_dataset,
@@ -321,10 +330,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         if self.val_interactions is None:
             return None
-        prep_df = self.val_interactions
-        if self.convert_time:
+        prep_df = self.val_interactions.copy()
+        if self.add_unix_ts:
             prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        sequence_dataset = SequenceDataset.from_interactions(prep_df,**self._ensure_kwargs_dict(self.extra_cols_kwargs))
+        sequence_dataset = SequenceDataset.from_interactions(prep_df)
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -347,10 +356,11 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        prep_df = dataset.interactions.df
-        if self.convert_time:
+        #TODO ask make _filter_columns_interactions_ here on prep_df?
+        prep_df = dataset.interactions.df.copy()
+        if self.add_unix_ts:
             prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True, **self._ensure_kwargs_dict(self.extra_cols_kwargs))
+        sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,

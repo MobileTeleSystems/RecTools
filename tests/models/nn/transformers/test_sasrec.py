@@ -979,7 +979,6 @@ class TestSASRecModelConfiguration:
             "similarity_module_kwargs": None,
             "backbone_kwargs": None,
             "convert_time": True,
-            "require_recommend_context": False,
         }
         return config
 

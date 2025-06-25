@@ -20,12 +20,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import numpy as np
+import pandas as pd
+from rectools import Columns
 import torch
 import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 
-from pandas import  DataFrame
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
@@ -202,7 +203,7 @@ class TransformerModelConfig(ModelConfig):
     loss: str = "softmax"
     convert_time: bool = True
     # TODO ask is it worth pass require_recommend_context = False here.
-    require_recommend_context: bool = False
+    #require_recommend_context: bool = False
     n_negatives: int = 1
     gbce_t: float = 0.2
     lr: float = 0.001
@@ -276,7 +277,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_torch_device: tp.Optional[str] = None,
         train_min_user_interactions: int = 2,
         convert_time: bool = True,
-        require_recommend_context: bool = False,
+        #require_recommend_context: bool = False,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -298,7 +299,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         backbone_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
-        super().__init__(verbose=verbose, require_recommend_context = require_recommend_context) # TODO look at this
+        super().__init__(verbose=verbose) # TODO look at this
         self.transformer_layers_type = transformer_layers_type
         self.data_preparator_type = data_preparator_type
         self.n_blocks = n_blocks
@@ -682,10 +683,23 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.lightning_model.load_state_dict(checkpoint["state_dict"])
 
-    def preproc_recommend_context(
+    def _preproc_recommend_context(
         self,
-        recommend: Dataset,
-        context: DataFrame,
+        recommend_dataset: Dataset,
+        context: pd.DataFrame
     ) -> tp.Dict[str, torch.Tensor]:
-        raise NotImplementedError()
+        print("process context")
+        model_known_external_ids = self.data_preparator.get_known_item_ids()
+        dummy_common_item = np.intersect1d(recommend_dataset.item_id_map.external_ids, model_known_external_ids)[0]
+        #Done TODO set policy separatly?
+        in_external_view_recommend = recommend_dataset.get_raw_interactions()
+        in_external_view_context = context.copy()
+        first_interaction_indices = in_external_view_context.groupby(Columns.User)[Columns.Datetime].idxmin()
+
+        in_external_view_context_policy = in_external_view_context.loc[first_interaction_indices]
+        in_external_view_context_policy[Columns.Item] = dummy_common_item
+
+        union = pd.concat([in_external_view_recommend, in_external_view_context_policy])
+        new_dataset_recommend = Dataset.construct(union)
+        return new_dataset_recommend
 

@@ -141,7 +141,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             masked_session, target = self._mask_session(ses)
             x[i, -len(ses) :] = masked_session  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) :] = target  # ses: [session_len] -> y[i]: [session_max_len]
@@ -159,7 +159,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # until only leave-one-strategy
         yw = np.zeros((batch_size, 1))  # until only leave-one-strategy
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
             session = input_session.copy()
 
@@ -186,7 +186,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
         and one extra "MASK" token will be added for making predictions.
         """
         x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        for i, (ses, _, _) in enumerate(batch):
             session = ses.copy()
             session = session + [self.extra_token_ids[MASKING_VALUE]]
             x[i, -len(ses) - 1 :] = session[-self.session_max_len :]
@@ -361,7 +361,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
         use_key_padding_mask: bool = True,
         use_causal_attn: bool = False,
         convert_time: bool = True,
-        require_recommend_context: bool = False,
+        #require_recommend_context: bool = False,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -411,7 +411,7 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             epochs=epochs,
             verbose=verbose,
             convert_time=convert_time,
-            require_recommend_context = require_recommend_context,
+            #require_recommend_context = require_recommend_context,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,

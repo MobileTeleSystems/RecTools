@@ -482,7 +482,6 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             epochs=epochs,
             verbose=verbose,
             convert_time=convert_time,
-            require_recommend_context=require_recommend_context,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,

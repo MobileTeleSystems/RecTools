@@ -80,7 +80,6 @@ class ModelConfig(BaseConfig):
 
     cls: tp.Optional[ModelClass] = None
     verbose: int = 0
-    require_recommend_context: bool = False
 
 
 ModelConfig_T = tp.TypeVar("ModelConfig_T", bound=ModelConfig)
@@ -100,11 +99,15 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     config_class: tp.Type[ModelConfig_T]
 
 
-    def __init__(self, *args: tp.Any, verbose: int = 0, require_recommend_context = False, **kwargs: tp.Any) -> None:
+    def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
         #TODO  look at this
-        self.require_recommend_context = require_recommend_context
+        self._require_recommend_context = False
+
+    @property
+    def require_recommend_context(self):
+        return self._require_recommend_context
 
     @tp.overload
     def get_config(  # noqa: D102

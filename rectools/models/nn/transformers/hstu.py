@@ -480,7 +480,6 @@ class HSTUModelConfig(TransformerModelConfig):
     data_preparator_type: TransformerDataPreparatorType = HSTUDataPreparator
     transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
-    require_recommend_context: bool = True
 
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
@@ -639,8 +638,8 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
-        convert_time: bool = True,
-        require_recommend_context: bool = True,
+        convert_time: bool = True, # TODO не нравится
+        #require_recommend_context: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -687,7 +686,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             epochs=epochs,
             verbose=verbose,
             convert_time = convert_time,
-            require_recommend_context= require_recommend_context,
+            #require_recommend_context= require_recommend_context,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,
@@ -720,18 +719,5 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         recommend_dataset: Dataset,
         context: pd.DataFrame
     ) -> tp.Dict[str, torch.Tensor]:
-        print("process context")
-        model_known_external_ids = self.data_preparator.get_known_item_ids()
-        dummy_common_item = np.intersect1d(recommend_dataset.item_id_map.external_ids, model_known_external_ids)[0]
-        #TODO set policy separatly?
-        in_external_view_recommend = recommend_dataset.get_raw_interactions()
-        in_external_view_context = context.copy()
-        first_interaction_indices = in_external_view_context.groupby(Columns.User)[Columns.Datetime].idxmin()
-
-        in_external_view_context_policy = in_external_view_context.loc[first_interaction_indices]
-        in_external_view_context_policy[Columns.Item] = dummy_common_item
-
-        union = pd.concat([in_external_view_recommend, in_external_view_context_policy])
-        new_dataset_recommend = Dataset.construct(union)
-        return new_dataset_recommend
+        return self._preproc_recommend_context(recommend_dataset, context)
 
