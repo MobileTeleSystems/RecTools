@@ -251,7 +251,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             interactions,
             user_id_map,
             item_id_map,
-            keep_extra_cols=self.extra_cols is not None,
+            keep_extra_cols=True,
         )
         self.train_dataset = Dataset(user_id_map, item_id_map, final_interactions, item_features=item_features)
         self.item_id_map = self.train_dataset.item_id_map
@@ -268,7 +268,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(
-                val_interactions, user_id_map, item_id_map, keep_extra_cols=self.extra_cols is not None
+                val_interactions, user_id_map, item_id_map, keep_extra_cols=True
             ).df
 
     def _init_extra_token_ids(self) -> None:
@@ -386,7 +386,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""
             warnings.warn(explanation)
         filtered_interactions = Interactions.from_raw(
-            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=self.extra_cols is not None
+            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=True
         )
         filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset

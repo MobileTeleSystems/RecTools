@@ -34,6 +34,14 @@ class SimilarityModuleBase(torch.nn.Module):
     ) -> torch.Tensor:
         raise NotImplementedError()
 
+    def session_tower_forward(self, session_embs: torch.Tensor) -> torch.Tensor:
+        """Forward pass for session tower."""
+        raise NotImplementedError()
+
+    def item_tower_forward(self, item_embs: torch.Tensor) -> torch.Tensor:
+        """Forward pass for item tower."""
+        raise NotImplementedError()
+
     def forward(
         self,
         session_embs: torch.Tensor,
@@ -90,6 +98,14 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         embedding_norm = torch.norm(embeddings, p=2, dim=1).unsqueeze(dim=1)
         embeddings = embeddings / torch.max(embedding_norm, self.epsilon_cosine_dist.to(embeddings))
         return embeddings
+
+    def session_tower_forward(self, session_embs: torch.Tensor) -> torch.Tensor:
+        """Forward pass for session tower."""
+        return session_embs
+
+    def item_tower_forward(self, item_embs: torch.Tensor) -> torch.Tensor:
+        """Forward pass for item tower."""
+        return item_embs
 
     def forward(
         self,
