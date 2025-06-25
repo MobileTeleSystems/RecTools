@@ -237,7 +237,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
 
     def forward(
         self,
-        batch: tp.Dict[str, torch.Tensor],
+        seqs: torch.Tensor,
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -262,7 +262,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        seqs = batch["seqs"]
+
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
             seqs = self.transformer_blocks[i](seqs, attn_mask, key_padding_mask)

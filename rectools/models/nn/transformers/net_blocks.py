@@ -15,7 +15,6 @@
 import typing as tp
 
 import torch
-from click.core import batch
 from torch import nn
 
 
@@ -67,7 +66,7 @@ class TransformerLayersBase(nn.Module):
 
     def forward(
         self,
-        batch: tp.Dict[str, torch.Tensor],
+        seqs: torch.Tensor,
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -214,7 +213,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
 
     def forward(
         self,
-        batch: tp.Dict[str, torch.Tensor],
+        seqs: torch.Tensor,
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -239,7 +238,6 @@ class PreLNTransformerLayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        seqs  = batch["seqs"]
         for block_idx in range(self.n_blocks):
             seqs = self.transformer_blocks[block_idx](seqs, attn_mask, key_padding_mask)
         return seqs
