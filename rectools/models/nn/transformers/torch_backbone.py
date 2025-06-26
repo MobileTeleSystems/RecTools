@@ -242,6 +242,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
 
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
+        # seqs * sqrt(D) # TODO torch_bakcbone_kwargs
         seqs = self.pos_encoding_layer(seqs)
         seqs = self.emb_dropout(seqs)
 
@@ -443,8 +444,9 @@ class HSTUTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
-        # TODO  batch["seqs"] = seqs
-        seqs = self.transformer_layers(seqs, batch["extras"], timeline_mask, attn_mask, key_padding_mask)
+        #TODO batch["extras"] - > batch, дальше всё будет норм
+        #так как всё лежит во флаттен форме, то будет batch[Сolumns.Datetime]
+        seqs = self.transformer_layers(seqs, batch, timeline_mask, attn_mask, key_padding_mask)
         return seqs
 
     def forward(

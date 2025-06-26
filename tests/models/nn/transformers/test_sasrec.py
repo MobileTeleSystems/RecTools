@@ -978,7 +978,6 @@ class TestSASRecModelConfiguration:
             "negative_sampler_kwargs": None,
             "similarity_module_kwargs": None,
             "backbone_kwargs": None,
-            "convert_time": True,
         }
         return config
 

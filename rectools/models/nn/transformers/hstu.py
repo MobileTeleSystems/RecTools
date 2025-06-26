@@ -76,6 +76,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         Additional arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
     """
+    #TODO
 
     train_session_max_len_addition: int = 1
 
@@ -94,17 +95,27 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         t = np.zeros((batch_size, self.session_max_len+1))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        extras_train = {}
+        # TODO здесь политика такая, что если пришли extra_cols то собираем с контекстом автоматически
+        extras_train = {
+            col_name: np.zeros((batch_size, self.session_max_len+1))
+            for col_name in self.extra_cols
+        }
         for i, (ses, ses_weights, extras) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            t[i, -len(ses):] = extras[Columns.Datetime]
-            len_to_pad = self.session_max_len+1 - len(ses)
-            if len_to_pad > 0:
-                t[i, :len_to_pad] = t[i, len_to_pad]
+            len_to_pad = self.session_max_len + 1 - len(ses)
+            for col_name, payload_value in extras.items():
+                extras_train[col_name][i, -len(ses):] = payload_value
+                if len_to_pad > 0:
+                    extras_train[col_name][i, :len_to_pad] = extras_train[col_name][i, len_to_pad]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        extras_train.update({Columns.Datetime:torch.LongTensor(t)})
-        batch_dict = {"x": torch.LongTensor(x),"extras": extras_train , "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        for col_name, payload_value in extras_train.items():
+            extras_train[col_name] = torch.LongTensor(payload_value)
+        # здесь сейчас всё зашито в extras -> хотим flatten
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        batch_dict.update(extras_train)
+        #print("train batch cols:", list(batch_dict.keys()))
+        #print(batch_dict[Columns.Datetime])
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
@@ -117,25 +128,35 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         t = np.zeros((batch_size, self.session_max_len+1))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        extras_val = {}
+        extras_val = {
+            col_name: np.zeros((batch_size, self.session_max_len + 1))
+            for col_name in self.extra_cols
+        }
         for i, (ses, ses_weights, extras) in enumerate(batch):
+            if  len(ses) > 201:
+                print(len(ses))
             ses = ses[1:]
             ses_weights = ses_weights[1:]
-            extras[Columns.Datetime] = extras[Columns.Datetime][1:]
 
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
 
-            t[i, -len(ses):] = extras[Columns.Datetime]
             len_to_pad = self.session_max_len+1 -len(ses)
-            if len_to_pad > 0:
-                t[i, :len_to_pad] = t[i, len_to_pad]
+            # TODO check preroc payloads
+            for col_name, payload_value in extras.items():
+                payload_value = payload_value[1:]
+                extras_val[col_name][i, -len(ses):] = payload_value
+                if len_to_pad > 0:
+                    extras_val[col_name][i, :len_to_pad] = extras_val[col_name][i, len_to_pad]
             # ses: [session_len] -> x[i]: [session_max_len]
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-        extras_val.update({Columns.Datetime: torch.LongTensor(t)})
-        batch_dict = {"x": torch.LongTensor(x),"extras": extras_val, "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        #TODO need policy types for extra cols
+        for col_name, payload_value in extras_val.items():
+            extras_val[col_name] = torch.LongTensor(payload_value)
+        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
+        batch_dict.update(extras_val)
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
@@ -167,7 +188,7 @@ class RelativeAttention(torch.nn.Module):
     ----------
     max_seq_len : int.
         Maximum length of user sequence padded or truncated to
-    attention_mode : str
+    attention_mode : List[str]
         Policy for calculating attention.
         Coulde be one of these "rel_pos_bias", "rel_ts_bias", "rel_pos_ts_bias"
     num_buckets : float
@@ -179,7 +200,8 @@ class RelativeAttention(torch.nn.Module):
     def __init__(
         self,
         max_seq_len: int,
-        attention_mode:str,
+        relative_time_attention:bool,
+        relative_pos_attention: bool,
         num_buckets: int = 128,
         #TODO is ig good idea
         quantization_func: tp.Optional[Callable[[torch.Tensor], torch.Tensor]] = lambda x: (
@@ -190,17 +212,44 @@ class RelativeAttention(torch.nn.Module):
         self.max_seq_len = max_seq_len
         self.num_buckets = num_buckets
         self.quantization_func  = quantization_func
-        self.attention_mode = attention_mode
-        self.time_weights = torch.nn.Parameter(
-            torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
-        )
-        self.pos_weights = torch.nn.Parameter(
-            torch.empty(2 * (max_seq_len+1) - 1).normal_(mean=0, std=0.02),
-        )
-
+        self.relative_time_attention = relative_time_attention,
+        self.relative_pos_attention = relative_pos_attention
+        if relative_time_attention:
+            self.time_weights = torch.nn.Parameter(
+                torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
+            )
+        if relative_pos_attention:
+            self.pos_weights = torch.nn.Parameter(
+                torch.empty(2 * (max_seq_len+1) - 1).normal_(mean=0, std=0.02),
+            )
+    def forward_time_attention(self,all_timestamps: torch.Tensor)->torch.Tensor:
+        N = self.max_seq_len +1  # N+1, 1 for target item time
+        B = all_timestamps.size(0)
+        #print(all_timestamps.shape)
+        extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1: N]], dim=1)
+        early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
+        bucketed_timestamps = torch.clamp(
+            self.quantization_func(early_time_binding),
+            min=0,
+            max=self.num_buckets,
+        ).detach()
+        rel_time_attention = torch.index_select(
+            self.time_weights, dim=0, index=bucketed_timestamps.view(-1)
+        ).view(B, N, N)
+        rel_time_attention = rel_time_attention[:, :-1, :-1] # reducted target time (N -> self.max_seq_len)
+        #print("shape rel time atten:", rel_time_attention.shape)
+        return rel_time_attention # (B,max_seq_len, max_seq_len)
+    def forward_pos_attention(self) ->torch.Tensor:
+        N = self.max_seq_len  # N+1, 1 for target item time
+        t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
+        t = t[..., :-N].reshape(1, N, 3 * N - 2)
+        r = (2 * N - 1) // 2
+        rel_pos_attention = t[:, :, r:-r] # (1,N,N)
+        #print("shape rel pos atten:", rel_pos_attention.shape)
+        return rel_pos_attention
     def forward(
         self,
-        all_timestamps: torch.Tensor,
+        batch: tp.Optional[Dict[str, torch.Tensor]],
     ) -> torch.Tensor:
         """
         Parametrs
@@ -212,35 +261,13 @@ class RelativeAttention(torch.nn.Module):
         torch.Tensor (B, N, N)
             Variate of sum relative pos/time attention
         """
-        B = all_timestamps.size(0)
-        N = self.max_seq_len + 1 #  N+1, 1 for target item time
-        t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
-        t = t[..., :-N].reshape(1, N, 3 * N - 2)
-        r = (2 * N - 1) // 2
-
-        extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1 : N]], dim=1)
-        early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
-        bucketed_timestamps = torch.clamp(
-            self.quantization_func(early_time_binding),
-            min=0,
-            max=self.num_buckets,
-        ).detach()
-
-        rel_pos_attention = t[:, :, r:-r]
-        rel_time_attention = torch.index_select(
-            self.time_weights, dim=0, index=bucketed_timestamps.view(-1)
-        ).view(B, N, N)
-
-        rel_pos_attention =  rel_pos_attention[:,:-1,:-1]  # (1,N-1, N-1) # last one is reducted
-        rel_time_attention = rel_time_attention[:,:-1,:-1] # (B, N-1, N-1)
-        # TODO ask is it good below
-        if self.attention_mode == "rel_pos_bias":
-            return rel_pos_attention
-        elif self.attention_mode == "rel_ts_bias":
-            return rel_time_attention
-        elif self.attention_mode == "rel_pos_ts_bias":
-            return rel_pos_attention + rel_time_attention
-
+        B = batch["x"].size(0)
+        rel_attn = torch.zeros((B, self.max_seq_len, self.max_seq_len)).to(batch["x"].device)
+        if self.relative_time_attention:
+            rel_attn += self.forward_time_attention(batch[Columns.Datetime])
+        if self.relative_pos_attention:
+            rel_attn+= self.forward_pos_attention()
+        return rel_attn
 
 class STU(nn.Module):
     """
@@ -273,7 +300,8 @@ class STU(nn.Module):
         linear_hidden_dim:int,
         attention_dim: int,
         session_max_len: int,
-        attention_mode :str = "rel_pos_ts_bias",
+        relative_time_attention: bool,
+        relative_pos_attention: bool,
         attn_dropout_rate: float = 0.1,
         dropout_rate: float = 0.2,
         epsilon: float = 1e-6,
@@ -281,7 +309,8 @@ class STU(nn.Module):
         super().__init__()
         self.rel_attn = RelativeAttention(
                             max_seq_len=session_max_len,
-                            attention_mode = attention_mode,
+                            relative_time_attention = relative_time_attention,
+                            relative_pos_attention = relative_pos_attention,
         )
         self.n_factors =  n_factors
         self.n_heads = n_heads
@@ -289,6 +318,7 @@ class STU(nn.Module):
         self.attention_dim = attention_dim
         self.dropout_rate  = dropout_rate
         self.attn_dropout_rate = attn_dropout_rate
+        self.max_seq_len = session_max_len
         self.eps = epsilon
         self.uvqk_proj: torch.nn.Parameter = torch.nn.Parameter(
             torch.empty(
@@ -303,8 +333,9 @@ class STU(nn.Module):
             in_features=linear_hidden_dim * n_heads,
             out_features=self.n_factors,
         )
-        self.attention_mode = attention_mode
-        torch.nn.init.xavier_uniform_(self.output_mlp.weight)
+        # TODO оно надо вообще запоминать
+        self.relative_time_attention = relative_time_attention
+        #torch.nn.init.xavier_uniform_(self.output_mlp.weight)
 
     def _norm_input(self, x: torch.Tensor) -> torch.Tensor:
         return F.layer_norm(x, normalized_shape=[self.n_factors], eps=self.eps)
@@ -317,7 +348,7 @@ class STU(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        extras: tp.Optional[Dict[str, torch.Tensor]],
+        batch: tp.Optional[Dict[str, torch.Tensor]],
         attn_mask: torch.Tensor,
         timeline_mask: torch.Tensor,
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -340,13 +371,13 @@ class STU(nn.Module):
             User sequences passed through transformer layers.
         """
         B, N, _ = x.shape
-        normed_x = self._norm_input(x)*timeline_mask # prevent null emb convert to (b,b, ,,, b)
+        normed_x = self._norm_input(x) * timeline_mask  # prevent null emb convert to (b,b, ,,, b)
         general_trasform = torch.matmul(normed_x, self.uvqk_proj)
         batched_mm_output = F.silu(general_trasform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
-                self.linear_dim * self.n_heads,
+                self.linear_dim * self.n_heads,  #
                 self.linear_dim * self.n_heads,
                 self.attention_dim * self.n_heads,
                 self.attention_dim * self.n_heads,
@@ -357,14 +388,15 @@ class STU(nn.Module):
             "bnhd,bmhd->bhnm",
             q.view(B, N, self.n_heads, self.attention_dim),
             k.view(B, N, self.n_heads, self.attention_dim),
-        )
+        ) #(B, n_head, N, N), attention on Q, K
+        qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1) #(B, N, N).unsqueeze(1) -> (B,1,N,N) broadcast to n_heaad
+        qk_attn = F.silu(qk_attn) / N
+
         time_line_mask_reducted = timeline_mask.squeeze(-1)
         time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
 
-        if extras[Columns.Datetime] is not None:
-            qk_attn = qk_attn + self.rel_attn(extras[Columns.Datetime]).unsqueeze(1)
-        qk_attn = F.silu(qk_attn) / N
         qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0) * time_line_mask_fix.unsqueeze(1)
+
         attn_output = torch.einsum(
                 "bhnm,bmhd->bnhd",
                 qk_attn,
@@ -411,7 +443,8 @@ class STULayers(TransformerLayersBase):
         linear_hidden_dim: int,
         attention_dim: int,
         session_max_len: int,
-        attention_mode :str = "rel_pos_ts_bias",
+        relative_time_attention: bool,
+        relative_pos_attention: bool,
         attn_dropout_rate: float = 0.1,
         dropout_rate: float = 0.2,
         epsilon: float = 1e-6,
@@ -427,7 +460,8 @@ class STULayers(TransformerLayersBase):
                     dropout_rate=dropout_rate,
                     linear_hidden_dim=linear_hidden_dim,
                     attention_dim=attention_dim,
-                    attention_mode=attention_mode,
+                    relative_time_attention = relative_time_attention,
+                    relative_pos_attention = relative_pos_attention,
                     attn_dropout_rate=attn_dropout_rate,
                     session_max_len=session_max_len,
                     epsilon=epsilon,
@@ -439,7 +473,7 @@ class STULayers(TransformerLayersBase):
     def forward(
         self,
         seqs: torch.Tensor,
-        extras: tp.Optional[Dict[str, torch.Tensor]],
+        batch: tp.Optional[Dict[str, torch.Tensor]],
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -464,9 +498,11 @@ class STULayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
+        # scaling + encoders
+        # TODO attn_mask convert
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
-            seqs = self.stu_blocks[i](seqs, extras, attn_mask, timeline_mask, key_padding_mask)
+            seqs = self.stu_blocks[i](seqs, batch, attn_mask, timeline_mask, key_padding_mask)
         seqs *= timeline_mask
         return seqs / torch.clamp(
             torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
@@ -480,6 +516,12 @@ class HSTUModelConfig(TransformerModelConfig):
     data_preparator_type: TransformerDataPreparatorType = HSTUDataPreparator
     transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
+    dqk: int = 0,
+    dvu: int = 0,
+    relative_time_attention: bool = True,
+    relative_pos_attention: bool = True,
+
+
 
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
@@ -638,8 +680,10 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
-        convert_time: bool = True, # TODO не нравится
-        #require_recommend_context: bool = True,
+        dqk: int =  0,
+        dvu: int = 0,
+        relative_time_attention: bool = True,
+        relative_pos_attention: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -666,6 +710,19 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
+        self.relative_time_attention = relative_time_attention
+        self.relative_pos_attention = relative_pos_attention
+        head_dim = int(n_factors / n_heads)
+        self.dqk = dqk or head_dim
+        self.dvu = dvu or head_dim
+
+        if relative_time_attention:
+            self._require_recommend_context = True
+            data_preparator_kwargs = {
+                "extra_cols": [Columns.Datetime],
+                "add_unix_ts": True
+            }
+
         super().__init__(
             transformer_layers_type=transformer_layers_type,
             data_preparator_type=data_preparator_type,
@@ -685,8 +742,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             lr=lr,
             epochs=epochs,
             verbose=verbose,
-            convert_time = convert_time,
-            #require_recommend_context= require_recommend_context,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,
@@ -714,6 +769,19 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             backbone_kwargs=backbone_kwargs,
         )
 
+    def _init_transformer_layers(self) -> STULayers:
+        return self.transformer_layers_type(
+            n_blocks=self.n_blocks,
+            n_factors=self.n_factors,
+            n_heads=self.n_heads,
+            dropout_rate=self.dropout_rate,
+            session_max_len = self.session_max_len,
+            attention_dim=self.dqk,
+            linear_hidden_dim = self.dvu,
+            relative_time_attention = self.relative_time_attention,
+            relative_pos_attention = self.relative_pos_attention,
+            **self._get_kwargs(self.transformer_layers_kwargs),
+        )
     def preproc_recommend_context(
         self,
         recommend_dataset: Dataset,

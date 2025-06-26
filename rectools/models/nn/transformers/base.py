@@ -201,7 +201,6 @@ class TransformerModelConfig(ModelConfig):
     dataloader_num_workers: int = 0
     batch_size: int = 128
     loss: str = "softmax"
-    convert_time: bool = True
     # TODO ask is it worth pass require_recommend_context = False here.
     #require_recommend_context: bool = False
     n_negatives: int = 1
@@ -276,8 +275,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         train_min_user_interactions: int = 2,
-        convert_time: bool = True,
-        #require_recommend_context: bool = False,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
@@ -340,7 +337,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.negative_sampler_kwargs = negative_sampler_kwargs
         self.similarity_module_kwargs = similarity_module_kwargs
         self.backbone_kwargs = backbone_kwargs
-        self.convert_time = convert_time
 
         self._init_data_preparator()
         self._init_trainer()
@@ -358,6 +354,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _init_data_preparator(self) -> None:
         requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
+        #
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
             batch_size=self.batch_size,
@@ -367,7 +364,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
-            convert_time = self.convert_time,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
 
@@ -424,6 +420,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_factors=self.n_factors,
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
+            #TODO rewrite for HSTU
             **self._get_kwargs(self.transformer_layers_kwargs),
         )
 

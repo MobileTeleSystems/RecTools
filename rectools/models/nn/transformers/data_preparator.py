@@ -167,7 +167,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         extra_cols: tp.Optional[List[tp.Any]] = [], # TODO suggest default {}, not None
-        add_unix_ts: bool = True,
+        add_unix_ts: bool = False, # attn_mode -> add_unix_ts,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -185,10 +185,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
         self.add_unix_ts = add_unix_ts
-        self.base_extra_cols = [Columns.User, Columns.Item, Columns.Weight] + extra_cols
-        print("Keep columns: ",  self.base_extra_cols )
+        self._base_extra_cols = [Columns.User, Columns.Item, Columns.Weight] + extra_cols
+        print("Keep columns: ",  self._base_extra_cols)
         print("Extra cols: ",extra_cols)
-        print(f"add_unix_ts: {add_unix_ts}.")
+        print(f"add_unix_ts is : {add_unix_ts}.")
 
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
@@ -243,7 +243,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         )
         return train_interactions
     def _filter_columns_interactions_(self, interactions):
-        return interactions[self.base_extra_cols]
+        return interactions[self._base_extra_cols]
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
         raw_interactions = dataset.get_raw_interactions()
@@ -289,7 +289,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
-            self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+            self.val_interactions = Interactions.from_raw(
+                val_interactions, user_id_map, item_id_map,keep_extra_cols=True).df
             #print(self.val_interactions)
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
