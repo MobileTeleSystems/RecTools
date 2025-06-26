@@ -132,6 +132,7 @@ class TestTransformerDataPreparatorBase:
             session_max_len=4,
             batch_size=4,
             dataloader_num_workers=0,
+            extra_cols=["extra_column"],
         )
 
     @pytest.mark.parametrize(
@@ -167,7 +168,6 @@ class TestTransformerDataPreparatorBase:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        data_preparator.extra_cols = ["extra_column"]
         data_preparator.process_dataset_train(dataset)
         actual = data_preparator.train_dataset
         assert_id_map_equal(actual.user_id_map, expected_user_id_map)
@@ -179,6 +179,7 @@ class TestTransformerDataPreparatorBase:
         dataset_dense_item_features: Dataset,
         data_preparator: TransformerDataPreparatorBase,
     ) -> None:
+        data_preparator.extra_cols = None
         data_preparator.process_dataset_train(dataset_dense_item_features)
         actual = data_preparator.train_dataset.item_features
         expected_values = np.array(
@@ -226,7 +227,6 @@ class TestTransformerDataPreparatorBase:
         expected_item_id_map: IdMap,
         expected_user_id_map: IdMap,
     ) -> None:
-        data_preparator.extra_cols = ["extra_column"]
         data_preparator.process_dataset_train(dataset)
         users = [10, 20]
         actual = data_preparator.transform_dataset_u2i(dataset, users)
@@ -243,18 +243,18 @@ class TestTransformerDataPreparatorBase:
                 Interactions(
                     pd.DataFrame(
                         [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [1, 2, 1.0, "2021-11-27"],
-                            [1, 3, 2.0, "2021-11-26"],
-                            [1, 1, 1.0, "2021-11-25"],
-                            [2, 2, 1.0, "2021-11-25"],
-                            [2, 4, 1.0, "2021-11-26"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [4, 6, 9.0, "2021-11-28"],
+                            [0, 6, 1.0, "2021-11-30", 0],
+                            [0, 2, 1.0, "2021-11-29", 2],
+                            [0, 3, 1.0, "2021-11-29", 3],
+                            [1, 2, 1.0, "2021-11-27", 4],
+                            [1, 3, 2.0, "2021-11-26", 1],
+                            [1, 1, 1.0, "2021-11-25", 0],
+                            [2, 2, 1.0, "2021-11-25", 1],
+                            [2, 4, 1.0, "2021-11-26", 1],
+                            [0, 5, 1.0, "2021-11-28", 2],
+                            [4, 6, 9.0, "2021-11-28", 1],
                         ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra_column"],
                     ),
                 ),
             ),

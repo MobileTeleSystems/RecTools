@@ -32,6 +32,7 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
+BatchElement = tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]
 
 
 class SequenceDataset(TorchDataset):
@@ -59,7 +60,7 @@ class SequenceDataset(TorchDataset):
     def __len__(self) -> int:
         return len(self.sessions)
 
-    def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]:
+    def __getitem__(self, index: int) -> BatchElement:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
         extras = (
@@ -415,25 +416,25 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
         filtered_interactions = Interactions.from_raw(
-            interactions, dataset.user_id_map, self.item_id_map, self.extra_cols is not None
+            interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols=True
         )
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
     def _collate_fn_train(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_val(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()

@@ -34,7 +34,7 @@ from rectools.models.nn.transformers.base import (
     TransformerLightningModule,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
-from rectools.models.nn.transformers.data_preparator import InitKwargs
+from rectools.models.nn.transformers.data_preparator import BatchElement, InitKwargs
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
@@ -640,7 +640,7 @@ class TestBERT4RecModel:
 
             def _collate_fn_train(
                 self,
-                batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
+                batch: tp.List[BatchElement],
             ) -> tp.Dict[str, torch.Tensor]:
                 batch_size = len(batch)
                 x = np.zeros((batch_size, self.session_max_len))

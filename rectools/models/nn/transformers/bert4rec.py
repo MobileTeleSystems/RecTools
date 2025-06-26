@@ -36,7 +36,7 @@ from .base import (
     ValMaskCallable,
 )
 from .constants import MASKING_VALUE, PADDING_VALUE
-from .data_preparator import InitKwargs, TransformerDataPreparatorBase
+from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -128,7 +128,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]],
+        batch: tp.List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Mask session elements to receive `x`.
@@ -154,9 +154,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_val(
-        self, batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]]
-    ) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # until only leave-one-strategy
@@ -181,9 +179,7 @@ class BERT4RecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_recommend(
-        self, batch: tp.List[tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]]
-    ) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         """
         Right truncation, left padding to `session_max_len`
         During inference model will use (`session_max_len` - 1) interactions
