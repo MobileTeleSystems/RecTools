@@ -13,14 +13,12 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Union, Tuple, List, Dict, Any
 import warnings
 from collections.abc import Hashable
 
 import numpy as np
 import pandas as pd
 import torch
-from joblib.testing import param
 from scipy import sparse
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
@@ -34,11 +32,8 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
-ExtrasSpec = tp.Dict[str, tp.List[tp.Any]]
-BatchElement = Union[
-    Tuple[List[int], List[float]],
-    Tuple[List[int], List[float], Dict[str, List[Any]]]   #с payload
-]
+BatchElement = tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]
+
 
 class SequenceDataset(TorchDataset):
     """
@@ -52,9 +47,12 @@ class SequenceDataset(TorchDataset):
         Weight of each interaction from the session.
     """
 
-    def __init__(self, sessions: tp.List[tp.List[int]],
-                 weights: tp.List[tp.List[float]],
-                 extras: tp.Optional[ExtrasSpec] = None):
+    def __init__(
+        self,
+        sessions: tp.List[tp.List[int]],
+        weights: tp.List[tp.List[float]],
+        extras: tp.Optional[tp.Dict[str, tp.List[tp.Any]]] = None,
+    ):
         self.sessions = sessions
         self.weights = weights
         self.extras = extras
@@ -62,16 +60,12 @@ class SequenceDataset(TorchDataset):
     def __len__(self) -> int:
         return len(self.sessions)
 
-    def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float]]:
+    def __getitem__(self, index: int) -> BatchElement:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
-        if self.extras:
-            extras = {
-                feature_name : features[index]
-                for  feature_name, features in self.extras.items()
-            }
-            return session, weights, extras
-        extras = {}
+        extras = (
+            {feature_name: features[index] for feature_name, features in self.extras.items()} if self.extras else {}
+        )
         return session, weights, extras
 
     @classmethod
@@ -89,34 +83,19 @@ class SequenceDataset(TorchDataset):
         interactions : pd.DataFrame
             User-item interactions.
         """
-        exclude_cols = {Columns.User}
-        cols_to_agg = [col for col in interactions.columns if col not in exclude_cols]
-
+        cols_to_agg = [col for col in interactions.columns if col != Columns.User]
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
             .groupby(Columns.User, sort=sort_users)[cols_to_agg]
             .agg(list)
         )
-
         sessions_items, weights = (
             sessions[Columns.Item].to_list(),
             sessions[Columns.Weight].to_list(),
         )
-
-        exclude_cols.add(Columns.Item)
-        exclude_cols.add(Columns.Weight)
-
-        extra_cols = [col for col in cols_to_agg if col not in exclude_cols]
-
-        if extra_cols:
-            extras = {
-                col: sessions[col].to_list()
-                for col in extra_cols
-            }
-            return cls(sessions=sessions_items, weights=weights, extras=extras)
-        else:
-            extras = {}
-            return cls(sessions=sessions_items, weights=weights, extras=extras)
+        extra_cols = [col for col in interactions.columns if col not in Columns.Interactions]
+        extras = {col: sessions[col].to_list() for col in extra_cols} if len(extra_cols) > 0 else None
+        return cls(sessions=sessions_items, weights=weights, extras=extras)
 
 
 class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attributes
@@ -166,8 +145,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
-        extra_cols: tp.Optional[List[tp.Any]] = [], # TODO suggest default {}, not None
-        add_unix_ts: bool = False, # attn_mode -> add_unix_ts,
+        extra_cols: tp.Optional[tp.List[str]] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -184,12 +162,6 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
-        self.add_unix_ts = add_unix_ts
-        self._base_extra_cols = [Columns.User, Columns.Item, Columns.Weight] + extra_cols
-        print("Keep columns: ",  self._base_extra_cols)
-        print("Extra cols: ",extra_cols)
-        print(f"add_unix_ts is : {add_unix_ts}.")
-
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -242,14 +214,16 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             .tail(self.session_max_len + self.train_session_max_len_addition)
         )
         return train_interactions
-    def _filter_columns_interactions_(self, interactions):
-        return interactions[self._base_extra_cols]
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
-        raw_interactions = dataset.get_raw_interactions()
+        if self.extra_cols is None:
+            raw_interactions = dataset.get_raw_interactions(include_extra_cols=False)
+        else:
+            raw_interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
 
-        #Exclude val interactions targets from train if needed
-        interactions = self._filter_columns_interactions_(raw_interactions)
+        # Exclude val interaction targets from train if needed
+        interactions = raw_interactions
         if self.get_val_mask_func is not None:
             val_mask = self.get_val_mask_func(
                 raw_interactions, **self._ensure_kwargs_dict(self.get_val_mask_func_kwargs)
@@ -264,7 +238,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         user_id_map = IdMap.from_values(interactions[Columns.User].values)
         item_id_map = IdMap.from_values(self.item_extra_tokens)
         item_id_map = item_id_map.add_ids(interactions[Columns.Item])
-        #item_id_map = item_id_map.add_ids(range(3647,4000,1))
+
         # Prepare item features
         item_features = None
         if dataset.item_features is not None:
@@ -274,7 +248,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         # Prepare train dataset
         # User features are dropped for now because model doesn't support them
-        final_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
+        final_interactions = Interactions.from_raw(
+            interactions,
+            user_id_map,
+            item_id_map,
+            keep_extra_cols=True,
+        )
         self.train_dataset = Dataset(user_id_map, item_id_map, final_interactions, item_features=item_features)
         self.item_id_map = self.train_dataset.item_id_map
         self._init_extra_token_ids()
@@ -290,8 +269,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
             self.val_interactions = Interactions.from_raw(
-                val_interactions, user_id_map, item_id_map,keep_extra_cols=True).df
-            #print(self.val_interactions)
+                val_interactions, user_id_map, item_id_map, keep_extra_cols=True
+            ).df
+
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
         self.extra_token_ids = dict(zip(self.item_extra_tokens, extra_token_ids))
@@ -305,12 +285,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         DataLoader
             Train dataloader.
         """
-        #TODO assmp only s in [...], remove if
-        prep_df = self.train_dataset.interactions.df.copy()
-        if self.add_unix_ts:
-            prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        sequence_dataset = SequenceDataset.from_interactions(prep_df)
-
+        sequence_dataset = SequenceDataset.from_interactions(self.train_dataset.interactions.df)
         train_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_train,
@@ -331,10 +306,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         if self.val_interactions is None:
             return None
-        prep_df = self.val_interactions.copy()
-        if self.add_unix_ts:
-            prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        sequence_dataset = SequenceDataset.from_interactions(prep_df)
+
+        sequence_dataset = SequenceDataset.from_interactions(self.val_interactions)
         val_dataloader = DataLoader(
             sequence_dataset,
             collate_fn=self._collate_fn_val,
@@ -357,11 +330,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        #TODO ask make _filter_columns_interactions_ here on prep_df?
-        prep_df = dataset.interactions.df.copy()
-        if self.add_unix_ts:
-            prep_df[Columns.Datetime] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True)
+        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,
@@ -395,7 +364,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final item_id_map is model item_id_map constructed during training.
         """
         # Filter interactions in dataset internal ids
-        interactions = dataset.interactions.df
+        if self.extra_cols is None:
+            interactions = dataset.interactions.df[Columns.Interactions]
+        else:
+            interactions = dataset.interactions.df[Columns.Interactions + self.extra_cols]
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]
@@ -414,7 +386,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""
             warnings.warn(explanation)
-        filtered_interactions = Interactions.from_raw(interactions, rec_user_id_map, self.item_id_map)
+        filtered_interactions = Interactions.from_raw(
+            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=True
+        )
         filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
@@ -436,9 +410,14 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final user_id_map is the same as dataset original.
             Final item_id_map is model item_id_map constructed during training.
         """
-        interactions = dataset.get_raw_interactions()
+        if self.extra_cols is None:
+            interactions = dataset.get_raw_interactions(include_extra_cols=False)
+        else:
+            interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
-        filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
+        filtered_interactions = Interactions.from_raw(
+            interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols=True
+        )
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
