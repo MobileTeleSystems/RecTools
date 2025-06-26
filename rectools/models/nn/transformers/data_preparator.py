@@ -32,6 +32,7 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
+BatchElement = tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]
 
 
 class SequenceDataset(TorchDataset):
@@ -46,17 +47,26 @@ class SequenceDataset(TorchDataset):
         Weight of each interaction from the session.
     """
 
-    def __init__(self, sessions: tp.List[tp.List[int]], weights: tp.List[tp.List[float]]):
+    def __init__(
+        self,
+        sessions: tp.List[tp.List[int]],
+        weights: tp.List[tp.List[float]],
+        extras: tp.Optional[tp.Dict[str, tp.List[tp.Any]]] = None,
+    ):
         self.sessions = sessions
         self.weights = weights
+        self.extras = extras
 
     def __len__(self) -> int:
         return len(self.sessions)
 
-    def __getitem__(self, index: int) -> tp.Tuple[tp.List[int], tp.List[float]]:
+    def __getitem__(self, index: int) -> BatchElement:
         session = self.sessions[index]  # [session_len]
         weights = self.weights[index]  # [session_len]
-        return session, weights
+        extras = (
+            {feature_name: features[index] for feature_name, features in self.extras.items()} if self.extras else {}
+        )
+        return session, weights, extras
 
     @classmethod
     def from_interactions(
@@ -73,17 +83,19 @@ class SequenceDataset(TorchDataset):
         interactions : pd.DataFrame
             User-item interactions.
         """
+        cols_to_agg = [col for col in interactions.columns if col != Columns.User]
         sessions = (
             interactions.sort_values(Columns.Datetime, kind="stable")
-            .groupby(Columns.User, sort=sort_users)[[Columns.Item, Columns.Weight]]
+            .groupby(Columns.User, sort=sort_users)[cols_to_agg]
             .agg(list)
         )
-        sessions, weights = (
+        sessions_items, weights = (
             sessions[Columns.Item].to_list(),
             sessions[Columns.Weight].to_list(),
         )
-
-        return cls(sessions=sessions, weights=weights)
+        extra_cols = [col for col in interactions.columns if col not in Columns.Interactions]
+        extras = {col: sessions[col].to_list() for col in extra_cols} if len(extra_cols) > 0 else None
+        return cls(sessions=sessions_items, weights=weights, extras=extras)
 
 
 class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attributes
@@ -133,6 +145,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         n_negatives: tp.Optional[int] = None,
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        extra_cols: tp.Optional[tp.List[str]] = None,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -148,6 +161,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.shuffle_train = shuffle_train
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
+        self.extra_cols = extra_cols
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -203,7 +217,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
-        raw_interactions = dataset.get_raw_interactions()
+        if self.extra_cols is None:
+            raw_interactions = dataset.get_raw_interactions(include_extra_cols=False)
+        else:
+            raw_interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
 
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
@@ -231,7 +248,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         # Prepare train dataset
         # User features are dropped for now because model doesn't support them
-        final_interactions = Interactions.from_raw(interactions, user_id_map, item_id_map, keep_extra_cols=True)
+        final_interactions = Interactions.from_raw(
+            interactions,
+            user_id_map,
+            item_id_map,
+            keep_extra_cols=True,
+        )
         self.train_dataset = Dataset(user_id_map, item_id_map, final_interactions, item_features=item_features)
         self.item_id_map = self.train_dataset.item_id_map
         self._init_extra_token_ids()
@@ -246,7 +268,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             val_interactions = interactions[interactions[Columns.User].isin(val_targets[Columns.User].unique())].copy()
             val_interactions[Columns.Weight] = 0
             val_interactions = pd.concat([val_interactions, val_targets], axis=0)
-            self.val_interactions = Interactions.from_raw(val_interactions, user_id_map, item_id_map).df
+            self.val_interactions = Interactions.from_raw(
+                val_interactions, user_id_map, item_id_map, keep_extra_cols=True
+            ).df
 
     def _init_extra_token_ids(self) -> None:
         extra_token_ids = self.item_id_map.convert_to_internal(self.item_extra_tokens)
@@ -340,7 +364,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final item_id_map is model item_id_map constructed during training.
         """
         # Filter interactions in dataset internal ids
-        interactions = dataset.interactions.df
+        if self.extra_cols is None:
+            interactions = dataset.interactions.df[Columns.Interactions]
+        else:
+            interactions = dataset.interactions.df[Columns.Interactions + self.extra_cols]
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]
@@ -359,7 +386,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         if n_filtered > 0:
             explanation = f"""{n_filtered} target users were considered cold because of missing known items"""
             warnings.warn(explanation)
-        filtered_interactions = Interactions.from_raw(interactions, rec_user_id_map, self.item_id_map)
+        filtered_interactions = Interactions.from_raw(
+            interactions, rec_user_id_map, self.item_id_map, keep_extra_cols=True
+        )
         filtered_dataset = Dataset(rec_user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
@@ -381,26 +410,31 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final user_id_map is the same as dataset original.
             Final item_id_map is model item_id_map constructed during training.
         """
-        interactions = dataset.get_raw_interactions()
+        if self.extra_cols is None:
+            interactions = dataset.get_raw_interactions(include_extra_cols=False)
+        else:
+            interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
-        filtered_interactions = Interactions.from_raw(interactions, dataset.user_id_map, self.item_id_map)
+        filtered_interactions = Interactions.from_raw(
+            interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols=True
+        )
         filtered_dataset = Dataset(dataset.user_id_map, self.item_id_map, filtered_interactions)
         return filtered_dataset
 
     def _collate_fn_train(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_val(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def _collate_fn_recommend(
         self,
-        batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+        batch: tp.List[BatchElement],
     ) -> tp.Dict[str, torch.Tensor]:
         raise NotImplementedError()

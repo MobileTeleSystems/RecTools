@@ -31,30 +31,37 @@ class TestSequenceDataset:
     def interactions_df(self) -> pd.DataFrame:
         interactions_df = pd.DataFrame(
             [
-                [10, 13, 1, "2021-11-30"],
-                [10, 11, 1, "2021-11-29"],
-                [10, 12, 4, "2021-11-29"],
-                [30, 11, 1, "2021-11-27"],
-                [30, 12, 2, "2021-11-26"],
-                [30, 15, 1, "2021-11-25"],
-                [40, 11, 1, "2021-11-25"],
-                [40, 17, 8, "2021-11-26"],
-                [50, 16, 1, "2021-11-25"],
-                [10, 14, 1, "2021-11-28"],
+                [10, 13, 1, "2021-11-30", 0],
+                [10, 11, 1, "2021-11-29", 1],
+                [10, 12, 4, "2021-11-29", 1],
+                [30, 11, 1, "2021-11-27", 0],
+                [30, 12, 2, "2021-11-26", 1],
+                [30, 15, 1, "2021-11-25", 1],
+                [40, 11, 1, "2021-11-25", 2],
+                [40, 17, 8, "2021-11-26", 1],
+                [50, 16, 1, "2021-11-25", 0],
+                [10, 14, 1, "2021-11-28", 0],
             ],
-            columns=Columns.Interactions,
+            columns=Columns.Interactions + ["extra_column"],
         )
         return interactions_df
 
     @pytest.mark.parametrize(
-        "expected_sessions, expected_weights",
-        (([[14, 11, 12, 13], [15, 12, 11], [11, 17], [16]], [[1, 1, 4, 1], [1, 2, 1], [1, 8], [1]]),),
+        "expected_sessions, expected_weights, expected_extras",
+        (
+            (
+                [[14, 11, 12, 13], [15, 12, 11], [11, 17], [16]],
+                [[1, 1, 4, 1], [1, 2, 1], [1, 8], [1]],
+                {"extra_column": [[0, 1, 1, 0], [1, 1, 0], [2, 1], [0]]},
+            ),
+        ),
     )
     def test_from_interactions(
         self,
         interactions_df: pd.DataFrame,
         expected_sessions: tp.List[tp.List[int]],
         expected_weights: tp.List[tp.List[float]],
+        expected_extras: tp.Dict[str, tp.List[tp.Any]],
     ) -> None:
         actual = SequenceDataset.from_interactions(interactions=interactions_df, sort_users=True)
         assert len(actual.sessions) == len(expected_sessions)
@@ -63,6 +70,12 @@ class TestSequenceDataset:
         )
         assert len(actual.weights) == len(expected_weights)
         assert all(actual_list == expected_list for actual_list, expected_list in zip(actual.weights, expected_weights))
+        assert actual.extras is not None
+        assert len(actual.extras["extra_column"]) == len(expected_extras["extra_column"])
+        assert all(
+            actual_list == expected_list
+            for actual_list, expected_list in zip(actual.extras["extra_column"], expected_extras["extra_column"])
+        )
 
 
 class TestTransformerDataPreparatorBase:
@@ -71,26 +84,26 @@ class TestTransformerDataPreparatorBase:
     def interactions_df(self) -> pd.DataFrame:
         interactions_df = pd.DataFrame(
             [
-                [10, 13, 1, "2021-11-30"],
-                [10, 11, 1, "2021-11-29"],
-                [10, 12, 1, "2021-11-29"],
-                [30, 11, 1, "2021-11-27"],
-                [30, 12, 2, "2021-11-26"],
-                [30, 15, 1, "2021-11-25"],
-                [40, 11, 1, "2021-11-25"],
-                [40, 17, 1, "2021-11-26"],
-                [50, 16, 1, "2021-11-25"],
-                [10, 14, 1, "2021-11-28"],
-                [10, 16, 1, "2021-11-27"],
-                [20, 13, 9, "2021-11-28"],
+                [10, 13, 1, "2021-11-30", 0],
+                [10, 11, 1, "2021-11-29", 2],
+                [10, 12, 1, "2021-11-29", 3],
+                [30, 11, 1, "2021-11-27", 4],
+                [30, 12, 2, "2021-11-26", 1],
+                [30, 15, 1, "2021-11-25", 0],
+                [40, 11, 1, "2021-11-25", 1],
+                [40, 17, 1, "2021-11-26", 1],
+                [50, 16, 1, "2021-11-25", 2],
+                [10, 14, 1, "2021-11-28", 2],
+                [10, 16, 1, "2021-11-27", 1],
+                [20, 13, 9, "2021-11-28", 1],
             ],
-            columns=Columns.Interactions,
+            columns=Columns.Interactions + ["extra_column"],
         )
         return interactions_df
 
     @pytest.fixture
     def dataset(self, interactions_df: pd.DataFrame) -> Dataset:
-        return Dataset.construct(interactions_df)
+        return Dataset.construct(interactions_df, keep_extra_cols=True)
 
     @pytest.fixture
     def dataset_dense_item_features(self, interactions_df: pd.DataFrame) -> Dataset:
@@ -119,6 +132,7 @@ class TestTransformerDataPreparatorBase:
             session_max_len=4,
             batch_size=4,
             dataloader_num_workers=0,
+            extra_cols=["extra_column"],
         )
 
     @pytest.mark.parametrize(
@@ -130,17 +144,17 @@ class TestTransformerDataPreparatorBase:
                 Interactions(
                     pd.DataFrame(
                         [
-                            [0, 1, 1.0, "2021-11-25"],
-                            [1, 2, 1.0, "2021-11-25"],
-                            [0, 3, 2.0, "2021-11-26"],
-                            [1, 4, 1.0, "2021-11-26"],
-                            [0, 2, 1.0, "2021-11-27"],
-                            [2, 5, 1.0, "2021-11-28"],
-                            [2, 2, 1.0, "2021-11-29"],
-                            [2, 3, 1.0, "2021-11-29"],
-                            [2, 6, 1.0, "2021-11-30"],
+                            [0, 1, 1.0, "2021-11-25", 0],
+                            [1, 2, 1.0, "2021-11-25", 1],
+                            [0, 3, 2.0, "2021-11-26", 1],
+                            [1, 4, 1.0, "2021-11-26", 1],
+                            [0, 2, 1.0, "2021-11-27", 4],
+                            [2, 5, 1.0, "2021-11-28", 2],
+                            [2, 2, 1.0, "2021-11-29", 2],
+                            [2, 3, 1.0, "2021-11-29", 3],
+                            [2, 6, 1.0, "2021-11-30", 0],
                         ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra_column"],
                     ),
                 ),
             ),
@@ -165,6 +179,7 @@ class TestTransformerDataPreparatorBase:
         dataset_dense_item_features: Dataset,
         data_preparator: TransformerDataPreparatorBase,
     ) -> None:
+        data_preparator.extra_cols = None
         data_preparator.process_dataset_train(dataset_dense_item_features)
         actual = data_preparator.train_dataset.item_features
         expected_values = np.array(
@@ -192,13 +207,13 @@ class TestTransformerDataPreparatorBase:
                 Interactions(
                     pd.DataFrame(
                         [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [1, 6, 9.0, "2021-11-28"],
+                            [0, 6, 1.0, "2021-11-30", 0],
+                            [0, 2, 1.0, "2021-11-29", 2],
+                            [0, 3, 1.0, "2021-11-29", 3],
+                            [0, 5, 1.0, "2021-11-28", 2],
+                            [1, 6, 9.0, "2021-11-28", 1],
                         ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra_column"],
                     ),
                 ),
             ),
@@ -228,18 +243,18 @@ class TestTransformerDataPreparatorBase:
                 Interactions(
                     pd.DataFrame(
                         [
-                            [0, 6, 1.0, "2021-11-30"],
-                            [0, 2, 1.0, "2021-11-29"],
-                            [0, 3, 1.0, "2021-11-29"],
-                            [1, 2, 1.0, "2021-11-27"],
-                            [1, 3, 2.0, "2021-11-26"],
-                            [1, 1, 1.0, "2021-11-25"],
-                            [2, 2, 1.0, "2021-11-25"],
-                            [2, 4, 1.0, "2021-11-26"],
-                            [0, 5, 1.0, "2021-11-28"],
-                            [4, 6, 9.0, "2021-11-28"],
+                            [0, 6, 1.0, "2021-11-30", 0],
+                            [0, 2, 1.0, "2021-11-29", 2],
+                            [0, 3, 1.0, "2021-11-29", 3],
+                            [1, 2, 1.0, "2021-11-27", 4],
+                            [1, 3, 2.0, "2021-11-26", 1],
+                            [1, 1, 1.0, "2021-11-25", 0],
+                            [2, 2, 1.0, "2021-11-25", 1],
+                            [2, 4, 1.0, "2021-11-26", 1],
+                            [0, 5, 1.0, "2021-11-28", 2],
+                            [4, 6, 9.0, "2021-11-28", 1],
                         ],
-                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+                        columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime, "extra_column"],
                     ),
                 ),
             ),

@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import numpy as np
 import torch
@@ -36,7 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import InitKwargs, TransformerDataPreparatorBase
+from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -80,7 +80,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
+        batch: tp.List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep `session_max_len` items.
@@ -91,7 +91,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
@@ -103,12 +103,12 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
             # take only first target for leave-one-strategy
@@ -126,10 +126,10 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             )
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
         x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        for i, (ses, _, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
         return {"x": torch.LongTensor(x)}
 
