@@ -241,6 +241,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.

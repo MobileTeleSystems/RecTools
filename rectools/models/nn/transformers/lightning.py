@@ -207,14 +207,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         target = (y != 0).long()
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
-    def  _calc_short_SS(self, logits: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        #same results to above
-        #just view as 2-label classification. Distribution have prob = 1 on only one positive
-        target = (y != 0).long() # (B,)
-        posititve_loss = -F.log_softmax(
-            logits, dim=-1
-        )[:, :, 0].squeeze(-1)# -> (B,1)
-        return (posititve_loss*target).sum()/target.sum()
 
     #TODO Simple change
     def configure_optimizers(self) -> torch.optim.AdamW:
@@ -223,7 +215,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
             print(name, param.shape)
         if self.optimizer is None:
             self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        self.optimizer = torch.optim.AdamW(self.torch_model.parameters(), weight_decay=0, lr=self.lr, betas=self.adam_betas)
+        #self.optimizer = torch.optim.AdamW(self.torch_model.parameters(), weight_decay=0, lr=self.lr, betas=self.adam_betas)
         return self.optimizer
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:

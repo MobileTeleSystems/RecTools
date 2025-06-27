@@ -14,7 +14,7 @@
 
 import typing as tp
 from typing import Dict, List, Tuple, Callable
-
+import warnings
 import numpy as np
 import pandas as pd
 import torch
@@ -45,7 +45,7 @@ from .net_blocks import (
     TransformerLayersBase, LearnableInversePositionalEncoding,
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
-from .torch_backbone import HSTUTorchBackbone, TransformerBackboneBase
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 from rectools import Columns
 from rectools.dataset import Dataset
 check_split_train_dataset = True
@@ -105,7 +105,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
                     t[i, :len_to_pad] = t[i, len_to_pad]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        if self.extra_cols is not None:
+        if self.add_unix_ts is not None:
             extras_train.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         batch_dict.update(extras_train)
@@ -139,7 +139,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-        if self.extra_cols is not None:
+        if self.add_unix_ts is not None:
             extras_val.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         batch_dict.update(extras_val)
@@ -163,7 +163,6 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
                 len_to_pad = self.session_max_len- len(ses)
                 if len_to_pad > 0:
                     t[i, :len_to_pad] = t[i, len_to_pad]
-            #print(payloads)
         if self.extra_cols is not None:
             extras_recommend.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x)}
@@ -227,14 +226,14 @@ class RelativeAttention(torch.nn.Module):
         ).view(B, N, N)
         rel_time_attention = rel_time_attention[:, :-1, :-1]
         # reducted target time (N -> self.max_seq_len)
-        return rel_time_attention # (B,N, N)
+        return rel_time_attention # (B, N, N)
     def forward_pos_attention(self) ->torch.Tensor:
         N = self.max_seq_len  # N+1, 1 for target item time
         t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
         t = t[..., :-N].reshape(1, N, 3 * N - 2)
         r = (2 * N - 1) // 2
         rel_pos_attention = t[:, :, r:-r]
-        return rel_pos_attention # (1,N,N)
+        return rel_pos_attention # (1, N, N)
     def forward(
         self,
         batch: tp.Optional[Dict[str, torch.Tensor]],
@@ -461,10 +460,11 @@ class STULayers(TransformerLayersBase):
     def forward(
         self,
         seqs: torch.Tensor,
-        batch: tp.Optional[Dict[str, torch.Tensor]],
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
+        batch: tp.Optional[Dict[str, torch.Tensor]],
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
@@ -486,8 +486,7 @@ class STULayers(TransformerLayersBase):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        # scaling + encoders
-        # TODO attn_mask convert
+        attn_mask = (~attn_mask).int()
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
             seqs = self.stu_blocks[i](seqs, batch, attn_mask, timeline_mask, key_padding_mask)
@@ -508,8 +507,6 @@ class HSTUModelConfig(TransformerModelConfig):
     dvu: int = 0,
     relative_time_attention: bool = True,
     relative_pos_attention: bool = True,
-
-
 
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
@@ -680,7 +677,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
-        backbone_type: tp.Type[TransformerBackboneBase] = HSTUTorchBackbone,
+        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
@@ -698,18 +695,25 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
+        if use_key_padding_mask:
+            warnings.warn(
+                "use_key_padding_mask is not supported for HSTU and enforced to False.",
+                UserWarning,
+                stacklevel=2
+            )
+            use_key_padding_mask = False
         self.relative_time_attention = relative_time_attention
         self.relative_pos_attention = relative_pos_attention
         head_dim = int(n_factors / n_heads)
         self.dqk = dqk or head_dim
         self.dvu = dvu or head_dim
-
+        if pos_encoding_kwargs is None:
+            pos_encoding_kwargs = {}
+        pos_encoding_kwargs["use_scale_factor"] = True
         if relative_time_attention:
-            self._require_recommend_context = True
-            data_preparator_kwargs = {
-                "extra_cols": ["unix_ts"],
-                "add_unix_ts": True
-            }
+            if data_preparator_kwargs is None:
+                data_preparator_kwargs = {}
+            data_preparator_kwargs["add_unix_ts"]  = True
 
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -777,3 +781,8 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     ) -> tp.Dict[str, torch.Tensor]:
         return self._preproc_recommend_context(recommend_dataset, context)
 
+    @property
+    def require_recommend_context(self):
+        if self.relative_time_attention:
+            return True
+        return False

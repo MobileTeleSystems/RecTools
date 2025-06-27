@@ -103,11 +103,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         self.is_fitted = False
         self.verbose = verbose
         #TODO  look at this
-        self._require_recommend_context = False
 
     @property
     def require_recommend_context(self):
-        return self._require_recommend_context
+        return False
 
     @tp.overload
     def get_config(  # noqa: D102

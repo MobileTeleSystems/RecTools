@@ -164,7 +164,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
         self.add_unix_ts = add_unix_ts
-        #keep for
+
+        #keep for rude debug
         print("Extra cols: ", extra_cols)
         print(f"add_unix_ts is : {add_unix_ts}.")
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
@@ -219,17 +220,17 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         )
         return train_interactions
 
+    def _convert_to_unix_ts(self, datetime: pd.Series) -> pd.Series:
+        return (datetime.values.astype('int64') // 10 ** 9).astype('int64')
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
-        in_external_index =  dataset.get_raw_interactions(include_extra_cols = True)
+        required_cols = Columns.Interactions
+        if self.extra_cols is not None:
+            required_cols += self.extra_cols
+        raw_interactions = dataset.get_raw_interactions()[required_cols]
         if self.add_unix_ts:
-            in_external_index["unix_ts"] = (in_external_index[Columns.Datetime].values.astype('int64') / 10 ** 9).astype('int64')
-            dataset = Dataset.construct(in_external_index, keep_extra_cols=True)
-        if self.extra_cols is None:
-            raw_interactions = dataset.get_raw_interactions(include_extra_cols=False)
-        else:
-            print(dataset.get_raw_interactions(include_extra_cols= True))
-            raw_interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
+            raw_interactions["unix_ts"] = self._convert_to_unix_ts(raw_interactions[Columns.Datetime])
 
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
@@ -378,14 +379,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final item_id_map is model item_id_map constructed during training.
         """
         # Filter interactions in dataset internal ids
-        in_external_index =  dataset.get_raw_interactions(include_extra_cols = True)
+        required_cols = Columns.Interactions
+        if self.extra_cols is not None:
+            required_cols += self.extra_cols
+        interactions = dataset.interactions.df[required_cols]
         if self.add_unix_ts:
-            in_external_index["unix_ts"] = (in_external_index[Columns.Datetime].values.astype('int64') / 10 ** 9).astype('int64')
-            dataset = Dataset.construct(in_external_index, keep_extra_cols=True)
-        if self.extra_cols is None:
-            interactions = dataset.interactions.df[Columns.Interactions]
-        else:
-            interactions = dataset.interactions.df[Columns.Interactions + self.extra_cols]
+            interactions["unix_ts"] = self._convert_to_unix_ts(interactions[Columns.Datetime])
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]
