@@ -146,6 +146,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         extra_cols: tp.Optional[tp.List[str]] = None,
+        add_unix_ts: bool = False,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -162,7 +163,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
-
+        self.add_unix_ts = add_unix_ts
+        #keep for
+        print("Extra cols: ", extra_cols)
+        print(f"add_unix_ts is : {add_unix_ts}.")
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
         return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
@@ -217,9 +221,14 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
+        in_external_index =  dataset.get_raw_interactions(include_extra_cols = True)
+        if self.add_unix_ts:
+            in_external_index["unix_ts"] = (in_external_index[Columns.Datetime].values.astype('int64') / 10 ** 9).astype('int64')
+            dataset = Dataset.construct(in_external_index, keep_extra_cols=True)
         if self.extra_cols is None:
             raw_interactions = dataset.get_raw_interactions(include_extra_cols=False)
         else:
+            print(dataset.get_raw_interactions(include_extra_cols= True))
             raw_interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
 
         # Exclude val interaction targets from train if needed
@@ -306,7 +315,6 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         if self.val_interactions is None:
             return None
-
         sequence_dataset = SequenceDataset.from_interactions(self.val_interactions)
         val_dataloader = DataLoader(
             sequence_dataset,
@@ -330,7 +338,13 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
+        prep_df = dataset.interactions.df
+        # TODO transform_dataset_u2i've been changed. Need add unix_ts here
+        """ #
+        if self.add_unix_ts:
+            prep_df["unix_ts"] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
+        """
+        sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,
@@ -364,6 +378,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final item_id_map is model item_id_map constructed during training.
         """
         # Filter interactions in dataset internal ids
+        in_external_index =  dataset.get_raw_interactions(include_extra_cols = True)
+        if self.add_unix_ts:
+            in_external_index["unix_ts"] = (in_external_index[Columns.Datetime].values.astype('int64') / 10 ** 9).astype('int64')
+            dataset = Dataset.construct(in_external_index, keep_extra_cols=True)
         if self.extra_cols is None:
             interactions = dataset.interactions.df[Columns.Interactions]
         else:

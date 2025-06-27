@@ -95,27 +95,20 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         t = np.zeros((batch_size, self.session_max_len+1))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        # TODO здесь политика такая, что если пришли extra_cols то собираем с контекстом автоматически
-        extras_train = {
-            col_name: np.zeros((batch_size, self.session_max_len+1))
-            for col_name in self.extra_cols
-        }
+        extras_train = {}
         for i, (ses, ses_weights, extras) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            len_to_pad = self.session_max_len + 1 - len(ses)
-            for col_name, payload_value in extras.items():
-                extras_train[col_name][i, -len(ses):] = payload_value
+            if extras:
+                t[i, -len(ses):] = extras["unix_ts"]
+                len_to_pad = self.session_max_len+1 - len(ses)
                 if len_to_pad > 0:
-                    extras_train[col_name][i, :len_to_pad] = extras_train[col_name][i, len_to_pad]
+                    t[i, :len_to_pad] = t[i, len_to_pad]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        for col_name, payload_value in extras_train.items():
-            extras_train[col_name] = torch.LongTensor(payload_value)
-        # здесь сейчас всё зашито в extras -> хотим flatten
+        if self.extra_cols is not None:
+            extras_train.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         batch_dict.update(extras_train)
-        #print("train batch cols:", list(batch_dict.keys()))
-        #print(batch_dict[Columns.Datetime])
         if self.negative_sampler is not None:
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
@@ -128,33 +121,26 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         t = np.zeros((batch_size, self.session_max_len+1))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        extras_val = {
-            col_name: np.zeros((batch_size, self.session_max_len + 1))
-            for col_name in self.extra_cols
-        }
+        extras_val = {}
         for i, (ses, ses_weights, extras) in enumerate(batch):
-            if  len(ses) > 201:
-                print(len(ses))
             ses = ses[1:]
             ses_weights = ses_weights[1:]
 
+
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
             target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
-
-            len_to_pad = self.session_max_len+1 -len(ses)
-            # TODO check preroc payloads
-            for col_name, payload_value in extras.items():
-                payload_value = payload_value[1:]
-                extras_val[col_name][i, -len(ses):] = payload_value
+            if extras:
+                extras["unix_ts"] = extras["unix_ts"][1:]
+                t[i, -len(ses):] = extras["unix_ts"]
+                len_to_pad = self.session_max_len+1 -len(ses)
                 if len_to_pad > 0:
-                    extras_val[col_name][i, :len_to_pad] = extras_val[col_name][i, len_to_pad]
+                    t[i, :len_to_pad] = t[i, len_to_pad]
             # ses: [session_len] -> x[i]: [session_max_len]
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-        #TODO need policy types for extra cols
-        for col_name, payload_value in extras_val.items():
-            extras_val[col_name] = torch.LongTensor(payload_value)
+        if self.extra_cols is not None:
+            extras_val.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         batch_dict.update(extras_val)
         if self.negative_sampler is not None:
@@ -172,13 +158,17 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             ses = ses [:-1] # drop dummy item
             x[i, -len(ses):] = ses[-self.session_max_len:]
             #x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            t[i, -len(ses)-1:] = extras[Columns.Datetime][-self.session_max_len-1:]
-            len_to_pad = self.session_max_len- len(ses)
-            if len_to_pad > 0:
-                t[i, :len_to_pad] = t[i, len_to_pad]
+            if extras:
+                t[i, -len(ses)-1:] = extras["unix_ts"][-self.session_max_len-1:]
+                len_to_pad = self.session_max_len- len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
             #print(payloads)
-        extras_recommend.update({Columns.Datetime: torch.LongTensor(t)})
-        return {"x": torch.LongTensor(x), "extras": extras_recommend}
+        if self.extra_cols is not None:
+            extras_recommend.update({"unix_ts":torch.LongTensor(t)})
+        batch_dict = {"x": torch.LongTensor(x)}
+        batch_dict.update(extras_recommend)
+        return batch_dict
 
 class RelativeAttention(torch.nn.Module):
     """
@@ -203,7 +193,7 @@ class RelativeAttention(torch.nn.Module):
         relative_time_attention:bool,
         relative_pos_attention: bool,
         num_buckets: int = 128,
-        #TODO is ig good idea
+        #TODO suggest DO not make private func of RelativeAttention
         quantization_func: tp.Optional[Callable[[torch.Tensor], torch.Tensor]] = lambda x: (
                                 torch.log(torch.abs(x).clamp(min=1)) / 0.301
                             ).long(),
@@ -212,7 +202,7 @@ class RelativeAttention(torch.nn.Module):
         self.max_seq_len = max_seq_len
         self.num_buckets = num_buckets
         self.quantization_func  = quantization_func
-        self.relative_time_attention = relative_time_attention,
+        self.relative_time_attention = relative_time_attention
         self.relative_pos_attention = relative_pos_attention
         if relative_time_attention:
             self.time_weights = torch.nn.Parameter(
@@ -225,7 +215,6 @@ class RelativeAttention(torch.nn.Module):
     def forward_time_attention(self,all_timestamps: torch.Tensor)->torch.Tensor:
         N = self.max_seq_len +1  # N+1, 1 for target item time
         B = all_timestamps.size(0)
-        #print(all_timestamps.shape)
         extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1: N]], dim=1)
         early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
         bucketed_timestamps = torch.clamp(
@@ -236,17 +225,16 @@ class RelativeAttention(torch.nn.Module):
         rel_time_attention = torch.index_select(
             self.time_weights, dim=0, index=bucketed_timestamps.view(-1)
         ).view(B, N, N)
-        rel_time_attention = rel_time_attention[:, :-1, :-1] # reducted target time (N -> self.max_seq_len)
-        #print("shape rel time atten:", rel_time_attention.shape)
-        return rel_time_attention # (B,max_seq_len, max_seq_len)
+        rel_time_attention = rel_time_attention[:, :-1, :-1]
+        # reducted target time (N -> self.max_seq_len)
+        return rel_time_attention # (B,N, N)
     def forward_pos_attention(self) ->torch.Tensor:
         N = self.max_seq_len  # N+1, 1 for target item time
         t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
         t = t[..., :-N].reshape(1, N, 3 * N - 2)
         r = (2 * N - 1) // 2
-        rel_pos_attention = t[:, :, r:-r] # (1,N,N)
-        #print("shape rel pos atten:", rel_pos_attention.shape)
-        return rel_pos_attention
+        rel_pos_attention = t[:, :, r:-r]
+        return rel_pos_attention # (1,N,N)
     def forward(
         self,
         batch: tp.Optional[Dict[str, torch.Tensor]],
@@ -264,7 +252,7 @@ class RelativeAttention(torch.nn.Module):
         B = batch["x"].size(0)
         rel_attn = torch.zeros((B, self.max_seq_len, self.max_seq_len)).to(batch["x"].device)
         if self.relative_time_attention:
-            rel_attn += self.forward_time_attention(batch[Columns.Datetime])
+            rel_attn += self.forward_time_attention(batch["unix_ts"])
         if self.relative_pos_attention:
             rel_attn+= self.forward_pos_attention()
         return rel_attn
@@ -719,7 +707,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         if relative_time_attention:
             self._require_recommend_context = True
             data_preparator_kwargs = {
-                "extra_cols": [Columns.Datetime],
+                "extra_cols": ["unix_ts"],
                 "add_unix_ts": True
             }
 

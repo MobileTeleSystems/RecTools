@@ -399,9 +399,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             user_embs = []
             for batch in recommend_dataloader:
                 batch["x"] = batch["x"].to(device)
-                #TODO  extras is None anymore, always either {} or {data}
-                if batch.get("extras") is not None:
-                    batch["extras"][Columns.Datetime] = batch["extras"][Columns.Datetime].to(device)
+                if batch.get("unix_ts") is not None:
+                    batch["unix_ts"] = batch["unix_ts"].to(device)
                 batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
                 user_embs.append(batch_embs.cpu())
 
