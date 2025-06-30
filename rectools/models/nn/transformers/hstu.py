@@ -48,8 +48,6 @@ from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 from rectools import Columns
 from rectools.dataset import Dataset
-check_split_train_dataset = True
-check_split_val_dataset = True
 class HSTUDataPreparator(TransformerDataPreparatorBase):
     """Data preparator for HSTUModel.
 
@@ -76,7 +74,6 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         Additional arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
     """
-    #TODO
 
     train_session_max_len_addition: int = 1
 
@@ -92,7 +89,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         """
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
-        t = np.zeros((batch_size, self.session_max_len+1))
+        t = np.zeros((batch_size, self.session_max_len+1)) # +1 target item timestamp
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
         extras_train = {}
@@ -105,7 +102,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
                     t[i, :len_to_pad] = t[i, len_to_pad]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        if self.add_unix_ts is not None:
+        if self.add_unix_ts:
             extras_train.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         batch_dict.update(extras_train)
@@ -139,7 +136,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
             x[i, -len(input_session) :] = input_session[-self.session_max_len :]
             y[i, -1:] = ses[target_idx]  # y[i]: [1]
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-        if self.add_unix_ts is not None:
+        if self.add_unix_ts:
             extras_val.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
         batch_dict.update(extras_val)
@@ -163,7 +160,7 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
                 len_to_pad = self.session_max_len- len(ses)
                 if len_to_pad > 0:
                     t[i, :len_to_pad] = t[i, len_to_pad]
-        if self.extra_cols is not None:
+        if self.add_unix_ts:
             extras_recommend.update({"unix_ts":torch.LongTensor(t)})
         batch_dict = {"x": torch.LongTensor(x)}
         batch_dict.update(extras_recommend)
@@ -188,32 +185,31 @@ class RelativeAttention(torch.nn.Module):
 
     def __init__(
         self,
-        max_seq_len: int,
+        session_max_len: int,
         relative_time_attention:bool,
         relative_pos_attention: bool,
         num_buckets: int = 128,
-        #TODO suggest DO not make private func of RelativeAttention
         quantization_func: tp.Optional[Callable[[torch.Tensor], torch.Tensor]] = lambda x: (
                                 torch.log(torch.abs(x).clamp(min=1)) / 0.301
                             ).long(),
     ) -> None:
         super().__init__()
-        self.max_seq_len = max_seq_len
+        self.session_max_len = session_max_len
         self.num_buckets = num_buckets
         self.quantization_func  = quantization_func
         self.relative_time_attention = relative_time_attention
         self.relative_pos_attention = relative_pos_attention
         if relative_time_attention:
             self.time_weights = torch.nn.Parameter(
-                torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
+                torch.empty(num_buckets + 1),
             )
         if relative_pos_attention:
             self.pos_weights = torch.nn.Parameter(
-                torch.empty(2 * (max_seq_len+1) - 1).normal_(mean=0, std=0.02),
+                torch.empty(2 * session_max_len - 1),
             )
-    def forward_time_attention(self,all_timestamps: torch.Tensor)->torch.Tensor:
-        N = self.max_seq_len +1  # N+1, 1 for target item time
-        B = all_timestamps.size(0)
+    def forward_time_attention(self, all_timestamps: torch.Tensor)->torch.Tensor:
+        N = self.session_max_len + 1  # 1 for target item time, needed for time aware
+        batch_size = all_timestamps.size(0)
         extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1: N]], dim=1)
         early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
         bucketed_timestamps = torch.clamp(
@@ -223,12 +219,12 @@ class RelativeAttention(torch.nn.Module):
         ).detach()
         rel_time_attention = torch.index_select(
             self.time_weights, dim=0, index=bucketed_timestamps.view(-1)
-        ).view(B, N, N)
+        ).view(batch_size, N, N)
         rel_time_attention = rel_time_attention[:, :-1, :-1]
         # reducted target time (N -> self.max_seq_len)
-        return rel_time_attention # (B, N, N)
+        return rel_time_attention # (batch_size, N, N)
     def forward_pos_attention(self) ->torch.Tensor:
-        N = self.max_seq_len  # N+1, 1 for target item time
+        N = self.session_max_len
         t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
         t = t[..., :-N].reshape(1, N, 3 * N - 2)
         r = (2 * N - 1) // 2
@@ -241,15 +237,15 @@ class RelativeAttention(torch.nn.Module):
         """
         Parametrs
         ---------
-        all_timestamps: torch.Tensor (B, N+1)
+        all_timestamps: torch.Tensor (batch_size, N+1)
             User sequence of timestamps + 1 target item timestamp
         Returns
         ---------
-        torch.Tensor (B, N, N)
+        torch.Tensor (batch_size, N, N)
             Variate of sum relative pos/time attention
         """
-        B = batch["x"].size(0)
-        rel_attn = torch.zeros((B, self.max_seq_len, self.max_seq_len)).to(batch["x"].device)
+        batch_size = batch["x"].size(0)
+        rel_attn = torch.zeros((batch_size, self.max_seq_len, self.max_seq_len)).to(batch["x"].device)
         if self.relative_time_attention:
             rel_attn += self.forward_time_attention(batch["unix_ts"])
         if self.relative_pos_attention:
@@ -289,48 +285,38 @@ class STU(nn.Module):
         session_max_len: int,
         relative_time_attention: bool,
         relative_pos_attention: bool,
-        attn_dropout_rate: float = 0.1,
-        dropout_rate: float = 0.2,
-        epsilon: float = 1e-6,
+        attn_dropout_rate: float,
+        dropout_rate: float,
+        epsilon: float,
     ):
         super().__init__()
         self.rel_attn = RelativeAttention(
-                            max_seq_len=session_max_len,
+                            session_max_len=session_max_len,
                             relative_time_attention = relative_time_attention,
                             relative_pos_attention = relative_pos_attention,
         )
-        self.n_factors =  n_factors
         self.n_heads = n_heads
-        self.linear_dim = linear_hidden_dim
+        self.linear_hidden_dim = linear_hidden_dim
         self.attention_dim = attention_dim
-        self.dropout_rate  = dropout_rate
-        self.attn_dropout_rate = attn_dropout_rate
-        self.max_seq_len = session_max_len
-        self.eps = epsilon
+        self.session_max_len = session_max_len
         self.uvqk_proj: torch.nn.Parameter = torch.nn.Parameter(
             torch.empty(
                 (
                     n_factors,
-                    self.linear_dim * 2 * n_heads
+                    linear_hidden_dim * 2 * n_heads
                     + attention_dim * n_heads * 2,
                 )
-            ).normal_(mean=0, std=0.02),
+            ),
         )
         self.output_mlp = torch.nn.Linear(
             in_features=linear_hidden_dim * n_heads,
-            out_features=self.n_factors,
+            out_features=n_factors,
         )
-        # TODO оно надо вообще запоминать
-        self.relative_time_attention = relative_time_attention
-        #torch.nn.init.xavier_uniform_(self.output_mlp.weight)
+        self.norm_input = nn.LayerNorm(n_factors, eps=epsilon)
+        self.norm_attn_output = nn.LayerNorm(linear_hidden_dim * n_heads, eps=epsilon)
+        self.dropout_mlp = nn.Dropout(dropout_rate)
+        self.dropout_attn = nn.Dropout(attn_dropout_rate)
 
-    def _norm_input(self, x: torch.Tensor) -> torch.Tensor:
-        return F.layer_norm(x, normalized_shape=[self.n_factors], eps=self.eps)
-
-    def _norm_attn_output(self, x: torch.Tensor) -> torch.Tensor:
-        return F.layer_norm(
-            x, normalized_shape=[self.linear_dim * self.n_heads], eps=self.eps
-        )
 
     def forward(
         self,
@@ -357,15 +343,16 @@ class STU(nn.Module):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        B, N, _ = x.shape
-        normed_x = self._norm_input(x) * timeline_mask  # prevent null emb convert to (b,b, ,,, b)
+
+        batch_size, _, _ = x.shape
+        normed_x = self.norm_input(x) * timeline_mask  # prevent null emb convert to (const,const, ,,, const)
         general_trasform = torch.matmul(normed_x, self.uvqk_proj)
         batched_mm_output = F.silu(general_trasform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
-                self.linear_dim * self.n_heads,  #
-                self.linear_dim * self.n_heads,
+                self.linear_hidden_dim * self.n_heads,  #
+                self.linear_hidden_dim * self.n_heads,
                 self.attention_dim * self.n_heads,
                 self.attention_dim * self.n_heads,
             ],
@@ -373,11 +360,11 @@ class STU(nn.Module):
         )
         qk_attn = torch.einsum(
             "bnhd,bmhd->bhnm",
-            q.view(B, N, self.n_heads, self.attention_dim),
-            k.view(B, N, self.n_heads, self.attention_dim),
-        ) #(B, n_head, N, N), attention on Q, K
-        qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1) #(B, N, N).unsqueeze(1) -> (B,1,N,N) broadcast to n_heaad
-        qk_attn = F.silu(qk_attn) / N
+            q.view(batch_size, self.session_max_len, self.n_heads, self.attention_dim),
+            k.view(batch_size, self.session_max_len, self.n_heads, self.attention_dim),
+        ) # N = session_max_len  (batch_size, n_head, N, N), attention on Q, K
+        qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1) #(batch_size, N, N).unsqueeze(1) -> (batch_size,1,N,N) broadcast
+        qk_attn = F.silu(qk_attn) / self.session_max_len
 
         time_line_mask_reducted = timeline_mask.squeeze(-1)
         time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
@@ -387,19 +374,14 @@ class STU(nn.Module):
         attn_output = torch.einsum(
                 "bhnm,bmhd->bnhd",
                 qk_attn,
-                v.reshape(B, N, self.n_heads, self.linear_dim),
-        ).reshape(B, N, self.n_heads * self.linear_dim)
+                v.reshape(batch_size, self.session_max_len, self.n_heads, self.linear_hidden_dim),
+        ).reshape(batch_size, self.session_max_len, self.n_heads * self.linear_hidden_dim)
 
-        o_input = u * self._norm_attn_output(attn_output) * timeline_mask
+        attn_output = self.dropout_attn(attn_output)
+        o_input = u * self.norm_attn_output(attn_output) * timeline_mask
 
         new_outputs = (
-            self.output_mlp(
-                F.dropout(
-                    o_input,
-                    p=self.dropout_rate,
-                    training=self.training,
-                )
-            )
+            self.output_mlp(self.dropout_mlp(o_input))
             + x
         )
 
@@ -408,7 +390,7 @@ class STU(nn.Module):
 
 class STULayers(TransformerLayersBase):
     """
-    SASRec transformer blocks.
+    STULayers transformer blocks.
 
     Parameters
     ----------
@@ -432,13 +414,14 @@ class STULayers(TransformerLayersBase):
         session_max_len: int,
         relative_time_attention: bool,
         relative_pos_attention: bool,
-        attn_dropout_rate: float = 0.1,
+        attn_dropout_rate: float = 0.05,
         dropout_rate: float = 0.2,
         epsilon: float = 1e-6,
         **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
+        self.epsilon = epsilon
         self.stu_blocks = nn.ModuleList(
             [
                 STU(
@@ -503,10 +486,11 @@ class HSTUModelConfig(TransformerModelConfig):
     data_preparator_type: TransformerDataPreparatorType = HSTUDataPreparator
     transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
-    dqk: int = 0,
-    dvu: int = 0,
+    dqk: tp.Optional[int] = None,
+    dvu: tp.Optional[int] = None,
     relative_time_attention: bool = True,
     relative_pos_attention: bool = True,
+
 
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
@@ -665,8 +649,8 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
-        dqk: int =  0,
-        dvu: int = 0,
+        dqk: tp.Optional[int] = None,
+        dvu: tp.Optional[int] = None,
         relative_time_attention: bool = True,
         relative_pos_attention: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
@@ -766,7 +750,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
-            dropout_rate=self.dropout_rate,
             session_max_len = self.session_max_len,
             attention_dim=self.dqk,
             linear_hidden_dim = self.dvu,

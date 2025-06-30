@@ -201,8 +201,6 @@ class TransformerModelConfig(ModelConfig):
     dataloader_num_workers: int = 0
     batch_size: int = 128
     loss: str = "softmax"
-    # TODO ask is it worth pass require_recommend_context = False here.
-    #require_recommend_context: bool = False
     n_negatives: int = 1
     gbce_t: float = 0.2
     lr: float = 0.001
@@ -296,7 +294,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         backbone_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
-        super().__init__(verbose=verbose) # TODO look at this
+        super().__init__(verbose=verbose)
         self.transformer_layers_type = transformer_layers_type
         self.data_preparator_type = data_preparator_type
         self.n_blocks = n_blocks
@@ -420,7 +418,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             n_factors=self.n_factors,
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
-            #TODO rewrite for HSTU
             **self._get_kwargs(self.transformer_layers_kwargs),
         )
 
@@ -688,7 +685,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         print("process context")
         model_known_external_ids = self.data_preparator.get_known_item_ids()
         dummy_common_item = np.intersect1d(recommend_dataset.item_id_map.external_ids, model_known_external_ids)[0]
-        #Done TODO set policy separatly?
         in_external_view_recommend = recommend_dataset.get_raw_interactions()
         in_external_view_context = context.copy()
         first_interaction_indices = in_external_view_context.groupby(Columns.User)[Columns.Datetime].idxmin()

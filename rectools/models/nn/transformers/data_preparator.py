@@ -221,7 +221,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         return train_interactions
 
     def _convert_to_unix_ts(self, datetime: pd.Series) -> pd.Series:
-        return (datetime.values.astype('int64') // 10 ** 9).astype('int64')
+        return (datetime.values.astype('int64') / 10 ** 9).astype('int64')
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""

@@ -1,3 +1,18 @@
+#  Copyright 2025 MTS (Mobile Telesystems)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+
 import typing as tp
 
 import numpy as np
@@ -5,8 +20,6 @@ import pandas as pd
 from rectools import Columns
 from rectools.dataset import Interactions
 from rectools.model_selection.splitter import Splitter
-
-# Rectools splitter but it considers last interaction as last appeared in dataframe when datetime is not unique
 
 
 class LastNSplitter(Splitter):
@@ -88,7 +101,7 @@ class LastNSplitter(Splitter):
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
 
-        # last event - rank=1
+        # Here we guarantee that last appeared interaction in df will have lowest rank when datetime is not unique
         time_order = (
             df.groupby("user_id")[Columns.Datetime]
             .rank(method="first", ascending=True)

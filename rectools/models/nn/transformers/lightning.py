@@ -208,14 +208,12 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
 
-    #TODO Simple change
     def configure_optimizers(self) -> torch.optim.AdamW:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
         for name, param in self.torch_model.named_parameters():
             print(name, param.shape)
         if self.optimizer is None:
             self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
-        #self.optimizer = torch.optim.AdamW(self.torch_model.parameters(), weight_decay=0, lr=self.lr, betas=self.adam_betas)
         return self.optimizer
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -385,14 +383,13 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         """
         self._prepare_for_inference(torch_device)
         device = self.torch_model.item_model.device
-        tensor_type_payload = set(Columns.Datetime) # Could be expand
+
+
         with torch.no_grad():
             item_embs = self.torch_model.item_model.get_all_embeddings()
             user_embs = []
             for batch in recommend_dataloader:
-                batch["x"] = batch["x"].to(device)
-                if batch.get("unix_ts") is not None:
-                    batch["unix_ts"] = batch["unix_ts"].to(device)
+                batch = {k: v.to(device) for k, v in batch.items()}
                 batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
                 user_embs.append(batch_embs.cpu())
 

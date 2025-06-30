@@ -102,7 +102,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
-        #TODO  look at this
 
     @property
     def require_recommend_context(self):

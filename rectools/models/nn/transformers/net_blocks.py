@@ -277,7 +277,6 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         super().__init__()
         self.pos_emb = torch.nn.Embedding(session_max_len, n_factors) if use_pos_emb else None
         self.use_scale_factor = use_scale_factor
-        self.n_factors = n_factors
     def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """
         Forward pass to add learnable positional encoding to sessions and mask padding elements.
@@ -292,16 +291,14 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         torch.Tensor
             Encoded user sessions with added positional encoding if `use_pos_emb` is ``True``.
         """
-        batch_size, session_max_len, _ = sessions.shape
-
+        batch_size, session_max_len, D = sessions.shape
+        if self.use_scale_factor:
+            sessions = sessions * (D**0.5)
         if self.pos_emb is not None:
             # Inverse positions are appropriate for variable length sequences across different batches
             # They are equal to absolute positions for fixed sequence length across different batches
             positions = torch.tile(
                 torch.arange(session_max_len - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_max_len]
-            if self.use_scale_factor:
-                sessions = sessions *  (self.use_scale_factor**0.5)
             sessions += self.pos_emb(positions.to(sessions.device))
-
         return sessions
