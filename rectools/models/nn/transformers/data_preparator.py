@@ -32,6 +32,7 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
+# (user session, session weights, extra columns)
 BatchElement = tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]
 
 
@@ -126,6 +127,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
+    extra_cols: optional(List[str]), default ``None``
+        Extra columns to keep in train and recommend datasets.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -217,10 +220,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
-        if self.extra_cols is None:
-            raw_interactions = dataset.get_raw_interactions(include_extra_cols=False)
-        else:
-            raw_interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
+        extra_cols = False if self.extra_cols is None else self.extra_cols
+        raw_interactions = dataset.get_raw_interactions(include_extra_cols=extra_cols)
 
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
@@ -364,10 +365,10 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final item_id_map is model item_id_map constructed during training.
         """
         # Filter interactions in dataset internal ids
-        if self.extra_cols is None:
-            interactions = dataset.interactions.df[Columns.Interactions]
-        else:
-            interactions = dataset.interactions.df[Columns.Interactions + self.extra_cols]
+        required_cols = Columns.Interactions
+        if self.extra_cols is not None:
+            required_cols = required_cols + self.extra_cols
+        interactions = dataset.interactions.df[required_cols]
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]
@@ -410,10 +411,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final user_id_map is the same as dataset original.
             Final item_id_map is model item_id_map constructed during training.
         """
-        if self.extra_cols is None:
-            interactions = dataset.get_raw_interactions(include_extra_cols=False)
-        else:
-            interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
+        extra_cols = False if self.extra_cols is None else self.extra_cols
+        interactions = dataset.get_raw_interactions(include_extra_cols=extra_cols)
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
         filtered_interactions = Interactions.from_raw(
             interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols=True
