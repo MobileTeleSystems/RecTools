@@ -201,11 +201,11 @@ class RelativeAttention(torch.nn.Module):
         self.relative_pos_attention = relative_pos_attention
         if relative_time_attention:
             self.time_weights = torch.nn.Parameter(
-                torch.empty(num_buckets + 1),
+                torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
             )
         if relative_pos_attention:
             self.pos_weights = torch.nn.Parameter(
-                torch.empty(2 * session_max_len - 1),
+                torch.empty(2 * session_max_len - 1).normal_(mean=0, std=0.02),
             )
     def forward_time_attention(self, all_timestamps: torch.Tensor)->torch.Tensor:
         N = self.session_max_len + 1  # 1 for target item time, needed for time aware
@@ -245,7 +245,7 @@ class RelativeAttention(torch.nn.Module):
             Variate of sum relative pos/time attention
         """
         batch_size = batch["x"].size(0)
-        rel_attn = torch.zeros((batch_size, self.max_seq_len, self.max_seq_len)).to(batch["x"].device)
+        rel_attn = torch.zeros((batch_size, self.session_max_len, self.session_max_len)).to(batch["x"].device)
         if self.relative_time_attention:
             rel_attn += self.forward_time_attention(batch["unix_ts"])
         if self.relative_pos_attention:
@@ -254,7 +254,7 @@ class RelativeAttention(torch.nn.Module):
 
 class STU(nn.Module):
     """
-    HSTU author's encoder block architecture rewritten from jagged tensor to dense
+    HSTU author's decoder block architecture rewritten from jagged tensor to dense
 
     Parameters
     ----------
@@ -316,6 +316,7 @@ class STU(nn.Module):
         self.norm_attn_output = nn.LayerNorm(linear_hidden_dim * n_heads, eps=epsilon)
         self.dropout_mlp = nn.Dropout(dropout_rate)
         self.dropout_attn = nn.Dropout(attn_dropout_rate)
+        self.dropout_rate  = dropout_rate
 
 
     def forward(
@@ -346,8 +347,8 @@ class STU(nn.Module):
 
         batch_size, _, _ = x.shape
         normed_x = self.norm_input(x) * timeline_mask  # prevent null emb convert to (const,const, ,,, const)
-        general_trasform = torch.matmul(normed_x, self.uvqk_proj)
-        batched_mm_output = F.silu(general_trasform) * timeline_mask
+        general_transform = torch.matmul(normed_x, self.uvqk_proj)
+        batched_mm_output = F.silu(general_transform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
@@ -377,7 +378,7 @@ class STU(nn.Module):
                 v.reshape(batch_size, self.session_max_len, self.n_heads, self.linear_hidden_dim),
         ).reshape(batch_size, self.session_max_len, self.n_heads * self.linear_hidden_dim)
 
-        attn_output = self.dropout_attn(attn_output)
+        #attn_output = self.dropout_attn(attn_output)
         o_input = u * self.norm_attn_output(attn_output) * timeline_mask
 
         new_outputs = (
