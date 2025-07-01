@@ -40,6 +40,59 @@ class TestLastNSplitter:
             return sorted(inv_shuffle_arr[values])
 
         return _shuffle
+    @pytest.fixture
+    def interactions_equal_timestamps(self, shuffle_arr: np.ndarray) -> Interactions:
+        df = pd.DataFrame(
+            [
+                [1, 1, 1, "2021-09-01"],  # 0
+                [1, 2, 1, "2021-09-02"],  # 1
+                [1, 1, 1, "2021-09-03"],  # 2
+                [1, 2, 1, "2021-09-04"],  # 3
+                [1, 3, 1, "2021-09-05"],  # 4
+                [2, 3, 1, "2021-09-05"],  # 5
+                [2, 2, 1, "2021-08-20"],  # 6
+                [2, 2, 1, "2021-09-06"],  # 7
+                [3, 1, 1, "2021-09-05"],  # 8
+                [1, 6, 1, "2021-09-05"],  # 9
+            ],
+            columns=[Columns.User, Columns.Item, Columns.Weight, Columns.Datetime],
+        ).astype({Columns.Datetime: "datetime64[ns]"})
+        return Interactions(df)
+
+    @pytest.mark.parametrize(
+        "swap_targets,expected_test_ids, target_item",
+        (
+            (
+                False,
+                {9, 7, 8},
+                6
+            ),
+            (
+                True,
+                {9, 7, 8},
+                3
+            ),
+        ),
+    )
+    def test_correct_last_interactions(
+        self,
+        interactions_equal_timestamps: Interactions,
+        swap_targets: bool,
+        expected_test_ids: tp.List[int],
+        target_item: int,
+    ) -> None:
+        # Do not using shuffle fixture, otherwise no valid answers
+        interactions_et = interactions_equal_timestamps
+        splitter = LastNSplitter(1, 1, False, False, False)
+        if swap_targets:
+            df_swap = interactions_equal_timestamps.df
+            df_swap.iloc[[4,9]] = df_swap.iloc[[9,4]]
+            interactions_et = Interactions(df_swap)
+        loo_split = list(splitter.split(interactions_et, collect_fold_stats=True))
+        target_ids = loo_split[0][1]
+        assert set(target_ids) == expected_test_ids
+        assert set(loo_split[0][0]) ==  set(range(len(interactions_et.df))) - expected_test_ids
+        assert target_item in  set(interactions_et.df.iloc[target_ids][Columns.Item])
 
     @pytest.fixture
     def interactions(self, shuffle_arr: np.ndarray) -> Interactions:
