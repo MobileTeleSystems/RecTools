@@ -167,7 +167,7 @@ class Interactions:
         item_id_map: IdMap,
         include_weight: bool = True,
         include_datetime: bool = True,
-        include_extra_cols: bool = True,
+        include_extra_cols: tp.Union[bool, tp.List[str]] = True,
     ) -> pd.DataFrame:
         """
         Convert itself to `pd.DataFrame` with replacing internal user and item ids to external ones.
@@ -182,8 +182,9 @@ class Interactions:
             Whether to include weight column into resulting table or not
         include_datetime : bool, default ``True``
             Whether to include datetime column into resulting table or not.
-        include_extra_cols: bool, default ``True``
-            Whether to include extra columns into resulting table or not.
+        include_extra_cols: bool or List[str], default ``True``
+            If bool, indicates whether to include all extra columns into resulting table or not.
+            If list of strings, indicates which extra columns to include into resulting table.
 
         Returns
         -------
@@ -201,9 +202,13 @@ class Interactions:
             cols_to_add.append(Columns.Weight)
         if include_datetime:
             cols_to_add.append(Columns.Datetime)
-        if include_extra_cols:
+
+        extra_cols = []
+        if isinstance(include_extra_cols, list):
+            extra_cols = [col for col in include_extra_cols if col in self.df and col not in Columns.Interactions]
+        elif include_extra_cols:
             extra_cols = [col for col in self.df if col not in Columns.Interactions]
-            cols_to_add.extend(extra_cols)
+        cols_to_add.extend(extra_cols)
 
         for col in cols_to_add:
             res[col] = self.df[col]
