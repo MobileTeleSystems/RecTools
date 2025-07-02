@@ -105,7 +105,7 @@ class LastNSplitter(Splitter):
         # Here we guarantee that last appeared interaction in df will have lowest rank when datetime is not unique
         grouped = df.groupby(Columns.User)
         time_order = grouped[Columns.Datetime].rank(method="first", ascending=True).astype(int)
-        n_interactions = grouped[Columns.User].transform('size').astype(int)
+        n_interactions = grouped[Columns.User].transform("size").astype(int)
         inv_ranks = n_interactions - time_order + 1
 
         for i_split in range(self.n_splits)[::-1]:
