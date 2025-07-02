@@ -257,7 +257,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
         super().__init__()
 
         self.n_items = n_items
-        print("кол-во айтемов",n_items)
         self.ids_emb = nn.Embedding(
             num_embeddings=n_items,
             embedding_dim=n_factors,
@@ -280,7 +279,8 @@ class IdEmbeddingsItemNet(ItemNetBase):
             Item embeddings.
         """
         item_embs = self.ids_emb(items.to(self.device))
-        item_embs = self.dropout(item_embs)
+        # TODO ask where
+        #item_embs = self.dropout(item_embs)
         return item_embs
 
     @classmethod

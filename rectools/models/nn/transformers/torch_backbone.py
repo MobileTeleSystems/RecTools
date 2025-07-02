@@ -150,6 +150,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
+
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -163,6 +164,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
             use_key_padding_mask=use_key_padding_mask,
             **kwargs,
         )
+        print('dropout_rate BackBone', dropout_rate)
 
     @staticmethod
     def _convert_mask_to_float(mask: torch.Tensor, query: torch.Tensor) -> torch.Tensor:

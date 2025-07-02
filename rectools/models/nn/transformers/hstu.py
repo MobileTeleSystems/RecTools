@@ -423,6 +423,7 @@ class STULayers(TransformerLayersBase):
         super().__init__()
         self.n_blocks = n_blocks
         self.epsilon = epsilon
+        print("STU Lyaers dropout", dropout_rate)
         self.stu_blocks = nn.ModuleList(
             [
                 STU(
