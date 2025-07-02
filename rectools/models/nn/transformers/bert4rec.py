@@ -408,7 +408,6 @@ class BERT4RecModel(TransformerModelBase[BERT4RecModelConfig]):
             lr=lr,
             epochs=epochs,
             verbose=verbose,
-            #require_recommend_context = require_recommend_context,
             deterministic=deterministic,
             recommend_batch_size=recommend_batch_size,
             recommend_torch_device=recommend_torch_device,

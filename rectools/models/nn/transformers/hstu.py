@@ -40,6 +40,7 @@ from .base import (
 )
 from .data_preparator import InitKwargs,  BatchElement, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
+from .sasrec import SASRecDataPreparator
 from .net_blocks import (
     PositionalEncodingBase,
     TransformerLayersBase, LearnableInversePositionalEncoding,
@@ -48,7 +49,7 @@ from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 from rectools import Columns
 from rectools.dataset import Dataset
-class HSTUDataPreparator(TransformerDataPreparatorBase):
+class HSTUDataPreparator(SASRecDataPreparator):
     """Data preparator for HSTUModel.
 
     Parameters
@@ -88,83 +89,49 @@ class HSTUDataPreparator(TransformerDataPreparatorBase):
         Split to `x`, `y`, and `yw`.
         """
         batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        t = np.zeros((batch_size, self.session_max_len+1)) # +1 target item timestamp
-        y = np.zeros((batch_size, self.session_max_len))
-        yw = np.zeros((batch_size, self.session_max_len))
-        extras_train = {}
-        for i, (ses, ses_weights, extras) in enumerate(batch):
-            x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            if extras:
+        batch_base_collator = super()._collate_fn_train(batch)
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
+            for i, (ses, _, extras) in enumerate(batch):
                 t[i, -len(ses):] = extras["unix_ts"]
-                len_to_pad = self.session_max_len+1 - len(ses)
+                len_to_pad = self.session_max_len + 1 - len(ses)
                 if len_to_pad > 0:
                     t[i, :len_to_pad] = t[i, len_to_pad]
-            y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-        if self.add_unix_ts:
-            extras_train.update({"unix_ts":torch.LongTensor(t)})
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        batch_dict.update(extras_train)
-        if self.negative_sampler is not None:
-            batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
-            )
-        return batch_dict
+            batch_base_collator.update({"unix_ts": torch.LongTensor(t)})
+            return batch_base_collator
+        return batch_base_collator
 
     def _collate_fn_val(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        t = np.zeros((batch_size, self.session_max_len+1))
-        y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        extras_val = {}
-        for i, (ses, ses_weights, extras) in enumerate(batch):
-            ses = ses[1:]
-            ses_weights = ses_weights[1:]
-
-
-            input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
-            target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
-            if extras:
-                extras["unix_ts"] = extras["unix_ts"][1:]
-                t[i, -len(ses):] = extras["unix_ts"]
-                len_to_pad = self.session_max_len+1 -len(ses)
+        batch_base_collator = super()._collate_fn_val(batch)
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
+            for i, (ses, _, extras) in enumerate(batch):
+                t[i, -len(ses)+1:] = extras["unix_ts"][1:]
+                len_to_pad = self.session_max_len + 2 - len(ses)
                 if len_to_pad > 0:
                     t[i, :len_to_pad] = t[i, len_to_pad]
-            # ses: [session_len] -> x[i]: [session_max_len]
-            x[i, -len(input_session) :] = input_session[-self.session_max_len :]
-            y[i, -1:] = ses[target_idx]  # y[i]: [1]
-            yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-        if self.add_unix_ts:
-            extras_val.update({"unix_ts":torch.LongTensor(t)})
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        batch_dict.update(extras_val)
-        if self.negative_sampler is not None:
-            batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
-            )
-        return batch_dict
+            batch_base_collator.update({"unix_ts": torch.LongTensor(t)})
+            return batch_base_collator
+        return batch_base_collator
 
     def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
-        x = np.zeros((len(batch), self.session_max_len))
-        t = np.zeros((len(batch), self.session_max_len + 1))
-        extras_recommend = {}
-        for i, (ses, _, extras) in enumerate(batch):
-            ses = ses [:-1] # drop dummy item
-            x[i, -len(ses):] = ses[-self.session_max_len:]
-            #x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            if extras:
-                t[i, -len(ses)-1:] = extras["unix_ts"][-self.session_max_len-1:]
-                len_to_pad = self.session_max_len- len(ses)
+        if self.add_unix_ts:
+            batch_size = len(batch)
+            x = np.zeros((batch_size, self.session_max_len))
+            t = np.zeros((batch_size, self.session_max_len + 1))
+            for i, (ses, _, extras) in enumerate(batch):
+                ses = ses [:-1] # drop dummy item
+                x[i, -len(ses):] = ses[-self.session_max_len:]
+                #x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
+                t[i, -(len(ses)+1):] = extras["unix_ts"][-(self.session_max_len+1):]
+                len_to_pad = self.session_max_len - len(ses)
                 if len_to_pad > 0:
                     t[i, :len_to_pad] = t[i, len_to_pad]
-        if self.add_unix_ts:
-            extras_recommend.update({"unix_ts":torch.LongTensor(t)})
-        batch_dict = {"x": torch.LongTensor(x)}
-        batch_dict.update(extras_recommend)
-        return batch_dict
+            return {"x": torch.LongTensor(x), "unix_ts": torch.LongTensor(t)}
+        return super()._collate_fn_recommend(batch)
+
 
 class RelativeAttention(torch.nn.Module):
     """

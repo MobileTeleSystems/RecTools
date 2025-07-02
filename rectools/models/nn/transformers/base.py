@@ -682,7 +682,12 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         dataset: Dataset,
         context: pd.DataFrame
     ) -> tp.Dict[str, torch.Tensor]:
-        dummy_common_item = dataset.item_id_map.external_ids[0]  # TODO: calculate optimized. this is not the real line
+        find_in =  set(dataset.item_id_map.external_ids)
+        dummy_common_item = None
+        for external_id in self.data_preparator.get_known_item_ids():
+            if external_id in find_in:
+                dummy_common_item = external_id
+                break
         earliest = context.groupby(Columns.User)[Columns.Datetime].idxmin()
         context = context.loc[earliest]
         context[Columns.Item] = dummy_common_item
