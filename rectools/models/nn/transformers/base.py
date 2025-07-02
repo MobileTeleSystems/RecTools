@@ -51,7 +51,7 @@ from .net_blocks import (
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
-
+from rectools.dataset import Interactions
 # ####  --------------  Transformer Model Config  --------------  #### #
 
 
@@ -679,20 +679,27 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _preproc_recommend_context(
         self,
-        recommend_dataset: Dataset,
+        dataset: Dataset,
         context: pd.DataFrame
     ) -> tp.Dict[str, torch.Tensor]:
-        print("process context")
-        model_known_external_ids = self.data_preparator.get_known_item_ids()
-        dummy_common_item = np.intersect1d(recommend_dataset.item_id_map.external_ids, model_known_external_ids)[0]
-        in_external_view_recommend = recommend_dataset.get_raw_interactions()
-        in_external_view_context = context.copy()
-        first_interaction_indices = in_external_view_context.groupby(Columns.User)[Columns.Datetime].idxmin()
-
-        in_external_view_context_policy = in_external_view_context.loc[first_interaction_indices]
-        in_external_view_context_policy[Columns.Item] = dummy_common_item
-
-        union = pd.concat([in_external_view_recommend, in_external_view_context_policy])
-        new_dataset_recommend = Dataset.construct(union)
-        return new_dataset_recommend
+        dummy_common_item = dataset.item_id_map.external_ids[0]  # TODO: calculate optimized. this is not the real line
+        earliest = context.groupby(Columns.User)[Columns.Datetime].idxmin()
+        context = context.loc[earliest]
+        context[Columns.Item] = dummy_common_item
+        if Columns.Weight not in context.columns:
+            context[Columns.Weight] = 1
+        known_users = context[Columns.User].isin(dataset.user_id_map.external_ids)
+        user_id_map = dataset.user_id_map.add_ids(context[~known_users][Columns.User])
+        context_interactions = Interactions.from_raw(context, user_id_map, dataset.item_id_map, keep_extra_cols=True)
+        full_interactions = Interactions(
+            pd.concat([dataset.interactions.df, context_interactions.df], ignore_index=True)
+        )
+        full_dataset = Dataset(
+            user_id_map=user_id_map,
+            item_id_map=dataset.item_id_map,
+            interactions=full_interactions,
+            user_features=dataset.user_features,
+            item_features=dataset.item_features,
+        )
+        return full_dataset
 
