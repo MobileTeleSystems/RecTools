@@ -24,12 +24,23 @@ import torch
 import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader, TensorDataset
 
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
-from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
+from rectools.models.base import (
+    ErrorBehaviour,
+    InternalRecoTriplet,
+    ModelBase,
+    ModelConfig,
+)
 from rectools.types import InternalIdsArray
-from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
+from rectools.utils.misc import (
+    get_class_or_function_full_path,
+    import_object,
+    make_dict_flat,
+    unflatten_dict,
+)
 
 from ..item_net import (
     CatFeaturesItemNet,
@@ -506,8 +517,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             self._build_model_from_dataset(dataset)
             self.fit_trainer = deepcopy(self._trainer)
         elif self.fit_trainer is None:
-            self.data_preparator.process_dataset_train(dataset)
             self.fit_trainer = deepcopy(self._trainer)
+
+        # we need to process dataset each time we call fit_partial
+        # or a way to ensure that the dataset is not changed
+        self.data_preparator.process_dataset_train(dataset)
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
@@ -596,27 +610,28 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             item_external_ids=item_external_ids,
             model_config=model_config,
         )
+
+        # save checkpoint to temp file to be able to use it in trainer
+        with NamedTemporaryFile() as f:
+            torch.save(checkpoint, f.name)
+            fit_trainer = deepcopy(loaded._trainer)
+            loaded.fit_trainer = fit_trainer
+            # use stub dataset to load trainer state
+            loaded.fit_trainer.fit(
+                loaded.lightning_model,
+                ckpt_path=f.name,
+                train_dataloaders=DataLoader(TensorDataset(torch.Tensor())),
+            )
+
         loaded.lightning_model.is_fitted = True
-        loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
         return loaded
 
     def __getstate__(self) -> object:
         if self.is_fitted:
             if self.fit_trainer is None:
-                explanation = """
-                Model is fitted but has no `fit_trainer`. Most likely it was just loaded from the
-                checkpoint. Model that was loaded from checkpoint cannot be saved without being
-                fitted again.
-                """
-                raise RuntimeError(explanation)
-            # trainer = self.fit_trainer
-            # if trainer is None:
-            #     # here we lose training state but keep model's weights
-            #     # https://lightning.ai/forums/t/saving-a-lightningmodule-without-a-trainer/2217/3
-            #     logger.warning("fit_trainer is None; training state might be lost")
-            #     trainer = self._trainer
-            #     trainer.strategy.connect(self.lightning_model)
+                raise RuntimeError("expected to have fit_trainer set")
+
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()

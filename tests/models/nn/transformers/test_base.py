@@ -19,10 +19,12 @@ from tempfile import NamedTemporaryFile
 
 import pandas as pd
 import pytest
+import pytorch_lightning as pl
 import torch
 from pytest import FixtureRequest
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
+from torch import nn
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -32,7 +34,42 @@ from rectools.models.nn.transformers.lightning import TransformerLightningModule
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
+from .utils import (
+    custom_trainer,
+    custom_trainer_ckpt,
+    custom_trainer_multiple_ckpt,
+    leave_one_out_mask,
+)
+
+
+def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module):
+    assert type(model_a) == type(model_b), "different types"
+
+    with torch.no_grad():
+        for (apn, apv), (bpn, bpv) in zip(model_a.named_parameters(), model_b.named_parameters()):
+            assert apn == bpn, "different parameter name"
+            assert torch.isclose(apv, bpv).all(), "different parameter value"
+
+
+def assert_pl_models_equal(model_a: pl.LightningModule, model_b: pl.LightningModule):
+    """Assert pl modules are equal in terms of weights and trainer"""
+    assert_torch_models_equal(model_a, model_b)
+
+    trainer_a = model_a.trainer
+    trainer_b = model_a.trainer
+
+    assert_pl_trainers_equal(trainer_a, trainer_b)
+
+
+def assert_pl_trainers_equal(trainer_a: Trainer, trainer_b: Trainer):
+    """Assert pl trainers are equal in terms of optimizers state"""
+
+    assert len(trainer_a.optimizers) == len(trainer_b.optimizers), "Different number of optimizers"
+
+    for opt_a, opt_b in zip(trainer_b.optimizers, trainer_b.optimizers):
+        # Check optimizer class
+        assert type(opt_a) == type(opt_b), f"Optimizer types differ: {type(opt_a)} vs {type(opt_b)}"
+        assert opt_a.state_dict() == opt_b.state_dict(), "optimizers state dict differs"
 
 
 class TestTransformerModelBase:
@@ -410,3 +447,72 @@ class TestTransformerModelBase:
         with pytest.raises(ValueError):
             model = model_cls.from_config(model_config)
             model.fit(dataset=dataset)
+
+    @pytest.mark.parametrize("fit", (True, False))
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    @pytest.mark.parametrize("default_trainer", (True, False))
+    def test_resaving(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+        default_trainer: bool,
+        fit: bool,
+    ) -> None:
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
+        if not default_trainer:
+            config["get_trainer_func"] = custom_trainer
+        model = model_cls.from_config(config)
+
+        seed_everything(32, workers=True)
+        if fit:
+            model.fit(dataset)
+
+        with NamedTemporaryFile() as f:
+            model.save(f.name)
+            recovered_model = model_cls.load(f.name)
+
+        with NamedTemporaryFile() as f:
+            recovered_model.save(f.name)
+            second_recovered_model = model_cls.load(f.name)
+
+        assert isinstance(recovered_model, model_cls)
+
+        original_model_config = model.get_config()
+        second_recovered_model_config = recovered_model.get_config()
+        assert second_recovered_model_config == original_model_config
+
+        if fit:
+            assert_pl_models_equal(model.lightning_model, second_recovered_model.lightning_model)
+
+    # check if trainer keep state on multiple call partial fit
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_fit_partial_multiple_times(
+        self,
+        dataset: Dataset,
+        model_cls: tp.Type[TransformerModelBase],
+    ) -> None:
+        class FixSeedLightningModule(TransformerLightningModule):
+            def on_train_epoch_start(self) -> None:
+                seed_everything(32, workers=True)
+
+        seed_everything(32, workers=True)
+        model = model_cls.from_config(
+            {
+                "epochs": 3,
+                "data_preparator_kwargs": {"shuffle_train": False},
+                "get_trainer_func": custom_trainer,
+                "lightning_module_type": FixSeedLightningModule,
+            }
+        )
+        model.fit_partial(dataset, min_epochs=1, max_epochs=1)
+        t1 = deepcopy(model.fit_trainer)
+        model.fit_partial(
+            Dataset.construct(pd.DataFrame(columns=Columns.Interactions)),
+            min_epochs=1,
+            max_epochs=1,
+        )
+        t2 = deepcopy(model.fit_trainer)
+
+        assert t1 is not None
+        assert t2 is not None
+        assert_pl_trainers_equal(t1, t2)
