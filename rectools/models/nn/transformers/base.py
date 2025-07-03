@@ -610,6 +610,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 fitted again.
                 """
                 raise RuntimeError(explanation)
+            # trainer = self.fit_trainer
+            # if trainer is None:
+            #     # here we lose training state but keep model's weights
+            #     # https://lightning.ai/forums/t/saving-a-lightningmodule-without-a-trainer/2217/3
+            #     logger.warning("fit_trainer is None; training state might be lost")
+            #     trainer = self._trainer
+            #     trainer.strategy.connect(self.lightning_model)
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()
