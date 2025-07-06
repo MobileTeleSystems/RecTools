@@ -126,6 +126,11 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
+    extra_cols: optional(List[str]), default ``None``
+        Additional columns from dataset to keep beside of Columns.Inreractions
+    add_unix_ts: bool, default ``False``
+        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
+        from the beggining of the epoch
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -164,10 +169,6 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
         self.add_unix_ts = add_unix_ts
-
-        #keep for rude debug
-        print("Extra cols: ", extra_cols)
-        print(f"add_unix_ts is : {add_unix_ts}.")
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
         return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
@@ -340,11 +341,6 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
         prep_df = dataset.interactions.df
-        # TODO transform_dataset_u2i've been changed. Need add unix_ts here
-        """ #
-        if self.add_unix_ts:
-            prep_df["unix_ts"] = (prep_df[Columns.Datetime].values.astype('int64')/10**9).astype('int64')
-        """
         sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,

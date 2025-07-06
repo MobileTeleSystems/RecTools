@@ -73,7 +73,13 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
+    extra_cols: optional(List[str]), default ``None``
+        Additional columns from dataset to keep beside of Columns.Inreractions
+    add_unix_ts: bool, default ``False``
+        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
+        from the beggining of the epoch
     """
+
 
     train_session_max_len_addition: int = 1
 

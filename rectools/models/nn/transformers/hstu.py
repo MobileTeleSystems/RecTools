@@ -74,6 +74,11 @@ class HSTUDataPreparator(SASRecDataPreparator):
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
+    extra_cols: optional(List[str]), default ``None``
+        Additional columns from dataset to keep beside of Columns.Inreractions
+    add_unix_ts: bool, default ``False``
+        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
+        from the beggining of the epoch
     """
 
     train_session_max_len_addition: int = 1
@@ -175,6 +180,16 @@ class RelativeAttention(torch.nn.Module):
                 torch.empty(2 * session_max_len - 1).normal_(mean=0, std=0.02),
             )
     def forward_time_attention(self, all_timestamps: torch.Tensor)->torch.Tensor:
+        """
+        Parametrs
+        ---------
+        all_timestamps: torch.Tensor (batch_size, N+1)
+            User sequence of timestamps + 1 target item timestamp
+        Returns
+        ---------
+        torch.Tensor (batch_size, N, N)
+            relative time attention
+        """
         N = self.session_max_len + 1  # 1 for target item time, needed for time aware
         batch_size = all_timestamps.size(0)
         extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1: N]], dim=1)
@@ -191,6 +206,12 @@ class RelativeAttention(torch.nn.Module):
         # reducted target time (N -> self.max_seq_len)
         return rel_time_attention # (batch_size, N, N)
     def forward_pos_attention(self) ->torch.Tensor:
+        """
+        Returns
+        ---------
+        torch.Tensor (1, N, N)
+            relative positional attention
+        """
         N = self.session_max_len
         t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
         t = t[..., :-N].reshape(1, N, 3 * N - 2)
@@ -229,18 +250,22 @@ class STU(nn.Module):
         Latent embeddings size.
     n_heads : int
         Number of attention heads.
-    dropout_rate : float
-        Probability of a hidden unit to be zeroed.
     linear_hidden_dim : int
         U, V size.
     attention_dim : int
         Q, K size.
+    session_max_len : int
+        Maximum length of user sequence padded or truncated to.
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
     attn_dropout_rate : float
         Probability of a attention unit to be zeroed.
-    session_max_len : int
-        Maximum length of user sequence padded or truncated to
-    attention_mode : str
-        Policy
+    dropout_rate : float
+        Probability of a hidden unit to be zeroed.
+    epsilon  : float
+        A value passed to LayerNorm for numerical stability
     """
 
     def __init__(
@@ -288,7 +313,7 @@ class STU(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
+        seqs: torch.Tensor,
         batch: tp.Optional[Dict[str, torch.Tensor]],
         attn_mask: torch.Tensor,
         timeline_mask: torch.Tensor,
@@ -300,8 +325,12 @@ class STU(nn.Module):
         ----------
         seqs : torch.Tensor
             User sequences of item embeddings.
-        attn_mask : torch.Tensor, optional
-            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        batch : torch.Tensor
+            Could contain payload information, in particular sequence timestamps.
+        attn_mask : torch.Tensor
+            Mask to use in forward pass of multi-head attention as `attn_mask`.
+        timeline_mask : torch.Tensor
+            Mask marked padding items.
         key_padding_mask : torch.Tensor, optional
             Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
 
@@ -312,14 +341,14 @@ class STU(nn.Module):
             User sequences passed through transformer layers.
         """
 
-        batch_size, _, _ = x.shape
-        normed_x = self.norm_input(x) * timeline_mask  # prevent null emb convert to (const,const, ,,, const)
+        batch_size, _, _ = seqs.shape
+        normed_x = self.norm_input(seqs) * timeline_mask  # prevent null emb convert to (const,const, ,,, const)
         general_transform = torch.matmul(normed_x, self.uvqk_proj)
         batched_mm_output = F.silu(general_transform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
-                self.linear_hidden_dim * self.n_heads,  #
+                self.linear_hidden_dim * self.n_heads,
                 self.linear_hidden_dim * self.n_heads,
                 self.attention_dim * self.n_heads,
                 self.attention_dim * self.n_heads,
@@ -350,7 +379,7 @@ class STU(nn.Module):
 
         new_outputs = (
             self.output_mlp(self.dropout_mlp(o_input))
-            + x
+            + seqs
         )
 
         return new_outputs
@@ -363,14 +392,29 @@ class STULayers(TransformerLayersBase):
     Parameters
     ----------
     n_blocks : int
-        Number of transformer blocks.
+        Numbers of stacked STU.
     n_factors : int
         Latent embeddings size.
     n_heads : int
         Number of attention heads.
-    dropout_rate : float
+    linear_hidden_dim : int
+        U, V size.
+    attention_dim : int
+        Q, K size.
+    session_max_len : int
+        Maximum length of user sequence padded or truncated to.
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
+    attn_dropout_rate : float, default 0.2
+        Probability of a attention unit to be zeroed.
+    dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
+    epsilon  : float, default 1e-6
+        A value passed to LayerNorm for numerical stability
     """
+
 
     def __init__(
         self,
@@ -382,7 +426,7 @@ class STULayers(TransformerLayersBase):
         session_max_len: int,
         relative_time_attention: bool,
         relative_pos_attention: bool,
-        attn_dropout_rate: float = 0.05,
+        attn_dropout_rate: float = 0.2,
         dropout_rate: float = 0.2,
         epsilon: float = 1e-6,
         **kwargs: tp.Any,
@@ -390,7 +434,6 @@ class STULayers(TransformerLayersBase):
         super().__init__()
         self.n_blocks = n_blocks
         self.epsilon = epsilon
-        print("STU Lyaers dropout", dropout_rate)
         self.stu_blocks = nn.ModuleList(
             [
                 STU(
@@ -431,7 +474,8 @@ class STULayers(TransformerLayersBase):
             Optional mask to use in forward pass of multi-head attention as `attn_mask`.
         key_padding_mask : torch.Tensor, optional
             Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
-
+        batch : optional(Dict[str, torch.Tensor])
+            Could contain payload information,in particular sequence timestamps.
 
         Returns
         -------
@@ -464,7 +508,7 @@ class HSTUModelConfig(TransformerModelConfig):
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     """
-    SASRec model: transformer-based sequential model with unidirectional attention mechanism and
+    HSTUM model: transformer-based sequential model with unidirectional attention mechanism and
     "Shifted Sequence" training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
 
@@ -475,7 +519,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
     Public benchmark: https://github.com/blondered/bert4rec_repro
     Original SASRec paper: https://arxiv.org/abs/1808.09781
-    gBCE loss and gSASRec paper: https://arxiv.org/pdf/2308.07192
 
     Parameters
     ----------
@@ -525,6 +568,14 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
         parameter to ``False`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
+    dqk: optional(int), default ``None``,
+        Dimension Q,K. If None, definite as n_factors/n_heads.
+    dvu: optional(int), default ``None``,
+        Dimension V, U. If None, definite as n_factors/n_heads.
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
@@ -534,9 +585,9 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         Type of item net blocks aggregation constructor.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `STULayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : type(TransformerDataPreparatorBase), default `HSTUDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
@@ -722,6 +773,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             session_max_len = self.session_max_len,
             attention_dim=self.dqk,
             linear_hidden_dim = self.dvu,
+            dropout_rate=self.dropout_rate,
             relative_time_attention = self.relative_time_attention,
             relative_pos_attention = self.relative_pos_attention,
             **self._get_kwargs(self.transformer_layers_kwargs),
@@ -735,6 +787,17 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
 
     @property
     def require_recommend_context(self):
+        """
+        Return flag is model needed in context to correct reccomend
+
+        Parametrs
+        ---------
+        all_timestamps: torch.Tensor (batch_size, N+1)
+            User sequence of timestamps + 1 target item timestamp
+        Returns
+        ---------
+        bool
+        """
         if self.relative_time_attention:
             return True
         return False

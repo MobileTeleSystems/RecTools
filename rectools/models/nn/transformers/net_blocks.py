@@ -265,6 +265,8 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         Maximum length of user sequence.
     n_factors : int
         Latent embeddings size.
+    use_scale_factor : int
+        Use multiplication embedding on the root of the dimension embedding
     """
 
     def __init__(
