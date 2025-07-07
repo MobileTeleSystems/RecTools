@@ -49,7 +49,6 @@ from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 from rectools import Columns
 from rectools.dataset import Dataset
-QuantFuncCallable = Callable[[torch.Tensor], torch.Tensor]
 class HSTUDataPreparator(SASRecDataPreparator):
     """Data preparator for HSTUModel.
 
@@ -84,7 +83,7 @@ class HSTUDataPreparator(SASRecDataPreparator):
 
     train_session_max_len_addition: int = 1
 
-
+    # TODO в SASRec
     def _collate_fn_train(
         self,
         batch: List[BatchElement],
@@ -96,6 +95,7 @@ class HSTUDataPreparator(SASRecDataPreparator):
         """
         batch_size = len(batch)
         batch_base_collator = super()._collate_fn_train(batch)
+
         if self.add_unix_ts:
             t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
             for i, (ses, _, extras) in enumerate(batch):
@@ -160,13 +160,11 @@ class RelativeAttention(torch.nn.Module):
         session_max_len: int,
         relative_time_attention:bool,
         relative_pos_attention: bool,
-        num_buckets: int,
-        quantization_func: QuantFuncCallable,
+        num_buckets: int =128 ,
     ) -> None:
         super().__init__()
         self.session_max_len = session_max_len
         self.num_buckets = num_buckets
-        self.quantization_func  = quantization_func
         self.relative_time_attention = relative_time_attention
         self.relative_pos_attention = relative_pos_attention
         if relative_time_attention:
@@ -177,6 +175,10 @@ class RelativeAttention(torch.nn.Module):
             self.pos_weights = torch.nn.Parameter(
                 torch.empty(2 * session_max_len - 1).normal_(mean=0, std=0.02),
             )
+    def _quantization_func(self, diff_timestamps: torch.Tensor) -> torch.Tensor:
+        return (
+            torch.log(torch.abs(diff_timestamps).clamp(min=1)) / 0.301
+        ).long()
     def forward_time_attention(self, all_timestamps: torch.Tensor)->torch.Tensor:
         """
         Parametrs
@@ -193,7 +195,7 @@ class RelativeAttention(torch.nn.Module):
         extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1: N]], dim=1)
         early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
         bucketed_timestamps = torch.clamp(
-            self.quantization_func(early_time_binding),
+            self._quantization_func(early_time_binding),
             min=0,
             max=self.num_buckets,
         ).detach()
@@ -278,16 +280,12 @@ class STU(nn.Module):
         attn_dropout_rate: float,
         dropout_rate: float,
         epsilon: float,
-        quantization_func: QuantFuncCallable,
-        num_buckets: int
     ):
         super().__init__()
         self.rel_attn = RelativeAttention(
                             session_max_len=session_max_len,
                             relative_time_attention = relative_time_attention,
                             relative_pos_attention = relative_pos_attention,
-                            num_buckets = num_buckets,
-                            quantization_func=quantization_func,
         )
         self.n_heads = n_heads
         self.linear_hidden_dim = linear_hidden_dim
@@ -428,8 +426,6 @@ class STULayers(TransformerLayersBase):
         session_max_len: int,
         relative_time_attention: bool,
         relative_pos_attention: bool,
-        quantization_func: QuantFuncCallable,
-        num_buckets: int,
         attn_dropout_rate: float = 0.2,
         dropout_rate: float = 0.2,
         epsilon: float = 1e-6,
@@ -448,8 +444,6 @@ class STULayers(TransformerLayersBase):
                     attention_dim=attention_dim,
                     relative_time_attention = relative_time_attention,
                     relative_pos_attention = relative_pos_attention,
-                    quantization_func = quantization_func,
-                    num_buckets = num_buckets,
                     attn_dropout_rate=attn_dropout_rate,
                     session_max_len=session_max_len,
                     epsilon=epsilon,
@@ -509,8 +503,6 @@ class HSTUModelConfig(TransformerModelConfig):
     dvu: tp.Optional[int] = None,
     relative_time_attention: bool = True,
     relative_pos_attention: bool = True,
-    get_quantization_func: tp.Optional[QuantFuncCallable] = None,
-    num_buckets: int = 128,
 
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
@@ -691,7 +683,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
-        get_quantization_func: tp.Optional[QuantFuncCallable] = None,
         num_buckets: int = 128,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
@@ -721,10 +712,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         head_dim = int(n_factors / n_heads)
         self.dqk = dqk or head_dim
         self.dvu = dvu or head_dim
-        if get_quantization_func is None:
-            self.get_quantization_func = lambda x: (
-                                torch.log(torch.abs(x).clamp(min=1)) / 0.301
-                            ).long(),
         if pos_encoding_kwargs is None:
             pos_encoding_kwargs = {}
         pos_encoding_kwargs["use_scale_factor"] = True
@@ -786,12 +773,10 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             n_heads=self.n_heads,
             session_max_len = self.session_max_len,
             attention_dim=self.dqk,
-            linear_hidden_dim = self.dvu,
+            linear_hidden_dim=self.dvu,
             dropout_rate=self.dropout_rate,
             relative_time_attention = self.relative_time_attention,
             relative_pos_attention = self.relative_pos_attention,
-            num_buckets = self.num_buckets,
-            quantization_func = self.get_quantization_func,
             **self._get_kwargs(self.transformer_layers_kwargs),
         )
     def preproc_recommend_context(
