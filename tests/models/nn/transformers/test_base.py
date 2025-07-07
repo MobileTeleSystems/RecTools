@@ -34,12 +34,7 @@ from rectools.models.nn.transformers.lightning import TransformerLightningModule
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from .utils import (
-    custom_trainer,
-    custom_trainer_ckpt,
-    custom_trainer_multiple_ckpt,
-    leave_one_out_mask,
-)
+from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
 
 
 def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module):
@@ -428,8 +423,6 @@ class TestTransformerModelBase:
         recovered_fit_partial_model = model_cls.load_from_checkpoint(ckpt_path)
 
         seed_everything(32, workers=True)
-        fit_partial_model.fit_trainer = deepcopy(fit_partial_model._trainer)  # pylint: disable=protected-access
-        fit_partial_model.lightning_model.optimizer = None
         fit_partial_model.fit_partial(dataset, min_epochs=1, max_epochs=1)
 
         seed_everything(32, workers=True)

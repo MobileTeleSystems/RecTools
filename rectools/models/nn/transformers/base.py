@@ -28,19 +28,9 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
-from rectools.models.base import (
-    ErrorBehaviour,
-    InternalRecoTriplet,
-    ModelBase,
-    ModelConfig,
-)
+from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.types import InternalIdsArray
-from rectools.utils.misc import (
-    get_class_or_function_full_path,
-    import_object,
-    make_dict_flat,
-    unflatten_dict,
-)
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
 
 from ..item_net import (
     CatFeaturesItemNet,
@@ -516,19 +506,26 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if not self.is_fitted:
             self._build_model_from_dataset(dataset)
             self.fit_trainer = deepcopy(self._trainer)
-        elif self.fit_trainer is None:
-            self.fit_trainer = deepcopy(self._trainer)
+        else:
+            # assumed that dataset is same as in `fit` or as in first call to `fit_partial`
+            # currently new datasets is not supported due to difficulties with
+            # handling id maps and item (user) features
+            self.data_preparator.process_dataset_train(dataset)
 
-        # we need to process dataset each time we call fit_partial
-        # or a way to ensure that the dataset is not changed
-        self.data_preparator.process_dataset_train(dataset)
+            if self.fit_trainer is None:
+                self.fit_trainer = deepcopy(self._trainer)
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
         self.lightning_model.train()
-        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + max_epochs
-        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + min_epochs
+
+        # if checkpoint is from ModelCheckpoint callback (and saved at end of epoch)
+        # its epoch value equal to num of data epochs - 1 (as epoch is not ended in checkpoint time)
+        # so instead of `fit_trainer.current_epoch` we use `count of ready epochs`
+        current_epoch = self.fit_trainer.fit_loop.epoch_progress.current.ready
+        self.fit_trainer.fit_loop.max_epochs = current_epoch + max_epochs
+        self.fit_trainer.fit_loop.min_epochs = current_epoch + min_epochs
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _recommend_u2i(
