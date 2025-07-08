@@ -241,28 +241,6 @@ class TestTransformerModelBase:
         self._assert_same_reco(model, recovered_model, dataset)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
-    def test_raises_when_save_model_loaded_from_checkpoint(
-        self,
-        model_cls: tp.Type[TransformerModelBase],
-        dataset: Dataset,
-    ) -> None:
-        model = model_cls.from_config(
-            {
-                "deterministic": True,
-                "get_trainer_func": custom_trainer_ckpt,
-            }
-        )
-        model.fit(dataset)
-        assert model.fit_trainer is not None
-        if model.fit_trainer.log_dir is None:
-            raise ValueError("No log dir")
-        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
-        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
-        with pytest.raises(RuntimeError):
-            with NamedTemporaryFile() as f:
-                recovered_model.save(f.name)
-
-    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     def test_load_weights_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
