@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 ### Added
 - `extras` argument to `SequenceDataset`, `extra_cols` argument to `TransformerDataPreparatorBase`, `session_tower_forward` and `item_tower_forward` methods to `SimilarityModuleBase` ([#287](https://github.com/MobileTeleSystems/RecTools/pull/287))
+- allow resaving transformer model multiple times. Load train state on model loading ([#289](https://github.com/MobileTeleSystems/RecTools/pull/289))
 
 ## [0.14.0] - 16.05.2025
 
