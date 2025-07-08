@@ -37,8 +37,8 @@ from tests.models.utils import assert_save_load_do_not_change_model
 from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
 
 
-def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module):
-    assert type(model_a) == type(model_b), "different types"
+def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module) -> None:
+    assert type(model_a) is type(model_b), "different types"
 
     with torch.no_grad():
         for (apn, apv), (bpn, bpv) in zip(model_a.named_parameters(), model_b.named_parameters()):
@@ -46,7 +46,7 @@ def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module):
             assert torch.isclose(apv, bpv).all(), "different parameter value"
 
 
-def assert_pl_models_equal(model_a: pl.LightningModule, model_b: pl.LightningModule):
+def assert_pl_models_equal(model_a: pl.LightningModule, model_b: pl.LightningModule) -> None:
     """Assert pl modules are equal in terms of weights and trainer"""
     assert_torch_models_equal(model_a, model_b)
 
@@ -56,14 +56,13 @@ def assert_pl_models_equal(model_a: pl.LightningModule, model_b: pl.LightningMod
     assert_pl_trainers_equal(trainer_a, trainer_b)
 
 
-def assert_pl_trainers_equal(trainer_a: Trainer, trainer_b: Trainer):
+def assert_pl_trainers_equal(trainer_a: Trainer, trainer_b: Trainer) -> None:
     """Assert pl trainers are equal in terms of optimizers state"""
-
     assert len(trainer_a.optimizers) == len(trainer_b.optimizers), "Different number of optimizers"
 
     for opt_a, opt_b in zip(trainer_b.optimizers, trainer_b.optimizers):
         # Check optimizer class
-        assert type(opt_a) == type(opt_b), f"Optimizer types differ: {type(opt_a)} vs {type(opt_b)}"
+        assert type(opt_a) is type(opt_b), f"Optimizer types differ: {type(opt_a)} vs {type(opt_b)}"
         assert opt_a.state_dict() == opt_b.state_dict(), "optimizers state dict differs"
 
 
