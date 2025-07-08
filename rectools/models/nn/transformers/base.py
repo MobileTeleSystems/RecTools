@@ -511,9 +511,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             # currently new datasets is not supported due to difficulties with
             # handling id maps and item (user) features
             self.data_preparator.process_dataset_train(dataset)
-
             if self.fit_trainer is None:
-                self.fit_trainer = deepcopy(self._trainer)
+                raise RuntimeError("expected to have fit_trainer set")
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()

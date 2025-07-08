@@ -486,3 +486,36 @@ class TestTransformerModelBase:
         assert t1 is not None
         assert t2 is not None
         assert_pl_trainers_equal(t1, t2)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_fit_trainer_is_none_on_save_trained_model(
+        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
+    ) -> None:
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
+        model = model_cls.from_config(config)
+
+        seed_everything(32, workers=True)
+        model.fit(dataset)
+        model.fit_trainer = None
+
+        with NamedTemporaryFile() as f:
+            with pytest.raises(RuntimeError):
+                model.save(f.name)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_fit_trainer_is_none_on_fit_partial_trained_model(
+        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
+    ) -> None:
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
+        model = model_cls.from_config(config)
+
+        seed_everything(32, workers=True)
+        model.fit(dataset)
+        model.fit_trainer = None
+
+        with pytest.raises(RuntimeError):
+            model.fit_partial(
+                dataset,
+                min_epochs=1,
+                max_epochs=1,
+            )
