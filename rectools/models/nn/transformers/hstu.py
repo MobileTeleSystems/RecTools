@@ -487,10 +487,7 @@ class STULayers(TransformerLayersBase):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
             seqs = self.stu_blocks[i](seqs, batch, attn_mask, timeline_mask, key_padding_mask)
         seqs *= timeline_mask
-        return seqs / torch.clamp(
-            torch.linalg.norm(seqs, ord=None, dim=-1, keepdim=True),
-            min=1e-6,
-        )
+        return seqs
 
 
 class HSTUModelConfig(TransformerModelConfig):

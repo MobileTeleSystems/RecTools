@@ -114,7 +114,6 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         for i, (ses, ses_weights, _) in enumerate(batch):
-            #print(len(ses))
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
             # take only first target for leave-one-strategy

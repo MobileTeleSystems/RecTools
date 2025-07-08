@@ -246,6 +246,7 @@ class TestBERT4RecModel:
         ),
     )
     @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
+    #TODO перебрать флажки атеншена
     def test_u2i(
         self,
         dataset_devices: Dataset,
@@ -934,7 +935,7 @@ class TestBERT4RecDataPreparator:
         for key, value in actual.items():
             assert torch.equal(value, val_batch[key])
 
-
+#todo hstu config
 class TestBERT4RecModelConfiguration:
     def setup_method(self) -> None:
         self._seed_everything()
