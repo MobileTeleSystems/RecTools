@@ -245,10 +245,6 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
 
         seqs = self.pos_encoding_layer(seqs)
-        #TODO if self.time_emb_layer is not None: time_encdoing(batch)
-        #
-        #time_encdoing((batch[unix_ts]))
-        #time_encdoing  + class +  optional parametr = None, + num_buckets ( like *_kwargs time_encoding)
         seqs = self.emb_dropout(seqs)
 
         if self.use_causal_attn:

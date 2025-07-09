@@ -49,94 +49,6 @@ from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 from rectools import Columns
 from rectools.dataset import Dataset
-class HSTUDataPreparator(SASRecDataPreparator):
-    """Data preparator for HSTUModel.
-
-    Parameters
-    ----------
-    session_max_len : int
-        Maximum length of user sequence.
-    batch_size : int
-        How many samples per batch to load.
-    dataloader_num_workers : int
-        Number of loader worker processes.
-    item_extra_tokens : Sequence(Hashable)
-        Which element to use for sequence padding.
-    shuffle_train : bool, default True
-        If ``True``, reshuffles data at each epoch.
-        Minimum length of user sequence. Cannot be less than 2.
-    get_val_mask_func : Callable, default None
-        Function to get validation mask.
-    n_negatives : optional(int), default ``None``
-        Number of negatives for BCE, gBCE and sampled_softmax losses.
-    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
-        Negative sampler.
-    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
-        Additional arguments for the get_val_mask_func.
-        Make sure all dict values have JSON serializable types.
-    extra_cols: optional(List[str]), default ``None``
-        Additional columns from dataset to keep beside of Columns.Inreractions
-    add_unix_ts: bool, default ``False``
-        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
-        from the beggining of the epoch
-    """
-
-    train_session_max_len_addition: int = 1
-
-    # TODO в SASRec
-    def _collate_fn_train(
-        self,
-        batch: List[BatchElement],
-    ) -> Dict[str, torch.Tensor]:
-        """
-        Truncate each session from right to keep `session_max_len` items.
-        Do left padding until `session_max_len` is reached.
-        Split to `x`, `y`, and `yw`.
-        """
-        batch_size = len(batch)
-        batch_base_collator = super()._collate_fn_train(batch)
-
-        if self.add_unix_ts:
-            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
-            for i, (ses, _, extras) in enumerate(batch):
-                t[i, -len(ses):] = extras["unix_ts"]
-                len_to_pad = self.session_max_len + 1 - len(ses)
-                if len_to_pad > 0:
-                    t[i, :len_to_pad] = t[i, len_to_pad]
-            batch_base_collator.update({"unix_ts": torch.LongTensor(t)})
-            return batch_base_collator
-        return batch_base_collator
-
-    def _collate_fn_val(self, batch: List[BatchElement]) -> Dict[str, torch.Tensor]:
-        batch_size = len(batch)
-        batch_base_collator = super()._collate_fn_val(batch)
-        if self.add_unix_ts:
-            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
-            for i, (ses, _, extras) in enumerate(batch):
-                t[i, -len(ses)+1:] = extras["unix_ts"][1:]
-                len_to_pad = self.session_max_len + 2 - len(ses)
-                if len_to_pad > 0:
-                    t[i, :len_to_pad] = t[i, len_to_pad]
-            batch_base_collator.update({"unix_ts": torch.LongTensor(t)})
-            return batch_base_collator
-        return batch_base_collator
-
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
-        """Right truncation, left padding to session_max_len"""
-        if self.add_unix_ts:
-            batch_size = len(batch)
-            x = np.zeros((batch_size, self.session_max_len))
-            t = np.zeros((batch_size, self.session_max_len + 1))
-            for i, (ses, _, extras) in enumerate(batch):
-                ses = ses [:-1] # drop dummy item
-                x[i, -len(ses):] = ses[-self.session_max_len:]
-                #x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-                t[i, -(len(ses)+1):] = extras["unix_ts"][-(self.session_max_len+1):]
-                len_to_pad = self.session_max_len - len(ses)
-                if len_to_pad > 0:
-                    t[i, :len_to_pad] = t[i, len_to_pad]
-            return {"x": torch.LongTensor(x), "unix_ts": torch.LongTensor(t)}
-        return super()._collate_fn_recommend(batch)
 
 
 class RelativeAttention(torch.nn.Module):
@@ -493,11 +405,9 @@ class STULayers(TransformerLayersBase):
 class HSTUModelConfig(TransformerModelConfig):
     """HSTU model config."""
 
-    data_preparator_type: TransformerDataPreparatorType = HSTUDataPreparator
+    data_preparator_type: TransformerDataPreparatorType = SASRecDataPreparator
     transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
-    dqk: tp.Optional[int] = None,
-    dvu: tp.Optional[int] = None,
     relative_time_attention: bool = True,
     relative_pos_attention: bool = True,
 
@@ -665,22 +575,19 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
-        dqk: tp.Optional[int] = None,
-        dvu: tp.Optional[int] = None,
         relative_time_attention: bool = True,
         relative_pos_attention: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         transformer_layers_type: tp.Type[TransformerLayersBase] = STULayers,
-        data_preparator_type: tp.Type[TransformerDataPreparatorBase] = HSTUDataPreparator,
+        data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
         similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
         backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
-        num_buckets: int = 128,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         recommend_batch_size: int = 256,
@@ -705,10 +612,12 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             use_key_padding_mask = False
         self.relative_time_attention = relative_time_attention
         self.relative_pos_attention = relative_pos_attention
-        self.num_buckets = num_buckets
-        head_dim = int(n_factors / n_heads)
-        self.dqk = dqk or head_dim
-        self.dvu = dvu or head_dim
+        try:
+            if n_factors % n_heads != 0:
+                raise ValueError(f"n_factors ({n_factors}) must be divisible by n_heads ({n_heads}) without remainder")
+        except Exception as e:
+            print(f"[Erroor] {e}")
+
         if pos_encoding_kwargs is None:
             pos_encoding_kwargs = {}
         pos_encoding_kwargs["use_scale_factor"] = True
@@ -764,13 +673,14 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         )
 
     def _init_transformer_layers(self) -> STULayers:
+        head_dim = self.n_factors//self.n_heads
         return self.transformer_layers_type(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
             session_max_len = self.session_max_len,
-            attention_dim=self.dqk,
-            linear_hidden_dim=self.dvu,
+            attention_dim=head_dim,
+            linear_hidden_dim=head_dim,
             dropout_rate=self.dropout_rate,
             relative_time_attention = self.relative_time_attention,
             relative_pos_attention = self.relative_pos_attention,

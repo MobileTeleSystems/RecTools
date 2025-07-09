@@ -279,8 +279,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             Item embeddings.
         """
         item_embs = self.ids_emb(items.to(self.device))
-        # TODO suggest to delete dropout here, otherwise pos encoding make deal
-        #item_embs = self.dropout(item_embs)
         return item_embs
 
     @classmethod

@@ -341,6 +341,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
         prep_df = dataset.interactions.df
+
         sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,

@@ -633,8 +633,8 @@ class TestBERT4RecModel:
                     train_min_user_interactions=train_min_user_interactions,
                     negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
-                    get_val_mask_func=get_custom_val_mask_func,
-                    get_val_mask_func_kwargs=get_custom_val_mask_func_kwargs,
+                    get_val_mask_func=get_val_mask_func,
+                    get_val_mask_func_kwargs=get_val_mask_func_kwargs,
                     mask_prob=mask_prob,
                 )
                 self.n_last_targets = n_last_targets
@@ -647,7 +647,7 @@ class TestBERT4RecModel:
                 x = np.zeros((batch_size, self.session_max_len))
                 y = np.zeros((batch_size, self.session_max_len))
                 yw = np.zeros((batch_size, self.session_max_len))
-                for i, (ses, ses_weights) in enumerate(batch):
+                for i, (ses, ses_weights,_) in enumerate(batch):
                     y[i, -self.n_last_targets] = ses[-self.n_last_targets]
                     yw[i, -self.n_last_targets] = ses_weights[-self.n_last_targets]
                     x[i, -len(ses) :] = ses

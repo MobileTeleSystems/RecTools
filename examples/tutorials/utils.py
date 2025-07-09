@@ -2,48 +2,14 @@ import os
 import typing as tp
 import warnings
 
-import pandas as pd
 import numpy as np
 import torch
-from lightning_fabric import seed_everything
 from pytorch_lightning import Trainer, LightningModule
-from pytorch_lightning.loggers import CSVLogger
 import pandas as pd
-import ast
 from pathlib import Path
-from pytorch_lightning.callbacks import   Callback
-from rectools.dataset import Dataset
-from rectools.models import HSTUModel
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
-from rectools import Columns
 from scipy import sparse
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Callback
-# Enable deterministic behaviour with CUDA >= 10.2
-os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-from rectools.model_selection.splitter import Splitter
-from rectools.model_selection import LastNSplitter, TimeRangeSplitter
-warnings.simplefilter("ignore", UserWarning)
-warnings.simplefilter("ignore", FutureWarning)
-from rectools.metrics import (
-    MAP,
-    CoveredUsers,
-    Intersection,
-    Serendipity,
-    NDCG,
-    AvgRecPopularity,
-    CatalogCoverage,
-    Recall,
-    SufficientReco,
-)
-from rectools.models import  SASRecModel, BERT4RecModel
-from rectools.model_selection import  cross_validate
-from rectools.models.nn.item_net import IdEmbeddingsItemNet
+from pytorch_lightning.callbacks import Callback
 import json
-from rectools.visuals import MetricsApp
-import cffi
-import zmq  # pyzmq
-import notebook  # jupyter
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 
