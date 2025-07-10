@@ -32,6 +32,7 @@ from .constants import PADDING_VALUE
 from .negative_sampler import TransformerNegativeSamplerBase
 
 InitKwargs = tp.Dict[str, tp.Any]
+# (user session, session weights, extra columns)
 BatchElement = tp.Tuple[tp.List[int], tp.List[float], tp.Dict[str, tp.List[tp.Any]]]
 
 
@@ -130,7 +131,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         Additional columns from dataset to keep beside of Columns.Inreractions
     add_unix_ts: bool, default ``False``
         Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
-        from the beggining of the epoch
+        from the beginning of the epoch
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -169,6 +170,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
         self.add_unix_ts = add_unix_ts
+
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
         return self.item_id_map.get_sorted_internal()[self.n_item_extra_tokens :]
@@ -222,7 +224,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         return train_interactions
 
     def _convert_to_unix_ts(self, datetime: pd.Series) -> pd.Series:
-        return (datetime.values.astype('int64') / 10 ** 9).astype('int64')
+        return (datetime.values.astype("int64") / 10**9).astype("int64")
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""

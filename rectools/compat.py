@@ -14,7 +14,6 @@
 import typing as tp
 
 
-
 class RequirementUnavailable:
     """Base class for dummy classes, which are returned if there are no dependencies required for the original class"""
 

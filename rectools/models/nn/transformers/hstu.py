@@ -13,14 +13,15 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple, Callable
 import warnings
-import numpy as np
+from typing import Dict
+
 import pandas as pd
 import torch
-import torch.nn.functional as F
 from torch import nn
-import math
+
+from rectools.dataset import Dataset
+
 from ..item_net import (
     CatFeaturesItemNet,
     IdEmbeddingsItemNet,
@@ -38,17 +39,12 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import InitKwargs,  BatchElement, TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
+from .net_blocks import LearnableInversePositionalEncoding, PositionalEncodingBase, TransformerLayersBase
 from .sasrec import SASRecDataPreparator
-from .net_blocks import (
-    PositionalEncodingBase,
-    TransformerLayersBase, LearnableInversePositionalEncoding,
-)
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
-from rectools import Columns
-from rectools.dataset import Dataset
 
 
 class RelativeAttention(torch.nn.Module):
@@ -67,12 +63,13 @@ class RelativeAttention(torch.nn.Module):
     quantization_func: Callable
         Function that quantizes the space of timestamps differences into buckets
     """
+
     def __init__(
         self,
         session_max_len: int,
-        relative_time_attention:bool,
+        relative_time_attention: bool,
         relative_pos_attention: bool,
-        num_buckets: int =128 ,
+        num_buckets: int = 128,
     ) -> None:
         super().__init__()
         self.session_max_len = session_max_len
@@ -87,61 +84,67 @@ class RelativeAttention(torch.nn.Module):
             self.pos_weights = torch.nn.Parameter(
                 torch.empty(2 * session_max_len - 1).normal_(mean=0, std=0.02),
             )
+
     def _quantization_func(self, diff_timestamps: torch.Tensor) -> torch.Tensor:
-        return (
-            torch.log(torch.abs(diff_timestamps).clamp(min=1)) / 0.301
-        ).long()
-    def forward_time_attention(self, all_timestamps: torch.Tensor)->torch.Tensor:
+        return (torch.log(torch.abs(diff_timestamps).clamp(min=1)) / 0.301).long()
+
+    def forward_time_attention(self, all_timestamps: torch.Tensor) -> torch.Tensor:
         """
-        Parametrs
+        Parameters
         ---------
-        all_timestamps: torch.Tensor (batch_size, N+1)
+        all_timestamps: torch.Tensor (batch_size, session_max_len+1)
             User sequence of timestamps + 1 target item timestamp
         Returns
         ---------
-        torch.Tensor (batch_size, N, N)
+        torch.Tensor (batch_size, session_max_len, session_max_len)
             relative time attention
         """
-        N = self.session_max_len + 1  # 1 for target item time, needed for time aware
+        len_expanded = self.session_max_len + 1  # 1 for target item time, needed for time aware
         batch_size = all_timestamps.size(0)
-        extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, N - 1: N]], dim=1)
+        extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, len_expanded - 1 : len_expanded]], dim=1)
         early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
         bucketed_timestamps = torch.clamp(
             self._quantization_func(early_time_binding),
             min=0,
             max=self.num_buckets,
         ).detach()
-        rel_time_attention = torch.index_select(
-            self.time_weights, dim=0, index=bucketed_timestamps.view(-1)
-        ).view(batch_size, N, N)
+        rel_time_attention = torch.index_select(self.time_weights, dim=0, index=bucketed_timestamps.view(-1)).view(
+            batch_size, len_expanded, len_expanded
+        )
+        # reducted target time
         rel_time_attention = rel_time_attention[:, :-1, :-1]
-        # reducted target time (N -> self.max_seq_len)
-        return rel_time_attention # (batch_size, N, N)
-    def forward_pos_attention(self) ->torch.Tensor:
+        return rel_time_attention  # (batch_size, session_max_len, session_max_len)
+
+    def forward_pos_attention(self) -> torch.Tensor:
         """
+        Compute and return the relative positional attention matrix
+
         Returns
-        ---------
-        torch.Tensor (1, N, N)
+        -------
+        torch.Tensor (1, session_max_len, session_max_len)
             relative positional attention
         """
-        N = self.session_max_len
-        t = F.pad(self.pos_weights[: 2 * N - 1], [0, N]).repeat(N)
-        t = t[..., :-N].reshape(1, N, 3 * N - 2)
-        r = (2 * N - 1) // 2
+        n = self.session_max_len
+        t = nn.functional.pad(self.pos_weights[: 2 * n - 1], [0, n]).repeat(n)
+        t = t[..., :-n].reshape(1, n, 3 * n - 2)
+        r = (2 * n - 1) // 2
         rel_pos_attention = t[:, :, r:-r]
-        return rel_pos_attention # (1, N, N)
+        return rel_pos_attention  # (1, session_max_len, session_max_len)
+
     def forward(
         self,
-        batch: tp.Optional[Dict[str, torch.Tensor]],
+        batch: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
+        # TODO batch doctring
         """
-        Parametrs
-        ---------
+
+        Parameters
+        ----------
         all_timestamps: torch.Tensor (batch_size, N+1)
             User sequence of timestamps + 1 target item timestamp
         Returns
-        ---------
-        torch.Tensor (batch_size, N, N)
+        -------
+        torch.Tensor (batch_size, session_max_len, session_max_len)
             Variate of sum relative pos/time attention
         """
         batch_size = batch["x"].size(0)
@@ -149,8 +152,9 @@ class RelativeAttention(torch.nn.Module):
         if self.relative_time_attention:
             rel_attn += self.forward_time_attention(batch["unix_ts"])
         if self.relative_pos_attention:
-            rel_attn+= self.forward_pos_attention()
+            rel_attn += self.forward_pos_attention()
         return rel_attn
+
 
 class STU(nn.Module):
     """
@@ -184,7 +188,7 @@ class STU(nn.Module):
         self,
         n_factors: int,
         n_heads: int,
-        linear_hidden_dim:int,
+        linear_hidden_dim: int,
         attention_dim: int,
         session_max_len: int,
         relative_time_attention: bool,
@@ -195,9 +199,9 @@ class STU(nn.Module):
     ):
         super().__init__()
         self.rel_attn = RelativeAttention(
-                            session_max_len=session_max_len,
-                            relative_time_attention = relative_time_attention,
-                            relative_pos_attention = relative_pos_attention,
+            session_max_len=session_max_len,
+            relative_time_attention=relative_time_attention,
+            relative_pos_attention=relative_pos_attention,
         )
         self.n_heads = n_heads
         self.linear_hidden_dim = linear_hidden_dim
@@ -207,8 +211,7 @@ class STU(nn.Module):
             torch.empty(
                 (
                     n_factors,
-                    linear_hidden_dim * 2 * n_heads
-                    + attention_dim * n_heads * 2,
+                    linear_hidden_dim * 2 * n_heads + attention_dim * n_heads * 2,
                 )
             ),
         )
@@ -220,8 +223,7 @@ class STU(nn.Module):
         self.norm_attn_output = nn.LayerNorm(linear_hidden_dim * n_heads, eps=epsilon)
         self.dropout_mlp = nn.Dropout(dropout_rate)
         self.dropout_attn = nn.Dropout(attn_dropout_rate)
-        self.dropout_rate  = dropout_rate
-
+        self.dropout_rate = dropout_rate
 
     def forward(
         self,
@@ -232,7 +234,8 @@ class STU(nn.Module):
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
-        Forward pass through transformer block.
+        Forward pass through STU block.
+
         Parameters
         ----------
         seqs : torch.Tensor
@@ -252,11 +255,10 @@ class STU(nn.Module):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-
         batch_size, _, _ = seqs.shape
         normed_x = self.norm_input(seqs) * timeline_mask  # prevent null emb convert to (const,const, ,,, const)
         general_transform = torch.matmul(normed_x, self.uvqk_proj)
-        batched_mm_output = F.silu(general_transform) * timeline_mask
+        batched_mm_output = nn.functional.silu(general_transform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
@@ -267,13 +269,15 @@ class STU(nn.Module):
             ],
             dim=-1,
         )
+        # (batch_size, n_head, session_max_len, session_max_len), attention on Q, K
         qk_attn = torch.einsum(
             "bnhd,bmhd->bhnm",
             q.view(batch_size, self.session_max_len, self.n_heads, self.attention_dim),
             k.view(batch_size, self.session_max_len, self.n_heads, self.attention_dim),
-        ) # N = session_max_len  (batch_size, n_head, N, N), attention on Q, K
-        qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1) #(batch_size, N, N).unsqueeze(1) -> (batch_size,1,N,N) broadcast
-        qk_attn = F.silu(qk_attn) / self.session_max_len
+        )
+        # (batch_size, session_max_len, session_max_len).unsqueeze(1) for broadcast
+        qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1)
+        qk_attn = nn.functional.silu(qk_attn) / self.session_max_len
 
         time_line_mask_reducted = timeline_mask.squeeze(-1)
         time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
@@ -281,18 +285,15 @@ class STU(nn.Module):
         qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0) * time_line_mask_fix.unsqueeze(1)
 
         attn_output = torch.einsum(
-                "bhnm,bmhd->bnhd",
-                qk_attn,
-                v.reshape(batch_size, self.session_max_len, self.n_heads, self.linear_hidden_dim),
+            "bhnm,bmhd->bnhd",
+            qk_attn,
+            v.reshape(batch_size, self.session_max_len, self.n_heads, self.linear_hidden_dim),
         ).reshape(batch_size, self.session_max_len, self.n_heads * self.linear_hidden_dim)
 
-        #attn_output = self.dropout_attn(attn_output)
+        # attn_output = self.dropout_attn(attn_output)
         o_input = u * self.norm_attn_output(attn_output) * timeline_mask
 
-        new_outputs = (
-            self.output_mlp(self.dropout_mlp(o_input))
-            + seqs
-        )
+        new_outputs = self.output_mlp(self.dropout_mlp(o_input)) + seqs
 
         return new_outputs
 
@@ -327,7 +328,6 @@ class STULayers(TransformerLayersBase):
         A value passed to LayerNorm for numerical stability
     """
 
-
     def __init__(
         self,
         n_blocks: int,
@@ -354,8 +354,8 @@ class STULayers(TransformerLayersBase):
                     dropout_rate=dropout_rate,
                     linear_hidden_dim=linear_hidden_dim,
                     attention_dim=attention_dim,
-                    relative_time_attention = relative_time_attention,
-                    relative_pos_attention = relative_pos_attention,
+                    relative_time_attention=relative_time_attention,
+                    relative_pos_attention=relative_pos_attention,
                     attn_dropout_rate=attn_dropout_rate,
                     session_max_len=session_max_len,
                     epsilon=epsilon,
@@ -364,13 +364,13 @@ class STULayers(TransformerLayersBase):
             ]
         )
 
-    def forward(
+    def forward(  # type: ignore
         self,
         seqs: torch.Tensor,
         timeline_mask: torch.Tensor,
-        attn_mask: tp.Optional[torch.Tensor],
+        attn_mask: torch.Tensor,
         key_padding_mask: tp.Optional[torch.Tensor],
-        batch: tp.Optional[Dict[str, torch.Tensor]],
+        batch: Dict[str, torch.Tensor],
         **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
@@ -605,9 +605,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     ):
         if use_key_padding_mask:
             warnings.warn(
-                "use_key_padding_mask is not supported for HSTU and enforced to False.",
-                UserWarning,
-                stacklevel=2
+                "use_key_padding_mask is not supported for HSTU and enforced to False.", UserWarning, stacklevel=2
             )
             use_key_padding_mask = False
         self.relative_time_attention = relative_time_attention
@@ -664,18 +662,18 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             backbone_kwargs=backbone_kwargs,
         )
 
-    def _init_transformer_layers(self) -> STULayers:
-        head_dim = self.n_factors//self.n_heads
+    def _init_transformer_layers(self) -> TransformerLayersBase:
+        head_dim = self.n_factors // self.n_heads
         return self.transformer_layers_type(
             n_blocks=self.n_blocks,
             n_factors=self.n_factors,
             n_heads=self.n_heads,
-            session_max_len = self.session_max_len,
+            session_max_len=self.session_max_len,
             attention_dim=head_dim,
             linear_hidden_dim=head_dim,
             dropout_rate=self.dropout_rate,
-            relative_time_attention = self.relative_time_attention,
-            relative_pos_attention = self.relative_pos_attention,
+            relative_time_attention=self.relative_time_attention,
+            relative_pos_attention=self.relative_pos_attention,
             **self._get_kwargs(self.transformer_layers_kwargs),
         )
 
@@ -686,7 +684,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         else:
             data_preparator_kwargs = self.data_preparator_kwargs.copy()
         if self.relative_time_attention:
-            data_preparator_kwargs["add_unix_ts"]  = True
+            data_preparator_kwargs["add_unix_ts"] = True
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
             batch_size=self.batch_size,
@@ -698,6 +696,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
             **self._get_kwargs(data_preparator_kwargs),
         )
+
     def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
         if self.pos_encoding_kwargs is None:
             pos_encoding_kwargs = {}
@@ -710,26 +709,33 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             self.n_factors,
             **self._get_kwargs(pos_encoding_kwargs),
         )
-    def preproc_recommend_context(
-        self,
-        recommend_dataset: Dataset,
-        context: pd.DataFrame
-    ) -> tp.Dict[str, torch.Tensor]:
-        return self._preproc_recommend_context(recommend_dataset, context)
 
     @property
-    def require_recommend_context(self):
+    def require_recommend_context(self) -> bool:
         """
-        Return flag is model needed in context to correct reccomend
+        Return flag is model needed in context to correct recommend
 
-        Parametrs
-        ---------
-        all_timestamps: torch.Tensor (batch_size, N+1)
-            User sequence of timestamps + 1 target item timestamp
-        Returns
-        ---------
+        -------
         bool
         """
         if self.relative_time_attention:
             return True
         return False
+
+    def preproc_recommend_context(self, recommend_dataset: Dataset, context: pd.DataFrame) -> Dataset:
+        """
+        Preprocesses recommendation context data for model input.
+
+        Parameters
+        ----------
+        recommend_dataset : Dataset
+            The main recommendation dataset containing user-item interactions.
+        context : pd.DataFrame
+            Additional contextual information (e.g., time, location, device)
+            to be used during recommendation generation.
+
+        Returns
+        -------
+        Dataset
+        """
+        return self._preproc_recommend_context(recommend_dataset, context)

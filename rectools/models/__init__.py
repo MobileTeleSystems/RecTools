@@ -57,10 +57,10 @@ except ImportError:  # pragma: no cover
 try:
     from .nn.dssm import DSSMModel
     from .nn.transformers.bert4rec import BERT4RecModel
-    from .nn.transformers.sasrec import SASRecModel
     from .nn.transformers.hstu import HSTUModel
+    from .nn.transformers.sasrec import SASRecModel
 except ImportError:  # pragma: no cover
-    from ..compat import BERT4RecModel, DSSMModel, SASRecModel, HSTUModel  # type: ignore
+    from ..compat import BERT4RecModel, DSSMModel, HSTUModel, SASRecModel  # type: ignore
 
 
 __all__ = (

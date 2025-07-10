@@ -21,13 +21,13 @@ from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pandas as pd
-from rectools import Columns
 import torch
 import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 
-from rectools import ExternalIds
+from rectools import Columns, ExternalIds
+from rectools.dataset import Interactions
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.types import InternalIdsArray
@@ -51,7 +51,7 @@ from .net_blocks import (
 )
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
-from rectools.dataset import Interactions
+
 # ####  --------------  Transformer Model Config  --------------  #### #
 
 
@@ -677,12 +677,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.lightning_model.load_state_dict(checkpoint["state_dict"])
 
-    def _preproc_recommend_context(
-        self,
-        dataset: Dataset,
-        context: pd.DataFrame
-    ) -> tp.Dict[str, torch.Tensor]:
-        find_in =  set(dataset.item_id_map.external_ids)
+    def _preproc_recommend_context(self, dataset: Dataset, context: pd.DataFrame) -> Dataset:
+        find_in = set(dataset.item_id_map.external_ids)
         dummy_common_item = None
         for external_id in self.data_preparator.get_known_item_ids():
             if external_id in find_in:
@@ -707,4 +703,3 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             item_features=dataset.item_features,
         )
         return full_dataset
-

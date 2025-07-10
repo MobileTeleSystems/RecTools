@@ -98,14 +98,40 @@ class ModelBase(tp.Generic[ModelConfig_T]):
 
     config_class: tp.Type[ModelConfig_T]
 
-
     def __init__(self, *args: tp.Any, verbose: int = 0, **kwargs: tp.Any) -> None:
         self.is_fitted = False
         self.verbose = verbose
 
     @property
-    def require_recommend_context(self):
+    def require_recommend_context(self) -> bool:
+        """
+        Indicates whether recommendation context is required for predictions.
+
+        Returns
+        -------
+        bool
+            Always returns False, indicating this model does not require
+            additional context information during recommendation generation.
+        """
         return False
+
+    def preproc_recommend_context(self, recommend_dataset: Dataset, context: pd.DataFrame) -> Dataset:
+        """
+        Preprocesses recommendation context data for model input.
+
+        Parameters
+        ----------
+        recommend_dataset : Dataset
+            The main recommendation dataset containing user-item interactions.
+        context : pd.DataFrame
+            Additional contextual information (e.g., time, location, device)
+            to be used during recommendation generation.
+
+        Returns
+        -------
+        Dataset
+        """
+        raise NotImplementedError()
 
     @tp.overload
     def get_config(  # noqa: D102

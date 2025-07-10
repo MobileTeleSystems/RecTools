@@ -70,7 +70,7 @@ class TransformerLayersBase(nn.Module):
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
-        **kwargs:tp.Any,
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
@@ -280,6 +280,7 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         super().__init__()
         self.pos_emb = torch.nn.Embedding(session_max_len, n_factors) if use_pos_emb else None
         self.use_scale_factor = use_scale_factor
+
     def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """
         Forward pass to add learnable positional encoding to sessions and mask padding elements.
@@ -294,9 +295,9 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         torch.Tensor
             Encoded user sessions with added positional encoding if `use_pos_emb` is ``True``.
         """
-        batch_size, session_max_len, D = sessions.shape
+        batch_size, session_max_len, n_factors = sessions.shape
         if self.use_scale_factor:
-            sessions = sessions * (D**0.5)
+            sessions = sessions * (n_factors**0.5)
         if self.pos_emb is not None:
             # Inverse positions are appropriate for variable length sequences across different batches
             # They are equal to absolute positions for fixed sequence length across different batches

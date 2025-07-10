@@ -19,7 +19,8 @@ import torch
 from ..item_net import ItemNetBase
 from .net_blocks import PositionalEncodingBase, TransformerLayersBase
 from .similarity import SimilarityModuleBase
-from rectools import Columns
+
+
 class TransformerBackboneBase(torch.nn.Module):
     """Base class for transformer torch backbone."""
 
@@ -150,7 +151,6 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         similarity_module: SimilarityModuleBase,
         use_causal_attn: bool = True,
         use_key_padding_mask: bool = False,
-
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(
@@ -256,7 +256,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
-        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask, batch = batch)
+        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask, batch=batch)
         return seqs
 
     def forward(

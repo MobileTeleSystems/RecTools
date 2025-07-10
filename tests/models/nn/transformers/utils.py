@@ -12,27 +12,24 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import pandas as pd
+import typing as tp
+
 import numpy as np
+import pandas as pd
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-import typing as tp
-from rectools import Columns
-from rectools import ExternalIds
+
+from rectools import Columns, ExternalIds
+
 
 def leave_one_out_mask(
-    interactions: pd.DataFrame,
-    n_val_users: tp.Optional[tp.Union[ExternalIds, int]] = None
+    interactions: pd.DataFrame, n_val_users: tp.Optional[tp.Union[ExternalIds, int]] = None
 ) -> np.ndarray:
     groups = interactions.groupby(Columns.User)
-    time_order = (
-        groups[Columns.Datetime]
-        .rank(method="first", ascending=True)
-        .astype(int)
-    )
+    time_order = groups[Columns.Datetime].rank(method="first", ascending=True).astype(int)
     n_interactions = groups.transform("size").astype(int)
     inv_ranks = n_interactions - time_order
-    last_interact_mask  = inv_ranks == 0
+    last_interact_mask = inv_ranks == 0
     val_users = interactions[Columns.User].unique()
     if isinstance(n_val_users, int):
         val_users = val_users[:n_val_users]
@@ -41,6 +38,7 @@ def leave_one_out_mask(
 
     mask = (interactions[Columns.User].isin(val_users)) & last_interact_mask
     return mask.values
+
 
 def custom_trainer() -> Trainer:
     return Trainer(
@@ -52,6 +50,7 @@ def custom_trainer() -> Trainer:
         devices=1,
     )
 
+
 def custom_trainer_ckpt() -> Trainer:
     return Trainer(
         max_epochs=3,
@@ -61,6 +60,7 @@ def custom_trainer_ckpt() -> Trainer:
         devices=1,
         callbacks=ModelCheckpoint(filename="last_epoch"),
     )
+
 
 def custom_trainer_multiple_ckpt() -> Trainer:
     return Trainer(

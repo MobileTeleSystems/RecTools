@@ -1,36 +1,28 @@
 import typing as tp
-from functools import partial
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import CSVLogger
 
-from rectools import ExternalIds
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import HSTUModel
 from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
-from rectools.models.nn.transformers.base import (
-    LearnableInversePositionalEncoding,
-    PreLNTransformerLayers,
-    TrainerCallable,
-    TransformerLightningModule,
-)
-from rectools.models.nn.transformers.hstu import STULayers, ValMaskCallable
+from rectools.models.nn.transformers.base import LearnableInversePositionalEncoding, TransformerLightningModule
+from rectools.models.nn.transformers.hstu import STULayers
+from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator
-from rectools.models.nn.transformers.data_preparator import InitKwargs
-from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
 from tests.models.data import DATASET
-from tests.models.utils import (
-    assert_default_config_and_default_model_params_are_the_same,
-    assert_second_fit_refits_model,
-)
+from tests.models.utils import assert_default_config_and_default_model_params_are_the_same
+
 from .utils import custom_trainer, leave_one_out_mask
-from pytorch_lightning.loggers import CSVLogger
+
+
 class TestHSTUModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -86,7 +78,6 @@ class TestHSTUModel:
         )
         return Dataset.construct(interactions_df)
 
-
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_torch_device",
         [
@@ -123,7 +114,6 @@ class TestHSTUModel:
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
-
             ),
             (
                 True,
@@ -135,19 +125,17 @@ class TestHSTUModel:
                         Columns.Rank: [1, 1],
                     }
                 ),
-
             ),
             (
                 False,
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [30, 40,40],
-                        Columns.Item: [12, 13,12],
-                        Columns.Rank: [1, 1,2],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 13, 12],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
-
             ),
         ),
     )
@@ -162,6 +150,7 @@ class TestHSTUModel:
         expected_reco: pd.DataFrame,
     ) -> None:
         self._seed_everything()
+
         def get_trainer() -> Trainer:
             return Trainer(
                 max_epochs=2,
@@ -170,7 +159,7 @@ class TestHSTUModel:
                 devices=n_devices,
                 accelerator=accelerator,
                 enable_checkpointing=False,
-                logger=CSVLogger("test_logs")
+                logger=CSVLogger("test_logs"),
             )
 
         model = HSTUModel(
@@ -192,19 +181,22 @@ class TestHSTUModel:
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
-        context = pd.DataFrame({
-                        Columns.User: [10,20,30,40, 50],
-                        Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
-                    })
+        context = pd.DataFrame(
+            {
+                Columns.User: [10, 20, 30, 40, 50],
+                Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
+            }
+        )
         prep_df = dataset_devices
         if model.require_recommend_context:
-            prep_df = model.preproc_recommend_context(dataset_devices,context)
+            prep_df = model.preproc_recommend_context(dataset_devices, context)
         actual = model.recommend(users=users, dataset=prep_df, k=3, filter_viewed=True)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected_reco)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
 
 class TestHSTUModelConfiguration:
     def setup_method(self) -> None:

@@ -19,7 +19,7 @@ import torch
 from pytorch_lightning import LightningModule
 from torch.utils.data import DataLoader
 
-from rectools import ExternalIds, Columns
+from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchemaDict
 from rectools.models.base import InternalRecoTriplet
 from rectools.models.rank import Distance, TorchRanker
@@ -27,9 +27,9 @@ from rectools.types import InternalIdsArray
 
 from .data_preparator import TransformerDataPreparatorBase
 from .torch_backbone import TransformerBackboneBase
-import torch.nn.functional as F
 
 # ####  --------------  Lightning Base Model  --------------  #### #
+
 
 class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-many-instance-attributes
     """
@@ -84,7 +84,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
-        temperature:  float  = 1,
+        temperature: float = 1,
         **kwargs: tp.Any,
     ):
         super().__init__()
@@ -208,7 +208,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         loss = self._calc_softmax_loss(logits, target, w)
         return loss
 
-    def configure_optimizers(self) -> torch.optim.AdamW:
+    def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
         for name, param in self.torch_model.named_parameters():
             print(name, param.shape)
@@ -300,9 +300,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         if self._requires_negatives:
             y, negatives = batch["y"], batch["negatives"]
             pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
-            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg)/self.temperature
+            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg) / self.temperature
         else:
-            logits = self.torch_model(batch=batch)/self.temperature
+            logits = self.torch_model(batch=batch) / self.temperature
         return logits
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:

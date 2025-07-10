@@ -235,7 +235,6 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
-
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
@@ -817,7 +816,6 @@ class TestSASRecDataPreparator:
     def data_preparator(self) -> SASRecDataPreparator:
         return SASRecDataPreparator(session_max_len=3, batch_size=4, dataloader_num_workers=0)
 
-
     @pytest.fixture
     def data_preparator_val_mask(self) -> SASRecDataPreparator:
         def get_val_mask(interactions: pd.DataFrame, val_users: ExternalIds) -> np.ndarray:
@@ -844,53 +842,52 @@ class TestSASRecDataPreparator:
         "val_users, expected_batch_train, expected_batch_val",
         (
             (
-               [10,30],
-               {
-                   "x": torch.tensor([[5, 2, 3],
-                                    [0, 0, 1],
-                                    [0, 0, 2]]),
-                   "y": torch.tensor([[2, 3, 6],
-                                    [0, 0, 3],
-                                    [0, 0, 4]]),
-                   "yw": torch.tensor([[1., 1., 1.],
-                                    [0., 0., 2.],
-                                    [0., 0., 1.]]),
-                   "unix_ts":torch.tensor([[1638057600, 1638144000, 1638144000, 1638230400],
-                                [1637798400, 1637798400, 1637798400, 1637884800],
-                                [1637798400, 1637798400, 1637798400, 1637884800]]),
-               },
-               {
-                   "x": torch.tensor([[0, 1, 3],
-                                    [2, 3, 6]]),
-                   "y": torch.tensor([[2],
-                                      [4]]),
-                   "yw": torch.tensor([[1.],
-                                        [1.]]),
-                   "unix_ts": torch.tensor([[1637884800, 1637884800, 1637884800, 1637971200],
-                                            [1638144000, 1638144000, 1638230400, 1638230400]]),
-               },
+                [10, 30],
+                {
+                    "x": torch.tensor([[5, 2, 3], [0, 0, 1], [0, 0, 2]]),
+                    "y": torch.tensor([[2, 3, 6], [0, 0, 3], [0, 0, 4]]),
+                    "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 0.0, 2.0], [0.0, 0.0, 1.0]]),
+                    "unix_ts": torch.tensor(
+                        [
+                            [1638057600, 1638144000, 1638144000, 1638230400],
+                            [1637798400, 1637798400, 1637798400, 1637884800],
+                            [1637798400, 1637798400, 1637798400, 1637884800],
+                        ]
+                    ),
+                },
+                {
+                    "x": torch.tensor([[0, 1, 3], [2, 3, 6]]),
+                    "y": torch.tensor([[2], [4]]),
+                    "yw": torch.tensor([[1.0], [1.0]]),
+                    "unix_ts": torch.tensor(
+                        [
+                            [1637884800, 1637884800, 1637884800, 1637971200],
+                            [1638144000, 1638144000, 1638230400, 1638230400],
+                        ]
+                    ),
+                },
             ),
         ),
     )
-    def test_procces_unix_ts_aware(
+    def test_process_unix_ts_aware(
         self,
         dataset_timestamp_preproc: Dataset,
         val_users: tp.List,
         expected_batch_train: tp.Dict[str, torch.Tensor],
-        expected_batch_val: tp.Dict[str, torch.Tensor]
+        expected_batch_val: tp.Dict[str, torch.Tensor],
     ) -> None:
         get_val_mask_func_kwargs = {"n_val_users": val_users}
-        data_preparator =  SASRecDataPreparator(
+        data_preparator = SASRecDataPreparator(
             session_max_len=3,
             batch_size=4,
             dataloader_num_workers=0,
             add_unix_ts=True,
             get_val_mask_func=leave_one_out_mask,
-            get_val_mask_func_kwargs=get_val_mask_func_kwargs
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
         )
         data_preparator.process_dataset_train(dataset_timestamp_preproc)
-        assert  "unix_ts" in data_preparator.train_dataset.interactions.df
-        assert  "unix_ts" in data_preparator.val_interactions
+        assert "unix_ts" in data_preparator.train_dataset.interactions.df.columns
+        assert "unix_ts" in data_preparator.val_interactions.columns
         dataloader_train = data_preparator.get_dataloader_train()
         train_iterator = next(iter(dataloader_train))
         for key, value in train_iterator.items():
