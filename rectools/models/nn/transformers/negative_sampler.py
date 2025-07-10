@@ -65,8 +65,6 @@ class CatalogUniformSampler(TransformerNegativeSamplerBase):
     ) -> torch.Tensor:
         """Return sampled negatives."""
         session_len = session_len_limit if session_len_limit is not None else batch_dict["x"].shape[1]
-        # print(highest_id)
-        # print(lowest_id)
         negatives = torch.randint(
             low=lowest_id,
             high=highest_id,

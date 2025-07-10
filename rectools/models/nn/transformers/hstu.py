@@ -122,26 +122,26 @@ class RelativeAttention(torch.nn.Module):
         Returns
         -------
         torch.Tensor (1, session_max_len, session_max_len)
-            relative positional attention
         """
         n = self.session_max_len
         t = nn.functional.pad(self.pos_weights[: 2 * n - 1], [0, n]).repeat(n)
         t = t[..., :-n].reshape(1, n, 3 * n - 2)
         r = (2 * n - 1) // 2
         rel_pos_attention = t[:, :, r:-r]
-        return rel_pos_attention  # (1, session_max_len, session_max_len)
+        return rel_pos_attention
 
     def forward(
         self,
         batch: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
-        # TODO batch doctring
         """
+        Compute relative attention biases.
 
         Parameters
         ----------
-        all_timestamps: torch.Tensor (batch_size, N+1)
-            User sequence of timestamps + 1 target item timestamp
+        batch : Dict[str, torch.Tensor]
+            Could contain payload information, in particular sequence timestamps.
+
         Returns
         -------
         torch.Tensor (batch_size, session_max_len, session_max_len)
@@ -228,7 +228,7 @@ class STU(nn.Module):
     def forward(
         self,
         seqs: torch.Tensor,
-        batch: tp.Optional[Dict[str, torch.Tensor]],
+        batch: Dict[str, torch.Tensor],
         attn_mask: torch.Tensor,
         timeline_mask: torch.Tensor,
         key_padding_mask: tp.Optional[torch.Tensor],
@@ -374,7 +374,7 @@ class STULayers(TransformerLayersBase):
         **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
-        Forward pass through transformer blocks.
+        Forward pass through STU blocks.
 
         Parameters
         ----------
@@ -383,10 +383,10 @@ class STULayers(TransformerLayersBase):
         timeline_mask : torch.Tensor
             Mask indicating padding elements.
         attn_mask : torch.Tensor, optional
-            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+            Mask to use in forward pass of multi-head attention as `attn_mask`.
         key_padding_mask : torch.Tensor, optional
-            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
-        batch : optional(Dict[str, torch.Tensor])
+            Mask to use in forward pass of multi-head attention as `key_padding_mask`.
+        batch : Dict[str, torch.Tensor]
             Could contain payload information,in particular sequence timestamps.
 
         Returns
