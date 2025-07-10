@@ -32,35 +32,6 @@ class TestHSTUModel:
         seed_everything(32, workers=True)
 
     @pytest.fixture
-    def interactions_df(self) -> pd.DataFrame:
-        interactions_df = pd.DataFrame(
-            [
-                [10, 13, 1, "2021-11-30"],
-                [10, 11, 1, "2021-11-29"],
-                [10, 12, 1, "2021-11-29"],
-                [30, 11, 1, "2021-11-27"],
-                [30, 12, 2, "2021-11-26"],
-                [30, 15, 1, "2021-11-25"],
-                [40, 11, 1, "2021-11-25"],
-                [40, 17, 1, "2021-11-26"],
-                [50, 16, 1, "2021-11-25"],
-                [10, 14, 1, "2021-11-28"],
-                [10, 16, 1, "2021-11-27"],
-                [20, 13, 9, "2021-11-28"],
-            ],
-            columns=Columns.Interactions,
-        )
-        return interactions_df
-
-    @pytest.fixture
-    def dataset(self, interactions_df: pd.DataFrame) -> Dataset:
-        return Dataset.construct(interactions_df)
-
-    @pytest.fixture
-    def dataset_hot_users_items(self, interactions_df: pd.DataFrame) -> Dataset:
-        return Dataset.construct(interactions_df[:-4])
-
-    @pytest.fixture
     def dataset_devices(self) -> Dataset:
         interactions_df = pd.DataFrame(
             [
@@ -149,7 +120,7 @@ class TestHSTUModel:
         relative_pos_attention: bool,
         expected_reco: pd.DataFrame,
     ) -> None:
-        self._seed_everything()
+        self.setup_method()
 
         def get_trainer() -> Trainer:
             return Trainer(

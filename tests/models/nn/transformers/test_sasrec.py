@@ -886,13 +886,15 @@ class TestSASRecDataPreparator:
             get_val_mask_func_kwargs=get_val_mask_func_kwargs,
         )
         data_preparator.process_dataset_train(dataset_timestamp_preproc)
-        assert "unix_ts" in data_preparator.train_dataset.interactions.df.columns
-        assert "unix_ts" in data_preparator.val_interactions.columns
+        assert "unix_ts" in data_preparator.train_dataset.interactions.df
+        assert data_preparator.val_interactions is not None
+        assert "unix_ts" in data_preparator.val_interactions
         dataloader_train = data_preparator.get_dataloader_train()
         train_iterator = next(iter(dataloader_train))
         for key, value in train_iterator.items():
             assert torch.equal(value, expected_batch_train[key])
         dataloader_val = data_preparator.get_dataloader_val()
+        assert dataloader_val is not None
         val_iterator = next(iter(dataloader_val))
         for key, value in val_iterator.items():
             if key == "unix_ts":
