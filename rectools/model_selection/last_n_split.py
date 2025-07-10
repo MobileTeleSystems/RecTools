@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 MTS (Mobile Telesystems)
+#  Copyright 2023-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""LastNSplitter."""
 
 import typing as tp
 
@@ -103,8 +102,11 @@ class LastNSplitter(Splitter):
         df = interactions.df
         idx = pd.RangeIndex(0, len(df))
 
-        # last event - rank=1
-        inv_ranks = df.groupby(Columns.User)[Columns.Datetime].rank(method="first", ascending=False)
+        # Here we guarantee that last appeared interaction in df will have lowest rank when datetime is not unique
+        grouped = df.groupby(Columns.User)
+        time_order = grouped[Columns.Datetime].rank(method="first", ascending=True).astype(int)
+        n_interactions = grouped[Columns.User].transform("size").astype(int)
+        inv_ranks = n_interactions - time_order + 1
 
         for i_split in range(self.n_splits)[::-1]:
             min_rank = i_split * self.n  # excluded
