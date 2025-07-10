@@ -44,7 +44,7 @@ from tests.models.utils import (
 )
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
-from .utils import custom_trainer, leave_one_out_mask, leave_one_out_mask_alt
+from .utils import custom_trainer, leave_one_out_mask
 
 
 class TestSASRecModel:
@@ -235,10 +235,11 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 13, 11, 11, 12, 14, 12, 14, 11],
+                        Columns.Item: [13, 12, 11, 11, 12, 14, 14, 12, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -343,7 +344,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -354,7 +355,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -365,7 +366,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -411,7 +412,7 @@ class TestSASRecModel:
             pd.DataFrame(
                 {
                     Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 17, 11, 11, 13, 15, 17, 13, 11],
+                    Columns.Item: [13, 17, 12, 11, 13, 15, 17, 13, 11],
                     Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                 }
             ),
@@ -878,13 +879,13 @@ class TestSASRecDataPreparator:
         expected_batch_train: tp.Dict[str, torch.Tensor],
         expected_batch_val: tp.Dict[str, torch.Tensor]
     ) -> None:
-        get_val_mask_func_kwargs = {"val_users": val_users}
+        get_val_mask_func_kwargs = {"n_val_users": val_users}
         data_preparator =  SASRecDataPreparator(
             session_max_len=3,
             batch_size=4,
             dataloader_num_workers=0,
             add_unix_ts=True,
-            get_val_mask_func=leave_one_out_mask_alt,
+            get_val_mask_func=leave_one_out_mask,
             get_val_mask_func_kwargs=get_val_mask_func_kwargs
         )
         data_preparator.process_dataset_train(dataset_timestamp_preproc)

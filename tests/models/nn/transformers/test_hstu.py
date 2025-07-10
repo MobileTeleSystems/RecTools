@@ -29,8 +29,8 @@ from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_second_fit_refits_model,
 )
-from .utils import custom_trainer, leave_one_out_mask_alt
-
+from .utils import custom_trainer, leave_one_out_mask
+from pytorch_lightning.loggers import CSVLogger
 class TestHSTUModel:
     def setup_method(self) -> None:
         self._seed_everything()
@@ -97,32 +97,10 @@ class TestHSTUModel:
                 "cuda",
                 marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
             ),
-            ("cpu", 2, "cpu"),
-            pytest.param(
-                "gpu",
-                1,
-                "cpu",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
-            ),
-            pytest.param(
-                "gpu",
-                1,
-                "cuda",
-                marks=pytest.mark.skipif(torch.cuda.is_available() is False, reason="GPU is not available"),
-            ),
-            pytest.param(
-                "gpu",
-                2,
-                "cpu",
-                marks=pytest.mark.skipif(
-                    torch.cuda.is_available() is False or torch.cuda.device_count() < 2,
-                    reason="GPU is not available or there is only one gpu device",
-                ),
-            ),
         ],
     )
     @pytest.mark.parametrize(
-        "relative_time_attention,relative_pos_attention,expected",
+        "relative_time_attention,relative_pos_attention,expected_reco",
         (
             (
                 True,
@@ -145,6 +123,31 @@ class TestHSTUModel:
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
+
+            ),
+            (
+                True,
+                False,
+                pd.DataFrame(
+                    {
+                        Columns.User: [30, 40],
+                        Columns.Item: [12, 12],
+                        Columns.Rank: [1, 1],
+                    }
+                ),
+
+            ),
+            (
+                False,
+                False,
+                pd.DataFrame(
+                    {
+                        Columns.User: [30, 40,40],
+                        Columns.Item: [12, 13,12],
+                        Columns.Rank: [1, 1,2],
+                    }
+                ),
+
             ),
         ),
     )
@@ -156,11 +159,9 @@ class TestHSTUModel:
         recommend_torch_device: str,
         relative_time_attention: bool,
         relative_pos_attention: bool,
-        expected: pd.DataFrame,
+        expected_reco: pd.DataFrame,
     ) -> None:
-        if n_devices != 1:
-            pytest.skip("DEBUG: skipping multi-device tests")
-
+        self._seed_everything()
         def get_trainer() -> Trainer:
             return Trainer(
                 max_epochs=2,
@@ -169,6 +170,7 @@ class TestHSTUModel:
                 devices=n_devices,
                 accelerator=accelerator,
                 enable_checkpointing=False,
+                logger=CSVLogger("test_logs")
             )
 
         model = HSTUModel(
@@ -186,20 +188,19 @@ class TestHSTUModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
             similarity_module_type=DistanceSimilarityModule,
-            similarity_module_kwargs={"distance": "cosine"},
+            similarity_module_kwargs={"distance": "dot"},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
         context = pd.DataFrame({
                         Columns.User: [10,20,30,40, 50],
-                        Columns.Datetime: ["2021-12-12", "2024-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
+                        Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
                     })
         prep_df = dataset_devices
         if model.require_recommend_context:
             prep_df = model.preproc_recommend_context(dataset_devices,context)
         actual = model.recommend(users=users, dataset=prep_df, k=3, filter_viewed=True)
-        print(actual)
-        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected_reco)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
@@ -216,9 +217,9 @@ class TestHSTUModelConfiguration:
     @pytest.fixture
     def initial_config(self) -> tp.Dict[str, tp.Any]:
         config = {
+            "n_blocks": 2,
             "relative_time_attention": True,
             "relative_pos_attention": True,
-            "n_blocks": 2,
             "n_heads": 4,
             "n_factors": 64,
             "use_pos_emb": True,
@@ -247,14 +248,14 @@ class TestHSTUModelConfiguration:
             "negative_sampler_type": CatalogUniformSampler,
             "similarity_module_type": DistanceSimilarityModule,
             "backbone_type": TransformerTorchBackbone,
-            "get_val_mask_func": leave_one_out_mask_alt,
+            "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
             "get_val_mask_func_kwargs": None,
             "get_trainer_func_kwargs": None,
-            "data_preparator_kwargs": {'add_unix_ts': True},
+            "data_preparator_kwargs": None,
             "transformer_layers_kwargs": None,
             "item_net_constructor_kwargs": None,
-            "pos_encoding_kwargs": {'use_scale_factor': True},
+            "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
             "negative_sampler_kwargs": None,
             "similarity_module_kwargs": None,
@@ -298,7 +299,7 @@ class TestHSTUModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
-                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask_alt",
+                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
                 "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }

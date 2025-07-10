@@ -408,8 +408,8 @@ class HSTUModelConfig(TransformerModelConfig):
     data_preparator_type: TransformerDataPreparatorType = SASRecDataPreparator
     transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
-    relative_time_attention: bool = True,
-    relative_pos_attention: bool = True,
+    relative_time_attention: bool = True
+    relative_pos_attention: bool = True
 
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
@@ -618,14 +618,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         except Exception as e:
             print(f"[Erroor] {e}")
 
-        if pos_encoding_kwargs is None:
-            pos_encoding_kwargs = {}
-        pos_encoding_kwargs["use_scale_factor"] = True
-        if relative_time_attention:
-            if data_preparator_kwargs is None:
-                data_preparator_kwargs = {}
-            data_preparator_kwargs["add_unix_ts"]  = True
-
         super().__init__(
             transformer_layers_type=transformer_layers_type,
             data_preparator_type=data_preparator_type,
@@ -685,6 +677,38 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             relative_time_attention = self.relative_time_attention,
             relative_pos_attention = self.relative_pos_attention,
             **self._get_kwargs(self.transformer_layers_kwargs),
+        )
+
+    def _init_data_preparator(self) -> None:
+        requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
+        if self.data_preparator_kwargs is None:
+            data_preparator_kwargs = {}
+        else:
+            data_preparator_kwargs = self.data_preparator_kwargs.copy()
+        if self.relative_time_attention:
+            data_preparator_kwargs["add_unix_ts"]  = True
+        self.data_preparator = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
+            negative_sampler=self._init_negative_sampler() if requires_negatives else None,
+            n_negatives=self.n_negatives if requires_negatives else None,
+            get_val_mask_func=self.get_val_mask_func,
+            get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
+            **self._get_kwargs(data_preparator_kwargs),
+        )
+    def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
+        if self.pos_encoding_kwargs is None:
+            pos_encoding_kwargs = {}
+        else:
+            pos_encoding_kwargs = self.pos_encoding_kwargs.copy()
+        pos_encoding_kwargs["use_scale_factor"] = True
+        return self.pos_encoding_type(
+            self.use_pos_emb,
+            self.session_max_len,
+            self.n_factors,
+            **self._get_kwargs(pos_encoding_kwargs),
         )
     def preproc_recommend_context(
         self,

@@ -20,17 +20,9 @@ import typing as tp
 from rectools import Columns
 from rectools import ExternalIds
 
-def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
-    rank = (
-        interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
-        .groupby(Columns.User, sort=False)
-        .cumcount()
-    )
-    return rank == 0
-
-def leave_one_out_mask_alt(
+def leave_one_out_mask(
     interactions: pd.DataFrame,
-    val_users: tp.Optional[ExternalIds] = None
+    n_val_users: tp.Optional[tp.Union[ExternalIds, int]] = None
 ) -> np.ndarray:
     groups = interactions.groupby(Columns.User)
     time_order = (
@@ -41,9 +33,14 @@ def leave_one_out_mask_alt(
     n_interactions = groups.transform("size").astype(int)
     inv_ranks = n_interactions - time_order
     last_interact_mask  = inv_ranks == 0
-    if  val_users is not None:
-        return (interactions[Columns.User].isin(val_users)) & last_interact_mask
-    return last_interact_mask
+    val_users = interactions[Columns.User].unique()
+    if isinstance(n_val_users, int):
+        val_users = val_users[:n_val_users]
+    elif n_val_users is not None:
+        val_users = n_val_users
+
+    mask = (interactions[Columns.User].isin(val_users)) & last_interact_mask
+    return mask.values
 
 def custom_trainer() -> Trainer:
     return Trainer(
