@@ -230,7 +230,7 @@ class CatFeaturesItemNet(ItemNetBase):
     @property
     def out_dim(self) -> int:
         """Return categorical item embedding output dimension."""
-        return self.embedding_bag.embedding_dim
+        return int(self.embedding_bag.embedding_dim)
 
 
 class IdEmbeddingsItemNet(ItemNetBase):

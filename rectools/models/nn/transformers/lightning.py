@@ -391,7 +391,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
             for batch in recommend_dataloader:
                 batch = {k: v.to(device) for k, v in batch.items()}
                 batch_embs = self.torch_model.encode_sessions(batch, item_embs)[:, -1, :]
+                batch_embs = self.torch_model.similarity_module.session_tower_forward(batch_embs)
                 user_embs.append(batch_embs.cpu())
+            item_embs = self.torch_model.similarity_module.item_tower_forward(item_embs)
 
         return torch.cat(user_embs), item_embs
 

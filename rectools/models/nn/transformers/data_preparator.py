@@ -127,11 +127,11 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
-    extra_cols: optional(List[str]), default ``None``
-        Additional columns from dataset to keep beside of Columns.Inreractions
     add_unix_ts: bool, default ``False``
         Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
         from the beginning of the epoch
+    extra_cols: optional(List[str]), default ``None``
+        Extra columns to keep in train and recommend datasets.
     """
 
     # We sometimes need data preparators to add +1 to actual session_max_len
@@ -342,9 +342,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # User ids here are internal user ids in dataset.interactions.df that was prepared for recommendations.
         # Sorting sessions by user ids will ensure that these ids will also be correct indexes in user embeddings matrix
         # that will be returned by the net.
-        prep_df = dataset.interactions.df
-
-        sequence_dataset = SequenceDataset.from_interactions(prep_df, sort_users=True)
+        sequence_dataset = SequenceDataset.from_interactions(interactions=dataset.interactions.df, sort_users=True)
         recommend_dataloader = DataLoader(
             sequence_dataset,
             batch_size=batch_size,

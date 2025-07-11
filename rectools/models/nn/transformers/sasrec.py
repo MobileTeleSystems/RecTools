@@ -436,7 +436,7 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Additional keyword arguments to pass during `lightning_module_type` initialization.
         Make sure all dict values have JSON serializable types.
     negative_sampler_kwargs: optional(dict), default ``None``
-        Additional keyword arguments to pass during `negative_sampler_type` initialization
+        Additional keyword arguments to pass during `negative_sampler_type` initialization.
         Make sure all dict values have JSON serializable types.
     similarity_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `similarity_module_type` initialization.
