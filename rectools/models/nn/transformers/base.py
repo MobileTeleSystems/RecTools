@@ -628,7 +628,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             temp_file = None
             actual_ckpt_path = ckpt_path
             if actual_ckpt_path is None:
-                temp_file = NamedTemporaryFile()
+                temp_file = NamedTemporaryFile()  # pylint: disable=consider-using-with
                 actual_ckpt_path = temp_file.name
                 torch.save(checkpoint, actual_ckpt_path)
 
