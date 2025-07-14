@@ -584,8 +584,25 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         return self.config_class(**params)
 
     @classmethod
-    def _model_from_checkpoint(cls, checkpoint: tp.Dict[str, tp.Any]) -> tpe.Self:
-        """Create model from loaded Lightning checkpoint."""
+    def _model_from_checkpoint(
+        cls, checkpoint: tp.Dict[str, tp.Any], ckpt_path: tp.Optional[tp.Union[str, Path]] = None
+    ) -> tpe.Self:
+        """
+        Create model from loaded Lightning checkpoint.
+
+        Parameters
+        ----------
+        checkpoint: Dict[str, tp.Any]
+            Checkpoint object (pl/torch like)
+        ckpt_path: Union[str, Path], optional
+            Path to checkpoint location.
+            If specified should be a path to `checkpoint` arg file.
+            `checkpoint` is saved to temp file if not specified.
+        
+        Returns
+        -------
+        Model instance.
+        """
         model_config = checkpoint["hyper_parameters"]["model_config"]
         loaded = cls.from_config(model_config)
         loaded.is_fitted = True
@@ -607,16 +624,25 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             model_config=model_config,
         )
 
-        # save checkpoint to temp file to be able to use it in trainer
-        with NamedTemporaryFile() as f:
-            torch.save(checkpoint, f.name)
+        try:
+            temp_file = None
+            actual_ckpt_path = ckpt_path
+            if actual_ckpt_path is None:
+                temp_file = NamedTemporaryFile()
+                actual_ckpt_path = temp_file.name
+                torch.save(checkpoint, actual_ckpt_path)
+
             loaded.fit_trainer = deepcopy(loaded._trainer)
             # use stub dataset to load trainer state
             loaded.fit_trainer.fit(
                 loaded.lightning_model,
-                ckpt_path=f.name,
+                ckpt_path=actual_ckpt_path,
                 train_dataloaders=DataLoader(TensorDataset(torch.Tensor())),
             )
+
+        finally:
+            if temp_file is not None:
+                temp_file.close()
 
         loaded.lightning_model.is_fitted = True
 
@@ -675,7 +701,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             prev_config_flatten = make_dict_flat(prev_model_config)
             prev_config_flatten.update(model_params_update)
             checkpoint["hyper_parameters"]["model_config"] = unflatten_dict(prev_config_flatten)
-        loaded = cls._model_from_checkpoint(checkpoint)
+        loaded = cls._model_from_checkpoint(checkpoint, ckpt_path=checkpoint_path)
         return loaded
 
     def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
