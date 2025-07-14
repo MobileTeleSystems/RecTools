@@ -228,10 +228,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
-        required_cols = Columns.Interactions
-        if self.extra_cols is not None:
-            required_cols += self.extra_cols
-        raw_interactions = dataset.get_raw_interactions()[required_cols]
+        extra_cols = False if self.extra_cols is None else self.extra_cols
+        raw_interactions = dataset.get_raw_interactions(include_extra_cols=extra_cols)
         if self.add_unix_ts:
             raw_interactions["unix_ts"] = self._convert_to_unix_ts(raw_interactions[Columns.Datetime])
 
@@ -378,7 +376,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # Filter interactions in dataset internal ids
         required_cols = Columns.Interactions
         if self.extra_cols is not None:
-            required_cols += self.extra_cols
+            required_cols = required_cols + self.extra_cols
         interactions = dataset.interactions.df[required_cols]
         if self.add_unix_ts:
             interactions["unix_ts"] = self._convert_to_unix_ts(interactions[Columns.Datetime])
@@ -424,10 +422,8 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             Final user_id_map is the same as dataset original.
             Final item_id_map is model item_id_map constructed during training.
         """
-        if self.extra_cols is None:
-            interactions = dataset.get_raw_interactions(include_extra_cols=False)
-        else:
-            interactions = dataset.get_raw_interactions()[Columns.Interactions + self.extra_cols]
+        extra_cols = False if self.extra_cols is None else self.extra_cols
+        interactions = dataset.get_raw_interactions(include_extra_cols=extra_cols)
         interactions = interactions[interactions[Columns.Item].isin(self.get_known_item_ids())]
         filtered_interactions = Interactions.from_raw(
             interactions, dataset.user_id_map, self.item_id_map, keep_extra_cols=True
