@@ -598,7 +598,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             Path to checkpoint location.
             If specified should be a path to `checkpoint` arg file.
             `checkpoint` is saved to temp file if not specified.
-        
+
         Returns
         -------
         Model instance.
