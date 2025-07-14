@@ -610,8 +610,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         # save checkpoint to temp file to be able to use it in trainer
         with NamedTemporaryFile() as f:
             torch.save(checkpoint, f.name)
-            fit_trainer = deepcopy(loaded._trainer)
-            loaded.fit_trainer = fit_trainer
+            loaded.fit_trainer = deepcopy(loaded._trainer)
             # use stub dataset to load trainer state
             loaded.fit_trainer.fit(
                 loaded.lightning_model,
