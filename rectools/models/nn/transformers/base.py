@@ -26,8 +26,7 @@ import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
 
-from rectools import Columns, ExternalIds
-from rectools.dataset import Interactions
+from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.types import InternalIdsArray
@@ -489,9 +488,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
-        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+        self,
+        dataset: Dataset,
+        users: ExternalIds,
+        on_unsupported_targets: ErrorBehaviour,
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> Dataset:
-        return self.data_preparator.transform_dataset_u2i(dataset, users)
+        return self.data_preparator.transform_dataset_u2i(dataset, users, context)
 
     def _custom_transform_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
@@ -676,30 +679,3 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             raise RuntimeError("Model weights cannot be loaded from checkpoint into unfitted model")
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.lightning_model.load_state_dict(checkpoint["state_dict"])
-
-    def _preproc_recommend_context(self, dataset: Dataset, context: pd.DataFrame) -> Dataset:
-        find_in = set(dataset.item_id_map.external_ids)
-        dummy_common_item = None
-        for external_id in self.data_preparator.get_known_item_ids():
-            if external_id in find_in:
-                dummy_common_item = external_id
-                break
-        earliest = context.groupby(Columns.User)[Columns.Datetime].idxmin()
-        context = context.loc[earliest]
-        context[Columns.Item] = dummy_common_item
-        if Columns.Weight not in context.columns:
-            context[Columns.Weight] = 1
-        known_users = context[Columns.User].isin(dataset.user_id_map.external_ids)
-        user_id_map = dataset.user_id_map.add_ids(context[~known_users][Columns.User])
-        context_interactions = Interactions.from_raw(context, user_id_map, dataset.item_id_map, keep_extra_cols=True)
-        full_interactions = Interactions(
-            pd.concat([dataset.interactions.df, context_interactions.df], ignore_index=True)
-        )
-        full_dataset = Dataset(
-            user_id_map=user_id_map,
-            item_id_map=dataset.item_id_map,
-            interactions=full_interactions,
-            user_features=dataset.user_features,
-            item_features=dataset.item_features,
-        )
-        return full_dataset

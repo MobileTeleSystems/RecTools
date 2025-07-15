@@ -14,6 +14,7 @@
 
 import typing as tp
 
+import rectools.dataset.context as context_prep
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.metrics import calc_metrics
@@ -126,16 +127,17 @@ def cross_validate(  # pylint: disable=too-many-locals
         for model_name in ref_models or []:
             model = models[model_name]
             model.fit(fold_dataset)
-            preproc_fold_dataset = fold_dataset
+            context = None
             if model.require_recommend_context:
-                preproc_fold_dataset = model.preproc_recommend_context(fold_dataset, interactions_df_test)
+                context = context_prep.get_context(interactions_df_test)
             ref_reco[model_name] = model.recommend(
                 users=test_users,
-                dataset=preproc_fold_dataset,
+                dataset=fold_dataset,
                 k=k,
                 filter_viewed=filter_viewed,
                 items_to_recommend=items_to_recommend,
                 on_unsupported_targets=on_unsupported_targets,
+                context=context,
             )
 
         # ### Generate recommendations and calc metrics
@@ -147,16 +149,17 @@ def cross_validate(  # pylint: disable=too-many-locals
                 reco = ref_reco[model_name]
             else:
                 model.fit(fold_dataset)
-                preproc_fold_dataset = fold_dataset
+                context = None
                 if model.require_recommend_context:
-                    preproc_fold_dataset = model.preproc_recommend_context(fold_dataset, interactions_df_test)
+                    context = context_prep.get_context(interactions_df_test)
                 reco = model.recommend(
                     users=test_users,
-                    dataset=preproc_fold_dataset,
+                    dataset=fold_dataset,
                     k=k,
                     filter_viewed=filter_viewed,
                     items_to_recommend=items_to_recommend,
                     on_unsupported_targets=on_unsupported_targets,
+                    context=context,
                 )
 
             metric_values = calc_metrics(

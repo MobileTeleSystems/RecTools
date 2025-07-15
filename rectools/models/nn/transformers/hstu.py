@@ -16,11 +16,8 @@ import typing as tp
 import warnings
 from typing import Dict
 
-import pandas as pd
 import torch
 from torch import nn
-
-from rectools.dataset import Dataset
 
 from ..item_net import (
     CatFeaturesItemNet,
@@ -474,10 +471,6 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
         parameter to ``False`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
-    dqk: optional(int), default ``None``,
-        Dimension Q,K. If None, definite as n_factors/n_heads.
-    dvu: optional(int), default ``None``,
-        Dimension V, U. If None, definite as n_factors/n_heads.
     relative_time_attention : bool
         Flag activate computing relative time attention.
     relative_pos_attention : bool
@@ -551,6 +544,13 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     backbone_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `backbone_type` initialization.
         Make sure all dict values have JSON serializable types.
+        Let's add comment about our changes for default module kwargs:
+
+    To precisely follow the original authors implementations of the model,
+    the following kwargs for specific modules will be replaced from their default versions used in other Transformer models:
+    use_scale_factor in pos_encoding_kwargs will be set to True if not explicitly provided as False,
+    distance in similarity_module_kwargs will be set to cosine if not explicitly provided as dot
+
     """
 
     config_class = HSTUModelConfig
@@ -694,20 +694,30 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
             n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
             get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
-            **self._get_kwargs(data_preparator_kwargs),
+            **data_preparator_kwargs,
         )
+
+    def _init_similarity_module(self) -> SimilarityModuleBase:
+        if self.similarity_module_kwargs is None:
+            similarity_module_kwargs = {}
+        else:
+            similarity_module_kwargs = self.data_preparator_kwargs.copy()
+        if "distance" not in similarity_module_kwargs:
+            similarity_module_kwargs["distance"] = "cosine"
+        return self.similarity_module_type(**similarity_module_kwargs)
 
     def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
         if self.pos_encoding_kwargs is None:
             pos_encoding_kwargs = {}
         else:
             pos_encoding_kwargs = self.pos_encoding_kwargs.copy()
-        pos_encoding_kwargs["use_scale_factor"] = True
+        if "use_scale_factor" not in pos_encoding_kwargs:
+            pos_encoding_kwargs["use_scale_factor"] = True
         return self.pos_encoding_type(
             self.use_pos_emb,
             self.session_max_len,
             self.n_factors,
-            **self._get_kwargs(pos_encoding_kwargs),
+            **pos_encoding_kwargs,
         )
 
     @property
@@ -721,21 +731,3 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         if self.relative_time_attention:
             return True
         return False
-
-    def preproc_recommend_context(self, recommend_dataset: Dataset, context: pd.DataFrame) -> Dataset:
-        """
-        Preprocesses recommendation context data for model input.
-
-        Parameters
-        ----------
-        recommend_dataset : Dataset
-            The main recommendation dataset containing user-item interactions.
-        context : pd.DataFrame
-            Additional contextual information (e.g., time, location, device)
-            to be used during recommendation generation.
-
-        Returns
-        -------
-        Dataset
-        """
-        return self._preproc_recommend_context(recommend_dataset, context)

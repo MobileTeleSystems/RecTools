@@ -383,7 +383,11 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         raise NotImplementedError("Partial fitting is not supported in {self.__class__.__name__}")
 
     def _custom_transform_dataset_u2i(
-        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+        self,
+        dataset: Dataset,
+        users: ExternalIds,
+        on_unsupported_targets: ErrorBehaviour,
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> Dataset:
         # This method should be overwritten for models that require dataset processing for u2i recommendations
         # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
@@ -405,6 +409,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
         on_unsupported_targets: ErrorBehaviour = "raise",
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> pd.DataFrame:
         r"""
         Recommend items for users.
@@ -440,7 +445,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             Specify "raise" to raise ValueError in case unsupported targets are passed (default).
             Specify "ignore" to filter unsupported targets.
             Specify "warn" to filter with warning.
-
+        #TODO docsting for context
         Returns
         -------
         pd.DataFrame
@@ -466,7 +471,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         # We are going to lose original dataset object. Save dtype for later
         original_user_type = dataset.user_id_map.external_dtype
         original_item_type = dataset.item_id_map.external_dtype
-        dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
+        dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets, context)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
 

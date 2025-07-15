@@ -7,6 +7,7 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
 
+import rectools.dataset.context as context_prep
 from rectools.columns import Columns
 from rectools.dataset import Dataset
 from rectools.models import HSTUModel
@@ -148,20 +149,21 @@ class TestHSTUModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
             similarity_module_type=DistanceSimilarityModule,
-            similarity_module_kwargs={"distance": "dot"},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
-        context = pd.DataFrame(
-            {
-                Columns.User: [10, 20, 30, 40, 50],
-                Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
-            }
-        )
-        prep_df = dataset_devices
         if model.require_recommend_context:
-            prep_df = model.preproc_recommend_context(dataset_devices, context)
-        actual = model.recommend(users=users, dataset=prep_df, k=3, filter_viewed=True)
+            # "2021-12-12" generation moment simulation
+            context_df = pd.DataFrame(
+                {
+                    Columns.User: [10, 20, 30, 40, 50],
+                    Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
+                }
+            )
+            context = context_prep.get_context(context_df)
+        else:
+            context = None
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=True, context=context)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected_reco)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
