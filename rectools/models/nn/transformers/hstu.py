@@ -318,7 +318,7 @@ class STULayers(TransformerLayersBase):
     relative_pos_attention : bool
         Flag activate computing relative positional attention.
     attn_dropout_rate : float, default 0.2
-        Probability of a attention unit to be zeroed.
+        Probability of an attention unit to be zeroed.
     dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
     epsilon  : float, default 1e-6
@@ -547,9 +547,10 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         Let's add comment about our changes for default module kwargs:
 
     To precisely follow the original authors implementations of the model,
-    the following kwargs for specific modules will be replaced from their default versions used in other Transformer models:
-    use_scale_factor in pos_encoding_kwargs will be set to True if not explicitly provided as False,
-    distance in similarity_module_kwargs will be set to cosine if not explicitly provided as dot
+    the following kwargs for specific modules will be replaced from their default versions
+    used in other Transformer models:use_scale_factor in pos_encoding_kwargs will be set to True
+     if not explicitly provided as False,distance in similarity_module_kwargs will be set to cosine
+     if not explicitly provided as dot
 
     """
 

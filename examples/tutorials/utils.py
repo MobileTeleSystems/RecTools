@@ -122,23 +122,14 @@ def create_subplots_grid(n_plots:int):
 
     return fig, axes
 
-def rolling_avg(x:pd.Series, y:pd.Series, window:int =3):
+def rolling_avg(
+    x:pd.Series,
+    y:pd.Series,
+    window:int =3
+)-> tp.Tuple[pd.Series, pd.Series]:
     df = pd.DataFrame({'x': x, 'y': y}).sort_values('x')
     df['y_smooth'] = df['y'].rolling(window=window, center=True).mean()
     return df['x'], df['y_smooth']
-
-def print_styled_metrics(df:pd.DataFrame, metrics_list: list, title: str) -> None:
-    filtered_df = df[metrics_list]
-    styled_df = filtered_df.style \
-        .format('{:.4f}') \
-        .set_caption(title) \
-        .set_properties(**{'text-align': 'center'}) \
-        .background_gradient(cmap='Blues')
-    try:
-        display(styled_df)  # Для Jupyter
-    except NameError:
-        print(styled_df.to_string())  # Для обычного Python
-
 
 def show_val_metrics(train_stage_metrics: dict[str, tp.Any]):
     n_plots = len(train_stage_metrics)
@@ -156,7 +147,6 @@ def show_val_metrics(train_stage_metrics: dict[str, tp.Any]):
             ax.legend()
     plt.show()
 
-
 def show_results(path_to_load_res: str, show_loss=False) -> None:
     with open(path_to_load_res, 'r', encoding='utf-8') as f:
         exp_data = json.load(f)
@@ -169,8 +159,9 @@ def show_results(path_to_load_res: str, show_loss=False) -> None:
     pivot_results.columns = pivot_results.columns.droplevel(1)
     metrics_to_show = ['recall@10', 'ndcg@10', 'recall@50', 'ndcg@50', 'recall@200', 'ndcg@200', 'coverage@10',
                        'serendipity@10']
-    print_styled_metrics(pivot_results, metrics_to_show, 'Metrics Comparison')
-
+    print(pivot_results[metrics_to_show])
+    #print_styled_metrics(pivot_results, metrics_to_show, 'Metrics Comparison')
+    #filtered_df = df[metrics_list]
     train_stage_metrics = {
         model_name: get_logs(log_dir_path)
         for model_name, log_dir_path in exp_data["models_log_dir"].items()
@@ -185,6 +176,19 @@ def show_results(path_to_load_res: str, show_loss=False) -> None:
         x_smooth, y_smooth = rolling_avg(x, y, window=3)
         plt.plot(x_smooth, y_smooth, label=model_name)
 
+    plt.grid(False)
+    ax = plt.gca()
+    for spine in ['top', 'bottom', 'left', 'right']:
+        ax.spines[spine].set_color('black')
+        ax.spines[spine].set_linewidth(1.5)
+    legend = plt.legend(
+        frameon=True,
+        edgecolor='black',
+        facecolor='white',
+        framealpha=1,
+        fontsize=10
+    )
+    legend.get_frame().set_linewidth(1.5)
     plt.title("Validation smoothed recall@10 dynamic")
     plt.xlabel("Epoch")
     plt.ylabel("Recall@10")
