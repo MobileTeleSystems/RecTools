@@ -483,6 +483,9 @@ class TestTransformerModelBase:
         )
         t2 = deepcopy(model.fit_trainer)
 
+        # Since for the second we are fitting on an empty dataset,
+        # the trainer state should be kept exactly the same as after the first fit
+        # to prove that fit_partial does not change trainer state before proceeding to training."
         assert t1 is not None
         assert t2 is not None
         assert_pl_trainers_equal(t1, t2)
