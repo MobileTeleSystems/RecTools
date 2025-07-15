@@ -651,7 +651,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
     def __getstate__(self) -> object:
         if self.is_fitted:
             if self.fit_trainer is None:
-                raise RuntimeError("expected to have fit_trainer set")
+                raise RuntimeError("Fitted model is expected to have `fit_trainer` set")
 
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
