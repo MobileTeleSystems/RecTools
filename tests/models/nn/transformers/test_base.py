@@ -19,10 +19,12 @@ from tempfile import NamedTemporaryFile
 
 import pandas as pd
 import pytest
+import pytorch_lightning as pl
 import torch
 from pytest import FixtureRequest
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
+from torch import nn
 
 from rectools import Columns
 from rectools.dataset import Dataset
@@ -33,6 +35,35 @@ from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
 from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
+
+
+def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module) -> None:
+    assert type(model_a) is type(model_b), "different types"
+
+    with torch.no_grad():
+        for (apn, apv), (bpn, bpv) in zip(model_a.named_parameters(), model_b.named_parameters()):
+            assert apn == bpn, "different parameter name"
+            assert torch.isclose(apv, bpv).all(), "different parameter value"
+
+
+def assert_pl_models_equal(model_a: pl.LightningModule, model_b: pl.LightningModule) -> None:
+    """Assert pl modules are equal in terms of weights and trainer"""
+    assert_torch_models_equal(model_a, model_b)
+
+    trainer_a = model_a.trainer
+    trainer_b = model_a.trainer
+
+    assert_pl_trainers_equal(trainer_a, trainer_b)
+
+
+def assert_pl_trainers_equal(trainer_a: Trainer, trainer_b: Trainer) -> None:
+    """Assert pl trainers are equal in terms of optimizers state"""
+    assert len(trainer_a.optimizers) == len(trainer_b.optimizers), "Different number of optimizers"
+
+    for opt_a, opt_b in zip(trainer_b.optimizers, trainer_b.optimizers):
+        # Check optimizer class
+        assert type(opt_a) is type(opt_b), f"Optimizer types differ: {type(opt_a)} vs {type(opt_b)}"
+        assert opt_a.state_dict() == opt_b.state_dict(), "optimizers state dict differs"
 
 
 class TestTransformerModelBase:
@@ -210,28 +241,6 @@ class TestTransformerModelBase:
         self._assert_same_reco(model, recovered_model, dataset)
 
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
-    def test_raises_when_save_model_loaded_from_checkpoint(
-        self,
-        model_cls: tp.Type[TransformerModelBase],
-        dataset: Dataset,
-    ) -> None:
-        model = model_cls.from_config(
-            {
-                "deterministic": True,
-                "get_trainer_func": custom_trainer_ckpt,
-            }
-        )
-        model.fit(dataset)
-        assert model.fit_trainer is not None
-        if model.fit_trainer.log_dir is None:
-            raise ValueError("No log dir")
-        ckpt_path = os.path.join(model.fit_trainer.log_dir, "checkpoints", "last_epoch.ckpt")
-        recovered_model = model_cls.load_from_checkpoint(ckpt_path)
-        with pytest.raises(RuntimeError):
-            with NamedTemporaryFile() as f:
-                recovered_model.save(f.name)
-
-    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     def test_load_weights_from_checkpoint(
         self,
         model_cls: tp.Type[TransformerModelBase],
@@ -391,8 +400,6 @@ class TestTransformerModelBase:
         recovered_fit_partial_model = model_cls.load_from_checkpoint(ckpt_path)
 
         seed_everything(32, workers=True)
-        fit_partial_model.fit_trainer = deepcopy(fit_partial_model._trainer)  # pylint: disable=protected-access
-        fit_partial_model.lightning_model.optimizer = None
         fit_partial_model.fit_partial(dataset, min_epochs=1, max_epochs=1)
 
         seed_everything(32, workers=True)
@@ -410,3 +417,108 @@ class TestTransformerModelBase:
         with pytest.raises(ValueError):
             model = model_cls.from_config(model_config)
             model.fit(dataset=dataset)
+
+    @pytest.mark.parametrize("fit", (True, False))
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    @pytest.mark.parametrize("default_trainer", (True, False))
+    def test_resaving(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+        default_trainer: bool,
+        fit: bool,
+    ) -> None:
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
+        if not default_trainer:
+            config["get_trainer_func"] = custom_trainer
+        model = model_cls.from_config(config)
+
+        seed_everything(32, workers=True)
+        if fit:
+            model.fit(dataset)
+
+        with NamedTemporaryFile() as f:
+            model.save(f.name)
+            recovered_model = model_cls.load(f.name)
+
+        with NamedTemporaryFile() as f:
+            recovered_model.save(f.name)
+            second_recovered_model = model_cls.load(f.name)
+
+        assert isinstance(recovered_model, model_cls)
+
+        original_model_config = model.get_config()
+        second_recovered_model_config = recovered_model.get_config()
+        assert second_recovered_model_config == original_model_config
+
+        if fit:
+            assert_pl_models_equal(model.lightning_model, second_recovered_model.lightning_model)
+
+    # check if trainer keep state on multiple call partial fit
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_fit_partial_multiple_times(
+        self,
+        dataset: Dataset,
+        model_cls: tp.Type[TransformerModelBase],
+    ) -> None:
+        class FixSeedLightningModule(TransformerLightningModule):
+            def on_train_epoch_start(self) -> None:
+                seed_everything(32, workers=True)
+
+        seed_everything(32, workers=True)
+        model = model_cls.from_config(
+            {
+                "epochs": 3,
+                "data_preparator_kwargs": {"shuffle_train": False},
+                "get_trainer_func": custom_trainer,
+                "lightning_module_type": FixSeedLightningModule,
+            }
+        )
+        model.fit_partial(dataset, min_epochs=1, max_epochs=1)
+        t1 = deepcopy(model.fit_trainer)
+        model.fit_partial(
+            Dataset.construct(pd.DataFrame(columns=Columns.Interactions)),
+            min_epochs=1,
+            max_epochs=1,
+        )
+        t2 = deepcopy(model.fit_trainer)
+
+        # Since for the second we are fitting on an empty dataset,
+        # the trainer state should be kept exactly the same as after the first fit
+        # to prove that fit_partial does not change trainer state before proceeding to training."
+        assert t1 is not None
+        assert t2 is not None
+        assert_pl_trainers_equal(t1, t2)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_fit_trainer_is_none_on_save_trained_model(
+        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
+    ) -> None:
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
+        model = model_cls.from_config(config)
+
+        seed_everything(32, workers=True)
+        model.fit(dataset)
+        model.fit_trainer = None
+
+        with NamedTemporaryFile() as f:
+            with pytest.raises(RuntimeError):
+                model.save(f.name)
+
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_raises_when_fit_trainer_is_none_on_fit_partial_trained_model(
+        self, model_cls: tp.Type[TransformerModelBase], dataset: Dataset
+    ) -> None:
+        config: tp.Dict[str, tp.Any] = {"deterministic": True}
+        model = model_cls.from_config(config)
+
+        seed_everything(32, workers=True)
+        model.fit(dataset)
+        model.fit_trainer = None
+
+        with pytest.raises(RuntimeError):
+            model.fit_partial(
+                dataset,
+                min_epochs=1,
+                max_epochs=1,
+            )

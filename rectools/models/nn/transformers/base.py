@@ -24,6 +24,7 @@ import torch
 import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader, TensorDataset
 
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
@@ -505,16 +506,25 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         if not self.is_fitted:
             self._build_model_from_dataset(dataset)
             self.fit_trainer = deepcopy(self._trainer)
-        elif self.fit_trainer is None:
+        else:
+            # assumed that dataset is same as in `fit` or as in first call to `fit_partial`
+            # currently new datasets is not supported due to difficulties with
+            # handling id maps and item (user) features
             self.data_preparator.process_dataset_train(dataset)
-            self.fit_trainer = deepcopy(self._trainer)
+            if self.fit_trainer is None:
+                raise RuntimeError("expected to have fit_trainer set")
 
         train_dataloader = self.data_preparator.get_dataloader_train()
         val_dataloader = self.data_preparator.get_dataloader_val()
 
         self.lightning_model.train()
-        self.fit_trainer.fit_loop.max_epochs = self.fit_trainer.current_epoch + max_epochs
-        self.fit_trainer.fit_loop.min_epochs = self.fit_trainer.current_epoch + min_epochs
+
+        # if checkpoint is from ModelCheckpoint callback (and saved at end of epoch)
+        # its epoch value equal to num of data epochs - 1 (as epoch is not ended in checkpoint time)
+        # so instead of `fit_trainer.current_epoch` we use `count of ready epochs`
+        current_epoch = self.fit_trainer.fit_loop.epoch_progress.current.ready
+        self.fit_trainer.fit_loop.max_epochs = current_epoch + max_epochs
+        self.fit_trainer.fit_loop.min_epochs = current_epoch + min_epochs
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _recommend_u2i(
@@ -574,8 +584,25 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         return self.config_class(**params)
 
     @classmethod
-    def _model_from_checkpoint(cls, checkpoint: tp.Dict[str, tp.Any]) -> tpe.Self:
-        """Create model from loaded Lightning checkpoint."""
+    def _model_from_checkpoint(
+        cls, checkpoint: tp.Dict[str, tp.Any], ckpt_path: tp.Optional[tp.Union[str, Path]] = None
+    ) -> tpe.Self:
+        """
+        Create model from loaded Lightning checkpoint.
+
+        Parameters
+        ----------
+        checkpoint: Dict[str, tp.Any]
+            Checkpoint object (pl/torch like)
+        ckpt_path: Union[str, Path], optional
+            Path to checkpoint location.
+            If specified should be a path to `checkpoint` arg file.
+            `checkpoint` is saved to temp file if not specified.
+
+        Returns
+        -------
+        Model instance.
+        """
         model_config = checkpoint["hyper_parameters"]["model_config"]
         loaded = cls.from_config(model_config)
         loaded.is_fitted = True
@@ -596,20 +623,36 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             item_external_ids=item_external_ids,
             model_config=model_config,
         )
+
+        try:
+            temp_file = None
+            actual_ckpt_path = ckpt_path
+            if actual_ckpt_path is None:
+                temp_file = NamedTemporaryFile()  # pylint: disable=consider-using-with
+                actual_ckpt_path = temp_file.name
+                torch.save(checkpoint, actual_ckpt_path)
+
+            loaded.fit_trainer = deepcopy(loaded._trainer)
+            # use stub dataset to load trainer state
+            loaded.fit_trainer.fit(
+                loaded.lightning_model,
+                ckpt_path=actual_ckpt_path,
+                train_dataloaders=DataLoader(TensorDataset(torch.Tensor())),
+            )
+
+        finally:
+            if temp_file is not None:
+                temp_file.close()
+
         loaded.lightning_model.is_fitted = True
-        loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
 
         return loaded
 
     def __getstate__(self) -> object:
         if self.is_fitted:
             if self.fit_trainer is None:
-                explanation = """
-                Model is fitted but has no `fit_trainer`. Most likely it was just loaded from the
-                checkpoint. Model that was loaded from checkpoint cannot be saved without being
-                fitted again.
-                """
-                raise RuntimeError(explanation)
+                raise RuntimeError("Fitted model is expected to have `fit_trainer` set")
+
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()
@@ -658,7 +701,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             prev_config_flatten = make_dict_flat(prev_model_config)
             prev_config_flatten.update(model_params_update)
             checkpoint["hyper_parameters"]["model_config"] = unflatten_dict(prev_config_flatten)
-        loaded = cls._model_from_checkpoint(checkpoint)
+        loaded = cls._model_from_checkpoint(checkpoint, ckpt_path=checkpoint_path)
         return loaded
 
     def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
