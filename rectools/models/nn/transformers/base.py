@@ -351,7 +351,6 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def _init_data_preparator(self) -> None:
         requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
-        #
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
             batch_size=self.batch_size,

@@ -296,6 +296,7 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
             Encoded user sessions with added positional encoding if `use_pos_emb` is ``True``.
         """
         batch_size, session_max_len, n_factors = sessions.shape
+
         if self.use_scale_factor:
             sessions = sessions * (n_factors**0.5)
         if self.pos_emb is not None:
@@ -305,4 +306,5 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
                 torch.arange(session_max_len - 1, -1, -1), (batch_size, 1)
             )  # [batch_size, session_max_len]
             sessions += self.pos_emb(positions.to(sessions.device))
+
         return sessions

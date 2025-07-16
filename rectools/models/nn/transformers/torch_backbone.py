@@ -243,7 +243,6 @@ class TransformerTorchBackbone(TransformerBackboneBase):
         timeline_mask = (sessions != 0).unsqueeze(-1)  # [batch_size, session_max_len, 1]
 
         seqs = item_embs[sessions]  # [batch_size, session_max_len, n_factors]
-
         seqs = self.pos_encoding_layer(seqs)
         seqs = self.emb_dropout(seqs)
 
@@ -256,6 +255,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
             if attn_mask is not None:  # merge masks to prevent nan gradients for torch < 2.5.0
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
+
         seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask, batch=batch)
         return seqs
 

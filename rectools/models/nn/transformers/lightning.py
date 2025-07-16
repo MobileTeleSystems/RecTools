@@ -109,6 +109,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.optimizer: tp.Optional[torch.optim.Adam] = None
         self.item_embs: torch.Tensor
         self.logits_t = logits_t
+
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
     @staticmethod

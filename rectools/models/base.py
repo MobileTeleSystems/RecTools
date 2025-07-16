@@ -411,7 +411,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         on_unsupported_targets: ErrorBehaviour = "raise",
         context: tp.Optional[pd.DataFrame] = None,
     ) -> pd.DataFrame:
-        """
+        r"""
         Recommend items for users.
 
         To use this method model must be fitted.
@@ -682,6 +682,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             return None
 
         internal_ids_to_recommend = dataset.item_id_map.convert_to_internal(items_to_recommend, strict=False)
+
         return np.unique(internal_ids_to_recommend)
 
     @classmethod
