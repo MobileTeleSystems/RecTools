@@ -704,7 +704,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         if self.similarity_module_kwargs is None:
             similarity_module_kwargs = {}
         else:
-            similarity_module_kwargs = self.data_preparator_kwargs.copy()
+            similarity_module_kwargs = self.similarity_module_kwargs.copy()
         if "distance" not in similarity_module_kwargs:
             similarity_module_kwargs["distance"] = "cosine"
         return self.similarity_module_type(**similarity_module_kwargs)

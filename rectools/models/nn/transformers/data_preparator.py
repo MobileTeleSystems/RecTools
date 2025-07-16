@@ -317,6 +317,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         """
         if self.val_interactions is None:
             return None
+
         sequence_dataset = SequenceDataset.from_interactions(self.val_interactions)
         val_dataloader = DataLoader(
             sequence_dataset,
@@ -397,6 +398,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         # Prepare new user id mapping
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
+
         if context is not None:
             context[Columns.Item] = PADDING_VALUE  # External index pad element
             context = context[context[Columns.User].isin(interactions[Columns.User])]

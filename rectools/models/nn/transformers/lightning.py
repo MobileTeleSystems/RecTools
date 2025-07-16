@@ -385,6 +385,7 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         """
         self._prepare_for_inference(torch_device)
         device = self.torch_model.item_model.device
+
         with torch.no_grad():
             item_embs = self.torch_model.item_model.get_all_embeddings()
             user_embs = []
