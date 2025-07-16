@@ -411,7 +411,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         on_unsupported_targets: ErrorBehaviour = "raise",
         context: tp.Optional[pd.DataFrame] = None,
     ) -> pd.DataFrame:
-        r"""
+        """
         Recommend items for users.
 
         To use this method model must be fitted.
@@ -445,7 +445,10 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             Specify "raise" to raise ValueError in case unsupported targets are passed (default).
             Specify "ignore" to filter unsupported targets.
             Specify "warn" to filter with warning.
-        #TODO docsting for context
+        context : optional(pd.DataFrame), default  ``None``
+            Optional DataFrame containing additional user context information (e.g., session features,
+            demographics).
+
         Returns
         -------
         pd.DataFrame
@@ -466,6 +469,12 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             If some of given users are warm/cold and model doesn't support such type of users and
             `on_unsupported_targets` is set to "raise".
         """
+        if self.require_recommend_context ^ (context is not None):  # XOR
+            raise ValueError(
+                f"Mismatch between require_recommend_context ({self.require_recommend_context}) "
+                f"and context presence ({context is not None}). "
+                "Context must be provided only if require_recommend_context is True."
+            )
         self._check_is_fitted()
         self._check_k(k)
         # We are going to lose original dataset object. Save dtype for later

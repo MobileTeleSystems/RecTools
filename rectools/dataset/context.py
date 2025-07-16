@@ -25,6 +25,12 @@ def get_context(df_to_context: pd.DataFrame) -> pd.DataFrame:
     """
     earliest = df_to_context.groupby(Columns.User)[Columns.Datetime].idxmin()
     context = df_to_context.loc[earliest]
+    try:
+        context[Columns.Datetime] = context[Columns.Datetime].astype("datetime64[ns]")
+    except ValueError:
+        raise TypeError(f"Column '{Columns.Datetime}' must be convertible to 'datetime64' type")
+    if Columns.Weight not in context.columns:
+        context[Columns.Weight] = 1.0
     if Columns.Item in context:
         context.drop(columns=[Columns.Item], inplace=True)
     return context

@@ -147,21 +147,10 @@ def show_val_metrics(train_stage_metrics: dict[str, tp.Any]):
             ax.legend()
     plt.show()
 
-def show_results(path_to_load_res: str, show_loss=False) -> None:
+def get_results(path_to_load_res: str, metrics_to_show: tp.List[str], show_loss=False) -> None:
     with open(path_to_load_res, 'r', encoding='utf-8') as f:
         exp_data = json.load(f)
-    pivot_results = (
-        pd.DataFrame(exp_data["metrics"])
-        .drop(columns="i_split")
-        .groupby(["model"], sort=False)
-        .agg(["mean"])
-    )
-    pivot_results.columns = pivot_results.columns.droplevel(1)
-    metrics_to_show = ['recall@10', 'ndcg@10', 'recall@50', 'ndcg@50', 'recall@200', 'ndcg@200', 'coverage@10',
-                       'serendipity@10']
-    print(pivot_results[metrics_to_show])
-    #print_styled_metrics(pivot_results, metrics_to_show, 'Metrics Comparison')
-    #filtered_df = df[metrics_list]
+
     train_stage_metrics = {
         model_name: get_logs(log_dir_path)
         for model_name, log_dir_path in exp_data["models_log_dir"].items()
@@ -195,3 +184,11 @@ def show_results(path_to_load_res: str, show_loss=False) -> None:
     plt.legend()
     plt.show()
 
+    pivot_results = (
+        pd.DataFrame(exp_data["metrics"])
+        .drop(columns="i_split")
+        .groupby(["model"], sort=False)
+        .agg(["mean"])
+    )
+    pivot_results.columns = pivot_results.columns.droplevel(1)
+    return pivot_results[metrics_to_show]

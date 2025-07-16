@@ -50,6 +50,17 @@ class TestHSTUModel:
         )
         return Dataset.construct(interactions_df)
 
+    @pytest.fixture
+    def context_df(self) -> pd.DataFrame:
+        # "2021-12-12" generation moment simulation
+        df = pd.DataFrame(
+            {
+                Columns.User: [10, 20, 30, 40, 50],
+                Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
+            }
+        )
+        return df
+
     @pytest.mark.parametrize(
         "accelerator,n_devices,recommend_torch_device",
         [
@@ -70,9 +81,9 @@ class TestHSTUModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [30, 40],
-                        Columns.Item: [12, 12],
-                        Columns.Rank: [1, 1],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 12, 13],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -92,9 +103,9 @@ class TestHSTUModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [30, 40],
-                        Columns.Item: [12, 12],
-                        Columns.Rank: [1, 1],
+                        Columns.User: [30, 40, 40],
+                        Columns.Item: [12, 12, 13],
+                        Columns.Rank: [1, 1, 2],
                     }
                 ),
             ),
@@ -114,6 +125,7 @@ class TestHSTUModel:
     def test_u2i(
         self,
         dataset_devices: Dataset,
+        context_df: pd.DataFrame,
         accelerator: str,
         n_devices: int,
         recommend_torch_device: str,
@@ -153,16 +165,21 @@ class TestHSTUModel:
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
         if model.require_recommend_context:
-            # "2021-12-12" generation moment simulation
-            context_df = pd.DataFrame(
-                {
-                    Columns.User: [10, 20, 30, 40, 50],
-                    Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
-                }
-            )
             context = context_prep.get_context(context_df)
         else:
             context = None
+        if relative_time_attention:
+            with pytest.raises(ValueError):
+                model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=True, context=None)
+        if not relative_time_attention:
+            with pytest.raises(ValueError):
+                model.recommend(
+                    users=users,
+                    dataset=dataset_devices,
+                    k=3,
+                    filter_viewed=True,
+                    context=context_prep.get_context(context_df),
+                )
         actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=True, context=context)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected_reco)
         pd.testing.assert_frame_equal(
@@ -178,6 +195,17 @@ class TestHSTUModelConfiguration:
     def _seed_everything(self) -> None:
         torch.use_deterministic_algorithms(True)
         seed_everything(32, workers=True)
+
+    @pytest.fixture
+    def context_df(self) -> pd.DataFrame:
+        # "2021-12-12" generation moment simulation
+        df = pd.DataFrame(
+            {
+                Columns.User: [10, 20, 30, 40, 50],
+                Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12", "2021-12-12"],
+            }
+        )
+        return df
 
     @pytest.fixture
     def initial_config(self) -> tp.Dict[str, tp.Any]:
@@ -278,6 +306,7 @@ class TestHSTUModelConfiguration:
     @pytest.mark.parametrize("simple_types", (False, True))
     def test_get_config_and_from_config_compatibility(
         self,
+        context_df: pd.DataFrame,
         simple_types: bool,
         initial_config: tp.Dict[str, tp.Any],
         use_custom_trainer: bool,
@@ -297,7 +326,13 @@ class TestHSTUModelConfiguration:
             config["get_trainer_func"] = custom_trainer
 
         def get_reco(model: HSTUModel) -> pd.DataFrame:
-            return model.fit(dataset).recommend(users=np.array([10, 20]), dataset=dataset, k=2, filter_viewed=False)
+            return model.fit(dataset).recommend(
+                users=np.array([10, 20]),
+                dataset=dataset,
+                k=2,
+                filter_viewed=False,
+                context=context_prep.get_context(context_df),
+            )
 
         model_1 = model.from_config(initial_config)
         reco_1 = get_reco(model_1)

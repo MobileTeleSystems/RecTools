@@ -350,58 +350,6 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         )
         return recommend_dataloader
 
-    def _preproc_recommend_interactions(
-        self,
-        dataset: Dataset,
-        required_cols: tp.List[str],
-        context: tp.Optional[pd.DataFrame] = None,
-    ) -> pd.DataFrame:
-        """
-        Prepare and enrich interactions data with user context for recommendation processing.
-
-        Adds a dummy common item to the context rows to allow their integration into models.
-
-        Parameters
-        ----------
-        dataset : Dataset
-            Containing  interactions and ID mappings (user/item).
-        required_cols : List[str]
-            List of columns required from the interactions data.
-        context : optional(pd.DataFrame), default ``None``
-            Optional DataFrame containing user context data (e.g., demographic features or session info),
-            expected to contain at least user identifiers and possibly other contextual features.
-
-        Returns
-        -------
-        pd.DataFrame
-            Combined DataFrame of original interactions and context-enriched rows.
-            All rows have valid internal IDs (mapped via `user_id_map` and `item_id_map`),
-            and context rows are associated with a known/dummy item to ensure compatibility with models.
-        """
-        interactions = dataset.interactions.df[required_cols]
-        if context is not None:
-            find_in = set(dataset.item_id_map.external_ids)
-            dummy_common_item = None
-            for external_id in self.get_known_item_ids():
-                if external_id in find_in:
-                    dummy_common_item = external_id
-                    break
-            context[Columns.Item] = dummy_common_item
-            if Columns.Weight not in context.columns:
-                context[Columns.Weight] = 1
-            known_users = context[Columns.User].isin(dataset.user_id_map.external_ids)
-            user_id_map = dataset.user_id_map.add_ids(context[~known_users][Columns.User])
-            context_interactions = Interactions.from_raw(
-                context, user_id_map, dataset.item_id_map, keep_extra_cols=True
-            )
-            interactions_with_context = Interactions(
-                pd.concat([interactions, context_interactions.df], ignore_index=True)
-            ).df
-
-            return interactions_with_context
-        else:
-            return interactions
-
     def transform_dataset_u2i(
         self,
         dataset: Dataset,
@@ -437,9 +385,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         required_cols = Columns.Interactions
         if self.extra_cols is not None:
             required_cols = required_cols + self.extra_cols
-        interactions = self._preproc_recommend_interactions(dataset, required_cols, context)
-        if self.add_unix_ts:
-            interactions["unix_ts"] = self._convert_to_unix_ts(interactions[Columns.Datetime])
+        interactions = dataset.interactions.df[required_cols]
         users_internal = dataset.user_id_map.convert_to_internal(users, strict=False)
         items_internal = dataset.item_id_map.convert_to_internal(self.get_known_item_ids(), strict=False)
         interactions = interactions[interactions[Columns.User].isin(users_internal)]
@@ -451,7 +397,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         # Prepare new user id mapping
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
-
+        if context is not None:
+            context[Columns.Item] = PADDING_VALUE  # External index pad element
+            context = context[context[Columns.User].isin(interactions[Columns.User])]
+            interactions = pd.concat([interactions, context])
+        if self.add_unix_ts:
+            interactions["unix_ts"] = self._convert_to_unix_ts(interactions[Columns.Datetime])
         # Construct dataset
         # For now features are dropped because model doesn't support them on inference
         n_filtered = len(users) - rec_user_id_map.size

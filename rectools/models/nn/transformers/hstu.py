@@ -50,15 +50,14 @@ class RelativeAttention(torch.nn.Module):
 
     Parameters
     ----------
-    max_seq_len : int.
+    session_max_len : int.
         Maximum length of user sequence padded or truncated to
-    attention_mode : List[str]
-        Policy for calculating attention.
-        Coulde be one of these "rel_pos_bias", "rel_ts_bias", "rel_pos_ts_bias"
-    num_buckets : float
-        Maximum  number of buckets model work with
-    quantization_func: Callable
-        Function that quantizes the space of timestamps differences into buckets
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
+    num_buckets: int
+        Max buckets space of timestamps differences quantizes to
     """
 
     def __init__(
@@ -83,6 +82,7 @@ class RelativeAttention(torch.nn.Module):
             )
 
     def _quantization_func(self, diff_timestamps: torch.Tensor) -> torch.Tensor:
+        """Quantizes the space of timestamps differences into buckets"""
         return (torch.log(torch.abs(diff_timestamps).clamp(min=1)) / 0.301).long()
 
     def forward_time_attention(self, all_timestamps: torch.Tensor) -> torch.Tensor:
@@ -421,7 +421,8 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     Advanced training guide:
     https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
     Public benchmark: https://github.com/blondered/bert4rec_repro
-    Original SASRec paper: https://arxiv.org/abs/1808.09781
+    Original paper: https://arxiv.org/abs/2402.17152
+
 
     Parameters
     ----------
@@ -548,9 +549,10 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
 
     To precisely follow the original authors implementations of the model,
     the following kwargs for specific modules will be replaced from their default versions
-    used in other Transformer models:use_scale_factor in pos_encoding_kwargs will be set to True
-     if not explicitly provided as False,distance in similarity_module_kwargs will be set to cosine
-     if not explicitly provided as dot
+    used in other Transformer models:
+    1)use_scale_factor in pos_encoding_kwargs will be set to True
+    2)distance in similarity_module_kwargs will be set to cosine
+     if not explicitly provided as others options
 
     """
 
