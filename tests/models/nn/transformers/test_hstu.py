@@ -406,6 +406,21 @@ class TestHSTUModelConfiguration:
         )
         return Dataset.construct(interactions_df)
 
+    @pytest.mark.parametrize("use_key_padding_mask", (True, False))
+    def test_warn_when_use_key_padding_mask(self, use_key_padding_mask: bool) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            HSTUModel(use_key_padding_mask=use_key_padding_mask)
+            if use_key_padding_mask:
+                assert len(w) == 1
+                assert "'use_key_padding_mask' is not supported for HSTU and enforced to False." in str(w[-1].message)
+
+    @pytest.mark.parametrize("n_heads", (2, 3))
+    @pytest.mark.parametrize("n_factors", (9, 10))
+    def test_raises_when_incorrect_n_heads(self, n_heads: int, n_factors: int) -> None:
+        if n_factors % n_heads != 0:
+            with pytest.raises(ValueError):
+                HSTUModel(n_heads=n_heads, n_factors=n_factors)
+
     @pytest.mark.parametrize(
         "similarity_module_kwargs,pos_encoding_kwargs,data_preparator_kwargs",
         (
@@ -421,17 +436,14 @@ class TestHSTUModelConfiguration:
             ),
         ),
     )
-    @pytest.mark.parametrize("use_key_padding_mask", (True, False))
-    @pytest.mark.parametrize("n_heads", (2, 3))
-    def test_init_hstu(  # noqa: C901
+    def test_kwargs_preproc_hstu(
         self,
         dataset: Dataset,
         similarity_module_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
         pos_encoding_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
         data_preparator_kwargs: tp.Optional[tp.Dict[str, tp.Any]],
-        use_key_padding_mask: bool,
-        n_heads: int,
     ) -> None:
+
         def get_kwargs(actual_kwargs: tp.Optional[tp.Dict[str, tp.Any]]) -> tp.Dict[str, tp.Any]:
             kwargs = {}
             if actual_kwargs is not None:
@@ -441,21 +453,13 @@ class TestHSTUModelConfiguration:
         n_factors = 32
         config = {
             "n_factors": n_factors,
-            "n_heads": n_heads,
+            "n_heads": 4,
             "relative_time_attention": True,  # if true add_unix_ts forced to True
             "similarity_module_kwargs": similarity_module_kwargs,
             "pos_encoding_kwargs": pos_encoding_kwargs,
-            "use_key_padding_mask": use_key_padding_mask,
         }
 
-        if n_heads == 3:
-            with pytest.raises(ValueError):
-                HSTUModel.from_config(config)
-        with warnings.catch_warnings(record=True) as w:
-            model = HSTUModel.from_config(config)
-            if use_key_padding_mask:
-                assert len(w) == 1
-                assert "'use_key_padding_mask' is not supported for HSTU and enforced to False." in str(w[-1].message)
+        model = HSTUModel.from_config(config)
         similarity_module_kwargs = get_kwargs(similarity_module_kwargs)
         pos_encoding_kwargs = get_kwargs(pos_encoding_kwargs)
         data_preparator_kwargs = get_kwargs(data_preparator_kwargs)

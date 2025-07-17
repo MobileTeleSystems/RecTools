@@ -400,7 +400,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
         return dataset
 
-    def recommend(  # pylint: disable=too-many-arguments
+    def recommend(  # pylint: disable=too-many--locals
         self,
         users: ExternalIds,
         dataset: Dataset,
@@ -475,7 +475,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
                 f"and context presence ({context is not None}). "
                 "Context must be provided when 'require_recommend_context' is True."
             )
-        elif not self.require_recommend_context and (context is not None):
+        if not self.require_recommend_context and (context is not None):
             warnings.warn(
                 "You are providing context to a model that does not require it."
                 " Some models may replace it with None ",
