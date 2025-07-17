@@ -59,7 +59,12 @@ class TestContextPreprocessor:
         assert pd.api.types.is_datetime64_any_dtype(actual[Columns.Datetime])
         assert set(actual.columns.tolist()) == set(expected_columns)
         pd.testing.assert_frame_equal(actual, expected_context)
-        context_to_filter.loc[0, [Columns.Datetime]] = "broken_time"
+
+    def test_wrong_datetime(
+        self,
+        context_to_filter: pd.DataFrame,
+    ) -> None:
+        context_to_filter.loc[0, [Columns.Datetime]] = "incorrect type"
         error_match = f"Column '{Columns.Datetime}' must be convertible to 'datetime64' type"
         with pytest.raises(TypeError, match=re.escape(error_match)):
             get_context(context_to_filter)
