@@ -18,8 +18,9 @@ def leave_one_out_mask(
     Parameters
     ----------
     interactions : pd.DataFrame
-        User-item interaction data with at least two columns:
-    val_users : Optional[Union[ExternalIds, int]]
+        User-item interactions data with at least three columns:
+        Columns.User, Columns.Item and Columns.Datetime
+    val_users : Optional[Union[ExternalIds, int]], default ``None``
         Validation user filter. Can be:
         - None: use all users
         - int: take first N users from unique user list
@@ -36,11 +37,11 @@ def leave_one_out_mask(
     n_interactions = groups.transform("size").astype(int)
     inv_ranks = n_interactions - time_order
     last_interact_mask = inv_ranks == 0
-    users = interactions[Columns.User].unique()
     if isinstance(val_users, int):
+        users = interactions[Columns.User].unique()
         val_users = users[:val_users]
     elif val_users is None:
-        val_users = users
+        return last_interact_mask.values
 
     mask = (interactions[Columns.User].isin(val_users)) & last_interact_mask
     return mask.values

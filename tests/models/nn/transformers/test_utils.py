@@ -12,8 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# pylint: disable=attribute-defined-outside-init
-
 import typing as tp
 
 import pandas as pd
@@ -24,7 +22,7 @@ from rectools.dataset import Interactions
 from rectools.models.nn.transformers.utils import leave_one_out_mask
 
 
-class TestUtils:
+class TestLeaveOneOutMask:
     @pytest.fixture
     def interactions(self) -> Interactions:
         df = pd.DataFrame(
@@ -49,8 +47,10 @@ class TestUtils:
         (
             ([9, 9], [7, 8, 9], 6, None),
             ([9, 9], [7, 8, 9], 6, 3),
+            ([9, 9], [7, 9], 6, 2),
             ([4, 9], [7, 8, 9], 3, None),
             ([4, 9], [7, 8, 9], 3, 3),
+            ([4, 9], [7, 9], 3, 2),
             ([7, 7], [7, 8], 2, [2, 3]),
             ([5, 7], [7, 8], 3, [2, 3]),
             ([8, 8], [8], 1, [3]),
