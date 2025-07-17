@@ -400,7 +400,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
         return dataset
 
-    def recommend(
+    def recommend(  # pylint: disable=too-many-arguments
         self,
         users: ExternalIds,
         dataset: Dataset,
@@ -469,11 +469,17 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             If some of given users are warm/cold and model doesn't support such type of users and
             `on_unsupported_targets` is set to "raise".
         """
-        if self.require_recommend_context ^ (context is not None):  # XOR
+        if self.require_recommend_context and (context is None):
             raise ValueError(
                 f"Mismatch between require_recommend_context ({self.require_recommend_context}) "
                 f"and context presence ({context is not None}). "
-                "Context must be provided only if require_recommend_context is True."
+                "Context must be provided when 'require_recommend_context' is True."
+            )
+        elif not self.require_recommend_context and (context is not None):
+            warnings.warn(
+                "You are providing context to a model that does not require it."
+                " Some models may replace it with None ",
+                UserWarning,
             )
         self._check_is_fitted()
         self._check_k(k)

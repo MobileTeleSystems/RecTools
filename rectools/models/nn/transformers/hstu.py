@@ -606,19 +606,15 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
+        if n_factors % n_heads != 0:
+            raise ValueError("n_factors must be divisible by n_heads without remainder")
         if use_key_padding_mask:
             warnings.warn(
-                "use_key_padding_mask is not supported for HSTU and enforced to False.", UserWarning, stacklevel=2
+                "'use_key_padding_mask' is not supported for HSTU and enforced to False.", UserWarning, stacklevel=2
             )
             use_key_padding_mask = False
         self.relative_time_attention = relative_time_attention
         self.relative_pos_attention = relative_pos_attention
-        try:
-            if n_factors % n_heads != 0:
-                raise ValueError(f"n_factors ({n_factors}) must be divisible by n_heads ({n_heads}) without remainder")
-        except Exception as e:
-            print(f"[Erroor] {e}")
-
         super().__init__(
             transformer_layers_type=transformer_layers_type,
             data_preparator_type=data_preparator_type,

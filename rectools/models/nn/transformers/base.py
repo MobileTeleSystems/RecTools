@@ -14,6 +14,7 @@
 
 import io
 import typing as tp
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
@@ -494,6 +495,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         on_unsupported_targets: ErrorBehaviour,
         context: tp.Optional[pd.DataFrame] = None,
     ) -> Dataset:
+        if not self.require_recommend_context and context is not None:
+            context = None
+            warnings.warn(
+                "Context is set to None because 'require_recommend_context' is False. "
+                "This may affect model behavior if context is expected.",
+                UserWarning,
+            )
         return self.data_preparator.transform_dataset_u2i(dataset, users, context)
 
     def _custom_transform_dataset_i2i(

@@ -23,6 +23,7 @@ from scipy import sparse
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
+import rectools.dataset.context as context_prep
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
@@ -400,6 +401,11 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
         if context is not None:
+            if not (pd.Series(users).isin(context[Columns.User])).all():
+                raise ValueError("No context for all target users")
+            if context.duplicated(subset=Columns.User).any():
+                warnings.warn("Only the earliest row per user is used as context", UserWarning)
+                context = context_prep.get_context(context)
             context[Columns.Item] = PADDING_VALUE  # External index pad element
             context = context[context[Columns.User].isin(interactions[Columns.User])]
             interactions = pd.concat([interactions, context])
