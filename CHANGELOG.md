@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- `leave_one_out_mask` function in the `utils.py` module of the `transformers` package is used to implement leave-one-out validation.([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
+- `leave_one_out_mask` function (`rectools.models.nn.transformers.utils.leave_one_out_mask`) for applying leave-one-out validation during transformer models training.([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
 
 ## [0.15.0] - 17.07.2025
 
