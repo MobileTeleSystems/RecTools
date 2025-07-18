@@ -38,13 +38,14 @@ from rectools.models.nn.transformers.data_preparator import BatchElement, InitKw
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
+from rectools.models.nn.transformers.utils import leave_one_out_mask
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_second_fit_refits_model,
 )
 
-from .utils import custom_trainer, leave_one_out_mask
+from .utils import custom_trainer
 
 
 class TestBERT4RecModel:
@@ -1027,7 +1028,7 @@ class TestBERT4RecModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.bert4rec.BERT4RecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
-                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "get_val_mask_func": "rectools.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
                 "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }
