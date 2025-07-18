@@ -20,10 +20,11 @@ from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampl
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
+from rectools.models.nn.transformers.utils import leave_one_out_mask
 from tests.models.data import DATASET
 from tests.models.utils import assert_default_config_and_default_model_params_are_the_same
 
-from .utils import custom_trainer, leave_one_out_mask
+from .utils import custom_trainer
 
 
 class TestHSTUModel:
@@ -418,7 +419,8 @@ class TestHSTUModelConfiguration:
     @pytest.mark.parametrize("n_factors", (9, 10))
     def test_raises_when_incorrect_n_heads(self, n_heads: int, n_factors: int) -> None:
         if n_factors % n_heads != 0:
-            with pytest.raises(ValueError):
+            error_match = "n_factors must be divisible by n_heads without remainder"
+            with pytest.raises(ValueError, match=error_match):
                 HSTUModel(n_heads=n_heads, n_factors=n_factors)
 
     @pytest.mark.parametrize(
@@ -514,7 +516,7 @@ class TestHSTUModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
-                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "get_val_mask_func": "rectools.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
                 "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }

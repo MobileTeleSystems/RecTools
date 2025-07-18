@@ -115,24 +115,6 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         return False
 
-    def preproc_recommend_context(self, recommend_dataset: Dataset, context: pd.DataFrame) -> Dataset:
-        """
-        Preprocesses recommendation context data for model input.
-
-        Parameters
-        ----------
-        recommend_dataset : Dataset
-            The main recommendation dataset containing user-item interactions.
-        context : pd.DataFrame
-            Additional contextual information (e.g., time, location, device)
-            to be used during recommendation generation.
-
-        Returns
-        -------
-        Dataset
-        """
-        raise NotImplementedError()
-
     @tp.overload
     def get_config(  # noqa: D102
         self, mode: tp.Literal["pydantic"], simple_types: bool = False
@@ -400,7 +382,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
         return dataset
 
-    def recommend(  # pylint: disable=too-many--locals
+    def recommend(  # pylint: disable=too-many-locals
         self,
         users: ExternalIds,
         dataset: Dataset,
@@ -476,9 +458,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
                 "Context must be provided when 'require_recommend_context' is True."
             )
         if not self.require_recommend_context and (context is not None):
+            context = None
             warnings.warn(
-                "You are providing context to a model that does not require it."
-                " Some models may replace it with None ",
+                "You are providing context to a model that does not require it. Context is set to 'None'",
                 UserWarning,
             )
         self._check_is_fitted()

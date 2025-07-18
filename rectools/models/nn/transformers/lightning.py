@@ -213,8 +213,6 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
 
     def configure_optimizers(self) -> torch.optim.Adam:
         """Choose what optimizers and learning-rate schedulers to use in optimization"""
-        for name, param in self.torch_model.named_parameters():
-            print(name, param.shape)
         if self.optimizer is None:
             self.optimizer = torch.optim.Adam(self.torch_model.parameters(), lr=self.lr, betas=self.adam_betas)
         return self.optimizer

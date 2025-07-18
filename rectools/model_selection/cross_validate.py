@@ -14,9 +14,9 @@
 
 import typing as tp
 
-import rectools.dataset.context as context_prep
 from rectools.columns import Columns
 from rectools.dataset import Dataset
+from rectools.dataset.context import get_context
 from rectools.metrics import calc_metrics
 from rectools.metrics.base import MetricAtK
 from rectools.models.base import ErrorBehaviour, ModelBase
@@ -121,7 +121,7 @@ def cross_validate(  # pylint: disable=too-many-locals
         test_users = interactions_df_test[Columns.User].unique()
         prev_interactions = fold_dataset.get_raw_interactions()
         catalog = prev_interactions[Columns.Item].unique()
-
+        test_fold_context = get_context(interactions_df_test)
         # ### Train ref models if any
         ref_reco = {}
         for model_name in ref_models or []:
@@ -129,7 +129,7 @@ def cross_validate(  # pylint: disable=too-many-locals
             model.fit(fold_dataset)
             context = None
             if model.require_recommend_context:
-                context = context_prep.get_context(interactions_df_test)
+                context = test_fold_context
             ref_reco[model_name] = model.recommend(
                 users=test_users,
                 dataset=fold_dataset,
@@ -151,7 +151,7 @@ def cross_validate(  # pylint: disable=too-many-locals
                 model.fit(fold_dataset)
                 context = None
                 if model.require_recommend_context:
-                    context = context_prep.get_context(interactions_df_test)
+                    context = test_fold_context
                 reco = model.recommend(
                     users=test_users,
                     dataset=fold_dataset,

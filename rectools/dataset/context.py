@@ -1,9 +1,10 @@
 import pandas as pd
 
 from rectools import Columns
+from rectools.dataset import Interactions
 
 
-def get_context(df_to_context: pd.DataFrame) -> pd.DataFrame:
+def get_context(df: pd.DataFrame) -> pd.DataFrame:
     """
     Extract initial interaction context for each user.
 
@@ -13,7 +14,7 @@ def get_context(df_to_context: pd.DataFrame) -> pd.DataFrame:
 
     Parameters
     ----------
-    df_to_context : pd.DataFrame
+    df : pd.DataFrame
         Input DataFrame containing user interactions with at least
         user ID and datetime columns.
 
@@ -23,14 +24,12 @@ def get_context(df_to_context: pd.DataFrame) -> pd.DataFrame:
         A DataFrame with one row per user, representing the earliest
         context data for that user.
     """
-    try:
-        df_to_context[Columns.Datetime] = df_to_context[Columns.Datetime].astype("datetime64[ns]")
-    except ValueError:
-        raise TypeError(f"Column '{Columns.Datetime}' must be convertible to 'datetime64' type")
-    earliest = df_to_context.groupby(Columns.User)[Columns.Datetime].idxmin()
-    context = df_to_context.loc[earliest]
-    if Columns.Weight not in context.columns:
-        context[Columns.Weight] = 1.0
+    df = df.copy()
+    if Columns.Weight not in df.columns:
+        df[Columns.Weight] = 1.0
+    Interactions.convert_weight_and_datetime_types(df)
+    earliest = df.groupby(Columns.User)[Columns.Datetime].idxmin()
+    context = df.loc[earliest]
     if Columns.Item in context:
         context.drop(columns=[Columns.Item], inplace=True)
     return context

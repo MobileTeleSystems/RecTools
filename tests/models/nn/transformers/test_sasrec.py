@@ -877,7 +877,7 @@ class TestSASRecDataPreparator:
         expected_batch_train: tp.Dict[str, torch.Tensor],
         expected_batch_val: tp.Dict[str, torch.Tensor],
     ) -> None:
-        get_val_mask_func_kwargs = {"n_val_users": val_users}
+        get_val_mask_func_kwargs = {"val_users": val_users}
         data_preparator = SASRecDataPreparator(
             session_max_len=3,
             batch_size=4,

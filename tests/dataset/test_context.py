@@ -8,7 +8,7 @@ from rectools import Columns
 from rectools.dataset.context import get_context
 
 
-class TestContextPreprocessor:
+class TestGetContext:
     @pytest.fixture
     def context_to_filter(self) -> pd.DataFrame:
         df = pd.DataFrame(
@@ -36,11 +36,11 @@ class TestContextPreprocessor:
                 [Columns.User, Columns.Datetime, Columns.Weight, "extra"],
                 pd.DataFrame(
                     [
-                        [0, 2, "2021-09-01", 1],
-                        [1, 1, "2021-09-04", 1],
+                        [0, 2.0, "2021-09-01", 1],
+                        [1, 1.0, "2021-09-04", 1],
                         [2, 1, "2021-09-02", 1],
-                        [3, 4, "2021-09-03", 1],
-                        [4, 1, "2021-09-02", 1],
+                        [3, 4.0, "2021-09-03", 1],
+                        [4, 1.0, "2021-09-02", 1],
                     ],
                     columns=[Columns.User, Columns.Weight, Columns.Datetime, "extra"],
                 ).astype({Columns.Datetime: "datetime64[ns]"}),
@@ -60,7 +60,7 @@ class TestContextPreprocessor:
         assert set(actual.columns.tolist()) == set(expected_columns)
         pd.testing.assert_frame_equal(actual, expected_context)
 
-    def test_wrong_datetime(
+    def test_wrong_type_datetime(
         self,
         context_to_filter: pd.DataFrame,
     ) -> None:

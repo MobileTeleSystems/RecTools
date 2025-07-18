@@ -153,7 +153,7 @@ class RelativeAttention(torch.nn.Module):
         return rel_attn
 
 
-class STU(nn.Module):
+class STULayer(nn.Module):
     """
     HSTU author's decoder block architecture rewritten from jagged tensor to dense
 
@@ -220,7 +220,7 @@ class STU(nn.Module):
         self.norm_attn_output = nn.LayerNorm(linear_hidden_dim * n_heads, eps=epsilon)
         self.dropout_mlp = nn.Dropout(dropout_rate)
         self.dropout_attn = nn.Dropout(attn_dropout_rate)
-        self.dropout_rate = dropout_rate
+        self.silu = nn.SiLU()
 
     def forward(
         self,
@@ -231,7 +231,7 @@ class STU(nn.Module):
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
-        Forward pass through STU block.
+        Forward pass through STU.
 
         Parameters
         ----------
@@ -253,9 +253,9 @@ class STU(nn.Module):
             User sequences passed through transformer layers.
         """
         batch_size, _, _ = seqs.shape
-        normed_x = self.norm_input(seqs) * timeline_mask  # prevent null emb convert to (const,const, ,,, const)
+        normed_x = self.norm_input(seqs) * timeline_mask  # prevent null emb convert to not null
         general_transform = torch.matmul(normed_x, self.uvqk_proj)
-        batched_mm_output = nn.functional.silu(general_transform) * timeline_mask
+        batched_mm_output = self.silu(general_transform) * timeline_mask
         u, v, q, k = torch.split(
             batched_mm_output,
             [
@@ -274,7 +274,7 @@ class STU(nn.Module):
         )
         # (batch_size, session_max_len, session_max_len).unsqueeze(1) for broadcast
         qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1)
-        qk_attn = nn.functional.silu(qk_attn) / self.session_max_len
+        qk_attn = self.silu(qk_attn) / self.session_max_len
 
         time_line_mask_reducted = timeline_mask.squeeze(-1)
         time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
@@ -287,7 +287,7 @@ class STU(nn.Module):
             v.reshape(batch_size, self.session_max_len, self.n_heads, self.linear_hidden_dim),
         ).reshape(batch_size, self.session_max_len, self.n_heads * self.linear_hidden_dim)
 
-        # attn_output = self.dropout_attn(attn_output)
+        attn_output = self.dropout_attn(attn_output)
         o_input = u * self.norm_attn_output(attn_output) * timeline_mask
 
         new_outputs = self.output_mlp(self.dropout_mlp(o_input)) + seqs
@@ -335,7 +335,7 @@ class STULayers(TransformerLayersBase):
         session_max_len: int,
         relative_time_attention: bool,
         relative_pos_attention: bool,
-        attn_dropout_rate: float = 0.2,
+        attn_dropout_rate: float = 0.0,
         dropout_rate: float = 0.2,
         epsilon: float = 1e-6,
         **kwargs: tp.Any,
@@ -345,7 +345,7 @@ class STULayers(TransformerLayersBase):
         self.epsilon = epsilon
         self.stu_blocks = nn.ModuleList(
             [
-                STU(
+                STULayer(
                     n_factors=n_factors,
                     n_heads=n_heads,
                     dropout_rate=dropout_rate,

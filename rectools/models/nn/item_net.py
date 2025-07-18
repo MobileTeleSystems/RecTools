@@ -262,7 +262,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             embedding_dim=n_factors,
             padding_idx=0,
         )
-        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
