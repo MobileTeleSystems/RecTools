@@ -13,9 +13,9 @@
 #  limitations under the License.
 
 import typing as tp
+import warnings
 from typing import Dict
 
-import numpy as np
 import torch
 from torch import nn
 
@@ -36,139 +36,126 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
-from .net_blocks import (
-    LearnableInversePositionalEncoding,
-    PointWiseFeedForward,
-    PositionalEncodingBase,
-    TransformerLayersBase,
-)
+from .net_blocks import LearnableInversePositionalEncoding, PositionalEncodingBase, TransformerLayersBase
+from .sasrec import SASRecDataPreparator
 from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
-class SASRecDataPreparator(TransformerDataPreparatorBase):
-    """Data preparator for SASRecModel.
+class RelativeAttention(torch.nn.Module):
+    """
+    Module calculate relative time and positional attention
 
     Parameters
     ----------
-    session_max_len : int
-        Maximum length of user sequence.
-    batch_size : int
-        How many samples per batch to load.
-    dataloader_num_workers : int
-        Number of loader worker processes.
-    item_extra_tokens : Sequence(Hashable)
-        Which element to use for sequence padding.
-    shuffle_train : bool, default True
-        If ``True``, reshuffles data at each epoch.
-    train_min_user_interactions : int, default 2
-        Minimum length of user sequence. Cannot be less than 2.
-    get_val_mask_func : Callable, default None
-        Function to get validation mask.
-    n_negatives : optional(int), default ``None``
-        Number of negatives for BCE, gBCE and sampled_softmax losses.
-    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
-        Negative sampler.
-    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
-        Additional arguments for the get_val_mask_func.
-        Make sure all dict values have JSON serializable types.
-    extra_cols: optional(List[str]), default ``None``
-        Additional columns from dataset to keep beside of Columns.Inreractions
-    add_unix_ts: bool, default ``False``
-        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
-        from the beginning of the epoch
+    session_max_len : int.
+        Maximum length of user sequence padded or truncated to
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
+    num_buckets: int
+        Max buckets space of timestamps differences quantizes to
     """
 
-    train_session_max_len_addition: int = 1
-
-    def _collate_fn_train(
+    def __init__(
         self,
-        batch: tp.List[BatchElement],
-    ) -> Dict[str, torch.Tensor]:
-        """
-        Truncate each session from right to keep `session_max_len` items.
-        Do left padding until `session_max_len` is reached.
-        Split to `x`, `y`, and `yw`.
-        """
-        batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        y = np.zeros((batch_size, self.session_max_len))
-        yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights, _) in enumerate(batch):
-            x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
-            y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
-            yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
-
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.negative_sampler is not None:
-            batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
+        session_max_len: int,
+        relative_time_attention: bool,
+        relative_pos_attention: bool,
+        num_buckets: int = 128,
+    ) -> None:
+        super().__init__()
+        self.session_max_len = session_max_len
+        self.num_buckets = num_buckets
+        self.relative_time_attention = relative_time_attention
+        self.relative_pos_attention = relative_pos_attention
+        if relative_time_attention:
+            self.time_weights = torch.nn.Parameter(
+                torch.empty(num_buckets + 1).normal_(mean=0, std=0.02),
             )
-        if self.add_unix_ts:
-            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
-            for i, (ses, _, extras) in enumerate(batch):
-                t[i, -len(ses) :] = extras["unix_ts"]
-                len_to_pad = self.session_max_len + 1 - len(ses)
-                if len_to_pad > 0:
-                    t[i, :len_to_pad] = t[i, len_to_pad]
-            batch_dict.update({"unix_ts": torch.LongTensor(t)})
-        return batch_dict
-
-    def _collate_fn_val(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
-        batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights, _) in enumerate(batch):
-            input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
-
-            # take only first target for leave-one-strategy
-            target_idx = [idx for idx, weight in enumerate(ses_weights) if weight != 0][0]
-
-            # ses: [session_len] -> x[i]: [session_max_len]
-            x[i, -len(input_session) :] = input_session[-self.session_max_len :]
-            y[i, -1:] = ses[target_idx]  # y[i]: [1]
-            yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
-
-        batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.negative_sampler is not None:
-            batch_dict["negatives"] = self.negative_sampler.get_negatives(
-                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
+        if relative_pos_attention:
+            self.pos_weights = torch.nn.Parameter(
+                torch.empty(2 * session_max_len - 1).normal_(mean=0, std=0.02),
             )
-        if self.add_unix_ts:
-            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
-            for i, (ses, _, extras) in enumerate(batch):
-                t[i, -len(ses) + 1 :] = extras["unix_ts"][1:]
-                len_to_pad = self.session_max_len + 2 - len(ses)
-                if len_to_pad > 0:
-                    t[i, :len_to_pad] = t[i, len_to_pad]
-            batch_dict.update({"unix_ts": torch.LongTensor(t)})
-        return batch_dict
 
-    def _collate_fn_recommend(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
-        """Right truncation, left padding to session_max_len"""
-        batch_size = len(batch)
-        x = np.zeros((batch_size, self.session_max_len))
-        if self.add_unix_ts:
-            t = np.zeros((batch_size, self.session_max_len + 1))
-            for i, (ses, _, extras) in enumerate(batch):
-                ses = ses[:-1]  # drop dummy item
-                x[i, -len(ses) :] = ses[-self.session_max_len :]
-                t[i, -(len(ses) + 1) :] = extras["unix_ts"][-(self.session_max_len + 1) :]
-                len_to_pad = self.session_max_len - len(ses)
-                if len_to_pad > 0:
-                    t[i, :len_to_pad] = t[i, len_to_pad]
-            return {"x": torch.LongTensor(x), "unix_ts": torch.LongTensor(t)}
-        for i, (ses, _, _) in enumerate(batch):
-            x[i, -len(ses) :] = ses[-self.session_max_len :]
-        return {"x": torch.LongTensor(x)}
+    def _quantization_func(self, diff_timestamps: torch.Tensor) -> torch.Tensor:
+        """Quantizes the space of timestamps differences into buckets"""
+        return (torch.log(torch.abs(diff_timestamps).clamp(min=1)) / 0.301).long()
+
+    def forward_time_attention(self, all_timestamps: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ---------
+        all_timestamps: torch.Tensor (batch_size, session_max_len+1)
+            User sequence of timestamps + 1 target item timestamp
+        Returns
+        ---------
+        torch.Tensor (batch_size, session_max_len, session_max_len)
+            relative time attention
+        """
+        len_expanded = self.session_max_len + 1  # 1 for target item time, needed for time aware
+        batch_size = all_timestamps.size(0)
+        extended_timestamps = torch.cat([all_timestamps, all_timestamps[:, len_expanded - 1 : len_expanded]], dim=1)
+        early_time_binding = extended_timestamps[:, 1:].unsqueeze(2) - extended_timestamps[:, :-1].unsqueeze(1)
+        bucketed_timestamps = torch.clamp(
+            self._quantization_func(early_time_binding),
+            min=0,
+            max=self.num_buckets,
+        ).detach()
+        rel_time_attention = torch.index_select(self.time_weights, dim=0, index=bucketed_timestamps.view(-1)).view(
+            batch_size, len_expanded, len_expanded
+        )
+        # reducted target time
+        rel_time_attention = rel_time_attention[:, :-1, :-1]
+        return rel_time_attention  # (batch_size, session_max_len, session_max_len)
+
+    def forward_pos_attention(self) -> torch.Tensor:
+        """
+        Compute and return the relative positional attention matrix
+
+        Returns
+        -------
+        torch.Tensor (1, session_max_len, session_max_len)
+        """
+        n = self.session_max_len
+        t = nn.functional.pad(self.pos_weights[: 2 * n - 1], [0, n]).repeat(n)
+        t = t[..., :-n].reshape(1, n, 3 * n - 2)
+        r = (2 * n - 1) // 2
+        rel_pos_attention = t[:, :, r:-r]
+        return rel_pos_attention
+
+    def forward(
+        self,
+        batch: Dict[str, torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Compute relative attention biases.
+
+        Parameters
+        ----------
+        batch : Dict[str, torch.Tensor]
+            Could contain payload information, in particular sequence timestamps.
+
+        Returns
+        -------
+        torch.Tensor (batch_size, session_max_len, session_max_len)
+            Variate of sum relative pos/time attention
+        """
+        batch_size = batch["x"].size(0)
+        rel_attn = torch.zeros((batch_size, self.session_max_len, self.session_max_len)).to(batch["x"].device)
+        if self.relative_time_attention:
+            rel_attn += self.forward_time_attention(batch["unix_ts"])
+        if self.relative_pos_attention:
+            rel_attn += self.forward_pos_attention()
+        return rel_attn
 
 
-class SASRecTransformerLayer(nn.Module):
+class STULayer(nn.Module):
     """
-    Exactly SASRec author's transformer block architecture but with pytorch Multi-Head Attention realisation.
+    HSTU author's decoder block architecture rewritten from jagged tensor to dense
 
     Parameters
     ----------
@@ -176,39 +163,86 @@ class SASRecTransformerLayer(nn.Module):
         Latent embeddings size.
     n_heads : int
         Number of attention heads.
+    linear_hidden_dim : int
+        U, V size.
+    attention_dim : int
+        Q, K size.
+    session_max_len : int
+        Maximum length of user sequence padded or truncated to.
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
+    attn_dropout_rate : float
+        Probability of a attention unit to be zeroed.
     dropout_rate : float
         Probability of a hidden unit to be zeroed.
+    epsilon  : float
+        A value passed to LayerNorm for numerical stability
     """
 
     def __init__(
         self,
         n_factors: int,
         n_heads: int,
+        linear_hidden_dim: int,
+        attention_dim: int,
+        session_max_len: int,
+        relative_time_attention: bool,
+        relative_pos_attention: bool,
+        attn_dropout_rate: float,
         dropout_rate: float,
+        epsilon: float,
     ):
         super().__init__()
-        # important: original architecture had another version of MHA
-        self.multi_head_attn = torch.nn.MultiheadAttention(n_factors, n_heads, dropout_rate, batch_first=True)
-        self.q_layer_norm = nn.LayerNorm(n_factors)
-        self.ff_layer_norm = nn.LayerNorm(n_factors)
-        self.feed_forward = PointWiseFeedForward(n_factors, n_factors, dropout_rate, torch.nn.ReLU())
-        self.dropout = torch.nn.Dropout(dropout_rate)
+        self.rel_attn = RelativeAttention(
+            session_max_len=session_max_len,
+            relative_time_attention=relative_time_attention,
+            relative_pos_attention=relative_pos_attention,
+        )
+        self.n_heads = n_heads
+        self.linear_hidden_dim = linear_hidden_dim
+        self.attention_dim = attention_dim
+        self.session_max_len = session_max_len
+        self.uvqk_proj: torch.nn.Parameter = torch.nn.Parameter(
+            torch.empty(
+                (
+                    n_factors,
+                    linear_hidden_dim * 2 * n_heads + attention_dim * n_heads * 2,
+                )
+            ),
+        )
+        self.output_mlp = torch.nn.Linear(
+            in_features=linear_hidden_dim * n_heads,
+            out_features=n_factors,
+        )
+        self.norm_input = nn.LayerNorm(n_factors, eps=epsilon)
+        self.norm_attn_output = nn.LayerNorm(linear_hidden_dim * n_heads, eps=epsilon)
+        self.dropout_mlp = nn.Dropout(dropout_rate)
+        self.dropout_attn = nn.Dropout(attn_dropout_rate)
+        self.silu = nn.SiLU()
 
     def forward(
         self,
         seqs: torch.Tensor,
-        attn_mask: tp.Optional[torch.Tensor],
+        batch: Dict[str, torch.Tensor],
+        attn_mask: torch.Tensor,
+        timeline_mask: torch.Tensor,
         key_padding_mask: tp.Optional[torch.Tensor],
     ) -> torch.Tensor:
         """
-        Forward pass through transformer block.
+        Forward pass through STU.
 
         Parameters
         ----------
         seqs : torch.Tensor
             User sequences of item embeddings.
-        attn_mask : torch.Tensor, optional
-            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+        batch : torch.Tensor
+            Could contain payload information, in particular sequence timestamps.
+        attn_mask : torch.Tensor
+            Mask to use in forward pass of multi-head attention as `attn_mask`.
+        timeline_mask : torch.Tensor
+            Mask marked padding items.
         key_padding_mask : torch.Tensor, optional
             Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
 
@@ -218,32 +252,77 @@ class SASRecTransformerLayer(nn.Module):
         torch.Tensor
             User sequences passed through transformer layers.
         """
-        q = self.q_layer_norm(seqs)
-        mha_output, _ = self.multi_head_attn(
-            q, seqs, seqs, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False
+        batch_size, _, _ = seqs.shape
+        normed_x = self.norm_input(seqs) * timeline_mask  # prevent null emb convert to not null
+        general_transform = torch.matmul(normed_x, self.uvqk_proj)
+        batched_mm_output = self.silu(general_transform) * timeline_mask
+        u, v, q, k = torch.split(
+            batched_mm_output,
+            [
+                self.linear_hidden_dim * self.n_heads,
+                self.linear_hidden_dim * self.n_heads,
+                self.attention_dim * self.n_heads,
+                self.attention_dim * self.n_heads,
+            ],
+            dim=-1,
         )
-        seqs = q + mha_output
-        ff_input = self.ff_layer_norm(seqs)
-        seqs = self.feed_forward(ff_input)
-        seqs = self.dropout(seqs)
-        seqs += ff_input
-        return seqs
+        # (batch_size, n_head, session_max_len, session_max_len), attention on Q, K
+        qk_attn = torch.einsum(
+            "bnhd,bmhd->bhnm",
+            q.view(batch_size, self.session_max_len, self.n_heads, self.attention_dim),
+            k.view(batch_size, self.session_max_len, self.n_heads, self.attention_dim),
+        )
+        # (batch_size, session_max_len, session_max_len).unsqueeze(1) for broadcast
+        qk_attn = qk_attn + self.rel_attn(batch).unsqueeze(1)
+        qk_attn = self.silu(qk_attn) / self.session_max_len
+
+        time_line_mask_reducted = timeline_mask.squeeze(-1)
+        time_line_mask_fix = time_line_mask_reducted.unsqueeze(1) * timeline_mask
+
+        qk_attn = qk_attn * attn_mask.unsqueeze(0).unsqueeze(0) * time_line_mask_fix.unsqueeze(1)
+
+        attn_output = torch.einsum(
+            "bhnm,bmhd->bnhd",
+            qk_attn,
+            v.reshape(batch_size, self.session_max_len, self.n_heads, self.linear_hidden_dim),
+        ).reshape(batch_size, self.session_max_len, self.n_heads * self.linear_hidden_dim)
+
+        attn_output = self.dropout_attn(attn_output)
+        o_input = u * self.norm_attn_output(attn_output) * timeline_mask
+
+        new_outputs = self.output_mlp(self.dropout_mlp(o_input)) + seqs
+
+        return new_outputs
 
 
-class SASRecTransformerLayers(TransformerLayersBase):
+class STULayers(TransformerLayersBase):
     """
-    SASRec transformer blocks.
+    STULayers transformer blocks.
 
     Parameters
     ----------
     n_blocks : int
-        Number of transformer blocks.
+        Numbers of stacked STU.
     n_factors : int
         Latent embeddings size.
     n_heads : int
         Number of attention heads.
-    dropout_rate : float
+    linear_hidden_dim : int
+        U, V size.
+    attention_dim : int
+        Q, K size.
+    session_max_len : int
+        Maximum length of user sequence padded or truncated to.
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
+    attn_dropout_rate : float, default 0.2
+        Probability of an attention unit to be zeroed.
+    dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
+    epsilon  : float, default 1e-6
+        A value passed to LayerNorm for numerical stability
     """
 
     def __init__(
@@ -251,33 +330,48 @@ class SASRecTransformerLayers(TransformerLayersBase):
         n_blocks: int,
         n_factors: int,
         n_heads: int,
-        dropout_rate: float,
+        linear_hidden_dim: int,
+        attention_dim: int,
+        session_max_len: int,
+        relative_time_attention: bool,
+        relative_pos_attention: bool,
+        attn_dropout_rate: float = 0.0,
+        dropout_rate: float = 0.2,
+        epsilon: float = 1e-6,
         **kwargs: tp.Any,
     ):
         super().__init__()
         self.n_blocks = n_blocks
-        self.transformer_blocks = nn.ModuleList(
+        self.epsilon = epsilon
+        self.stu_blocks = nn.ModuleList(
             [
-                SASRecTransformerLayer(
-                    n_factors,
-                    n_heads,
-                    dropout_rate,
+                STULayer(
+                    n_factors=n_factors,
+                    n_heads=n_heads,
+                    dropout_rate=dropout_rate,
+                    linear_hidden_dim=linear_hidden_dim,
+                    attention_dim=attention_dim,
+                    relative_time_attention=relative_time_attention,
+                    relative_pos_attention=relative_pos_attention,
+                    attn_dropout_rate=attn_dropout_rate,
+                    session_max_len=session_max_len,
+                    epsilon=epsilon,
                 )
                 for _ in range(self.n_blocks)
             ]
         )
-        self.last_layernorm = torch.nn.LayerNorm(n_factors, eps=1e-8)
 
-    def forward(
+    def forward(  # type: ignore
         self,
         seqs: torch.Tensor,
         timeline_mask: torch.Tensor,
-        attn_mask: tp.Optional[torch.Tensor],
+        attn_mask: torch.Tensor,
         key_padding_mask: tp.Optional[torch.Tensor],
+        batch: Dict[str, torch.Tensor],
         **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
-        Forward pass through transformer blocks.
+        Forward pass through STU blocks.
 
         Parameters
         ----------
@@ -286,35 +380,38 @@ class SASRecTransformerLayers(TransformerLayersBase):
         timeline_mask : torch.Tensor
             Mask indicating padding elements.
         attn_mask : torch.Tensor, optional
-            Optional mask to use in forward pass of multi-head attention as `attn_mask`.
+            Mask to use in forward pass of multi-head attention as `attn_mask`.
         key_padding_mask : torch.Tensor, optional
-            Optional mask to use in forward pass of multi-head attention as `key_padding_mask`.
-
+            Mask to use in forward pass of multi-head attention as `key_padding_mask`.
+        batch : Dict[str, torch.Tensor]
+            Could contain payload information,in particular sequence timestamps.
 
         Returns
         -------
         torch.Tensor
             User sequences passed through transformer layers.
         """
+        attn_mask = (~attn_mask).int()
         for i in range(self.n_blocks):
             seqs *= timeline_mask  # [batch_size, session_max_len, n_factors]
-            seqs = self.transformer_blocks[i](seqs, attn_mask, key_padding_mask)
+            seqs = self.stu_blocks[i](seqs, batch, attn_mask, timeline_mask, key_padding_mask)
         seqs *= timeline_mask
-        seqs = self.last_layernorm(seqs)
         return seqs
 
 
-class SASRecModelConfig(TransformerModelConfig):
-    """SASRecModel config."""
+class HSTUModelConfig(TransformerModelConfig):
+    """HSTU model config."""
 
     data_preparator_type: TransformerDataPreparatorType = SASRecDataPreparator
-    transformer_layers_type: TransformerLayersType = SASRecTransformerLayers
+    transformer_layers_type: TransformerLayersType = STULayers
     use_causal_attn: bool = True
+    relative_time_attention: bool = True
+    relative_pos_attention: bool = True
 
 
-class SASRecModel(TransformerModelBase[SASRecModelConfig]):
+class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     """
-    SASRec model: transformer-based sequential model with unidirectional attention mechanism and
+    HSTUM model: transformer-based sequential model with unidirectional attention mechanism and
     "Shifted Sequence" training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
 
@@ -324,8 +421,8 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     Advanced training guide:
     https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
     Public benchmark: https://github.com/blondered/bert4rec_repro
-    Original SASRec paper: https://arxiv.org/abs/1808.09781
-    gBCE loss and gSASRec paper: https://arxiv.org/pdf/2308.07192
+    Original paper: https://arxiv.org/abs/2402.17152
+
 
     Parameters
     ----------
@@ -375,6 +472,10 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         SASRec training task ("Shifted Sequence") does not work without causal masking. Set this
         parameter to ``False`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
+    relative_time_attention : bool
+        Flag activate computing relative time attention.
+    relative_pos_attention : bool
+        Flag activate computing relative positional attention.
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
@@ -384,9 +485,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of item net blocks aggregation constructor.
     pos_encoding_type : type(PositionalEncodingBase), default `LearnableInversePositionalEncoding`
         Type of positional encoding.
-    transformer_layers_type : type(TransformerLayersBase), default `SasRecTransformerLayers`
+    transformer_layers_type : type(TransformerLayersBase), default `STULayers`
         Type of transformer layers architecture.
-    data_preparator_type : type(TransformerDataPreparatorBase), default `SasRecDataPreparator`
+    data_preparator_type : type(TransformerDataPreparatorBase), default `HSTUDataPreparator`
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
@@ -444,9 +545,18 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     backbone_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `backbone_type` initialization.
         Make sure all dict values have JSON serializable types.
+        Let's add comment about our changes for default module kwargs:
+
+    To precisely follow the original authors implementations of the model,
+    the following kwargs for specific modules will be replaced from their default versions
+    used in other Transformer models:
+    1)use_scale_factor in pos_encoding_kwargs will be set to True
+    2)distance in similarity_module_kwargs will be set to cosine
+     if not explicitly provided as others options
+
     """
 
-    config_class = SASRecModelConfig
+    config_class = HSTUModelConfig
 
     def __init__(  # pylint: disable=too-many-arguments, too-many-locals
         self,
@@ -468,10 +578,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         use_pos_emb: bool = True,
         use_key_padding_mask: bool = False,
         use_causal_attn: bool = True,
+        relative_time_attention: bool = True,
+        relative_pos_attention: bool = True,
         item_net_block_types: tp.Sequence[tp.Type[ItemNetBase]] = (IdEmbeddingsItemNet, CatFeaturesItemNet),
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
-        transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
+        transformer_layers_type: tp.Type[TransformerLayersBase] = STULayers,
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
         negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
@@ -494,6 +606,15 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         similarity_module_kwargs: tp.Optional[InitKwargs] = None,
         backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
+        if n_factors % n_heads != 0:
+            raise ValueError("n_factors must be divisible by n_heads without remainder")
+        if use_key_padding_mask:
+            warnings.warn(
+                "'use_key_padding_mask' is not supported for HSTU and enforced to False.", UserWarning, stacklevel=2
+            )
+            use_key_padding_mask = False
+        self.relative_time_attention = relative_time_attention
+        self.relative_pos_attention = relative_pos_attention
         super().__init__(
             transformer_layers_type=transformer_layers_type,
             data_preparator_type=data_preparator_type,
@@ -539,3 +660,73 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             similarity_module_kwargs=similarity_module_kwargs,
             backbone_kwargs=backbone_kwargs,
         )
+
+    def _init_transformer_layers(self) -> TransformerLayersBase:
+        head_dim = self.n_factors // self.n_heads
+        return self.transformer_layers_type(
+            n_blocks=self.n_blocks,
+            n_factors=self.n_factors,
+            n_heads=self.n_heads,
+            session_max_len=self.session_max_len,
+            attention_dim=head_dim,
+            linear_hidden_dim=head_dim,
+            dropout_rate=self.dropout_rate,
+            relative_time_attention=self.relative_time_attention,
+            relative_pos_attention=self.relative_pos_attention,
+            **self._get_kwargs(self.transformer_layers_kwargs),
+        )
+
+    def _init_data_preparator(self) -> None:
+        requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
+        if self.data_preparator_kwargs is None:
+            data_preparator_kwargs = {}
+        else:
+            data_preparator_kwargs = self.data_preparator_kwargs.copy()
+        if self.relative_time_attention:
+            data_preparator_kwargs["add_unix_ts"] = True
+        self.data_preparator = self.data_preparator_type(
+            session_max_len=self.session_max_len,
+            batch_size=self.batch_size,
+            dataloader_num_workers=self.dataloader_num_workers,
+            train_min_user_interactions=self.train_min_user_interactions,
+            negative_sampler=self._init_negative_sampler() if requires_negatives else None,
+            n_negatives=self.n_negatives if requires_negatives else None,
+            get_val_mask_func=self.get_val_mask_func,
+            get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
+            **data_preparator_kwargs,
+        )
+
+    def _init_similarity_module(self) -> SimilarityModuleBase:
+        if self.similarity_module_kwargs is None:
+            similarity_module_kwargs = {}
+        else:
+            similarity_module_kwargs = self.similarity_module_kwargs.copy()
+        if "distance" not in similarity_module_kwargs:
+            similarity_module_kwargs["distance"] = "cosine"
+        return self.similarity_module_type(**similarity_module_kwargs)
+
+    def _init_pos_encoding_layer(self) -> PositionalEncodingBase:
+        if self.pos_encoding_kwargs is None:
+            pos_encoding_kwargs = {}
+        else:
+            pos_encoding_kwargs = self.pos_encoding_kwargs.copy()
+        if "use_scale_factor" not in pos_encoding_kwargs:
+            pos_encoding_kwargs["use_scale_factor"] = True
+        return self.pos_encoding_type(
+            self.use_pos_emb,
+            self.session_max_len,
+            self.n_factors,
+            **pos_encoding_kwargs,
+        )
+
+    @property
+    def require_recommend_context(self) -> bool:
+        """
+        Return flag is model needed in context to correct recommend
+
+        -------
+        bool
+        """
+        if self.relative_time_attention:
+            return True
+        return False
