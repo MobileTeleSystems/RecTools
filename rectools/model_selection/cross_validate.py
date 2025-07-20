@@ -11,8 +11,9 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+import time
 import typing as tp
+from contextlib import contextmanager
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
@@ -22,6 +23,26 @@ from rectools.models.base import ErrorBehaviour, ModelBase
 from rectools.types import ExternalIds
 
 from .splitter import Splitter
+
+
+@contextmanager
+def compute_timing(label: str, timings: tp.Optional[tp.Dict[str, float]] = None) -> tp.Iterator[None]:
+    """
+    Context manager to compute timing for a code block.
+
+    Parameters
+    ----------
+    label : str
+        Label to store the timing result in the timings dictionary.
+    timings : dict, optional
+        Dictionary to store the timing results. If None, timing is not recorded.
+    """
+    if timings is not None:
+        start_time = time.time()
+        yield
+        timings[label] = round(time.time() - start_time, 5)
+    else:
+        yield
 
 
 def cross_validate(  # pylint: disable=too-many-locals
@@ -36,6 +57,7 @@ def cross_validate(  # pylint: disable=too-many-locals
     ref_models: tp.Optional[tp.List[str]] = None,
     validate_ref_models: bool = False,
     on_unsupported_targets: ErrorBehaviour = "warn",
+    compute_timings: bool = False,
 ) -> tp.Dict[str, tp.Any]:
     """
     Run cross validation on multiple models with multiple metrics.
@@ -123,28 +145,16 @@ def cross_validate(  # pylint: disable=too-many-locals
 
         # ### Train ref models if any
         ref_reco = {}
+        ref_timings = {}
         for model_name in ref_models or []:
             model = models[model_name]
-            model.fit(fold_dataset)
-            ref_reco[model_name] = model.recommend(
-                users=test_users,
-                dataset=fold_dataset,
-                k=k,
-                filter_viewed=filter_viewed,
-                items_to_recommend=items_to_recommend,
-                on_unsupported_targets=on_unsupported_targets,
-            )
+            model_timings: tp.Optional[tp.Dict[str, float]] = {} if compute_timings and validate_ref_models else None
 
-        # ### Generate recommendations and calc metrics
-        for model_name, model in models.items():
-            if model_name in ref_reco and not validate_ref_models:
-                continue
-
-            if model_name in ref_reco:
-                reco = ref_reco[model_name]
-            else:
+            with compute_timing("fit_time", model_timings):
                 model.fit(fold_dataset)
-                reco = model.recommend(
+
+            with compute_timing("recommend_time", model_timings):
+                ref_reco[model_name] = model.recommend(
                     users=test_users,
                     dataset=fold_dataset,
                     k=k,
@@ -152,6 +162,33 @@ def cross_validate(  # pylint: disable=too-many-locals
                     items_to_recommend=items_to_recommend,
                     on_unsupported_targets=on_unsupported_targets,
                 )
+
+            ref_timings[model_name] = model_timings or {}
+
+        # ### Generate recommendations and calc metrics
+        for model_name, model in models.items():
+            if model_name in ref_reco and not validate_ref_models:
+                continue
+            if model_name in ref_reco:
+                reco = ref_reco[model_name]
+                model_timing = ref_timings[model_name]
+            else:
+                model_timings: tp.Optional[tp.Dict[str, float]] = {} if compute_timings else None  # type: ignore
+
+                with compute_timing("fit_time", model_timings):
+                    model.fit(fold_dataset)
+
+                with compute_timing("recommend_time", model_timings):
+                    reco = model.recommend(
+                        users=test_users,
+                        dataset=fold_dataset,
+                        k=k,
+                        filter_viewed=filter_viewed,
+                        items_to_recommend=items_to_recommend,
+                        on_unsupported_targets=on_unsupported_targets,
+                    )
+
+                model_timing = model_timings or {}
 
             metric_values = calc_metrics(
                 metrics,
@@ -163,6 +200,7 @@ def cross_validate(  # pylint: disable=too-many-locals
             )
             res = {"model": model_name, "i_split": split_info["i_split"]}
             res.update(metric_values)
+            res.update(model_timing)
             metrics_all.append(res)
 
     result = {"splits": split_infos, "metrics": metrics_all}
