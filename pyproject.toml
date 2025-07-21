@@ -96,15 +96,20 @@ pytorch-lightning = [
 ipywidgets = {version = ">=7.7,<8.2", optional = true}
 plotly = {version="^5.22.0", optional = true}
 nbformat = {version = ">=4.2.0", optional = true}
+
+# cupy-cuda12x is incompatible with MacOS.
+# It's possible to install pure `cupy` and it will be fully compatible
+# but it will work only with CPU and will be slower than `numpy`.
+# That's why we don't install cupy at all on MacOS and handle it during the import.
 cupy-cuda12x = [
-    {version = "^13.3.0", python = "<3.13", optional = true},
-    {version = "^13.4.0", python = ">=3.13", optional = true},
+    {version = "^13.3.0", python = "<3.13", markers = "sys_platform != 'darwin'", optional = true},
+    {version = "^13.4.0", python = ">=3.13", markers = "sys_platform != 'darwin'", optional = true},
 ]
 # This is a dependency of cupy-cuda12x
 # poetry can't resolve appropriate version of fastrlock for Python 3.13
 # and cupy-cuda12x, so we add the version restriction here manually to avoid
 # installing older version of fastrlock which is incompatible with Python 3.13
-fastrlock = {version = "^0.8.3", optional = true}
+fastrlock = {version = "^0.8.3", markers = "sys_platform != 'darwin'", optional = true}
 
 [tool.poetry.extras]
 lightfm = ["rectools-lightfm"]
@@ -117,7 +122,7 @@ all = [
     "nmslib", "nmslib-metabrainz",
     "torch", "pytorch-lightning",
     "ipywidgets", "plotly", "nbformat",
-    "cupy-cuda12x",
+    "cupy", "cupy-cuda12x",
 ]
 
 

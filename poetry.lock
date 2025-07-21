@@ -4677,4 +4677,4 @@ visuals = ["ipywidgets", "nbformat", "plotly"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9, <3.14"
-content-hash = "f9193a17a09f4a12e75c1653e0276e10a877bcf357b62a8c1c03b513c5aa6ce1"
+content-hash = "9eb1de1ca5d8af9cedd22f61fc863c56dbef50203a40aa222d2ade2c633e8a4b"
