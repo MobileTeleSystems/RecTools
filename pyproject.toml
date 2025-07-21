@@ -122,7 +122,7 @@ all = [
     "nmslib", "nmslib-metabrainz",
     "torch", "pytorch-lightning",
     "ipywidgets", "plotly", "nbformat",
-    "cupy", "cupy-cuda12x",
+    "cupy-cuda12x",
 ]
 
 
