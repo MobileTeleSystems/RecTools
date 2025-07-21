@@ -18,21 +18,27 @@ import typing as tp
 
 import pandas as pd
 import pytest
+import torch
 from implicit.als import AlternatingLeastSquares
+from pytorch_lightning import seed_everything
 
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset
-from rectools.metrics import Intersection, Precision, Recall
+from rectools.dataset.context import get_context
+from rectools.metrics import Intersection, Precision, Recall, calc_metrics
 from rectools.metrics.base import MetricAtK
 from rectools.model_selection import LastNSplitter, cross_validate
 from rectools.models import ImplicitALSWrapperModel, PopularModel, RandomModel
 from rectools.models.base import ModelBase
+from rectools.models.nn.transformers.hstu import HSTUModel
 
 a = pytest.approx
 
 
 class TestCrossValidate:
     def setup_method(self) -> None:
+        torch.use_deterministic_algorithms(True)
+        seed_everything(32, workers=True)
         interactions_df = pd.DataFrame(
             [
                 [10, 11, 1, 101],
@@ -373,3 +379,75 @@ class TestCrossValidate:
         }
 
         assert actual == expected
+
+    @pytest.mark.parametrize(
+        "as_ref_model,expected_metrics",
+        (
+            (
+                False,
+                [
+                    {"model": "hstu", "i_split": 0, "precision@2": 0.375, "recall@1": 0.0},
+                ],
+            ),
+            (
+                True,
+                [
+                    {"model": "hstu", "i_split": 0, "precision@2": 0.375, "recall@1": 0.0},
+                ],
+            ),
+        ),
+    )
+    def test_context_preprocessing(
+        self,
+        as_ref_model: bool,
+        expected_metrics: tp.List[tp.Dict[str, tp.Any]],
+    ) -> None:
+        # self._seed_everything()
+        splitter = LastNSplitter(n=1, n_splits=1, filter_cold_items=False, filter_already_seen=False)
+        models = {"hstu": HSTUModel()}
+        ref_models = []
+        if as_ref_model:
+            ref_models = ["hstu"]
+        actual_cv = cross_validate(
+            dataset=self.dataset,
+            splitter=splitter,
+            metrics=self.metrics,
+            models=models,  # type: ignore[arg-type]
+            k=2,
+            filter_viewed=False,
+            ref_models=ref_models,
+            validate_ref_models=True,
+        )
+        hstu_no_envelope = HSTUModel()
+        (train_ids, test_ids, split_info) = next(splitter.split(self.dataset.interactions, collect_fold_stats=False))
+        train = self.dataset.filter_interactions(
+            row_indexes_to_keep=train_ids,
+            keep_external_ids=True,
+        )
+        test = self.dataset.interactions.df.loc[test_ids]
+        test[Columns.User] = self.dataset.user_id_map.convert_to_external(test[Columns.User])
+        test[Columns.Item] = self.dataset.item_id_map.convert_to_external(test[Columns.Item])
+        test_users = test[Columns.User].unique()
+        train_external = train.get_raw_interactions()
+
+        hstu_no_envelope.fit(train)
+        reco = hstu_no_envelope.recommend(
+            users=test_users,
+            dataset=train,
+            k=2,
+            filter_viewed=False,
+            on_unsupported_targets="warn",
+            context=get_context(test),
+        )
+        metric_values = calc_metrics(
+            self.metrics,
+            reco=reco,
+            interactions=test,
+            prev_interactions=train_external,
+            catalog=train_external[Columns.Item].unique(),
+        )
+        res_no_env = {"model": "hstu", "i_split": split_info["i_split"]}
+        res_no_env.update(metric_values)
+        metrics_no_env = [res_no_env]
+        assert actual_cv["metrics"] == expected_metrics
+        assert actual_cv["metrics"] == metrics_no_env

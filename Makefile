@@ -2,7 +2,7 @@ VENV=.venv
 REPORTS=.reports
 
 BENCHMARK=benchmark
-SOURCES=rectools examples/tutorials/utils.py
+SOURCES=rectools
 TESTS=tests
 SCRIPTS=scripts
 

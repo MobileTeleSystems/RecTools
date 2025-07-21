@@ -400,14 +400,14 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
         if context is not None:
-            if not (pd.Series(users).isin(context[Columns.User])).all():
+            if not pd.Series(users).isin(context[Columns.User].unique()).all():
                 raise ValueError("No context for some target users")
             if context.duplicated(subset=Columns.User).any():
                 raise ValueError(
-                    "Duplicated user entries found in context. " "Each user must have exactly one context row."
+                    "Duplicated user entries found in context. Each user must have exactly one context row."
                 )
             context[Columns.Item] = PADDING_VALUE  # External index pad element
-            context = context[context[Columns.User].isin(interactions[Columns.User])]
+            context = context[context[Columns.User].isin(interactions[Columns.User].unique())]
             interactions = pd.concat([interactions, context])
         if self.add_unix_ts:
             interactions["unix_ts"] = self._convert_to_unix_ts(interactions[Columns.Datetime])

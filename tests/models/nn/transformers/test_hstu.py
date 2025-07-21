@@ -9,9 +9,9 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import CSVLogger
 
-import rectools.dataset.context as context_prep
 from rectools.columns import Columns
 from rectools.dataset import Dataset
+from rectools.dataset.context import get_context
 from rectools.models import HSTUModel
 from rectools.models.nn.item_net import IdEmbeddingsItemNet, SumOfEmbeddingsConstructor
 from rectools.models.nn.transformers.base import LearnableInversePositionalEncoding, TransformerLightningModule
@@ -168,7 +168,7 @@ class TestHSTUModel:
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
         if model.require_recommend_context:
-            context = context_prep.get_context(context_df)
+            context = get_context(context_df)
         else:
             context = None
         if relative_time_attention:
@@ -187,7 +187,7 @@ class TestHSTUModel:
         )
 
     @pytest.mark.parametrize(
-        "target_users,context,expected_reco,has_to_fall",
+        "target_users,context,expected_reco",
         (
             (
                 [10, 30, 40],
@@ -204,7 +204,6 @@ class TestHSTUModel:
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
-                False,
             ),
             (
                 [10, 30, 40],
@@ -221,13 +220,12 @@ class TestHSTUModel:
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
-                False,
             ),
             (
                 [10, 30, 40],
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 30, 40, 30, 40],
+                        Columns.User: [10, 30, 40, 30, 40],  # Added some timestamps just to show that it changes reco
                         Columns.Datetime: ["2021-12-12", "2021-12-12", "2021-12-12", "2000-01-01", "2000-01-01"],
                     }
                 ),
@@ -238,7 +236,23 @@ class TestHSTUModel:
                         Columns.Rank: [1, 1, 2],
                     }
                 ),
-                False,
+            ),
+            (
+                [10, 30, 40],
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 30, 40, 30, 40, 40],
+                        Columns.Datetime: [
+                            "2021-12-12",
+                            "2021-12-12",
+                            "2021-12-12",
+                            "2000-01-01",
+                            "2000-01-01",
+                            "2001-01-01",
+                        ],
+                    }
+                ),
+                None,
             ),
             (
                 [10, 30, 40],
@@ -249,7 +263,6 @@ class TestHSTUModel:
                     }
                 ),
                 None,
-                True,
             ),
             (
                 [10, 30, 40],
@@ -260,7 +273,6 @@ class TestHSTUModel:
                     }
                 ),
                 None,
-                True,
             ),
         ),
     )
@@ -269,7 +281,6 @@ class TestHSTUModel:
         dataset_devices: Dataset,
         target_users: tp.List[int],
         context: pd.DataFrame,
-        has_to_fall: bool,
         expected_reco: tp.Optional[pd.DataFrame],
     ) -> None:
         self.setup_method()
@@ -302,12 +313,16 @@ class TestHSTUModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
-        context = context_prep.get_context(context)
-        if has_to_fall:
+        if context.duplicated(subset=Columns.User).any():
+            error_match = "Duplicated user entries found in context. Each user must have exactly one context row."
+            with pytest.raises(ValueError, match=error_match):
+                model.recommend(users=target_users, dataset=dataset_devices, k=3, filter_viewed=True, context=context)
+        elif not pd.Series(target_users).isin(context[Columns.User].unique()).all():
             error_match = "No context for some target users"
             with pytest.raises(ValueError, match=error_match):
                 model.recommend(users=target_users, dataset=dataset_devices, k=3, filter_viewed=True, context=context)
         else:
+            context = get_context(context)  # guarantees correct context preprocessing
             actual = model.recommend(
                 users=target_users, dataset=dataset_devices, k=3, filter_viewed=True, context=context
             )
@@ -459,6 +474,7 @@ class TestHSTUModelConfiguration:
             "relative_time_attention": True,  # if true add_unix_ts forced to True
             "similarity_module_kwargs": similarity_module_kwargs,
             "pos_encoding_kwargs": pos_encoding_kwargs,
+            "data_preparator_kwargs": data_preparator_kwargs,
         }
 
         model = HSTUModel.from_config(config)
@@ -476,9 +492,9 @@ class TestHSTUModelConfiguration:
             assert getattr(model.lightning_model.torch_model.similarity_module, key) == config_value
         for key, config_value in pos_encoding_kwargs.items():
             assert getattr(model.lightning_model.torch_model.pos_encoding_layer, key) == config_value
-        for key, config_value in similarity_module_kwargs.items():
+        for key, config_value in data_preparator_kwargs.items():
             if key == "add_unix_ts":
-                assert getattr(model.lightning_model.torch_model.pos_encoding_layer, key) is True
+                assert getattr(model.data_preparator, key) is True
 
     @pytest.mark.parametrize("use_custom_trainer", (True, False))
     def test_from_config(self, initial_config: tp.Dict[str, tp.Any], use_custom_trainer: bool) -> None:
@@ -555,7 +571,7 @@ class TestHSTUModelConfiguration:
                 dataset=dataset,
                 k=2,
                 filter_viewed=False,
-                context=context_prep.get_context(context_df),
+                context=get_context(context_df),
             )
 
         model_1 = model.from_config(initial_config)
