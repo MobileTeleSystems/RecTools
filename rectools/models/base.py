@@ -453,9 +453,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         """
         if self.require_recommend_context and (context is None):
             raise ValueError(
-                f"Mismatch between require_recommend_context ({self.require_recommend_context}) "
-                f"and context presence ({context is not None}). "
-                "Context must be provided when 'require_recommend_context' is True."
+                "This model requires `context` to be provided for recommendations generation "
+                f"(model.require_recommend_context is {self.require_recommend_context})."
+                "Check docs and examples for details."
             )
         if not self.require_recommend_context and (context is not None):
             context = None

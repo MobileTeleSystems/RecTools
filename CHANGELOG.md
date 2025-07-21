@@ -10,13 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 -  HSTU Model implemented in the class `HSTUModel`
 - `leave_one_out_mask` function (`rectools.models.nn.transformers.utils.leave_one_out_mask`) for applying leave-one-out validation during transformer models training.([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
-- `logits_t` argument to `TransformerLightningModuleBase`. It is used to scale logits when computing the loss.  ([#290](https://github.com/MobileTeleSystems/RecTools/pull/292))
-- `use_scale_factor` argument to `LearnableInversePositionalEncoding`. It scales embeddings by the square root of their dimension — following the original approach from the "Attention Is All You Need" ([#290](https://github.com/MobileTeleSystems/RecTools/pull/292))
+- `logits_t` argument to `TransformerLightningModuleBase`. It is used to scale logits when computing the loss.  ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- `use_scale_factor` argument to `LearnableInversePositionalEncoding`. It scales embeddings by the square root of their dimension — following the original approach from the "Attention Is All You Need" ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
 -  Added optional `context` argument to recommend method of models and `get_context` function to `rectools.dataset.context.py`
-### Changed
--  Removed `Dropout` module from `IdEmbeddingsItemNet`. This changes model behaviour during training, so model results starting from this release might slightly differ from previous RecTools versions even when the random seed is fixed.([#290](https://github.com/MobileTeleSystems/RecTools/pull/292))
 ### Fixed
-- [Breaking] Corrected computation of `cosine` distance in `DistanceSimilarityModule`([#290](https://github.com/MobileTeleSystems/RecTools/pull/292))
+- [Breaking] Corrected computation of `cosine` distance in `DistanceSimilarityModule`([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+### Removed
+- [Breaking] `Dropout` module from `IdEmbeddingsItemNet`. This changes model behaviour during training, so model results starting from this release might slightly differ from previous RecTools versions even when the random seed is fixed.([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
 
 ## [0.15.0] - 17.07.2025
 

@@ -287,6 +287,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         Name of the training loss.
     val_loss_name : str, default "val_loss"
         Name of the training loss.
+    logits_t : float, default 1
+        Scale factor for logits.
     """
 
     i2i_dist = Distance.COSINE

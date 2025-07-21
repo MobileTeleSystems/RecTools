@@ -173,9 +173,9 @@ class TestHSTUModel:
             context = None
         if relative_time_attention:
             error_match = re.escape(
-                f"Mismatch between require_recommend_context ({model.require_recommend_context}) "
-                f"and context presence (False). "
-                "Context must be provided when 'require_recommend_context' is True."
+                "This model requires `context` to be provided for recommendations generation "
+                f"(model.require_recommend_context is {model.require_recommend_context})."
+                "Check docs and examples for details."
             )
             with pytest.raises(ValueError, match=error_match):
                 model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=True, context=None)
@@ -304,7 +304,7 @@ class TestHSTUModel:
         model.fit(dataset=dataset_devices)
         context = context_prep.get_context(context)
         if has_to_fall:
-            error_match = "No context for all target users"
+            error_match = "No context for some target users"
             with pytest.raises(ValueError, match=error_match):
                 model.recommend(users=target_users, dataset=dataset_devices, k=3, filter_viewed=True, context=context)
         else:

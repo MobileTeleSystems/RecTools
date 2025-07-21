@@ -23,7 +23,6 @@ from scipy import sparse
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 
-import rectools.dataset.context as context_prep
 from rectools import Columns, ExternalIds
 from rectools.dataset import Dataset, Interactions
 from rectools.dataset.features import DenseFeatures, Features, SparseFeatures
@@ -371,7 +370,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         users : ExternalIds
             Array of external user ids to recommend for.
         context : optional(pd.DataFrame), default  ``None``
-        Optional DataFrame containing additional user context information (e.g., session features,
+            Optional DataFrame containing additional user context information (e.g., session features,
         demographics).
 
         Returns
@@ -402,10 +401,11 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
 
         if context is not None:
             if not (pd.Series(users).isin(context[Columns.User])).all():
-                raise ValueError("No context for all target users")
+                raise ValueError("No context for some target users")
             if context.duplicated(subset=Columns.User).any():
-                warnings.warn("Only the earliest row per user is used as context", UserWarning)
-                context = context_prep.get_context(context)
+                raise ValueError(
+                    "Duplicated user entries found in context. " "Each user must have exactly one context row."
+                )
             context[Columns.Item] = PADDING_VALUE  # External index pad element
             context = context[context[Columns.User].isin(interactions[Columns.User])]
             interactions = pd.concat([interactions, context])

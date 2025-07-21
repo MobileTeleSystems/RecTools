@@ -121,7 +121,9 @@ def cross_validate(  # pylint: disable=too-many-locals
         test_users = interactions_df_test[Columns.User].unique()
         prev_interactions = fold_dataset.get_raw_interactions()
         catalog = prev_interactions[Columns.Item].unique()
-        test_fold_context = get_context(interactions_df_test)
+        test_fold_context = None
+        if any(model.require_recommend_context for _, model in models.items()):
+            test_fold_context = get_context(interactions_df_test)
         # ### Train ref models if any
         ref_reco = {}
         for model_name in ref_models or []:

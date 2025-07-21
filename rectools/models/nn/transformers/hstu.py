@@ -44,7 +44,7 @@ from .similarity import DistanceSimilarityModule, SimilarityModuleBase
 from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
-class RelativeAttention(torch.nn.Module):
+class RelativeAttentionBias(torch.nn.Module):
     """
     Module calculate relative time and positional attention
 
@@ -170,9 +170,9 @@ class STULayer(nn.Module):
     session_max_len : int
         Maximum length of user sequence padded or truncated to.
     relative_time_attention : bool
-        Flag activate computing relative time attention.
+        Whether to use relative time attention.
     relative_pos_attention : bool
-        Flag activate computing relative positional attention.
+        Whether to use relative positional attention
     attn_dropout_rate : float
         Probability of a attention unit to be zeroed.
     dropout_rate : float
@@ -195,7 +195,7 @@ class STULayer(nn.Module):
         epsilon: float,
     ):
         super().__init__()
-        self.rel_attn = RelativeAttention(
+        self.rel_attn = RelativeAttentionBias(
             session_max_len=session_max_len,
             relative_time_attention=relative_time_attention,
             relative_pos_attention=relative_pos_attention,
@@ -314,9 +314,9 @@ class STULayers(TransformerLayersBase):
     session_max_len : int
         Maximum length of user sequence padded or truncated to.
     relative_time_attention : bool
-        Flag activate computing relative time attention.
+        Whether to use relative time attention.
     relative_pos_attention : bool
-        Flag activate computing relative positional attention.
+        Whether to use relative positional attention
     attn_dropout_rate : float, default 0.2
         Probability of an attention unit to be zeroed.
     dropout_rate : float, default 0.2
@@ -417,9 +417,8 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
 
     References
     ----------
-    Transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_tutorial.html
+    Transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_HSTU_tutorial.html
     Advanced training guide:
-    https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_advanced_training_guide.html
     Public benchmark: https://github.com/blondered/bert4rec_repro
     Original paper: https://arxiv.org/abs/2402.17152
 
@@ -473,9 +472,9 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
         parameter to ``False`` only when you change the training task with custom
         `data_preparator_type` or if you are absolutely sure of what you are doing.
     relative_time_attention : bool
-        Flag activate computing relative time attention.
+        Whether to use relative time attention.
     relative_pos_attention : bool
-        Flag activate computing relative positional attention.
+        Whether to use relative positional attention
     item_net_block_types : sequence of `type(ItemNetBase)`, default `(IdEmbeddingsItemNet, CatFeaturesItemNet)`
         Type of network returning item embeddings.
         (IdEmbeddingsItemNet,) - item embeddings based on ids.
