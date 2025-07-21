@@ -92,7 +92,7 @@ class TestImplicitBPRWrapperModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [11, 17, 11, 17],
+                        Columns.Item: [11, 12, 11, 17],
                         Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
