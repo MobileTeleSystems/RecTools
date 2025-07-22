@@ -299,7 +299,7 @@ class TestBERT4RecModel:
             expected = expected_gpu_2
         users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
-    
+
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
