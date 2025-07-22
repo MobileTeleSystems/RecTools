@@ -14,6 +14,7 @@
 
 import typing as tp
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -23,6 +24,9 @@ from rectools.models.nn.transformers.utils import leave_one_out_mask
 
 
 class TestLeaveOneOutMask:
+    def setup_method(self) -> None:
+        np.random.seed(32)
+
     @pytest.fixture
     def interactions(self) -> Interactions:
         df = pd.DataFrame(
@@ -47,10 +51,10 @@ class TestLeaveOneOutMask:
         (
             ([9, 9], [7, 8, 9], 6, None),
             ([9, 9], [7, 8, 9], 6, 3),
-            ([9, 9], [7, 9], 6, 2),
+            ([9, 9], [8, 9], 6, 2),
             ([4, 9], [7, 8, 9], 3, None),
             ([4, 9], [7, 8, 9], 3, 3),
-            ([4, 9], [7, 9], 3, 2),
+            ([4, 9], [8, 9], 3, 2),
             ([7, 7], [7, 8], 2, [2, 3]),
             ([5, 7], [7, 8], 3, [2, 3]),
             ([8, 8], [8], 1, [3]),
