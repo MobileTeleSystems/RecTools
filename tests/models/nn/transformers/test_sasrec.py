@@ -556,9 +556,9 @@ class TestSASRecModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 13, 14, 14, 12, 15, 17, 13, 14],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.TargetItem: [12, 12, 12, 17, 17, 17],
+                        Columns.Item: [12, 13, 14, 17, 13, 14],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
@@ -567,9 +567,9 @@ class TestSASRecModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [13, 14, 11, 12, 15, 17, 13, 14, 11],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.TargetItem: [12, 12, 12, 17, 17, 17],
+                        Columns.Item: [13, 14, 11, 13, 14, 11],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
@@ -607,7 +607,7 @@ class TestSASRecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
-        target_items = np.array([12, 14, 17])
+        target_items = np.unique(expected[Columns.TargetItem])
         actual = model.recommend_to_items(
             target_items=target_items,
             dataset=dataset,

@@ -91,9 +91,9 @@ class TestImplicitBPRWrapperModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [11, 12, 11, 17],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.User: [20, 20],
+                        Columns.Item: [11, 17],
+                        Columns.Rank: [1, 2],
                     }
                 ),
                 pd.DataFrame(
@@ -120,7 +120,7 @@ class TestImplicitBPRWrapperModel:
         self._init_model_factors_inplace(base_model, dataset)
         model = ImplicitBPRWrapperModel(model=base_model).fit(dataset)
         actual = model.recommend(
-            users=np.array([10, 20]),
+            users=np.unique(expected_cpu[Columns.User]),
             dataset=dataset,
             k=2,
             filter_viewed=filter_viewed,

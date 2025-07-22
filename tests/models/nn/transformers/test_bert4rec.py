@@ -217,9 +217,9 @@ class TestBERT4RecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 13, 11, 12, 13, 11, 12, 13, 11],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 30, 40, 40, 40],
+                        Columns.Item: [12, 13, 11, 12, 13, 11],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
@@ -289,8 +289,6 @@ class TestBERT4RecModel:
             similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
-        users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
         if accelerator == "cpu" and n_devices == 1:
             expected = expected_cpu_1
         elif accelerator == "cpu" and n_devices == 2:
@@ -299,6 +297,9 @@ class TestBERT4RecModel:
             expected = expected_gpu_1
         else:
             expected = expected_gpu_2
+        users = np.unique(expected[Columns.User])
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
+    
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -392,9 +393,9 @@ class TestBERT4RecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 40, 40],
-                        Columns.Item: [13, 11, 13, 11, 13, 11],
-                        Columns.Rank: [1, 2, 1, 2, 1, 2],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [13, 11, 13, 11],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -421,7 +422,7 @@ class TestBERT4RecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         items_to_recommend = np.array([11, 13, 17])
         actual = model.recommend(
             users=users,
