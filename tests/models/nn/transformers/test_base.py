@@ -31,10 +31,11 @@ from rectools.dataset import Dataset
 from rectools.models import BERT4RecModel, SASRecModel, load_model
 from rectools.models.nn.transformers.base import TransformerModelBase
 from rectools.models.nn.transformers.lightning import TransformerLightningModule
+from rectools.models.nn.transformers.utils import leave_one_out_mask
 from tests.models.data import INTERACTIONS
 from tests.models.utils import assert_save_load_do_not_change_model
 
-from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt, leave_one_out_mask
+from .utils import custom_trainer, custom_trainer_ckpt, custom_trainer_multiple_ckpt
 
 
 def assert_torch_models_equal(model_a: nn.Module, model_b: nn.Module) -> None:
@@ -200,7 +201,7 @@ class TestTransformerModelBase:
         "model_params_update",
         (
             {
-                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "get_val_mask_func": "rectools.models.nn.transformers.utils.leave_one_out_mask",
                 "get_trainer_func": "tests.models.nn.transformers.utils.custom_trainer",
             },
             {
