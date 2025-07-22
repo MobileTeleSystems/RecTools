@@ -6,9 +6,7 @@ import pandas as pd
 from rectools import Columns, ExternalIds
 
 
-def leave_one_out_mask(
-    interactions: pd.DataFrame, val_users: tp.Optional[tp.Union[ExternalIds, int]] = None
-) -> np.ndarray:
+def leave_one_out_mask(interactions: pd.DataFrame, val_users: tp.Union[ExternalIds, int, None] = None) -> np.ndarray:
     """
     Create a boolean mask for leave-one-out validation by selecting the last interaction per user.
 
@@ -23,7 +21,7 @@ def leave_one_out_mask(
     val_users : Optional[Union[ExternalIds, int]], default ``None``
         Validation user filter. Can be:
         - None: use all users
-        - int: take first N users from unique user list
+        - int:  randomly sample N users from unique user list without replacement
         - array-like: explicit list of user IDs to include
 
     Returns
@@ -39,9 +37,9 @@ def leave_one_out_mask(
     last_interact_mask = inv_ranks == 0
     if isinstance(val_users, int):
         users = interactions[Columns.User].unique()
-        val_users = users[:val_users]
+        val_users = np.random.choice(users, size=val_users, replace=False)
     elif val_users is None:
         return last_interact_mask.values
 
-    mask = (interactions[Columns.User].isin(val_users)) & last_interact_mask
+    mask = interactions[Columns.User].isin(val_users) & last_interact_mask
     return mask.values
