@@ -14,6 +14,7 @@
 
 # pylint: disable=attribute-defined-outside-init
 
+import os
 import typing as tp
 
 import pandas as pd
@@ -32,6 +33,7 @@ from rectools.models import ImplicitALSWrapperModel, PopularModel, RandomModel
 from rectools.models.base import ModelBase
 from rectools.models.nn.transformers.hstu import HSTUModel
 
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 a = pytest.approx
 
 
@@ -402,7 +404,6 @@ class TestCrossValidate:
         as_ref_model: bool,
         expected_metrics: tp.List[tp.Dict[str, tp.Any]],
     ) -> None:
-        # self._seed_everything()
         splitter = LastNSplitter(n=1, n_splits=1, filter_cold_items=False, filter_already_seen=False)
         models = {"hstu": HSTUModel()}
         ref_models = []

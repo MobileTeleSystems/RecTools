@@ -46,18 +46,18 @@ from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 class RelativeAttentionBias(torch.nn.Module):
     """
-    Module calculate relative time and positional attention
+    Computes relative time and positional attention biases for STU.
 
     Parameters
     ----------
-    session_max_len : int.
-        Maximum length of user sequence padded or truncated to
+    session_max_len : int
+        Maximum sequence length for user interactions (padded/truncated)
     relative_time_attention : bool
-        Flag activate computing relative time attention.
+        Whether to compute relative time attention from timestamps
     relative_pos_attention : bool
-        Flag activate computing relative positional attention.
-    num_buckets: int
-        Max buckets space of timestamps differences quantizes to
+        Whether to compute relative positional attention
+    num_buckets : int
+        Number of buckets for quantizing timestamp differences
     """
 
     def __init__(
@@ -82,7 +82,7 @@ class RelativeAttentionBias(torch.nn.Module):
             )
 
     def _quantization_func(self, diff_timestamps: torch.Tensor) -> torch.Tensor:
-        """Quantizes the space of timestamps differences into buckets"""
+        """Quantizes the differences between timestamps into discrete buckets."""
         return (torch.log(torch.abs(diff_timestamps).clamp(min=1)) / 0.301).long()
 
     def forward_time_attention(self, all_timestamps: torch.Tensor) -> torch.Tensor:
@@ -90,7 +90,7 @@ class RelativeAttentionBias(torch.nn.Module):
         Parameters
         ---------
         all_timestamps: torch.Tensor (batch_size, session_max_len+1)
-            User sequence of timestamps + 1 target item timestamp
+            User interaction timestamps including the target item timestamp
         Returns
         ---------
         torch.Tensor (batch_size, session_max_len, session_max_len)
@@ -114,7 +114,7 @@ class RelativeAttentionBias(torch.nn.Module):
 
     def forward_pos_attention(self) -> torch.Tensor:
         """
-        Compute and return the relative positional attention matrix
+        Compute and return the relative positional attention bias matrix.
 
         Returns
         -------
@@ -155,7 +155,7 @@ class RelativeAttentionBias(torch.nn.Module):
 
 class STULayer(nn.Module):
     """
-    HSTU author's decoder block architecture rewritten from jagged tensor to dense
+    HSTU author's encoder block architecture rewritten from jagged tensor to dense.
 
     Parameters
     ----------
@@ -174,11 +174,11 @@ class STULayer(nn.Module):
     relative_pos_attention : bool
         Whether to use relative positional attention
     attn_dropout_rate : float
-        Probability of a attention unit to be zeroed.
+        Probability of an attention unit to be zeroed.
     dropout_rate : float
         Probability of a hidden unit to be zeroed.
     epsilon  : float
-        A value passed to LayerNorm for numerical stability
+        A value passed to LayerNorm for numerical stability.
     """
 
     def __init__(
@@ -255,7 +255,7 @@ class STULayer(nn.Module):
         batch_size, _, _ = seqs.shape
         normed_x = self.norm_input(seqs) * timeline_mask  # prevent null emb convert to not null
         general_transform = torch.matmul(normed_x, self.uvqk_proj)
-        batched_mm_output = self.silu(general_transform) * timeline_mask
+        batched_mm_output = self.silu(general_transform)
         u, v, q, k = torch.split(
             batched_mm_output,
             [
@@ -321,8 +321,8 @@ class STULayers(TransformerLayersBase):
         Probability of an attention unit to be zeroed.
     dropout_rate : float, default 0.2
         Probability of a hidden unit to be zeroed.
-    epsilon  : float, default 1e-6
-        A value passed to LayerNorm for numerical stability
+    epsilon : float, default 1e-6
+        A value passed to LayerNorm for numerical stability.
     """
 
     def __init__(
@@ -417,9 +417,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
 
     References
     ----------
-    Transformers tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_HSTU_tutorial.html
-    Advanced training guide:
-    Public benchmark: https://github.com/blondered/bert4rec_repro
+    HSTU tutorial: https://rectools.readthedocs.io/en/stable/examples/tutorials/transformers_HSTU_tutorial.html
     Original paper: https://arxiv.org/abs/2402.17152
 
 
@@ -721,7 +719,7 @@ class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     @property
     def require_recommend_context(self) -> bool:
         """
-        Return flag is model needed in context to correct recommend
+        Indicates whether the model requires context for accurate recommendations.
 
         -------
         bool
