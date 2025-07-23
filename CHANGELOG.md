@@ -8,7 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- `leave_one_out_mask` function (`rectools.models.nn.transformers.utils.leave_one_out_mask`) for applying leave-one-out validation during transformer models training.([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
+- `leave_one_out_mask` function (`rectools.models.nn.transformers.utils.leave_one_out_mask`) for applying leave-one-out validation during transformer models training ([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
+
+### Fixed
+- Installation issue with `cupy` extra on macOS ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+- `torch.dtype object has no attribute 'kind'` error in `TorchRanker` ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+
 
 ## [0.15.0] - 17.07.2025
 
@@ -19,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - [Breaking] Now `LastNSplitter` guarantees taking the last ordered interaction in dataframe in case of identical timestamps ([#288](https://github.com/MobileTeleSystems/RecTools/pull/288))
 
+
 ## [0.14.0] - 16.05.2025
 
 ### Added
@@ -26,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fit_partial` implementation for transformer-based models ([#273](https://github.com/MobileTeleSystems/RecTools/pull/273))
 - `map_location` and `model_params_update` arguments for the function `load_from_checkpoint` for Transformer-based models. Use `map_location` to explicitly specify the computing new device and `model_params_update` to update original model parameters (e.g. remove training-specific parameters that are not needed anymore) ([#281](https://github.com/MobileTeleSystems/RecTools/pull/281))
 - `get_val_mask_func_kwargs` and  `get_trainer_func_kwargs` arguments for Transformer-based models to allow keyword arguments in custom functions used for model training. ([#280](https://github.com/MobileTeleSystems/RecTools/pull/280))
+
 
 ## [0.13.0] - 10.04.2025
 
@@ -46,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Interactions extra columns are not dropped in `Dataset.filter_interactions` method [#267](https://github.com/MobileTeleSystems/RecTools/pull/267)
 
+
 ## [0.11.0] - 17.02.2025
 
 ### Added
@@ -60,11 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ImplicitRanker` `rank` method compatible with `Ranker` protocol. `use_gpu` and `num_threads` params moved from `rank` method to `__init__`. [#251](https://github.com/MobileTeleSystems/RecTools/pull/251)
 
+
 ## [0.10.0] - 16.01.2025
 
 ### Added
 - `ImplicitBPRWrapperModel` model with algorithm description in extended baselines tutorial ([#232](https://github.com/MobileTeleSystems/RecTools/pull/232), [#239](https://github.com/MobileTeleSystems/RecTools/pull/239))
 - All vector models and `EASEModel` support for enabling ranking on GPU and selecting number of threads for CPU ranking. Added `recommend_n_threads` and `recommend_use_gpu_ranking` parameters to `EASEModel`, `ImplicitALSWrapperModel`, `ImplicitBPRWrapperModel`, `PureSVDModel` and `DSSMModel`. Added `recommend_use_gpu_ranking` to `LightFMWrapperModel`. GPU and CPU ranking may provide different ordering of items with identical scores in recommendation table, so this could change ordering items in recommendations since GPU ranking is now used as a default one. ([#218](https://github.com/MobileTeleSystems/RecTools/pull/218))
+
 
 ## [0.9.0] - 11.12.2024
 
@@ -104,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - [Breaking] `assume_external_ids` parameter in `recommend` and `recommend_to_items` model methods ([#177](https://github.com/MobileTeleSystems/RecTools/pull/177))
+
 
 ## [0.7.0] - 29.07.2024
 
