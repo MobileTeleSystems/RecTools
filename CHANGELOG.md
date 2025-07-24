@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -  Optional `context` argument to `recommend` method of models and `get_context` function to `rectools.dataset.context.py` ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
 ### Fixed
 - [Breaking] Corrected computation of `cosine` distance in `DistanceSimilarityModule`([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- Installation issue with `cupy` extra on macOS ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+- `torch.dtype object has no attribute 'kind'` error in `TorchRanker` ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
 ### Removed
 - [Breaking] `Dropout` module from `IdEmbeddingsItemNet`. This changes model behaviour during training, so model results starting from this release might slightly differ from previous RecTools versions even when the random seed is fixed.([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
 
