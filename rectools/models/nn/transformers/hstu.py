@@ -411,8 +411,7 @@ class HSTUModelConfig(TransformerModelConfig):
 
 class HSTUModel(TransformerModelBase[HSTUModelConfig]):
     """
-    HSTUM model: transformer-based sequential model with unidirectional attention mechanism and
-    "Shifted Sequence" training objective.
+    HSTU model: transformer-based sequential model with unidirectional pointwise aggregated attention mechanism, combined with "Shifted Sequence" training objective.
     Our implementation covers multiple loss functions and a variable number of negatives for them.
 
     References
