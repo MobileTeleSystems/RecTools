@@ -411,9 +411,9 @@ class TestSASRecModel:
         (
             pd.DataFrame(
                 {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 17, 12, 11, 13, 15, 17, 13, 11],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    Columns.User: [30, 30, 30, 40, 40, 40],
+                    Columns.Item: [11, 13, 15, 17, 13, 11],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
         ),
@@ -439,7 +439,7 @@ class TestSASRecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
@@ -452,9 +452,9 @@ class TestSASRecModel:
         (
             pd.DataFrame(
                 {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 12, 11, 11, 12, 13, 13, 14, 12],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    Columns.User: [30, 30, 30, 40, 40, 40],
+                    Columns.Item: [11, 12, 13, 13, 14, 12],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
         ),
@@ -480,7 +480,7 @@ class TestSASRecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_item_features)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset_item_features, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
