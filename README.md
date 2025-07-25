@@ -24,17 +24,16 @@
 RecTools is an easy-to-use Python library which makes the process of building recommender systems easier and
 faster than ever before.
 
-## ✨ Highlights: Transformer models released! ✨
+## ✨ Highlights: HSTU model released! ✨
 
-**BERT4Rec and SASRec are now available in RecTools:**
+**HSTU arhictecture from ["Actions speak louder then words..."](https://arxiv.org/abs/2402.17152) is now available in RecTools as `HSTUModel`:**
 - Fully compatible with our  `fit` / `recommend` paradigm and require NO special data processing
-- Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_tutorial.ipynb): loss options, item embedding options,  category features utilization and more!
+- Supports context-aware recommendations in case Relative Time Bias is enabled
+- Supports all loss options, item embedding options, category features utilization and other common modular functionality of RecTools transformer models
+- In [HSTU tutorial](examples/tutorials/transformers_HSTU_tutorial.ipynb) we show that original metrics reported for HSTU on public Movielens datasets are actually **underestimated**!
 - Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready, multi-gpu-compatible! See  [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb) and [Transformers Customization Guide](examples/tutorials/transformers_customization_guide.ipynb)
-- Public benchmarks which compare RecTools models to other open-source implementations following BERT4Rec replicability paper show that RecTools implementations achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
 
-
-
-
+Plase note that we always compare the quality of our implementations to academic papers results. [Public benchmarks for transformer models SASRec and BERT4Rec](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) show that RecTools implementations achieve highest scores on multiple datasets compared to other published results.
 
 
 ## Get started
@@ -48,11 +47,10 @@ unzip ml-1m.zip
 
 ```python
 import pandas as pd
-from implicit.nearest_neighbours import TFIDFRecommender
     
 from rectools import Columns
 from rectools.dataset import Dataset
-from rectools.models import ImplicitItemKNNWrapperModel
+from rectools.models import SASRecModel
 
 # Read the data
 ratings = pd.read_csv(
@@ -67,7 +65,7 @@ ratings = pd.read_csv(
 dataset = Dataset.construct(ratings)
     
 # Fit model
-model = ImplicitItemKNNWrapperModel(TFIDFRecommender(K=10))
+model = SASRecModel(n_factors=64, epochs=100, loss="sampled_softmax")
 model.fit(dataset)
 
 # Make recommendations
@@ -105,7 +103,6 @@ pip install rectools[all]
 
 ## Recommender Models
 The table below lists recommender models that are available in RecTools.  
-See [recommender baselines extended tutorial](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/tutorials/baselines_extended_tutorial.ipynb) for deep dive into theory & practice of our supported models.
 
 | Model               | Type | Description (🎏 for user/item features, 🔆 for warm inference, ❄️ for cold inference support)                                                                               | Tutorials & Benchmarks |
 |---------------------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
