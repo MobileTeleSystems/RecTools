@@ -102,6 +102,19 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         self.is_fitted = False
         self.verbose = verbose
 
+    @property
+    def require_recommend_context(self) -> bool:
+        """
+        Indicates whether recommendation context is required for predictions.
+
+        Returns
+        -------
+        bool
+            Always returns False, indicating this model does not require
+            additional context information during recommendation generation.
+        """
+        return False
+
     @tp.overload
     def get_config(  # noqa: D102
         self, mode: tp.Literal["pydantic"], simple_types: bool = False
@@ -352,7 +365,11 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         raise NotImplementedError("Partial fitting is not supported in {self.__class__.__name__}")
 
     def _custom_transform_dataset_u2i(
-        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+        self,
+        dataset: Dataset,
+        users: ExternalIds,
+        on_unsupported_targets: ErrorBehaviour,
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> Dataset:
         # This method should be overwritten for models that require dataset processing for u2i recommendations
         # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
@@ -365,7 +382,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         # E.g.: interactions filtering or changing mapping of internal ids based on model specific logic
         return dataset
 
-    def recommend(
+    def recommend(  # pylint: disable=too-many-locals
         self,
         users: ExternalIds,
         dataset: Dataset,
@@ -374,6 +391,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
         items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
         on_unsupported_targets: ErrorBehaviour = "raise",
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> pd.DataFrame:
         r"""
         Recommend items for users.
@@ -409,6 +427,9 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             Specify "raise" to raise ValueError in case unsupported targets are passed (default).
             Specify "ignore" to filter unsupported targets.
             Specify "warn" to filter with warning.
+        context : optional(pd.DataFrame), default  ``None``
+            Optional DataFrame containing additional user context information (e.g., session features,
+            demographics).
 
         Returns
         -------
@@ -430,12 +451,24 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             If some of given users are warm/cold and model doesn't support such type of users and
             `on_unsupported_targets` is set to "raise".
         """
+        if self.require_recommend_context and (context is None):
+            raise ValueError(
+                "This model requires `context` to be provided for recommendations generation "
+                f"(model.require_recommend_context is {self.require_recommend_context})."
+                "Check docs and examples for details."
+            )
+        if not self.require_recommend_context and (context is not None):
+            context = None
+            warnings.warn(
+                "You are providing context to a model that does not require it. Context is set to 'None'",
+                UserWarning,
+            )
         self._check_is_fitted()
         self._check_k(k)
         # We are going to lose original dataset object. Save dtype for later
         original_user_type = dataset.user_id_map.external_dtype
         original_item_type = dataset.item_id_map.external_dtype
-        dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets)
+        dataset = self._custom_transform_dataset_u2i(dataset, users, on_unsupported_targets, context)
 
         sorted_item_ids_to_recommend = self._get_sorted_item_ids_to_recommend(items_to_recommend, dataset)
 

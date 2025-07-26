@@ -127,6 +127,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional keyword arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
+    add_unix_ts: bool, default ``False``
+        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
+        from the beginning of the epoch
     extra_cols: optional(List[str]), default ``None``
         Extra columns to keep in train and recommend datasets.
     """
@@ -149,6 +152,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         negative_sampler: tp.Optional[TransformerNegativeSamplerBase] = None,
         get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
         extra_cols: tp.Optional[tp.List[str]] = None,
+        add_unix_ts: bool = False,
         **kwargs: tp.Any,
     ) -> None:
         self.item_id_map: IdMap
@@ -165,6 +169,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         self.get_val_mask_func = get_val_mask_func
         self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
         self.extra_cols = extra_cols
+        self.add_unix_ts = add_unix_ts
 
     def get_known_items_sorted_internal_ids(self) -> np.ndarray:
         """Return internal item ids from processed dataset in sorted order."""
@@ -218,10 +223,15 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         )
         return train_interactions
 
+    def _convert_to_unix_ts(self, datetime: pd.Series) -> pd.Series:
+        return (datetime.values.astype("int64") / 10**9).astype("int64")
+
     def process_dataset_train(self, dataset: Dataset) -> None:
         """Process train dataset and save data."""
         extra_cols = False if self.extra_cols is None else self.extra_cols
         raw_interactions = dataset.get_raw_interactions(include_extra_cols=extra_cols)
+        if self.add_unix_ts:
+            raw_interactions["unix_ts"] = self._convert_to_unix_ts(raw_interactions[Columns.Datetime])
 
         # Exclude val interaction targets from train if needed
         interactions = raw_interactions
@@ -341,7 +351,12 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         )
         return recommend_dataloader
 
-    def transform_dataset_u2i(self, dataset: Dataset, users: ExternalIds) -> Dataset:
+    def transform_dataset_u2i(
+        self,
+        dataset: Dataset,
+        users: ExternalIds,
+        context: tp.Optional[pd.DataFrame] = None,
+    ) -> Dataset:
         """
         Process dataset for u2i recommendations.
         Filter out interactions and adapt id maps.
@@ -354,6 +369,9 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             RecTools dataset.
         users : ExternalIds
             Array of external user ids to recommend for.
+        context : optional(pd.DataFrame), default  ``None``
+            Optional DataFrame containing additional user context information (e.g., session features,
+        demographics).
 
         Returns
         -------
@@ -381,6 +399,18 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
         # Prepare new user id mapping
         rec_user_id_map = IdMap.from_values(interactions[Columns.User])
 
+        if context is not None:
+            if not pd.Series(users).isin(context[Columns.User].unique()).all():
+                raise ValueError("No context for some target users")
+            if context.duplicated(subset=Columns.User).any():
+                raise ValueError(
+                    "Duplicated user entries found in context. Each user must have exactly one context row."
+                )
+            context[Columns.Item] = PADDING_VALUE  # External index pad element
+            context = context[context[Columns.User].isin(interactions[Columns.User].unique())]
+            interactions = pd.concat([interactions, context])
+        if self.add_unix_ts:
+            interactions["unix_ts"] = self._convert_to_unix_ts(interactions[Columns.Datetime])
         # Construct dataset
         # For now features are dropped because model doesn't support them on inference
         n_filtered = len(users) - rec_user_id_map.size

@@ -64,6 +64,8 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         Name of the training loss.
     val_loss_name : str, default "val_loss"
         Name of the training loss.
+    logits_t : float, default 1
+        Scale factor for logits.
     """
 
     u2i_dist_available = [Distance.DOT, Distance.COSINE]
@@ -84,6 +86,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         train_loss_name: str = "train_loss",
         val_loss_name: str = "val_loss",
         adam_betas: tp.Tuple[float, float] = (0.9, 0.98),
+        logits_t: float = 1,
         **kwargs: tp.Any,
     ):
         super().__init__()
@@ -105,6 +108,7 @@ class TransformerLightningModuleBase(LightningModule):  # pylint: disable=too-ma
         self.is_fitted = False
         self.optimizer: tp.Optional[torch.optim.Adam] = None
         self.item_embs: torch.Tensor
+        self.logits_t = logits_t
 
         self.save_hyperparameters(ignore=["torch_model", "data_preparator"])
 
@@ -283,6 +287,8 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         Name of the training loss.
     val_loss_name : str, default "val_loss"
         Name of the training loss.
+    logits_t : float, default 1
+        Scale factor for logits.
     """
 
     i2i_dist = Distance.COSINE
@@ -297,9 +303,9 @@ class TransformerLightningModule(TransformerLightningModuleBase):
         if self._requires_negatives:
             y, negatives = batch["y"], batch["negatives"]
             pos_neg = torch.cat([y.unsqueeze(-1), negatives], dim=-1)
-            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg)
+            logits = self.torch_model(batch=batch, candidate_item_ids=pos_neg) / self.logits_t
         else:
-            logits = self.torch_model(batch=batch)
+            logits = self.torch_model(batch=batch) / self.logits_t
         return logits
 
     def training_step(self, batch: tp.Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:

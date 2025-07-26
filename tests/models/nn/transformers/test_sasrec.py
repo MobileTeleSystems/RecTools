@@ -239,7 +239,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 13, 11, 11, 12, 14, 12, 14, 11],
+                        Columns.Item: [13, 12, 11, 11, 12, 14, 14, 12, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -344,7 +344,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -355,7 +355,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -366,7 +366,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 13, 14, 17, 13, 14, 15],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -411,9 +411,9 @@ class TestSASRecModel:
         (
             pd.DataFrame(
                 {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 17, 11, 11, 13, 15, 17, 13, 11],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    Columns.User: [30, 30, 30, 40, 40, 40],
+                    Columns.Item: [11, 13, 17, 17, 13, 11],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
         ),
@@ -439,7 +439,7 @@ class TestSASRecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
@@ -452,9 +452,9 @@ class TestSASRecModel:
         (
             pd.DataFrame(
                 {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 12, 11, 11, 12, 13, 13, 14, 12],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    Columns.User: [30, 30, 30, 40, 40, 40],
+                    Columns.Item: [11, 13, 12, 13, 14, 12],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
         ),
@@ -480,7 +480,7 @@ class TestSASRecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_item_features)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset_item_features, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
@@ -792,6 +792,28 @@ class TestSASRecDataPreparator:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
+    def dataset_timestamp_preproc(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 12, 2, "2021-11-26"],
+                [30, 15, 1, "2021-11-25"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 17, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+                [10, 17, 1, "2021-11-30"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
         return SASRecDataPreparator(session_max_len=3, batch_size=4, dataloader_num_workers=0)
 
@@ -816,6 +838,68 @@ class TestSASRecDataPreparator:
             n_negatives=2,
             get_val_mask_func=get_val_mask_func,
         )
+
+    @pytest.mark.parametrize(
+        "val_users, expected_batch_train, expected_batch_val",
+        (
+            (
+                [10, 30],
+                {
+                    "x": torch.tensor([[5, 2, 3], [0, 0, 1], [0, 0, 2]]),
+                    "y": torch.tensor([[2, 3, 6], [0, 0, 3], [0, 0, 4]]),
+                    "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 0.0, 2.0], [0.0, 0.0, 1.0]]),
+                    "unix_ts": torch.tensor(
+                        [
+                            [1638057600, 1638144000, 1638144000, 1638230400],
+                            [1637798400, 1637798400, 1637798400, 1637884800],
+                            [1637798400, 1637798400, 1637798400, 1637884800],
+                        ]
+                    ),
+                },
+                {
+                    "x": torch.tensor([[0, 1, 3], [2, 3, 6]]),
+                    "y": torch.tensor([[2], [4]]),
+                    "yw": torch.tensor([[1.0], [1.0]]),
+                    "unix_ts": torch.tensor(
+                        [
+                            [1637884800, 1637884800, 1637884800, 1637971200],
+                            [1638144000, 1638144000, 1638230400, 1638230400],
+                        ]
+                    ),
+                },
+            ),
+        ),
+    )
+    def test_process_unix_ts_aware(
+        self,
+        dataset_timestamp_preproc: Dataset,
+        val_users: tp.List,
+        expected_batch_train: tp.Dict[str, torch.Tensor],
+        expected_batch_val: tp.Dict[str, torch.Tensor],
+    ) -> None:
+        get_val_mask_func_kwargs = {"val_users": val_users}
+        data_preparator = SASRecDataPreparator(
+            session_max_len=3,
+            batch_size=4,
+            dataloader_num_workers=0,
+            add_unix_ts=True,
+            get_val_mask_func=leave_one_out_mask,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+        )
+        data_preparator.process_dataset_train(dataset_timestamp_preproc)
+        assert "unix_ts" in data_preparator.train_dataset.interactions.df
+        assert data_preparator.val_interactions is not None
+        assert "unix_ts" in data_preparator.val_interactions
+        dataloader_train = data_preparator.get_dataloader_train()
+        train_iterator = next(iter(dataloader_train))
+        for key, value in train_iterator.items():
+            assert torch.equal(value, expected_batch_train[key])
+        dataloader_val = data_preparator.get_dataloader_val()
+        assert dataloader_val is not None
+        val_iterator = next(iter(dataloader_val))
+        for key, value in val_iterator.items():
+            if key == "unix_ts":
+                assert torch.equal(value, expected_batch_val[key])
 
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_train_interactions, expected_val_interactions",
@@ -1025,7 +1109,6 @@ class TestSASRecModelConfiguration:
             expected.update(simple_types_params)
             if use_custom_trainer:
                 expected["get_trainer_func"] = "tests.models.nn.transformers.utils.custom_trainer"
-
         assert actual == expected
 
     @pytest.mark.parametrize("use_custom_trainer", (True, False))

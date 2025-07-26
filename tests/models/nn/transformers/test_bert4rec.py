@@ -634,8 +634,8 @@ class TestBERT4RecModel:
                     train_min_user_interactions=train_min_user_interactions,
                     negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
-                    get_val_mask_func=get_custom_val_mask_func,
-                    get_val_mask_func_kwargs=get_custom_val_mask_func_kwargs,
+                    get_val_mask_func=get_val_mask_func,
+                    get_val_mask_func_kwargs=get_val_mask_func_kwargs,
                     mask_prob=mask_prob,
                 )
                 self.n_last_targets = n_last_targets

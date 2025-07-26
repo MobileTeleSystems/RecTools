@@ -16,6 +16,7 @@ import typing as tp
 
 from rectools.columns import Columns
 from rectools.dataset import Dataset
+from rectools.dataset.context import get_context
 from rectools.metrics import calc_metrics
 from rectools.metrics.base import MetricAtK
 from rectools.models.base import ErrorBehaviour, ModelBase
@@ -120,12 +121,17 @@ def cross_validate(  # pylint: disable=too-many-locals
         test_users = interactions_df_test[Columns.User].unique()
         prev_interactions = fold_dataset.get_raw_interactions()
         catalog = prev_interactions[Columns.Item].unique()
-
+        test_fold_context = None
+        if any(model.require_recommend_context for _, model in models.items()):
+            test_fold_context = get_context(interactions_df_test)
         # ### Train ref models if any
         ref_reco = {}
         for model_name in ref_models or []:
             model = models[model_name]
             model.fit(fold_dataset)
+            context = None
+            if model.require_recommend_context:
+                context = test_fold_context
             ref_reco[model_name] = model.recommend(
                 users=test_users,
                 dataset=fold_dataset,
@@ -133,6 +139,7 @@ def cross_validate(  # pylint: disable=too-many-locals
                 filter_viewed=filter_viewed,
                 items_to_recommend=items_to_recommend,
                 on_unsupported_targets=on_unsupported_targets,
+                context=context,
             )
 
         # ### Generate recommendations and calc metrics
@@ -144,6 +151,9 @@ def cross_validate(  # pylint: disable=too-many-locals
                 reco = ref_reco[model_name]
             else:
                 model.fit(fold_dataset)
+                context = None
+                if model.require_recommend_context:
+                    context = test_fold_context
                 reco = model.recommend(
                     users=test_users,
                     dataset=fold_dataset,
@@ -151,6 +161,7 @@ def cross_validate(  # pylint: disable=too-many-locals
                     filter_viewed=filter_viewed,
                     items_to_recommend=items_to_recommend,
                     on_unsupported_targets=on_unsupported_targets,
+                    context=context,
                 )
 
             metric_values = calc_metrics(
