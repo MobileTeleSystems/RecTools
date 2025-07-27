@@ -55,7 +55,21 @@ class Interactions:
             raise KeyError(f"Missed columns {required_columns - actual_columns}")
 
     @staticmethod
-    def _convert_weight_and_datetime_types(df: pd.DataFrame) -> None:
+    def convert_weight_and_datetime_types(df: pd.DataFrame) -> None:
+        """
+        Convert weight column to float and datetime column to datetime64[ns] in-place.
+
+        This method ensures that the specified weight column contains numeric values
+        and that the datetime column can be converted to pandas' datetime64[ns] format.
+        The conversion is done in-place, so the original DataFrame will be modified.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input DataFrame that must contain the following columns:
+                - `Columns.Weight` - interaction weight;
+                - `Columns.Datetime` - interaction timestamp.
+        """
         try:
             df[Columns.Weight] = df[Columns.Weight].astype(float)
         except ValueError:
@@ -80,7 +94,7 @@ class Interactions:
 
     def __attrs_post_init__(self) -> None:
         """Convert datetime and weight columns to the right data types."""
-        self._convert_weight_and_datetime_types(self.df)
+        self.convert_weight_and_datetime_types(self.df)
 
     @staticmethod
     def _add_extra_cols(df: pd.DataFrame, interactions: pd.DataFrame) -> None:
@@ -125,7 +139,7 @@ class Interactions:
         )
         df[Columns.Weight] = interactions[Columns.Weight].values
         df[Columns.Datetime] = interactions[Columns.Datetime].values
-        cls._convert_weight_and_datetime_types(df)
+        cls.convert_weight_and_datetime_types(df)
         if keep_extra_cols:
             cls._add_extra_cols(df, interactions)
 

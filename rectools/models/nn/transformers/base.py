@@ -20,6 +20,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import numpy as np
+import pandas as pd
 import torch
 import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
@@ -488,9 +489,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
-        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+        self,
+        dataset: Dataset,
+        users: ExternalIds,
+        on_unsupported_targets: ErrorBehaviour,
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> Dataset:
-        return self.data_preparator.transform_dataset_u2i(dataset, users)
+        return self.data_preparator.transform_dataset_u2i(dataset, users, context)
 
     def _custom_transform_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour

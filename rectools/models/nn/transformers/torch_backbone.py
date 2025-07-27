@@ -256,7 +256,7 @@ class TransformerTorchBackbone(TransformerBackboneBase):
                 attn_mask = self._merge_masks(attn_mask, key_padding_mask, seqs)
                 key_padding_mask = None
 
-        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask)
+        seqs = self.transformer_layers(seqs, timeline_mask, attn_mask, key_padding_mask, batch=batch)
         return seqs
 
     def forward(
