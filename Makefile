@@ -5,6 +5,7 @@ BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
 SCRIPTS=scripts
+EXAMPLES=examples
 
 
 
@@ -85,10 +86,10 @@ test: .venv .test
 # Copyright
 
 copyright:
-	poetry run python -m scripts.copyright --check ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
+	poetry run python -m scripts.copyright --check ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK} ${EXAMPLES}
 
 copyright_fix:
-	poetry run python -m scripts.copyright ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
+	poetry run python -m scripts.copyright ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK} ${EXAMPLES}
 
 
 # Cleaning
