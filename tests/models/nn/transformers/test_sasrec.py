@@ -33,6 +33,7 @@ from rectools.models.nn.transformers.base import (
     TrainerCallable,
     TransformerLightningModule,
 )
+from rectools.models.nn.transformers.ligr_layers import LiGRLayers
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
@@ -758,6 +759,49 @@ class TestSASRecModel:
         model = SASRecModel(similarity_module_type=DistanceSimilarityModule)
         model.fit(dataset)
         assert isinstance(model.torch_model, TransformerTorchBackbone)
+
+    @pytest.mark.parametrize(
+        "filter_viewed,expected",
+        (
+            (
+                True,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 17, 14, 13, 12, 14, 13],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+            (
+                False,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [12, 17, 11, 12, 11, 17, 12, 17, 11],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+        ),
+    )
+    def test_ligr_layers(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+        model = SASRecModel(
+            transformer_layers_type=LiGRLayers,
+            transformer_layers_kwargs={
+                "ff_factors_multiplier": 1,
+                "ff_activation": "swiglu",
+                "bias_in_ff": True,
+            },
+        )
+        model.fit(dataset=dataset)
+        users = np.array([10, 30, 40])
+        actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
+        pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
+        pd.testing.assert_frame_equal(
+            actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
+            actual,
+        )
 
 
 class TestSASRecDataPreparator:
