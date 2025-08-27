@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import numpy as np
 import torch
@@ -36,7 +36,7 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import InitKwargs, TransformerDataPreparatorBase
+from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
 from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
@@ -74,13 +74,18 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
     get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
         Additional arguments for the get_val_mask_func.
         Make sure all dict values have JSON serializable types.
+    extra_cols: list(str) | None, default ``None``
+        Additional columns from dataset to keep beside of Columns.Inreractions
+    add_unix_ts: bool, default ``False``
+        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
+        from the beginning of the epoch
     """
 
     train_session_max_len_addition: int = 1
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
+        batch: tp.List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep `session_max_len` items.
@@ -91,7 +96,7 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
@@ -101,14 +106,22 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
             )
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
+            for i, (ses, _, extras) in enumerate(batch):
+                t[i, -len(ses) :] = extras["unix_ts"]
+                len_to_pad = self.session_max_len + 1 - len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
+            batch_dict.update({"unix_ts": torch.LongTensor(t)})
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
             # take only first target for leave-one-strategy
@@ -124,12 +137,31 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             batch_dict["negatives"] = self.negative_sampler.get_negatives(
                 batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
             )
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
+            for i, (ses, _, extras) in enumerate(batch):
+                t[i, -len(ses) + 1 :] = extras["unix_ts"][1:]
+                len_to_pad = self.session_max_len + 2 - len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
+            batch_dict.update({"unix_ts": torch.LongTensor(t)})
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
-        x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        batch_size = len(batch)
+        x = np.zeros((batch_size, self.session_max_len))
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))
+            for i, (ses, _, extras) in enumerate(batch):
+                ses = ses[:-1]  # drop dummy item
+                x[i, -len(ses) :] = ses[-self.session_max_len :]
+                t[i, -(len(ses) + 1) :] = extras["unix_ts"][-(self.session_max_len + 1) :]
+                len_to_pad = self.session_max_len - len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
+            return {"x": torch.LongTensor(x), "unix_ts": torch.LongTensor(t)}
+        for i, (ses, _, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
         return {"x": torch.LongTensor(x)}
 
@@ -242,6 +274,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.

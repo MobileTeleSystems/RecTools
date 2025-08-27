@@ -34,6 +34,14 @@ class SimilarityModuleBase(torch.nn.Module):
     ) -> torch.Tensor:
         raise NotImplementedError()
 
+    def session_tower_forward(self, session_embs: torch.Tensor) -> torch.Tensor:
+        """Forward pass for session tower."""
+        return session_embs
+
+    def item_tower_forward(self, item_embs: torch.Tensor) -> torch.Tensor:
+        """Forward pass for item tower."""
+        return item_embs
+
     def forward(
         self,
         session_embs: torch.Tensor,
@@ -62,7 +70,11 @@ class DistanceSimilarityModule(SimilarityModuleBase):
     dist_available: tp.List[str] = [Distance.DOT, Distance.COSINE]
     epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
 
-    def __init__(self, distance: str = "dot") -> None:
+    def __init__(
+        self,
+        distance: str = "dot",
+        **kwargs: tp.Any,
+    ) -> None:
         super().__init__()
         if distance not in self.dist_available:
             raise ValueError("`dist` can only be either `dot` or `cosine`.")
@@ -83,7 +95,7 @@ class DistanceSimilarityModule(SimilarityModuleBase):
         return logits
 
     def _get_embeddings_norm(self, embeddings: torch.Tensor) -> torch.Tensor:
-        embedding_norm = torch.norm(embeddings, p=2, dim=1).unsqueeze(dim=1)
+        embedding_norm = torch.norm(embeddings, p=2, dim=-1, keepdim=True)
         embeddings = embeddings / torch.max(embedding_norm, self.epsilon_cosine_dist.to(embeddings))
         return embeddings
 

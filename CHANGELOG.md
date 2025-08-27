@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 27.07.2025
+
+### Added
+-  HSTU Model from "Actions Speak Louder then Words..." implemented in the class `HSTUModel` ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- `leave_one_out_mask` function (`rectools.models.nn.transformers.utils.leave_one_out_mask`) for applying leave-one-out validation during transformer models training.([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
+- `logits_t` argument to `TransformerLightningModuleBase`. It is used to scale logits when computing the loss.  ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- `use_scale_factor` argument to `LearnableInversePositionalEncoding`. It scales embeddings by the square root of their dimension — following the original approach from the "Attention Is All You Need" ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+-  Optional `context` argument to `recommend` method of models and `get_context` function to `rectools.dataset.context.py` ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+### Fixed
+- [Breaking] Corrected computation of `cosine` distance in `DistanceSimilarityModule`([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- Installation issue with `cupy` extra on macOS ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+- `torch.dtype object has no attribute 'kind'` error in `TorchRanker` ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+### Removed
+- [Breaking] `Dropout` module from `IdEmbeddingsItemNet`. This changes model behaviour during training, so model results starting from this release might slightly differ from previous RecTools versions even when the random seed is fixed.([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+
+## [0.15.0] - 17.07.2025
+
+### Added
+- `extras` argument to `SequenceDataset`, `extra_cols` argument to `TransformerDataPreparatorBase`, `session_tower_forward` and `item_tower_forward` methods to `SimilarityModuleBase` ([#287](https://github.com/MobileTeleSystems/RecTools/pull/287))
+- Support for resaving transformer models multiple times and loading trainer state ([#289](https://github.com/MobileTeleSystems/RecTools/pull/289))
+
+### Fixed
+- [Breaking] Now `LastNSplitter` guarantees taking the last ordered interaction in dataframe in case of identical timestamps ([#288](https://github.com/MobileTeleSystems/RecTools/pull/288))
+
 ## [0.14.0] - 16.05.2025
 
 ### Added

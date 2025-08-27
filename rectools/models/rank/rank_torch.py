@@ -136,12 +136,11 @@ class TorchRanker:
                 )
 
                 if filter_pairs_csr is not None:
-                    mask = (
-                        torch.from_numpy(filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_object_whitelist]).to(
-                            scores.device
-                        )
-                        != 0
-                    )
+                    # Convert cur_user_emb_inds to numpy to avoid
+                    # AttributeError: 'torch.dtype' object has no attribute 'kind'
+                    cur_user_filter_pairs_csr = filter_pairs_csr[cur_user_emb_inds.cpu().numpy()]
+                    whitelisted_filter_matrix = cur_user_filter_pairs_csr.toarray()[:, sorted_object_whitelist]
+                    mask = torch.from_numpy(whitelisted_filter_matrix).to(scores.device) != 0
                     scores = torch.masked_fill(scores, mask, mask_values)
 
                 top_scores, top_inds = torch.topk(

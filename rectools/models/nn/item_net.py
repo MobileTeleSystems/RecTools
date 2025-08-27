@@ -230,7 +230,7 @@ class CatFeaturesItemNet(ItemNetBase):
     @property
     def out_dim(self) -> int:
         """Return categorical item embedding output dimension."""
-        return self.embedding_bag.embedding_dim
+        return int(self.embedding_bag.embedding_dim)
 
 
 class IdEmbeddingsItemNet(ItemNetBase):
@@ -262,7 +262,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             embedding_dim=n_factors,
             padding_idx=0,
         )
-        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -279,7 +278,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             Item embeddings.
         """
         item_embs = self.ids_emb(items.to(self.device))
-        item_embs = self.dropout(item_embs)
         return item_embs
 
     @classmethod

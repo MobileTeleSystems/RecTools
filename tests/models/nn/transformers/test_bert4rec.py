@@ -34,17 +34,18 @@ from rectools.models.nn.transformers.base import (
     TransformerLightningModule,
 )
 from rectools.models.nn.transformers.bert4rec import MASKING_VALUE, BERT4RecDataPreparator, ValMaskCallable
-from rectools.models.nn.transformers.data_preparator import InitKwargs
+from rectools.models.nn.transformers.data_preparator import BatchElement, InitKwargs
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
 from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
+from rectools.models.nn.transformers.utils import leave_one_out_mask
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
     assert_second_fit_refits_model,
 )
 
-from .utils import custom_trainer, leave_one_out_mask
+from .utils import custom_trainer
 
 
 class TestBERT4RecModel:
@@ -216,9 +217,9 @@ class TestBERT4RecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 13, 11, 12, 13, 11, 12, 13, 11],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 30, 40, 40, 40],
+                        Columns.Item: [12, 13, 11, 12, 13, 11],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
                 pd.DataFrame(
@@ -288,8 +289,6 @@ class TestBERT4RecModel:
             similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
-        users = np.array([10, 30, 40])
-        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
         if accelerator == "cpu" and n_devices == 1:
             expected = expected_cpu_1
         elif accelerator == "cpu" and n_devices == 2:
@@ -298,6 +297,9 @@ class TestBERT4RecModel:
             expected = expected_gpu_1
         else:
             expected = expected_gpu_2
+        users = np.unique(expected[Columns.User])
+        actual = model.recommend(users=users, dataset=dataset_devices, k=3, filter_viewed=filter_viewed)
+
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
@@ -391,9 +393,9 @@ class TestBERT4RecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 40, 40],
-                        Columns.Item: [13, 11, 13, 11, 13, 11],
-                        Columns.Rank: [1, 2, 1, 2, 1, 2],
+                        Columns.User: [30, 30, 40, 40],
+                        Columns.Item: [13, 11, 13, 11],
+                        Columns.Rank: [1, 2, 1, 2],
                     }
                 ),
             ),
@@ -420,7 +422,7 @@ class TestBERT4RecModel:
             similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_devices)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         items_to_recommend = np.array([11, 13, 17])
         actual = model.recommend(
             users=users,
@@ -632,21 +634,21 @@ class TestBERT4RecModel:
                     train_min_user_interactions=train_min_user_interactions,
                     negative_sampler=negative_sampler,
                     shuffle_train=shuffle_train,
-                    get_val_mask_func=get_custom_val_mask_func,
-                    get_val_mask_func_kwargs=get_custom_val_mask_func_kwargs,
+                    get_val_mask_func=get_val_mask_func,
+                    get_val_mask_func_kwargs=get_val_mask_func_kwargs,
                     mask_prob=mask_prob,
                 )
                 self.n_last_targets = n_last_targets
 
             def _collate_fn_train(
                 self,
-                batch: tp.List[tp.Tuple[tp.List[int], tp.List[float]]],
+                batch: tp.List[BatchElement],
             ) -> tp.Dict[str, torch.Tensor]:
                 batch_size = len(batch)
                 x = np.zeros((batch_size, self.session_max_len))
                 y = np.zeros((batch_size, self.session_max_len))
                 yw = np.zeros((batch_size, self.session_max_len))
-                for i, (ses, ses_weights) in enumerate(batch):
+                for i, (ses, ses_weights, _) in enumerate(batch):
                     y[i, -self.n_last_targets] = ses[-self.n_last_targets]
                     yw[i, -self.n_last_targets] = ses_weights[-self.n_last_targets]
                     x[i, -len(ses) :] = ses
@@ -1027,7 +1029,7 @@ class TestBERT4RecModelConfiguration:
                 "data_preparator_type": "rectools.models.nn.transformers.bert4rec.BERT4RecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
                 "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
-                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "get_val_mask_func": "rectools.models.nn.transformers.utils.leave_one_out_mask",
                 "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
                 "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }

@@ -28,6 +28,7 @@ import typing_extensions as tpe
 
 from rectools import Columns
 from rectools.dataset import Dataset
+from rectools.dataset.context import get_context
 from rectools.exceptions import NotFittedError
 from rectools.models.base import (
     ErrorBehaviour,
@@ -52,6 +53,20 @@ def test_raise_when_recommend_u2i_from_not_fitted() -> None:
             dataset=DATASET,
             k=5,
             filter_viewed=False,
+        )
+
+
+def test_warning_when_recommend_u2i_has_context() -> None:
+    model: ModelBase[ModelConfig] = ModelBase()
+    model.is_fitted = True
+    context_df = DATASET.get_raw_interactions()[[Columns.User, Columns.Datetime]]
+    context_df[Columns.Datetime] = "2025-12-12"  # for example
+    with pytest.warns() as record:
+        model.recommend(users=np.array([]), dataset=DATASET, k=5, filter_viewed=False, context=get_context(context_df))
+
+        assert (
+            str(record[0].message)
+            == "You are providing context to a model that does not require it. Context is set to 'None'"
         )
 
 
