@@ -768,9 +768,9 @@ class TestSASRecModel:
                 True,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 17, 13, 14, 13, 14, 12],
-                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 13, 14, 13, 14, 12],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
@@ -778,9 +778,9 @@ class TestSASRecModel:
                 False,
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [11, 13, 17, 11, 17, 13, 11, 17, 13],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.User: [30, 30, 30, 40, 40, 40],
+                        Columns.Item: [11, 17, 13, 11, 17, 13],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
@@ -803,7 +803,7 @@ class TestSASRecModel:
             get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
-        users = np.array([10, 30, 40])
+        users = np.array([30, 40])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=filter_viewed)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(

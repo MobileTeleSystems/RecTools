@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- LiGR transformer layers from "From Features to Transformers: Redefining Ranking for Scalable Impact" ()
+- LiGR transformer layers from "From Features to Transformers: Redefining Ranking for Scalable Impact" ([#295](https://github.com/MobileTeleSystems/RecTools/pull/295))
 
 ## [0.16.0] - 27.07.2025
 
