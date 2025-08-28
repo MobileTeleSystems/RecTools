@@ -769,7 +769,7 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [17, 15, 17, 14, 13, 12, 14, 13],
+                        Columns.Item: [17, 15, 17, 13, 14, 13, 14, 12],
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
@@ -779,14 +779,20 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 17, 11, 12, 11, 17, 12, 17, 11],
+                        Columns.Item: [11, 13, 17, 11, 17, 13, 11, 17, 13],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
         ),
     )
-    def test_ligr_layers(self, dataset: Dataset, filter_viewed: bool, expected: pd.DataFrame) -> None:
+    def test_ligr_layers(
+        self,
+        dataset: Dataset,
+        filter_viewed: bool,
+        expected: pd.DataFrame,
+        get_trainer_func: TrainerCallable,
+    ) -> None:
         model = SASRecModel(
             transformer_layers_type=LiGRLayers,
             transformer_layers_kwargs={
@@ -794,6 +800,7 @@ class TestSASRecModel:
                 "ff_activation": "swiglu",
                 "bias_in_ff": True,
             },
+            get_trainer_func=get_trainer_func,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
