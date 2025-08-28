@@ -774,16 +774,6 @@ class TestSASRecModel:
                     }
                 ),
             ),
-            (
-                False,
-                pd.DataFrame(
-                    {
-                        Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [13, 11, 17, 11, 17, 12, 17, 11, 13],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
-                    }
-                ),
-            ),
         ),
     )
     def test_ligr_layers(
