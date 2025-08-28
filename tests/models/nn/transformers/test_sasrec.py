@@ -762,9 +762,21 @@ class TestSASRecModel:
         assert isinstance(model.torch_model, TransformerTorchBackbone)
 
     @pytest.mark.parametrize(
-        "filter_viewed,expected",
+        "activation,filter_viewed,expected,",
         (
             (
+                "swiglu",
+                True,
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 17, 13, 14, 13, 12, 14],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+            ),
+            (
+                "gelu",
                 True,
                 pd.DataFrame(
                     {
@@ -778,6 +790,7 @@ class TestSASRecModel:
     )
     def test_ligr_layers(
         self,
+        activation: str,
         dataset: Dataset,
         filter_viewed: bool,
         expected: pd.DataFrame,
@@ -787,7 +800,7 @@ class TestSASRecModel:
             transformer_layers_type=LiGRLayers,
             transformer_layers_kwargs={
                 "ff_factors_multiplier": 1,
-                "ff_activation": "swiglu",
+                "ff_activation": activation,
                 "bias_in_ff": True,
             },
             get_trainer_func=get_trainer_func,
@@ -809,6 +822,16 @@ class TestSASRecModel:
             actual.sort_values([Columns.User, Columns.Score], ascending=[True, False]).reset_index(drop=True),
             actual,
         )
+
+    def test_raises_when_activation_is_not_supported(self, dataset: Dataset) -> None:
+        model = SASRecModel(
+            transformer_layers_type=LiGRLayers,
+            transformer_layers_kwargs={
+                "ff_activation": "not_supported_activation",
+            },
+        )
+        with pytest.raises(ValueError):
+            model.fit(dataset)
 
 
 class TestSASRecDataPreparator:
