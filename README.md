@@ -33,6 +33,15 @@ faster than ever before.
 - In [HSTU tutorial](examples/tutorials/transformers_HSTU_tutorial.ipynb) we show that original metrics reported for HSTU on public Movielens datasets may actually be **underestimated**
 - Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready, multi-gpu-compatible! See  [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb) and [Transformers Customization Guide](examples/tutorials/transformers_customization_guide.ipynb)
 
+
+## ✨ Highlights: RecTools framework at ACM RecSys'25 ✨
+
+**RecTools implementations are featured in ACM RecSys'25: ["eSASRec: Enhancing Transformer-based Recommendations in a Modular Fashion"](https://www.arxiv.org/abs/2508.06450):**
+- The article presents a systematic benchmark of Transformer modifications using RecTools models. It offers a detailed evaluation of training objectives, Transformer architectures, loss functions, and negative sampling strategies in realistic, production-like settings
+- We introduce a new SOTA baseline, **eSASRec**, which combines SASRec’s training objective with LiGR Transformer layers and Sampled Softmax loss, forming a simple yet powerful recipe
+- **eSASRec** shows 23% boost over SOTA models, such as ActionPiece, on academic benchmarks
+- [LiGR](https://arxiv.org/pdf/2502.03417) Transformer layers used in **eSASRec** are now in RecTools
+
 Plase note that we always compare the quality of our implementations to academic papers results. [Public benchmarks for transformer models SASRec and BERT4Rec](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) show that RecTools implementations achieve highest scores on multiple datasets compared to other published results.
 
 
