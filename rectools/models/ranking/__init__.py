@@ -42,7 +42,7 @@ from .candidate_ranking import (
 try:
     from .catboost_reranker import CatBoostReranker
 except ImportError:  # pragma: no cover
-    from ...compat import CatBoostReranker  # type: ignore
+    from rectools.compat import CatBoostReranker  # type: ignore
 
 
 __all__ = (
