@@ -20,16 +20,18 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import numpy as np
+import pandas as pd
 import torch
 import typing_extensions as tpe
 from pydantic import BeforeValidator, PlainSerializer
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader, TensorDataset
 
 from rectools import ExternalIds
 from rectools.dataset.dataset import Dataset, DatasetSchema, DatasetSchemaDict, IdMap
 from rectools.models.base import ErrorBehaviour, InternalRecoTriplet, ModelBase, ModelConfig
 from rectools.types import InternalIdsArray
-from rectools.utils.misc import get_class_or_function_full_path, import_object
+from rectools.utils.misc import get_class_or_function_full_path, import_object, make_dict_flat, unflatten_dict
 
 from ..item_net import (
     CatFeaturesItemNet,
@@ -38,17 +40,17 @@ from ..item_net import (
     ItemNetConstructorBase,
     SumOfEmbeddingsConstructor,
 )
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import InitKwargs, TransformerDataPreparatorBase
 from .lightning import TransformerLightningModule, TransformerLightningModuleBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PositionalEncodingBase,
     PreLNTransformerLayers,
     TransformerLayersBase,
 )
-from .torch_backbone import TransformerTorchBackbone
-
-InitKwargs = tp.Dict[str, tp.Any]
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 # ####  --------------  Transformer Model Config  --------------  #### #
 
@@ -97,8 +99,38 @@ TransformerLightningModuleType = tpe.Annotated[
     ),
 ]
 
+SimilarityModuleType = tpe.Annotated[
+    tp.Type[SimilarityModuleBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+TransformerBackboneType = tpe.Annotated[
+    tp.Type[TransformerBackboneBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
 TransformerDataPreparatorType = tpe.Annotated[
     tp.Type[TransformerDataPreparatorBase],
+    BeforeValidator(_get_class_obj),
+    PlainSerializer(
+        func=get_class_or_function_full_path,
+        return_type=str,
+        when_used="json",
+    ),
+]
+
+TransformerNegativeSamplerType = tpe.Annotated[
+    tp.Type[TransformerNegativeSamplerBase],
     BeforeValidator(_get_class_obj),
     PlainSerializer(
         func=get_class_or_function_full_path,
@@ -129,7 +161,7 @@ ItemNetBlockTypes = tpe.Annotated[
 ]
 
 
-ValMaskCallable = Callable[[], np.ndarray]
+ValMaskCallable = Callable[..., np.ndarray]
 
 ValMaskCallableSerialized = tpe.Annotated[
     ValMaskCallable,
@@ -141,7 +173,7 @@ ValMaskCallableSerialized = tpe.Annotated[
     ),
 ]
 
-TrainerCallable = Callable[[], Trainer]
+TrainerCallable = Callable[..., Trainer]
 
 TrainerCallableSerialized = tpe.Annotated[
     TrainerCallable,
@@ -183,13 +215,21 @@ class TransformerModelConfig(ModelConfig):
     pos_encoding_type: PositionalEncodingType = LearnableInversePositionalEncoding
     transformer_layers_type: TransformerLayersType = PreLNTransformerLayers
     lightning_module_type: TransformerLightningModuleType = TransformerLightningModule
+    negative_sampler_type: TransformerNegativeSamplerType = CatalogUniformSampler
+    similarity_module_type: SimilarityModuleType = DistanceSimilarityModule
+    backbone_type: TransformerBackboneType = TransformerTorchBackbone
     get_val_mask_func: tp.Optional[ValMaskCallableSerialized] = None
     get_trainer_func: tp.Optional[TrainerCallableSerialized] = None
+    get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None
+    get_trainer_func_kwargs: tp.Optional[InitKwargs] = None
     data_preparator_kwargs: tp.Optional[InitKwargs] = None
     transformer_layers_kwargs: tp.Optional[InitKwargs] = None
     item_net_constructor_kwargs: tp.Optional[InitKwargs] = None
     pos_encoding_kwargs: tp.Optional[InitKwargs] = None
     lightning_module_kwargs: tp.Optional[InitKwargs] = None
+    negative_sampler_kwargs: tp.Optional[InitKwargs] = None
+    similarity_module_kwargs: tp.Optional[InitKwargs] = None
+    backbone_kwargs: tp.Optional[InitKwargs] = None
 
 
 TransformerModelConfig_T = tp.TypeVar("TransformerModelConfig_T", bound=TransformerModelConfig)
@@ -237,13 +277,21 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         item_net_constructor_type: tp.Type[ItemNetConstructorBase] = SumOfEmbeddingsConstructor,
         pos_encoding_type: tp.Type[PositionalEncodingBase] = LearnableInversePositionalEncoding,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
+        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         data_preparator_kwargs: tp.Optional[InitKwargs] = None,
         transformer_layers_kwargs: tp.Optional[InitKwargs] = None,
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
+        similarity_module_kwargs: tp.Optional[InitKwargs] = None,
+        backbone_kwargs: tp.Optional[InitKwargs] = None,
         **kwargs: tp.Any,
     ) -> None:
         super().__init__(verbose=verbose)
@@ -268,17 +316,25 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.recommend_batch_size = recommend_batch_size
         self.recommend_torch_device = recommend_torch_device
         self.train_min_user_interactions = train_min_user_interactions
+        self.similarity_module_type = similarity_module_type
         self.item_net_block_types = item_net_block_types
         self.item_net_constructor_type = item_net_constructor_type
         self.pos_encoding_type = pos_encoding_type
         self.lightning_module_type = lightning_module_type
+        self.negative_sampler_type = negative_sampler_type
+        self.backbone_type = backbone_type
         self.get_val_mask_func = get_val_mask_func
         self.get_trainer_func = get_trainer_func
+        self.get_val_mask_func_kwargs = get_val_mask_func_kwargs
+        self.get_trainer_func_kwargs = get_trainer_func_kwargs
         self.data_preparator_kwargs = data_preparator_kwargs
         self.transformer_layers_kwargs = transformer_layers_kwargs
         self.item_net_constructor_kwargs = item_net_constructor_kwargs
         self.pos_encoding_kwargs = pos_encoding_kwargs
         self.lightning_module_kwargs = lightning_module_kwargs
+        self.negative_sampler_kwargs = negative_sampler_kwargs
+        self.similarity_module_kwargs = similarity_module_kwargs
+        self.backbone_kwargs = backbone_kwargs
 
         self._init_data_preparator()
         self._init_trainer()
@@ -295,14 +351,16 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         return kwargs
 
     def _init_data_preparator(self) -> None:
+        requires_negatives = self.lightning_module_type.requires_negatives(self.loss)
         self.data_preparator = self.data_preparator_type(
             session_max_len=self.session_max_len,
             batch_size=self.batch_size,
             dataloader_num_workers=self.dataloader_num_workers,
             train_min_user_interactions=self.train_min_user_interactions,
-            n_negatives=self.n_negatives if self.loss != "softmax" else None,
+            negative_sampler=self._init_negative_sampler() if requires_negatives else None,
+            n_negatives=self.n_negatives if requires_negatives else None,
             get_val_mask_func=self.get_val_mask_func,
-            shuffle_train=True,
+            get_val_mask_func_kwargs=self.get_val_mask_func_kwargs,
             **self._get_kwargs(self.data_preparator_kwargs),
         )
 
@@ -319,7 +377,13 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
                 devices=1,
             )
         else:
-            self._trainer = self.get_trainer_func()
+            self._trainer = self.get_trainer_func(**self._get_kwargs(self.get_trainer_func_kwargs))
+
+    def _init_negative_sampler(self) -> TransformerNegativeSamplerBase:
+        return self.negative_sampler_type(
+            n_negatives=self.n_negatives,
+            **self._get_kwargs(self.negative_sampler_kwargs),
+        )
 
     def _construct_item_net(self, dataset: Dataset) -> ItemNetBase:
         return self.item_net_constructor_type.from_dataset(
@@ -356,22 +420,28 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             **self._get_kwargs(self.transformer_layers_kwargs),
         )
 
-    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerTorchBackbone:
+    def _init_similarity_module(self) -> SimilarityModuleBase:
+        return self.similarity_module_type(**self._get_kwargs(self.similarity_module_kwargs))
+
+    def _init_torch_model(self, item_model: ItemNetBase) -> TransformerBackboneBase:
         pos_encoding_layer = self._init_pos_encoding_layer()
         transformer_layers = self._init_transformer_layers()
-        return TransformerTorchBackbone(
+        similarity_module = self._init_similarity_module()
+        return self.backbone_type(
             n_heads=self.n_heads,
             dropout_rate=self.dropout_rate,
             item_model=item_model,
             pos_encoding_layer=pos_encoding_layer,
             transformer_layers=transformer_layers,
+            similarity_module=similarity_module,
             use_causal_attn=self.use_causal_attn,
             use_key_padding_mask=self.use_key_padding_mask,
+            **self._get_kwargs(self.backbone_kwargs),
         )
 
     def _init_lightning_model(
         self,
-        torch_model: TransformerTorchBackbone,
+        torch_model: TransformerBackboneBase,
         dataset_schema: DatasetSchemaDict,
         item_external_ids: ExternalIds,
         model_config: tp.Dict[str, tp.Any],
@@ -393,14 +463,8 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             **self._get_kwargs(self.lightning_module_kwargs),
         )
 
-    def _fit(
-        self,
-        dataset: Dataset,
-    ) -> None:
+    def _build_model_from_dataset(self, dataset: Dataset) -> None:
         self.data_preparator.process_dataset_train(dataset)
-        train_dataloader = self.data_preparator.get_dataloader_train()
-        val_dataloader = self.data_preparator.get_dataloader_val()
-
         item_model = self._construct_item_net(self.data_preparator.train_dataset)
         torch_model = self._init_torch_model(item_model)
 
@@ -414,18 +478,59 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             model_config=model_config,
         )
 
+    def _fit(
+        self,
+        dataset: Dataset,
+    ) -> None:
+        self._build_model_from_dataset(dataset)
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
         self.fit_trainer = deepcopy(self._trainer)
         self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _custom_transform_dataset_u2i(
-        self, dataset: Dataset, users: ExternalIds, on_unsupported_targets: ErrorBehaviour
+        self,
+        dataset: Dataset,
+        users: ExternalIds,
+        on_unsupported_targets: ErrorBehaviour,
+        context: tp.Optional[pd.DataFrame] = None,
     ) -> Dataset:
-        return self.data_preparator.transform_dataset_u2i(dataset, users)
+        return self.data_preparator.transform_dataset_u2i(dataset, users, context)
 
     def _custom_transform_dataset_i2i(
         self, dataset: Dataset, target_items: ExternalIds, on_unsupported_targets: ErrorBehaviour
     ) -> Dataset:
         return self.data_preparator.transform_dataset_i2i(dataset)
+
+    def _fit_partial(
+        self,
+        dataset: Dataset,
+        min_epochs: int,
+        max_epochs: int,
+    ) -> None:
+        if not self.is_fitted:
+            self._build_model_from_dataset(dataset)
+            self.fit_trainer = deepcopy(self._trainer)
+        else:
+            # assumed that dataset is same as in `fit` or as in first call to `fit_partial`
+            # currently new datasets is not supported due to difficulties with
+            # handling id maps and item (user) features
+            self.data_preparator.process_dataset_train(dataset)
+            if self.fit_trainer is None:
+                raise RuntimeError("expected to have fit_trainer set")
+
+        train_dataloader = self.data_preparator.get_dataloader_train()
+        val_dataloader = self.data_preparator.get_dataloader_val()
+
+        self.lightning_model.train()
+
+        # if checkpoint is from ModelCheckpoint callback (and saved at end of epoch)
+        # its epoch value equal to num of data epochs - 1 (as epoch is not ended in checkpoint time)
+        # so instead of `fit_trainer.current_epoch` we use `count of ready epochs`
+        current_epoch = self.fit_trainer.fit_loop.epoch_progress.current.ready
+        self.fit_trainer.fit_loop.max_epochs = current_epoch + max_epochs
+        self.fit_trainer.fit_loop.min_epochs = current_epoch + min_epochs
+        self.fit_trainer.fit(self.lightning_model, train_dataloader, val_dataloader)
 
     def _recommend_u2i(
         self,
@@ -467,7 +572,7 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         )
 
     @property
-    def torch_model(self) -> TransformerTorchBackbone:
+    def torch_model(self) -> TransformerBackboneBase:
         """Pytorch model."""
         return self.lightning_model.torch_model
 
@@ -484,8 +589,25 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         return self.config_class(**params)
 
     @classmethod
-    def _model_from_checkpoint(cls, checkpoint: tp.Dict[str, tp.Any]) -> tpe.Self:
-        """Create model from loaded Lightning checkpoint."""
+    def _model_from_checkpoint(
+        cls, checkpoint: tp.Dict[str, tp.Any], ckpt_path: tp.Optional[tp.Union[str, Path]] = None
+    ) -> tpe.Self:
+        """
+        Create model from loaded Lightning checkpoint.
+
+        Parameters
+        ----------
+        checkpoint: Dict[str, tp.Any]
+            Checkpoint object (pl/torch like)
+        ckpt_path: Union[str, Path], optional
+            Path to checkpoint location.
+            If specified should be a path to `checkpoint` arg file.
+            `checkpoint` is saved to temp file if not specified.
+
+        Returns
+        -------
+        Model instance.
+        """
         model_config = checkpoint["hyper_parameters"]["model_config"]
         loaded = cls.from_config(model_config)
         loaded.is_fitted = True
@@ -506,19 +628,36 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
             item_external_ids=item_external_ids,
             model_config=model_config,
         )
-        loaded.lightning_model.load_state_dict(checkpoint["state_dict"])
+
+        try:
+            temp_file = None
+            actual_ckpt_path = ckpt_path
+            if actual_ckpt_path is None:
+                temp_file = NamedTemporaryFile()  # pylint: disable=consider-using-with
+                actual_ckpt_path = temp_file.name
+                torch.save(checkpoint, actual_ckpt_path)
+
+            loaded.fit_trainer = deepcopy(loaded._trainer)
+            # use stub dataset to load trainer state
+            loaded.fit_trainer.fit(
+                loaded.lightning_model,
+                ckpt_path=actual_ckpt_path,
+                train_dataloaders=DataLoader(TensorDataset(torch.Tensor())),
+            )
+
+        finally:
+            if temp_file is not None:
+                temp_file.close()
+
+        loaded.lightning_model.is_fitted = True
 
         return loaded
 
     def __getstate__(self) -> object:
         if self.is_fitted:
             if self.fit_trainer is None:
-                explanation = """
-                Model is fitted but has no `fit_trainer`. Most likely it was just loaded from the
-                checkpoint. Model that was loaded from checkpoint cannot be saved without being
-                fitted again.
-                """
-                raise RuntimeError(explanation)
+                raise RuntimeError("Fitted model is expected to have `fit_trainer` set")
+
             with NamedTemporaryFile() as f:
                 self.fit_trainer.save_checkpoint(f.name)
                 checkpoint = Path(f.name).read_bytes()
@@ -537,21 +676,37 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         self.__dict__.update(loaded.__dict__)
 
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: tp.Union[str, Path]) -> tpe.Self:
-        """
-        Load model from Lightning checkpoint path.
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: tp.Union[str, Path],
+        map_location: tp.Optional[tp.Union[str, torch.device]] = None,
+        model_params_update: tp.Optional[tp.Dict[str, tp.Any]] = None,
+    ) -> tpe.Self:
+        """Load model from Lightning checkpoint path.
 
         Parameters
         ----------
         checkpoint_path: Union[str, Path]
             Path to checkpoint location.
-
+        map_location: Union[str, torch.device], optional
+            Target device to load the checkpoint (e.g., 'cpu', 'cuda:0').
+            If None, will use the device the checkpoint was saved on.
+        model_params_update: Dict[str, tp.Any], optional
+            Contains custom values for checkpoint['hyper_parameters']['model_config'].
+            Has to be flattened with 'dot' reducer, before passed.
+            You can use this argument to remove training-specific parameters that are not needed anymore.
+             e.g. 'get_trainer_func'
         Returns
         -------
         Model instance.
         """
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
-        loaded = cls._model_from_checkpoint(checkpoint)
+        checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+        if model_params_update:
+            prev_model_config = checkpoint["hyper_parameters"]["model_config"]
+            prev_config_flatten = make_dict_flat(prev_model_config)
+            prev_config_flatten.update(model_params_update)
+            checkpoint["hyper_parameters"]["model_config"] = unflatten_dict(prev_config_flatten)
+        loaded = cls._model_from_checkpoint(checkpoint, ckpt_path=checkpoint_path)
         return loaded
 
     def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:

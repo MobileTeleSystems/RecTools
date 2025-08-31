@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 27.07.2025
+
+### Added
+-  HSTU Model from "Actions Speak Louder then Words..." implemented in the class `HSTUModel` ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- `leave_one_out_mask` function (`rectools.models.nn.transformers.utils.leave_one_out_mask`) for applying leave-one-out validation during transformer models training.([#292](https://github.com/MobileTeleSystems/RecTools/pull/292))
+- `logits_t` argument to `TransformerLightningModuleBase`. It is used to scale logits when computing the loss.  ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- `use_scale_factor` argument to `LearnableInversePositionalEncoding`. It scales embeddings by the square root of their dimension — following the original approach from the "Attention Is All You Need" ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+-  Optional `context` argument to `recommend` method of models and `get_context` function to `rectools.dataset.context.py` ([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+### Fixed
+- [Breaking] Corrected computation of `cosine` distance in `DistanceSimilarityModule`([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+- Installation issue with `cupy` extra on macOS ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+- `torch.dtype object has no attribute 'kind'` error in `TorchRanker` ([#293](https://github.com/MobileTeleSystems/RecTools/pull/293))
+### Removed
+- [Breaking] `Dropout` module from `IdEmbeddingsItemNet`. This changes model behaviour during training, so model results starting from this release might slightly differ from previous RecTools versions even when the random seed is fixed.([#290](https://github.com/MobileTeleSystems/RecTools/pull/290))
+
+## [0.15.0] - 17.07.2025
+
+### Added
+- `extras` argument to `SequenceDataset`, `extra_cols` argument to `TransformerDataPreparatorBase`, `session_tower_forward` and `item_tower_forward` methods to `SimilarityModuleBase` ([#287](https://github.com/MobileTeleSystems/RecTools/pull/287))
+- Support for resaving transformer models multiple times and loading trainer state ([#289](https://github.com/MobileTeleSystems/RecTools/pull/289))
+
+### Fixed
+- [Breaking] Now `LastNSplitter` guarantees taking the last ordered interaction in dataframe in case of identical timestamps ([#288](https://github.com/MobileTeleSystems/RecTools/pull/288))
+
+## [0.14.0] - 16.05.2025
+
+### Added
+- Python 3.13 support ([#227](https://github.com/MobileTeleSystems/RecTools/pull/227))
+- `fit_partial` implementation for transformer-based models ([#273](https://github.com/MobileTeleSystems/RecTools/pull/273))
+- `map_location` and `model_params_update` arguments for the function `load_from_checkpoint` for Transformer-based models. Use `map_location` to explicitly specify the computing new device and `model_params_update` to update original model parameters (e.g. remove training-specific parameters that are not needed anymore) ([#281](https://github.com/MobileTeleSystems/RecTools/pull/281))
+- `get_val_mask_func_kwargs` and  `get_trainer_func_kwargs` arguments for Transformer-based models to allow keyword arguments in custom functions used for model training. ([#280](https://github.com/MobileTeleSystems/RecTools/pull/280))
+
+## [0.13.0] - 10.04.2025
+
+### Added 
+- `TransformerNegativeSamplerBase` and `CatalogUniformSampler` classes, `negative_sampler_type` and `negative_sampler_kwargs` parameters to transformer-based models ([#275](https://github.com/MobileTeleSystems/RecTools/pull/275))
+- `SimilarityModuleBase`, `DistanceSimilarityModule`, similarity module to `TransformerTorchBackbone` parameters to transformer-based models `similarity_module_type`, `similarity_module_kwargs` ([#272](https://github.com/MobileTeleSystems/RecTools/pull/272))
+- `out_dim` property to `IdEmbeddingsItemNet`, `CatFeaturesItemNet` and `SumOfEmbeddingsConstructor` ([#276](https://github.com/MobileTeleSystems/RecTools/pull/276))
+- `TransformerBackboneBase`, `backbone_type` and `backbone_kwargs` parameters to transformer-based models ([#277](https://github.com/MobileTeleSystems/RecTools/pull/277))
+- `sampled_softmax` loss option for transformer models ([#274](https://github.com/MobileTeleSystems/RecTools/pull/274))
+
 
 ## [0.12.0] - 24.02.2025
 

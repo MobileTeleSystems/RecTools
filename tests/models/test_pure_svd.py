@@ -363,8 +363,8 @@ class TestPureSVDModelConfiguration:
     def test_get_config(
         self, mocker: MockerFixture, random_state: tp.Optional[int], simple_types: bool, use_gpu: bool
     ) -> None:
-        mocker.patch("rectools.models.pure_svd.cp.cuda.is_available", return_value=True)
         mocker.patch("rectools.models.pure_svd.cp", return_value=True)
+        mocker.patch("rectools.models.pure_svd.cp.cuda.is_available", return_value=True)
         model = PureSVDModel(
             factors=100,
             tol=1.0,

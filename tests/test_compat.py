@@ -20,6 +20,7 @@ from rectools.compat import (
     BERT4RecModel,
     CatBoostReranker,
     DSSMModel,
+    HSTUModel,
     ItemToItemAnnRecommender,
     ItemToItemVisualApp,
     LightFMWrapperModel,
@@ -34,6 +35,7 @@ from rectools.models.rank.compat import TorchRanker
 @pytest.mark.parametrize(
     "model",
     (
+        HSTUModel,
         DSSMModel,
         SASRecModel,
         BERT4RecModel,

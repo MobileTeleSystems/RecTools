@@ -32,9 +32,12 @@ from rectools.models.nn.transformers.base import (
     LearnableInversePositionalEncoding,
     TrainerCallable,
     TransformerLightningModule,
-    TransformerTorchBackbone,
 )
+from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
+from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
+from rectools.models.nn.transformers.torch_backbone import TransformerTorchBackbone
+from rectools.models.nn.transformers.utils import leave_one_out_mask
 from tests.models.data import DATASET
 from tests.models.utils import (
     assert_default_config_and_default_model_params_are_the_same,
@@ -42,7 +45,7 @@ from tests.models.utils import (
 )
 from tests.testing_utils import assert_id_map_equal, assert_interactions_set_equal
 
-from .utils import custom_trainer, leave_one_out_mask
+from .utils import custom_trainer
 
 
 class TestSASRecModel:
@@ -236,13 +239,14 @@ class TestSASRecModel:
                 pd.DataFrame(
                     {
                         Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                        Columns.Item: [12, 13, 11, 11, 12, 14, 12, 14, 11],
+                        Columns.Item: [13, 12, 11, 11, 12, 14, 14, 12, 11],
                         Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
         ),
     )
+    @pytest.mark.parametrize("u2i_dist", ("dot", "cosine"))
     def test_u2i(
         self,
         dataset_devices: Dataset,
@@ -253,6 +257,7 @@ class TestSASRecModel:
         expected_cpu_1: pd.DataFrame,
         expected_cpu_2: pd.DataFrame,
         expected_gpu: pd.DataFrame,
+        u2i_dist: str,
     ) -> None:
 
         if devices != 1:
@@ -280,6 +285,8 @@ class TestSASRecModel:
             recommend_torch_device=recommend_torch_device,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer,
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset_devices)
         users = np.array([10, 30, 40])
@@ -297,7 +304,7 @@ class TestSASRecModel:
         )
 
     @pytest.mark.parametrize(
-        "loss,expected",
+        "loss,expected,u2i_dist",
         (
             (
                 "BCE",
@@ -308,6 +315,7 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                "dot",
             ),
             (
                 "gBCE",
@@ -318,6 +326,51 @@ class TestSASRecModel:
                         Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
                     }
                 ),
+                "dot",
+            ),
+            (
+                "sampled_softmax",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                "dot",
+            ),
+            (
+                "BCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                "cosine",
+            ),
+            (
+                "gBCE",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                "cosine",
+            ),
+            (
+                "sampled_softmax",
+                pd.DataFrame(
+                    {
+                        Columns.User: [10, 10, 30, 30, 30, 40, 40, 40],
+                        Columns.Item: [17, 15, 13, 17, 14, 13, 14, 15],
+                        Columns.Rank: [1, 2, 1, 2, 3, 1, 2, 3],
+                    }
+                ),
+                "cosine",
             ),
         ),
     )
@@ -327,6 +380,7 @@ class TestSASRecModel:
         loss: str,
         get_trainer_func: TrainerCallable,
         expected: pd.DataFrame,
+        u2i_dist: str,
     ) -> None:
         model = SASRecModel(
             n_negatives=2,
@@ -340,6 +394,8 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             loss=loss,
+            similarity_module_type=DistanceSimilarityModule,
+            similarity_module_kwargs={"distance": u2i_dist},
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -355,9 +411,9 @@ class TestSASRecModel:
         (
             pd.DataFrame(
                 {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 17, 11, 11, 13, 15, 17, 13, 11],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    Columns.User: [30, 30, 30, 40, 40, 40],
+                    Columns.Item: [11, 13, 17, 17, 13, 11],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
         ),
@@ -380,9 +436,10 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
@@ -395,9 +452,9 @@ class TestSASRecModel:
         (
             pd.DataFrame(
                 {
-                    Columns.User: [10, 10, 10, 30, 30, 30, 40, 40, 40],
-                    Columns.Item: [13, 12, 11, 11, 12, 13, 13, 14, 12],
-                    Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                    Columns.User: [30, 30, 30, 40, 40, 40],
+                    Columns.Item: [11, 13, 12, 13, 14, 12],
+                    Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
         ),
@@ -420,9 +477,10 @@ class TestSASRecModel:
             item_net_block_types=(IdEmbeddingsItemNet, CatFeaturesItemNet),
             get_trainer_func=get_trainer_func,
             use_key_padding_mask=True,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset_item_features)
-        users = np.array([10, 30, 40])
+        users = np.unique(expected[Columns.User])
         actual = model.recommend(users=users, dataset=dataset_item_features, k=3, filter_viewed=False)
         pd.testing.assert_frame_equal(actual.drop(columns=Columns.Score), expected)
         pd.testing.assert_frame_equal(
@@ -472,6 +530,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 30, 40])
@@ -497,9 +556,9 @@ class TestSASRecModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [12, 13, 14, 14, 12, 15, 17, 13, 14],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.TargetItem: [12, 12, 12, 17, 17, 17],
+                        Columns.Item: [12, 13, 14, 17, 13, 14],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
@@ -508,9 +567,9 @@ class TestSASRecModel:
                 None,
                 pd.DataFrame(
                     {
-                        Columns.TargetItem: [12, 12, 12, 14, 14, 14, 17, 17, 17],
-                        Columns.Item: [13, 14, 11, 12, 15, 17, 13, 14, 11],
-                        Columns.Rank: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+                        Columns.TargetItem: [12, 12, 12, 17, 17, 17],
+                        Columns.Item: [13, 14, 11, 13, 14, 11],
+                        Columns.Rank: [1, 2, 3, 1, 2, 3],
                     }
                 ),
             ),
@@ -545,9 +604,10 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
-        target_items = np.array([12, 14, 17])
+        target_items = np.unique(expected[Columns.TargetItem])
         actual = model.recommend_to_items(
             target_items=target_items,
             dataset=dataset,
@@ -571,6 +631,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=custom_trainer,
+            similarity_module_type=DistanceSimilarityModule,
         )
         assert_second_fit_refits_model(model, dataset_hot_users_items, pre_fit_callback=self._seed_everything)
 
@@ -612,6 +673,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([20])
@@ -665,6 +727,7 @@ class TestSASRecModel:
             deterministic=True,
             item_net_block_types=(IdEmbeddingsItemNet,),
             get_trainer_func=get_trainer_func,
+            similarity_module_type=DistanceSimilarityModule,
         )
         model.fit(dataset=dataset)
         users = np.array([10, 20, 50])
@@ -688,12 +751,12 @@ class TestSASRecModel:
         )
 
     def test_raises_when_loss_is_not_supported(self, dataset: Dataset) -> None:
-        model = SASRecModel(loss="gbce")
+        model = SASRecModel(loss="gbce", similarity_module_type=DistanceSimilarityModule)
         with pytest.raises(ValueError):
             model.fit(dataset=dataset)
 
     def test_torch_model(self, dataset: Dataset) -> None:
-        model = SASRecModel()
+        model = SASRecModel(similarity_module_type=DistanceSimilarityModule)
         model.fit(dataset)
         assert isinstance(model.torch_model, TransformerTorchBackbone)
 
@@ -729,6 +792,28 @@ class TestSASRecDataPreparator:
         return Dataset.construct(interactions_df)
 
     @pytest.fixture
+    def dataset_timestamp_preproc(self) -> Dataset:
+        interactions_df = pd.DataFrame(
+            [
+                [10, 13, 1, "2021-11-30"],
+                [10, 11, 1, "2021-11-29"],
+                [10, 12, 1, "2021-11-29"],
+                [30, 11, 1, "2021-11-27"],
+                [30, 12, 2, "2021-11-26"],
+                [30, 15, 1, "2021-11-25"],
+                [40, 11, 1, "2021-11-25"],
+                [40, 17, 1, "2021-11-26"],
+                [50, 16, 1, "2021-11-25"],
+                [10, 14, 1, "2021-11-28"],
+                [10, 16, 1, "2021-11-27"],
+                [20, 13, 9, "2021-11-28"],
+                [10, 17, 1, "2021-11-30"],
+            ],
+            columns=Columns.Interactions,
+        )
+        return Dataset.construct(interactions_df)
+
+    @pytest.fixture
     def data_preparator(self) -> SASRecDataPreparator:
         return SASRecDataPreparator(session_max_len=3, batch_size=4, dataloader_num_workers=0)
 
@@ -753,6 +838,68 @@ class TestSASRecDataPreparator:
             n_negatives=2,
             get_val_mask_func=get_val_mask_func,
         )
+
+    @pytest.mark.parametrize(
+        "val_users, expected_batch_train, expected_batch_val",
+        (
+            (
+                [10, 30],
+                {
+                    "x": torch.tensor([[5, 2, 3], [0, 0, 1], [0, 0, 2]]),
+                    "y": torch.tensor([[2, 3, 6], [0, 0, 3], [0, 0, 4]]),
+                    "yw": torch.tensor([[1.0, 1.0, 1.0], [0.0, 0.0, 2.0], [0.0, 0.0, 1.0]]),
+                    "unix_ts": torch.tensor(
+                        [
+                            [1638057600, 1638144000, 1638144000, 1638230400],
+                            [1637798400, 1637798400, 1637798400, 1637884800],
+                            [1637798400, 1637798400, 1637798400, 1637884800],
+                        ]
+                    ),
+                },
+                {
+                    "x": torch.tensor([[0, 1, 3], [2, 3, 6]]),
+                    "y": torch.tensor([[2], [4]]),
+                    "yw": torch.tensor([[1.0], [1.0]]),
+                    "unix_ts": torch.tensor(
+                        [
+                            [1637884800, 1637884800, 1637884800, 1637971200],
+                            [1638144000, 1638144000, 1638230400, 1638230400],
+                        ]
+                    ),
+                },
+            ),
+        ),
+    )
+    def test_process_unix_ts_aware(
+        self,
+        dataset_timestamp_preproc: Dataset,
+        val_users: tp.List,
+        expected_batch_train: tp.Dict[str, torch.Tensor],
+        expected_batch_val: tp.Dict[str, torch.Tensor],
+    ) -> None:
+        get_val_mask_func_kwargs = {"val_users": val_users}
+        data_preparator = SASRecDataPreparator(
+            session_max_len=3,
+            batch_size=4,
+            dataloader_num_workers=0,
+            add_unix_ts=True,
+            get_val_mask_func=leave_one_out_mask,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+        )
+        data_preparator.process_dataset_train(dataset_timestamp_preproc)
+        assert "unix_ts" in data_preparator.train_dataset.interactions.df
+        assert data_preparator.val_interactions is not None
+        assert "unix_ts" in data_preparator.val_interactions
+        dataloader_train = data_preparator.get_dataloader_train()
+        train_iterator = next(iter(dataloader_train))
+        for key, value in train_iterator.items():
+            assert torch.equal(value, expected_batch_train[key])
+        dataloader_val = data_preparator.get_dataloader_val()
+        assert dataloader_val is not None
+        val_iterator = next(iter(dataloader_val))
+        for key, value in val_iterator.items():
+            if key == "unix_ts":
+                assert torch.equal(value, expected_batch_val[key])
 
     @pytest.mark.parametrize(
         "expected_user_id_map, expected_item_id_map, expected_train_interactions, expected_val_interactions",
@@ -901,13 +1048,21 @@ class TestSASRecModelConfiguration:
             "transformer_layers_type": SASRecTransformerLayers,
             "data_preparator_type": SASRecDataPreparator,
             "lightning_module_type": TransformerLightningModule,
+            "negative_sampler_type": CatalogUniformSampler,
+            "similarity_module_type": DistanceSimilarityModule,
+            "backbone_type": TransformerTorchBackbone,
             "get_val_mask_func": leave_one_out_mask,
             "get_trainer_func": None,
+            "get_val_mask_func_kwargs": None,
+            "get_trainer_func_kwargs": None,
             "data_preparator_kwargs": None,
             "transformer_layers_kwargs": None,
             "item_net_constructor_kwargs": None,
             "pos_encoding_kwargs": None,
             "lightning_module_kwargs": None,
+            "negative_sampler_kwargs": None,
+            "similarity_module_kwargs": None,
+            "backbone_kwargs": None,
         }
         return config
 
@@ -946,12 +1101,14 @@ class TestSASRecModelConfiguration:
                 "transformer_layers_type": "rectools.models.nn.transformers.sasrec.SASRecTransformerLayers",
                 "data_preparator_type": "rectools.models.nn.transformers.sasrec.SASRecDataPreparator",
                 "lightning_module_type": "rectools.models.nn.transformers.lightning.TransformerLightningModule",
-                "get_val_mask_func": "tests.models.nn.transformers.utils.leave_one_out_mask",
+                "negative_sampler_type": "rectools.models.nn.transformers.negative_sampler.CatalogUniformSampler",
+                "get_val_mask_func": "rectools.models.nn.transformers.utils.leave_one_out_mask",
+                "similarity_module_type": "rectools.models.nn.transformers.similarity.DistanceSimilarityModule",
+                "backbone_type": "rectools.models.nn.transformers.torch_backbone.TransformerTorchBackbone",
             }
             expected.update(simple_types_params)
             if use_custom_trainer:
                 expected["get_trainer_func"] = "tests.models.nn.transformers.utils.custom_trainer"
-
         assert actual == expected
 
     @pytest.mark.parametrize("use_custom_trainer", (True, False))

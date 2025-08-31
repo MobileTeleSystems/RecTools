@@ -54,6 +54,8 @@ class TorchRanker:
         Conversion is skipped if provided dtype is ``None``.
     """
 
+    epsilon_cosine_dist: torch.Tensor = torch.tensor([1e-8])
+
     def __init__(
         self,
         distance: Distance,
@@ -134,12 +136,11 @@ class TorchRanker:
                 )
 
                 if filter_pairs_csr is not None:
-                    mask = (
-                        torch.from_numpy(filter_pairs_csr[cur_user_emb_inds].toarray()[:, sorted_object_whitelist]).to(
-                            scores.device
-                        )
-                        != 0
-                    )
+                    # Convert cur_user_emb_inds to numpy to avoid
+                    # AttributeError: 'torch.dtype' object has no attribute 'kind'
+                    cur_user_filter_pairs_csr = filter_pairs_csr[cur_user_emb_inds.cpu().numpy()]
+                    whitelisted_filter_matrix = cur_user_filter_pairs_csr.toarray()[:, sorted_object_whitelist]
+                    mask = torch.from_numpy(whitelisted_filter_matrix).to(scores.device) != 0
                     scores = torch.masked_fill(scores, mask, mask_values)
 
                 top_scores, top_inds = torch.topk(
@@ -194,8 +195,12 @@ class TorchRanker:
         return torch.cdist(user_embs.unsqueeze(0), item_embs.unsqueeze(0)).squeeze(0)
 
     def _cosine_score(self, user_embs: torch.Tensor, item_embs: torch.Tensor) -> torch.Tensor:
-        user_embs = user_embs / torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1)
-        item_embs = item_embs / torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1)
+        user_embs = user_embs / torch.max(
+            torch.norm(user_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist.to(user_embs)
+        )
+        item_embs = item_embs / torch.max(
+            torch.norm(item_embs, p=2, dim=1).unsqueeze(dim=1), self.epsilon_cosine_dist.to(user_embs)
+        )
 
         return user_embs @ item_embs.T
 

@@ -5,6 +5,7 @@ BENCHMARK=benchmark
 SOURCES=rectools
 TESTS=tests
 SCRIPTS=scripts
+EXAMPLES=examples
 
 
 
@@ -61,7 +62,7 @@ install: .venv .reports
 	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
-	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/models/lightfm.py
+	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py
 
 coverage: .venv .reports
 	poetry run coverage run --source ${SOURCES} --module pytest
@@ -85,10 +86,10 @@ test: .venv .test
 # Copyright
 
 copyright:
-	poetry run python -m scripts.copyright --check ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
+	poetry run python -m scripts.copyright --check ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK} ${EXAMPLES}
 
 copyright_fix:
-	poetry run python -m scripts.copyright ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK}
+	poetry run python -m scripts.copyright ${SOURCES} ${TESTS} ${SCRIPTS} ${BENCHMARK} ${EXAMPLES}
 
 
 # Cleaning

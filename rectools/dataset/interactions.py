@@ -1,4 +1,4 @@
-#  Copyright 2022-2024 MTS (Mobile Telesystems)
+#  Copyright 2022-2025 MTS (Mobile Telesystems)
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -55,7 +55,21 @@ class Interactions:
             raise KeyError(f"Missed columns {required_columns - actual_columns}")
 
     @staticmethod
-    def _convert_weight_and_datetime_types(df: pd.DataFrame) -> None:
+    def convert_weight_and_datetime_types(df: pd.DataFrame) -> None:
+        """
+        Convert weight column to float and datetime column to datetime64[ns] in-place.
+
+        This method ensures that the specified weight column contains numeric values
+        and that the datetime column can be converted to pandas' datetime64[ns] format.
+        The conversion is done in-place, so the original DataFrame will be modified.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input DataFrame that must contain the following columns:
+                - `Columns.Weight` - interaction weight;
+                - `Columns.Datetime` - interaction timestamp.
+        """
         try:
             df[Columns.Weight] = df[Columns.Weight].astype(float)
         except ValueError:
@@ -80,7 +94,13 @@ class Interactions:
 
     def __attrs_post_init__(self) -> None:
         """Convert datetime and weight columns to the right data types."""
-        self._convert_weight_and_datetime_types(self.df)
+        self.convert_weight_and_datetime_types(self.df)
+
+    @staticmethod
+    def _add_extra_cols(df: pd.DataFrame, interactions: pd.DataFrame) -> None:
+        extra_cols = [col for col in interactions.columns if col not in df.columns]
+        for extra_col in extra_cols:
+            df[extra_col] = interactions[extra_col].values
 
     @staticmethod
     def _add_extra_cols(df: pd.DataFrame, interactions: pd.DataFrame) -> None:
@@ -125,7 +145,7 @@ class Interactions:
         )
         df[Columns.Weight] = interactions[Columns.Weight].values
         df[Columns.Datetime] = interactions[Columns.Datetime].values
-        cls._convert_weight_and_datetime_types(df)
+        cls.convert_weight_and_datetime_types(df)
         if keep_extra_cols:
             cls._add_extra_cols(df, interactions)
 
@@ -167,7 +187,7 @@ class Interactions:
         item_id_map: IdMap,
         include_weight: bool = True,
         include_datetime: bool = True,
-        include_extra_cols: bool = True,
+        include_extra_cols: tp.Union[bool, tp.List[str]] = True,
     ) -> pd.DataFrame:
         """
         Convert itself to `pd.DataFrame` with replacing internal user and item ids to external ones.
@@ -182,8 +202,9 @@ class Interactions:
             Whether to include weight column into resulting table or not
         include_datetime : bool, default ``True``
             Whether to include datetime column into resulting table or not.
-        include_extra_cols: bool, default ``True``
-            Whether to include extra columns into resulting table or not.
+        include_extra_cols: bool or List[str], default ``True``
+            If bool, indicates whether to include all extra columns into resulting table or not.
+            If list of strings, indicates which extra columns to include into resulting table.
 
         Returns
         -------
@@ -201,9 +222,13 @@ class Interactions:
             cols_to_add.append(Columns.Weight)
         if include_datetime:
             cols_to_add.append(Columns.Datetime)
-        if include_extra_cols:
+
+        extra_cols = []
+        if isinstance(include_extra_cols, list):
+            extra_cols = [col for col in include_extra_cols if col in self.df and col not in Columns.Interactions]
+        elif include_extra_cols:
             extra_cols = [col for col in self.df if col not in Columns.Interactions]
-            cols_to_add.extend(extra_cols)
+        cols_to_add.extend(extra_cols)
 
         for col in cols_to_add:
             res[col] = self.df[col]

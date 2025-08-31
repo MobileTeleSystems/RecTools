@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 import typing as tp
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import numpy as np
 import torch
@@ -27,7 +27,6 @@ from ..item_net import (
     SumOfEmbeddingsConstructor,
 )
 from .base import (
-    InitKwargs,
     TrainerCallable,
     TransformerDataPreparatorType,
     TransformerLayersType,
@@ -37,23 +36,56 @@ from .base import (
     TransformerModelConfig,
     ValMaskCallable,
 )
-from .data_preparator import TransformerDataPreparatorBase
+from .data_preparator import BatchElement, InitKwargs, TransformerDataPreparatorBase
+from .negative_sampler import CatalogUniformSampler, TransformerNegativeSamplerBase
 from .net_blocks import (
     LearnableInversePositionalEncoding,
     PointWiseFeedForward,
     PositionalEncodingBase,
     TransformerLayersBase,
 )
+from .similarity import DistanceSimilarityModule, SimilarityModuleBase
+from .torch_backbone import TransformerBackboneBase, TransformerTorchBackbone
 
 
 class SASRecDataPreparator(TransformerDataPreparatorBase):
-    """Data preparator for SASRecModel."""
+    """Data preparator for SASRecModel.
+
+    Parameters
+    ----------
+    session_max_len : int
+        Maximum length of user sequence.
+    batch_size : int
+        How many samples per batch to load.
+    dataloader_num_workers : int
+        Number of loader worker processes.
+    item_extra_tokens : Sequence(Hashable)
+        Which element to use for sequence padding.
+    shuffle_train : bool, default True
+        If ``True``, reshuffles data at each epoch.
+    train_min_user_interactions : int, default 2
+        Minimum length of user sequence. Cannot be less than 2.
+    get_val_mask_func : Callable, default None
+        Function to get validation mask.
+    n_negatives : optional(int), default ``None``
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
+    negative_sampler: optional(TransformerNegativeSamplerBase), default ``None``
+        Negative sampler.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
+    extra_cols: list(str) | None, default ``None``
+        Additional columns from dataset to keep beside of Columns.Inreractions
+    add_unix_ts: bool, default ``False``
+        Add extra column ``unix_ts`` contains Column.Datetime converted to seconds
+        from the beginning of the epoch
+    """
 
     train_session_max_len_addition: int = 1
 
     def _collate_fn_train(
         self,
-        batch: List[Tuple[List[int], List[float]]],
+        batch: tp.List[BatchElement],
     ) -> Dict[str, torch.Tensor]:
         """
         Truncate each session from right to keep `session_max_len` items.
@@ -64,27 +96,32 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, self.session_max_len))
         yw = np.zeros((batch_size, self.session_max_len))
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             x[i, -len(ses) + 1 :] = ses[:-1]  # ses: [session_len] -> x[i]: [session_max_len]
             y[i, -len(ses) + 1 :] = ses[1:]  # ses: [session_len] -> y[i]: [session_max_len]
             yw[i, -len(ses) + 1 :] = ses_weights[1:]  # ses_weights: [session_len] -> yw[i]: [session_max_len]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, self.session_max_len, self.n_negatives),
-            )  # [batch_size, session_max_len, n_negatives]
-            batch_dict["negatives"] = negatives
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size
+            )
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
+            for i, (ses, _, extras) in enumerate(batch):
+                t[i, -len(ses) :] = extras["unix_ts"]
+                len_to_pad = self.session_max_len + 1 - len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
+            batch_dict.update({"unix_ts": torch.LongTensor(t)})
         return batch_dict
 
-    def _collate_fn_val(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_val(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         batch_size = len(batch)
         x = np.zeros((batch_size, self.session_max_len))
         y = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
         yw = np.zeros((batch_size, 1))  # Only leave-one-strategy is supported for losses
-        for i, (ses, ses_weights) in enumerate(batch):
+        for i, (ses, ses_weights, _) in enumerate(batch):
             input_session = [ses[idx] for idx, weight in enumerate(ses_weights) if weight == 0]
 
             # take only first target for leave-one-strategy
@@ -96,19 +133,35 @@ class SASRecDataPreparator(TransformerDataPreparatorBase):
             yw[i, -1:] = ses_weights[target_idx]  # yw[i]: [1]
 
         batch_dict = {"x": torch.LongTensor(x), "y": torch.LongTensor(y), "yw": torch.FloatTensor(yw)}
-        if self.n_negatives is not None:
-            negatives = torch.randint(
-                low=self.n_item_extra_tokens,
-                high=self.item_id_map.size,
-                size=(batch_size, 1, self.n_negatives),
-            )  # [batch_size, 1, n_negatives]
-            batch_dict["negatives"] = negatives
+        if self.negative_sampler is not None:
+            batch_dict["negatives"] = self.negative_sampler.get_negatives(
+                batch_dict, lowest_id=self.n_item_extra_tokens, highest_id=self.item_id_map.size, session_len_limit=1
+            )
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))  # +1 target item timestamp
+            for i, (ses, _, extras) in enumerate(batch):
+                t[i, -len(ses) + 1 :] = extras["unix_ts"][1:]
+                len_to_pad = self.session_max_len + 2 - len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
+            batch_dict.update({"unix_ts": torch.LongTensor(t)})
         return batch_dict
 
-    def _collate_fn_recommend(self, batch: List[Tuple[List[int], List[float]]]) -> Dict[str, torch.Tensor]:
+    def _collate_fn_recommend(self, batch: tp.List[BatchElement]) -> Dict[str, torch.Tensor]:
         """Right truncation, left padding to session_max_len"""
-        x = np.zeros((len(batch), self.session_max_len))
-        for i, (ses, _) in enumerate(batch):
+        batch_size = len(batch)
+        x = np.zeros((batch_size, self.session_max_len))
+        if self.add_unix_ts:
+            t = np.zeros((batch_size, self.session_max_len + 1))
+            for i, (ses, _, extras) in enumerate(batch):
+                ses = ses[:-1]  # drop dummy item
+                x[i, -len(ses) :] = ses[-self.session_max_len :]
+                t[i, -(len(ses) + 1) :] = extras["unix_ts"][-(self.session_max_len + 1) :]
+                len_to_pad = self.session_max_len - len(ses)
+                if len_to_pad > 0:
+                    t[i, :len_to_pad] = t[i, len_to_pad]
+            return {"x": torch.LongTensor(x), "unix_ts": torch.LongTensor(t)}
+        for i, (ses, _, _) in enumerate(batch):
             x[i, -len(ses) :] = ses[-self.session_max_len :]
         return {"x": torch.LongTensor(x)}
 
@@ -221,6 +274,7 @@ class SASRecTransformerLayers(TransformerLayersBase):
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
@@ -288,10 +342,10 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
     train_min_user_interactions : int, default 2
         Minimum number of interactions user should have to be used for training. Should be greater
         than 1.
-    loss : {"softmax", "BCE", "gBCE"}, default "softmax"
+    loss : {"softmax", "BCE", "gBCE", "sampled_softmax"}, default "softmax"
         Loss function.
     n_negatives : int, default 1
-        Number of negatives for BCE and gBCE losses.
+        Number of negatives for BCE, gBCE and sampled_softmax losses.
     gbce_t : float, default 0.2
         Calibration parameter for gBCE loss.
     lr : float, default 0.001
@@ -336,6 +390,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Type of data preparator used for dataset processing and dataloader creation.
     lightning_module_type : type(TransformerLightningModuleBase), default `TransformerLightningModule`
         Type of lightning module defining training procedure.
+    negative_sampler_type: type(TransformerNegativeSamplerBase), default `CatalogUniformSampler`
+        Type of negative sampler.
+    similarity_module_type : type(SimilarityModuleBase), default `DistanceSimilarityModule`
+        Type of similarity module.
+    backbone_type : type(TransformerBackboneBase), default `TransformerTorchBackbone`
+        Type of torch backbone.
     get_val_mask_func : Callable, default ``None``
         Function to get validation mask.
     get_trainer_func : Callable, default ``None``
@@ -354,6 +414,12 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         When set to ``None``, "cuda" will be used if it is available, "cpu" otherwise.
         If you want to change this parameter after model is initialized,
         you can manually assign new value to model `recommend_torch_device` attribute.
+    get_val_mask_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_val_mask_func.
+        Make sure all dict values have JSON serializable types.
+    get_trainer_func_kwargs: optional(InitKwargs), default ``None``
+        Additional keyword arguments for the get_trainer_func.
+        Make sure all dict values have JSON serializable types.
     data_preparator_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `data_preparator_type` initialization.
         Make sure all dict values have JSON serializable types.
@@ -368,6 +434,15 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         Make sure all dict values have JSON serializable types.
     lightning_module_kwargs: optional(dict), default ``None``
         Additional keyword arguments to pass during `lightning_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    negative_sampler_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `negative_sampler_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    similarity_module_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `similarity_module_type` initialization.
+        Make sure all dict values have JSON serializable types.
+    backbone_kwargs: optional(dict), default ``None``
+        Additional keyword arguments to pass during `backbone_type` initialization.
         Make sure all dict values have JSON serializable types.
     """
 
@@ -399,8 +474,13 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         transformer_layers_type: tp.Type[TransformerLayersBase] = SASRecTransformerLayers,  # SASRec authors net
         data_preparator_type: tp.Type[TransformerDataPreparatorBase] = SASRecDataPreparator,
         lightning_module_type: tp.Type[TransformerLightningModuleBase] = TransformerLightningModule,
+        negative_sampler_type: tp.Type[TransformerNegativeSamplerBase] = CatalogUniformSampler,
+        similarity_module_type: tp.Type[SimilarityModuleBase] = DistanceSimilarityModule,
+        backbone_type: tp.Type[TransformerBackboneBase] = TransformerTorchBackbone,
         get_val_mask_func: tp.Optional[ValMaskCallable] = None,
         get_trainer_func: tp.Optional[TrainerCallable] = None,
+        get_val_mask_func_kwargs: tp.Optional[InitKwargs] = None,
+        get_trainer_func_kwargs: tp.Optional[InitKwargs] = None,
         recommend_batch_size: int = 256,
         recommend_torch_device: tp.Optional[str] = None,
         recommend_use_torch_ranking: bool = True,
@@ -410,6 +490,9 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
         item_net_constructor_kwargs: tp.Optional[InitKwargs] = None,
         pos_encoding_kwargs: tp.Optional[InitKwargs] = None,
         lightning_module_kwargs: tp.Optional[InitKwargs] = None,
+        negative_sampler_kwargs: tp.Optional[InitKwargs] = None,
+        similarity_module_kwargs: tp.Optional[InitKwargs] = None,
+        backbone_kwargs: tp.Optional[InitKwargs] = None,
     ):
         super().__init__(
             transformer_layers_type=transformer_layers_type,
@@ -436,15 +519,23 @@ class SASRecModel(TransformerModelBase[SASRecModelConfig]):
             recommend_n_threads=recommend_n_threads,
             recommend_use_torch_ranking=recommend_use_torch_ranking,
             train_min_user_interactions=train_min_user_interactions,
+            similarity_module_type=similarity_module_type,
             item_net_block_types=item_net_block_types,
             item_net_constructor_type=item_net_constructor_type,
             pos_encoding_type=pos_encoding_type,
             lightning_module_type=lightning_module_type,
+            negative_sampler_type=negative_sampler_type,
+            backbone_type=backbone_type,
             get_val_mask_func=get_val_mask_func,
             get_trainer_func=get_trainer_func,
+            get_val_mask_func_kwargs=get_val_mask_func_kwargs,
+            get_trainer_func_kwargs=get_trainer_func_kwargs,
             data_preparator_kwargs=data_preparator_kwargs,
             transformer_layers_kwargs=transformer_layers_kwargs,
             item_net_constructor_kwargs=item_net_constructor_kwargs,
             pos_encoding_kwargs=pos_encoding_kwargs,
             lightning_module_kwargs=lightning_module_kwargs,
+            negative_sampler_kwargs=negative_sampler_kwargs,
+            similarity_module_kwargs=similarity_module_kwargs,
+            backbone_kwargs=backbone_kwargs,
         )

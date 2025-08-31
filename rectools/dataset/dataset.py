@@ -348,7 +348,10 @@ class Dataset:
         return matrix
 
     def get_raw_interactions(
-        self, include_weight: bool = True, include_datetime: bool = True, include_extra_cols: bool = True
+        self,
+        include_weight: bool = True,
+        include_datetime: bool = True,
+        include_extra_cols: tp.Union[bool, tp.List[str]] = True,
     ) -> pd.DataFrame:
         """
         Return interactions as a `pd.DataFrame` object with replacing internal user and item ids to external ones.

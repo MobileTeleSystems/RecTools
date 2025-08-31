@@ -24,17 +24,16 @@
 RecTools is an easy-to-use Python library which makes the process of building recommender systems easier and
 faster than ever before.
 
-## ✨ Highlights: Transformer models released! ✨
+## ✨ Highlights: HSTU model released! ✨
 
-**BERT4Rec and SASRec are now available in RecTools:**
+**HSTU arhictecture from ["Actions speak louder then words..."](https://arxiv.org/abs/2402.17152) is now available in RecTools as `HSTUModel`:**
 - Fully compatible with our  `fit` / `recommend` paradigm and require NO special data processing
-- Explicitly described in our [Transformers Theory & Practice Tutorial](examples/tutorials/transformers_tutorial.ipynb): loss options, item embedding options,  category features utilization and more!
+- Supports context-aware recommendations in case Relative Time Bias is enabled
+- Supports all loss options, item embedding options, category features utilization and other common modular functionality of RecTools transformer models
+- In [HSTU tutorial](examples/tutorials/transformers_HSTU_tutorial.ipynb) we show that original metrics reported for HSTU on public Movielens datasets may actually be **underestimated**
 - Configurable, customizable, callback-friendly, checkpoints-included, logs-out-of-the-box, custom-validation-ready, multi-gpu-compatible! See  [Transformers Advanced Training User Guide](examples/tutorials/transformers_advanced_training_guide.ipynb) and [Transformers Customization Guide](examples/tutorials/transformers_customization_guide.ipynb)
-- Public benchmarks which compare RecTools models to other open-source implementations following BERT4Rec replicability paper show that RecTools implementations achieve highest scores on multiple datasets: [Performance on public transformers benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results)
 
-
-
-
+Plase note that we always compare the quality of our implementations to academic papers results. [Public benchmarks for transformer models SASRec and BERT4Rec](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) show that RecTools implementations achieve highest scores on multiple datasets compared to other published results.
 
 
 ## Get started
@@ -48,11 +47,10 @@ unzip ml-1m.zip
 
 ```python
 import pandas as pd
-from implicit.nearest_neighbours import TFIDFRecommender
     
 from rectools import Columns
 from rectools.dataset import Dataset
-from rectools.models import ImplicitItemKNNWrapperModel
+from rectools.models import SASRecModel
 
 # Read the data
 ratings = pd.read_csv(
@@ -67,7 +65,7 @@ ratings = pd.read_csv(
 dataset = Dataset.construct(ratings)
     
 # Fit model
-model = ImplicitItemKNNWrapperModel(TFIDFRecommender(K=10))
+model = SASRecModel(n_factors=64, epochs=100, loss="sampled_softmax")
 model.fit(dataset)
 
 # Make recommendations
@@ -106,22 +104,22 @@ pip install rectools[all]
 
 ## Recommender Models
 The table below lists recommender models that are available in RecTools.  
-See [recommender baselines extended tutorial](https://github.com/MobileTeleSystems/RecTools/blob/main/examples/tutorials/baselines_extended_tutorial.ipynb) for deep dive into theory & practice of our supported models.
 
-| Model | Type | Description (🎏 for user/item features, 🔆 for warm inference, ❄️ for cold inference support) | Tutorials & Benchmarks |
-|----|----|---------|--------|
-| SASRec | Neural Network | `rectools.models.SASRecModel` - Transformer-based sequential model with unidirectional attention mechanism and "Shifted Sequence" training objective <br>🎏| 📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Advanced training guide](examples/tutorials/transformers_advanced_training_guide.ipynb) <br>  📘 [Customization guide](examples/tutorials/transformers_customization_guide.ipynb) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) |
-| BERT4Rec | Neural Network | `rectools.models.BERT4RecModel` - Transformer-based sequential model with bidirectional attention mechanism and "MLM" (masked item) training objective <br>🎏| 📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Advanced training guide](examples/tutorials/transformers_advanced_training_guide.ipynb) <br>  📘 [Customization guide](examples/tutorials/transformers_customization_guide.ipynb) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) |
-| [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback. <br>🎏| 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Implicit-ALS)<br> 🚀 [50% boost to metrics with user & item features](examples/5_benchmark_iALS_with_features.ipynb) |
-| [implicit](https://github.com/benfred/implicit) BPR-MF Wrapper | Matrix Factorization | `rectools.models.ImplicitBPRWrapperModel` - Bayesian Personalized Ranking Matrix Factorization algorithm. | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Bayesian-Personalized-Ranking-Matrix-Factorization-(BPR-MF)) |
+| Model               | Type | Description (🎏 for user/item features, 🔆 for warm inference, ❄️ for cold inference support)                                                                               | Tutorials & Benchmarks |
+|---------------------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| HSTU                | Neural Network | `rectools.models.HSTUModel` - Sequential model with unidirectional pointwise aggregated attention mechanism, incorporating relative attention bias from positional and temporal information, introduced in ["Actions speak louder then words..."](https://arxiv.org/pdf/2402.17152), combined with "Shifted Sequence" training objective as in original public benchmarks<br>🎏                                    | 📓 [HSTU Theory & Practice](examples/tutorials/transformers_HSTU_tutorial.ipynb) <br>  📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Advanced training guide](examples/tutorials/transformers_advanced_training_guide.ipynb) <br> 🚀 [Top performance on public datasets](examples/tutorials/transformers_HSTU_tutorial.ipynb)
+| SASRec              | Neural Network | `rectools.models.SASRecModel` - Transformer-based sequential model with unidirectional attention mechanism and "Shifted Sequence" training objective <br>🎏                 | 📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Advanced training guide](examples/tutorials/transformers_advanced_training_guide.ipynb) <br>  📘 [Customization guide](examples/tutorials/transformers_customization_guide.ipynb) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) |
+| BERT4Rec            | Neural Network | `rectools.models.BERT4RecModel` - Transformer-based sequential model with bidirectional attention mechanism and "MLM" (masked item) training objective <br>🎏               | 📕 [Transformers Theory & Practice](examples/tutorials/transformers_tutorial.ipynb)<br>  📗 [Advanced training guide](examples/tutorials/transformers_advanced_training_guide.ipynb) <br>  📘 [Customization guide](examples/tutorials/transformers_customization_guide.ipynb) <br> 🚀 [Top performance on public benchmarks](https://github.com/blondered/bert4rec_repro?tab=readme-ov-file#rectools-transformers-benchmark-results) |
+| [implicit](https://github.com/benfred/implicit) ALS Wrapper | Matrix Factorization | `rectools.models.ImplicitALSWrapperModel` - Alternating Least Squares Matrix Factorizattion algorithm for implicit feedback. <br>🎏                                         | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Implicit-ALS)<br> 🚀 [50% boost to metrics with user & item features](examples/5_benchmark_iALS_with_features.ipynb) |
+| [implicit](https://github.com/benfred/implicit) BPR-MF Wrapper | Matrix Factorization | `rectools.models.ImplicitBPRWrapperModel` - Bayesian Personalized Ranking Matrix Factorization algorithm.                                                                   | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#Bayesian-Personalized-Ranking-Matrix-Factorization-(BPR-MF)) |
 | [implicit](https://github.com/benfred/implicit) ItemKNN Wrapper | Nearest Neighbours | `rectools.models.ImplicitItemKNNWrapperModel` - Algorithm that calculates item-item similarity matrix using distances between item vectors in user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#ItemKNN) |
-| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | `rectools.models.LightFMWrapperModel` - Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses.<br>🎏 🔆 ❄️| 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#LightFM)<br>🚀 [10-25 times faster inference with RecTools](examples/6_benchmark_lightfm_inference.ipynb)|
-| EASE | Linear Autoencoder | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#EASE) |
-| PureSVD | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#PureSVD) |
-| DSSM | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss.<br>🎏 🔆 | - |
-| Popular | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items and also accepts params like time window and type of popularity computation.<br>❄️| - |
-| Popular in Category | Heuristic |  `rectools.models.PopularInCategoryModel` - Model that computes poularity within category and applies mixing strategy to increase Diversity.<br>❄️| - |
-| Random |  Heuristic | `rectools.models.RandomModel` - Simple random algorithm useful to benchmark Novelty, Coverage, etc.<br>❄️| - |
+| [LightFM](https://github.com/lyst/lightfm) Wrapper | Matrix Factorization | `rectools.models.LightFMWrapperModel` - Hybrid matrix factorization algorithm which utilises user and item features and supports a variety of losses.<br>🎏 🔆 ❄️           | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#LightFM)<br>🚀 [10-25 times faster inference with RecTools](examples/6_benchmark_lightfm_inference.ipynb)|
+| EASE                | Linear Autoencoder | `rectools.models.EASEModel` - Embarassingly Shallow Autoencoders implementation that explicitly calculates dense item-item similarity matrix                                | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#EASE) |
+| PureSVD             | Matrix Factorization | `rectools.models.PureSVDModel` - Truncated Singular Value Decomposition of user-item interactions matrix                                                                    | 📙 [Theory & Practice](https://rectools.readthedocs.io/en/latest/examples/tutorials/baselines_extended_tutorial.html#PureSVD) |
+| DSSM                | Neural Network | `rectools.models.DSSMModel` - Two-tower Neural model that learns user and item embeddings utilising their explicit features and learning on triplet loss.<br>🎏 🔆          | - |
+| Popular             | Heuristic | `rectools.models.PopularModel` - Classic baseline which computes popularity of items and also accepts params like time window and type of popularity computation.<br>❄️     | - |
+| Popular in Category | Heuristic | `rectools.models.PopularInCategoryModel` - Model that computes poularity within category and applies mixing strategy to increase Diversity.<br>❄️                           | - |
+| Random              |  Heuristic | `rectools.models.RandomModel` - Simple random algorithm useful to benchmark Novelty, Coverage, etc.<br>❄️                                                                   | - |
 
 - All of the models follow the same interface. **No exceptions**
 - No need for manual creation of sparse matrixes, torch dataloaders or mapping ids. Preparing data for models is as simple as `dataset = Dataset.construct(interactions_df)`
@@ -216,6 +214,7 @@ make clean
 - [Grigoriy Gusarov](https://github.com/Gooogr)
 - [Aki Ariga](https://github.com/chezou)
 - [Nikolay Undalov](https://github.com/nsundalov)
+- [Aleksey Kuzin](https://github.com/teodor-r)
 
 Previous contributors: [Ildar Safilo](https://github.com/irsafilo) [ex-Maintainer], [Daniil Potapov](https://github.com/sharthZ23) [ex-Maintainer], [Alexander Butenko](https://github.com/iomallach), [Igor Belkov](https://github.com/OzmundSedler), [Artem Senin](https://github.com/artemseninhse), [Mikhail Khasykov](https://github.com/mkhasykov), [Julia Karamnova](https://github.com/JuliaKup), [Maxim Lukin](https://github.com/groundmax), [Yuri Ulianov](https://github.com/yukeeul), [Egor Kratkov](https://github.com/jegorus), [Azat Sibagatulin](https://github.com/azatnv), [Vadim Vetrov](https://github.com/Waujito)
 

@@ -47,6 +47,11 @@ class ItemNetBase(nn.Module):
         raise NotImplementedError()
 
     @property
+    def out_dim(self) -> int:
+        """Return item embedding output dimension."""
+        raise NotImplementedError()
+
+    @property
     def device(self) -> torch.device:
         """Return ItemNet device."""
         return next(self.parameters()).device
@@ -222,6 +227,11 @@ class CatFeaturesItemNet(ItemNetBase):
             )
         return None
 
+    @property
+    def out_dim(self) -> int:
+        """Return categorical item embedding output dimension."""
+        return int(self.embedding_bag.embedding_dim)
+
 
 class IdEmbeddingsItemNet(ItemNetBase):
     """
@@ -252,7 +262,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             embedding_dim=n_factors,
             padding_idx=0,
         )
-        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, items: torch.Tensor) -> torch.Tensor:
         """
@@ -269,7 +278,6 @@ class IdEmbeddingsItemNet(ItemNetBase):
             Item embeddings.
         """
         item_embs = self.ids_emb(items.to(self.device))
-        item_embs = self.dropout(item_embs)
         return item_embs
 
     @classmethod
@@ -316,6 +324,11 @@ class IdEmbeddingsItemNet(ItemNetBase):
         """
         n_items = dataset_schema.items.n_hot
         return cls(n_factors, n_items, dropout_rate)
+
+    @property
+    def out_dim(self) -> int:
+        """Return item embedding output dimension."""
+        return self.ids_emb.embedding_dim
 
 
 class ItemNetConstructorBase(ItemNetBase):
@@ -467,3 +480,8 @@ class SumOfEmbeddingsConstructor(ItemNetConstructorBase):
             item_emb = self.item_net_blocks[idx_block](items)
             item_embs.append(item_emb)
         return torch.sum(torch.stack(item_embs, dim=0), dim=0)
+
+    @property
+    def out_dim(self) -> int:
+        """Return item net constructor output dimension."""
+        return self.item_net_blocks[0].out_dim  # type: ignore[return-value]

@@ -70,6 +70,7 @@ class TransformerLayersBase(nn.Module):
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
@@ -217,6 +218,7 @@ class PreLNTransformerLayers(TransformerLayersBase):
         timeline_mask: torch.Tensor,
         attn_mask: tp.Optional[torch.Tensor],
         key_padding_mask: tp.Optional[torch.Tensor],
+        **kwargs: tp.Any,
     ) -> torch.Tensor:
         """
         Forward pass through transformer blocks.
@@ -263,6 +265,8 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         Maximum length of user sequence.
     n_factors : int
         Latent embeddings size.
+    use_scale_factor : int
+        Use multiplication embedding on the root of the dimension embedding
     """
 
     def __init__(
@@ -270,10 +274,12 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         use_pos_emb: bool,
         session_max_len: int,
         n_factors: int,
+        use_scale_factor: bool = False,
         **kwargs: tp.Any,
     ):
         super().__init__()
         self.pos_emb = torch.nn.Embedding(session_max_len, n_factors) if use_pos_emb else None
+        self.use_scale_factor = use_scale_factor
 
     def forward(self, sessions: torch.Tensor) -> torch.Tensor:
         """
@@ -289,8 +295,10 @@ class LearnableInversePositionalEncoding(PositionalEncodingBase):
         torch.Tensor
             Encoded user sessions with added positional encoding if `use_pos_emb` is ``True``.
         """
-        batch_size, session_max_len, _ = sessions.shape
+        batch_size, session_max_len, n_factors = sessions.shape
 
+        if self.use_scale_factor:
+            sessions = sessions * (n_factors**0.5)
         if self.pos_emb is not None:
             # Inverse positions are appropriate for variable length sequences across different batches
             # They are equal to absolute positions for fixed sequence length across different batches
