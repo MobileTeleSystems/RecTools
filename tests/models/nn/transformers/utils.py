@@ -12,20 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import pandas as pd
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-
-from rectools import Columns
-
-
-def leave_one_out_mask(interactions: pd.DataFrame) -> pd.Series:
-    rank = (
-        interactions.sort_values(Columns.Datetime, ascending=False, kind="stable")
-        .groupby(Columns.User, sort=False)
-        .cumcount()
-    )
-    return rank == 0
 
 
 def custom_trainer() -> Trainer:
