@@ -102,12 +102,6 @@ class Interactions:
         for extra_col in extra_cols:
             df[extra_col] = interactions[extra_col].values
 
-    @staticmethod
-    def _add_extra_cols(df: pd.DataFrame, interactions: pd.DataFrame) -> None:
-        extra_cols = [col for col in interactions.columns if col not in df.columns]
-        for extra_col in extra_cols:
-            df[extra_col] = interactions[extra_col].values
-
     @classmethod
     def from_raw(
         cls, interactions: pd.DataFrame, user_id_map: IdMap, item_id_map: IdMap, keep_extra_cols: bool = False
