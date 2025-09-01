@@ -131,7 +131,7 @@ all = [
 
 
 [tool.poetry.group.dev.dependencies]
-black = "24.10.0"
+black = "25.1.0"
 isort = "5.13.2"
 pylint = "3.1.0"
 mypy = "1.13.0"
