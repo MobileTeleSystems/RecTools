@@ -33,7 +33,7 @@ from rectools.models.nn.transformers.base import (
     TrainerCallable,
     TransformerLightningModule,
 )
-from rectools.models.nn.transformers.ligr_layers import LiGRLayers
+from rectools.models.nn.transformers.ligr import LiGRLayers
 from rectools.models.nn.transformers.negative_sampler import CatalogUniformSampler
 from rectools.models.nn.transformers.sasrec import SASRecDataPreparator, SASRecTransformerLayers
 from rectools.models.nn.transformers.similarity import DistanceSimilarityModule
