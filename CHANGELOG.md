@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.17.0] - 03.09.2025
 
 ### Added
 - LiGR transformer layers from "From Features to Transformers: Redefining Ranking for Scalable Impact" ([#295](https://github.com/MobileTeleSystems/RecTools/pull/295))
