@@ -2700,6 +2700,52 @@ dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
+name = "pm-implicit"
+version = "0.7.3"
+description = "Collaborative Filtering for Implicit Feedback Datasets"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pm_implicit-0.7.3-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:26ad78fd2669b66fba27a545efda5d371488ac2a349dc6cbbeab6a16961080dc"},
+    {file = "pm_implicit-0.7.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:633fa93860280966783a071e36f012c7ff22b9cecc99099ae61281f42a7314c5"},
+    {file = "pm_implicit-0.7.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:d985c4d97f0a78449e8f4b11a1f55ba670c8e3bf5d3b4b50405e26f8b7253453"},
+    {file = "pm_implicit-0.7.3-cp310-cp310-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:989815ad55dcdfc76ee3b2436dbd6a6b1fff3b08008e09e869ebb3c19d59600f"},
+    {file = "pm_implicit-0.7.3-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6074d0d6d61b557327a84302fb459c10ad62022e9a215fccaed5061998584b88"},
+    {file = "pm_implicit-0.7.3-cp310-cp310-win_amd64.whl", hash = "sha256:980727d83c739695073b779b805ef9108a5f024ab99fd0074517072d61dc0948"},
+    {file = "pm_implicit-0.7.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:0545ee456875d12e7d969f10aab8588286b289fe2f870c5e8482f788b1045bf0"},
+    {file = "pm_implicit-0.7.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:b7f1859aec6abf2d3c13609bf36322becad7f31a967978787489b17f03d03c52"},
+    {file = "pm_implicit-0.7.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:4a280525c3364d0b3079b473f71e8491c8f2a9793bc6359d6db727c847588db7"},
+    {file = "pm_implicit-0.7.3-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9239631293f7a68a8c6ad8eb5b1dcb2fab9a32fea7fbbcb8678ab2b89be9b1e2"},
+    {file = "pm_implicit-0.7.3-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ceec1f2ed4be0e7fb57daf4da01ccf6bcbc8936648314e4c3402fb731e0a2a9d"},
+    {file = "pm_implicit-0.7.3-cp311-cp311-win_amd64.whl", hash = "sha256:97c2fed8257ce52d61ec7a62e8a2dd9d0a86b38a8eac99901368366992edb86c"},
+    {file = "pm_implicit-0.7.3-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:1cac181cc84cb942b484f7fd7de4a79203075bc72a3745cd5e7de51625c92c00"},
+    {file = "pm_implicit-0.7.3-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:fff48cb1e07f8ef7c332b97662e05928feb8d9f40dd0d27e6bb949dfd77a6a64"},
+    {file = "pm_implicit-0.7.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:b1655d7ca67413cd41019d54abcd4868ca0e1683653f4942e10a4d74c72baa71"},
+    {file = "pm_implicit-0.7.3-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5bf95993d2e7a4b8c7ec720f7dae294987ec2960a84d35d441a03a7e440a91b4"},
+    {file = "pm_implicit-0.7.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0f041af1b2d23e5082137acf299c526038b76ab9053f33c66bae4cea2a33122f"},
+    {file = "pm_implicit-0.7.3-cp312-cp312-win_amd64.whl", hash = "sha256:efd98d65ea1e0a7315f971f51868645d537543501810dc9a46fbdf4882a58fb0"},
+    {file = "pm_implicit-0.7.3-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:e5b4fc568a90d1e3ea46db14819145be022c754ed5c58af39b74594c0b6f9c92"},
+    {file = "pm_implicit-0.7.3-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:01d010a1326ee9a04ea92deadea679a3541f7da617ce549469a8d225f3ba91e4"},
+    {file = "pm_implicit-0.7.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:5712c6674176b11f9373f5f978956faba0ee56c128d3adc21ad9bf6269fb16ad"},
+    {file = "pm_implicit-0.7.3-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c03bab78646de506eb75042663336d39f60f6239089cb6a59fb8fe681394e95a"},
+    {file = "pm_implicit-0.7.3-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:bf56a01887b271f28d188d992ffd1283d6049126080f7cee7bc63cf22fe1beb4"},
+    {file = "pm_implicit-0.7.3-cp313-cp313-win_amd64.whl", hash = "sha256:55ea6b2186e29aab38d42ba2c4e1e406027f4cb49b7407183af5fdd61c7a0550"},
+    {file = "pm_implicit-0.7.3-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:72dd6bcab1dc52a31e6e9f2aaa7c447d75ac86d3a3d92b227cc188c814da0afc"},
+    {file = "pm_implicit-0.7.3-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:16a004a29605c0ad932a4d20295176cfb1ca36e6acaa34928fc5eba87c0dfa4f"},
+    {file = "pm_implicit-0.7.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:ad97118f6009f5c11a6a1503c2289326c40d95957d70d1d1779592f4ec51fa0c"},
+    {file = "pm_implicit-0.7.3-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:fabdb6f8b676413959fe2a3b4b2607ae72d02087ce466eeaeb070c279d50b52d"},
+    {file = "pm_implicit-0.7.3-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:21bd367ec455524d1a9fb6f58ac276a14a90631dbc05f9f6e89a69abdd89d132"},
+    {file = "pm_implicit-0.7.3-cp314-cp314-win_amd64.whl", hash = "sha256:caed9ddba6681a843f9b4386cd75f72e09536d9f66901fe50fa8189686853cf9"},
+    {file = "pm_implicit-0.7.3.tar.gz", hash = "sha256:87cfb2a0b1a2e1ea6bafddc76eeea2b076b0a80cfe71d52a2c0c77ad397671ab"},
+]
+
+[package.dependencies]
+numpy = ">=1.17.0"
+scipy = ">=0.16"
+threadpoolctl = "*"
+tqdm = ">=4.27"
+
+[[package]]
 name = "prompt-toolkit"
 version = "3.0.51"
 description = "Library for building powerful interactive command lines in Python"
@@ -4677,4 +4723,4 @@ visuals = ["ipywidgets", "nbformat", "plotly"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9, <3.14"
-content-hash = "7e1d6eb49d35fd1452c8e559d6afc578efc448978d08b644dd81fa1ec7ad3f10"
+content-hash = "93621fefd8392614706b1616a42b8bcdef069c3d6d0c6594d60263db6deccbfd"
