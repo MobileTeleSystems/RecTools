@@ -220,7 +220,7 @@ class Reranker:
             A DataFrame containing the top-k recommended items for each user. If `add_rank_col` is True, the DataFrame
             will include an additional column `Columns.Score` for the rank of each item.
         """
-        # TODO: optimize computations and introduce polars
+        # TODO: optimize computations
         # Discussion here: https://github.com/MobileTeleSystems/RecTools/pull/209
         # Branch here: https://github.com/blondered/RecTools/tree/feature/polars
         reco = (
@@ -243,7 +243,7 @@ class CandidateFeatureCollector:
     Inherit from this class and rewrite private methods to grab features from dataset and external sources
     """
 
-    # TODO: this class can be used in pipelines directly. it will keep scores and ranks and add nothing
+    # TODO: this class can be used in pipelines directly. It will keep scores and ranks and add nothing
     # TODO: create an inherited class that will get all features from dataset?
 
     def _get_user_features(
