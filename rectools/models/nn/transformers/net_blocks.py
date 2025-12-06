@@ -33,14 +33,18 @@ class PointWiseFeedForward(nn.Module):
         Probability of a hidden unit to be zeroed.
     activation: torch.nn.Module
         Activation function module.
+    bias: bool, default ``True``
+        If ``True``, add bias to linear layers.
     """
 
-    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module) -> None:
+    def __init__(
+        self, n_factors: int, n_factors_ff: int, dropout_rate: float, activation: torch.nn.Module, bias: bool = True
+    ) -> None:
         super().__init__()
-        self.ff_linear_1 = nn.Linear(n_factors, n_factors_ff)
+        self.ff_linear_1 = nn.Linear(n_factors, n_factors_ff, bias)
         self.ff_dropout_1 = torch.nn.Dropout(dropout_rate)
         self.ff_activation = activation
-        self.ff_linear_2 = nn.Linear(n_factors_ff, n_factors)
+        self.ff_linear_2 = nn.Linear(n_factors_ff, n_factors, bias)
 
     def forward(self, seqs: torch.Tensor) -> torch.Tensor:
         """
@@ -59,6 +63,92 @@ class PointWiseFeedForward(nn.Module):
         output = self.ff_activation(self.ff_linear_1(seqs))
         fin = self.ff_linear_2(self.ff_dropout_1(output))
         return fin
+
+
+class SwigluFeedForward(nn.Module):
+    """
+    Feed-Forward network to introduce nonlinearity into the transformer model.
+    This implementation is based on FuXi and LLama SwigLU https://arxiv.org/pdf/2502.03036,
+    LiGR https://arxiv.org/pdf/2502.03417
+
+    Parameters
+    ----------
+    n_factors : int
+        Latent embeddings size.
+    n_factors_ff : int
+        How many hidden units to use in the network.
+    dropout_rate : float
+        Probability of a hidden unit to be zeroed.
+    bias: bool, default ``True``
+        If ``True``, add bias to linear layers.
+    """
+
+    def __init__(self, n_factors: int, n_factors_ff: int, dropout_rate: float, bias: bool = True) -> None:
+        super().__init__()
+        self.ff_linear_1 = nn.Linear(n_factors, n_factors_ff, bias=bias)
+        self.ff_dropout_1 = torch.nn.Dropout(dropout_rate)
+        self.ff_activation = torch.nn.SiLU()
+        self.ff_linear_2 = nn.Linear(n_factors_ff, n_factors, bias=bias)
+        self.ff_linear_3 = nn.Linear(n_factors, n_factors_ff, bias=bias)
+
+    def forward(self, seqs: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+
+        Parameters
+        ----------
+        seqs : torch.Tensor
+            User sequences of item embeddings.
+
+        Returns
+        -------
+        torch.Tensor
+            User sequence that passed through all layers.
+        """
+        output = self.ff_activation(self.ff_linear_1(seqs)) * self.ff_linear_3(seqs)
+        fin = self.ff_linear_2(self.ff_dropout_1(output))
+        return fin
+
+
+def init_feed_forward(
+    n_factors: int, ff_factors_multiplier: int, dropout_rate: float, ff_activation: str, bias: bool = True
+) -> nn.Module:
+    """
+    Initialise Feed-Forward network with one of activation functions: "swiglu", "relu", "gelu".
+
+    Parameters
+    ----------
+    n_factors : int
+        Latent embeddings size.
+    ff_factors_multiplier : int
+        How many hidden units to use in the network.
+    dropout_rate : float
+        Probability of a hidden unit to be zeroed.
+    ff_activation : {"swiglu", "relu", "gelu"}
+        Activation function to use.
+    bias: bool, default ``True``
+        If ``True``, add bias to linear layers.
+
+    Returns
+    -------
+    nn.Module
+        Feed-Forward network.
+    """
+    if ff_activation == "swiglu":
+        return SwigluFeedForward(n_factors, n_factors * ff_factors_multiplier, dropout_rate, bias=bias)
+    if ff_activation == "gelu":
+        return PointWiseFeedForward(
+            n_factors, n_factors * ff_factors_multiplier, dropout_rate, activation=torch.nn.GELU(), bias=bias
+        )
+    if ff_activation == "relu":
+        return PointWiseFeedForward(
+            n_factors,
+            n_factors * ff_factors_multiplier,
+            dropout_rate,
+            activation=torch.nn.ReLU(),
+            bias=bias,
+        )
+    raise ValueError(f"Unsupported ff_activation: {ff_activation}")
 
 
 class TransformerLayersBase(nn.Module):

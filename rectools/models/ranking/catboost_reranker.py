@@ -27,7 +27,7 @@ class CatBoostReranker(Reranker):
 
         Parameters
         ----------
-        model : ClassifierBase | RankerBase
+        model :  CatBoostClassifier | CatBoostRanker
             A CatBoost model instance used for reranking. Can be either a classifier or a ranker.
         fit_kwargs : dict(str -> any), optional, default ``None``
             Additional keyword arguments to be passed to the `fit` method of the CatBoost model.
@@ -35,7 +35,7 @@ class CatBoostReranker(Reranker):
             Additional keyword arguments to be used when creating the CatBoost `Pool`.
         """
         super().__init__(model)
-        self.is_classifier = isinstance(model, CatBoostClassifier)
+        self.is_classifier = isinstance(model, CatBoostClassifier)  # CatBoostRanker otherwise
         self.fit_kwargs = fit_kwargs
         self.pool_kwargs = pool_kwargs
 
