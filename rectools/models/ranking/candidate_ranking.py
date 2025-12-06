@@ -514,7 +514,8 @@ class CandidateRankingModel(ModelBase):
         candidate_generators : list(CandidateGenerator)
             List of candidate generators.
         splitter : Splitter
-            Splitter for dataset splitting.
+            Splitter for dataset splitting by train and test sets.
+            Must have only one fold.
         reranker : Reranker
             Reranker for reranking candidates.
         sampler : NegativeSamplerBase, default ``PerUserNegativeSampler()``
@@ -527,7 +528,9 @@ class CandidateRankingModel(ModelBase):
         super().__init__(verbose=verbose)
 
         if hasattr(splitter, "n_splits"):
-            assert splitter.n_splits == 1  # TODO: handle softly
+            if splitter.n_splits != 1:
+                raise ValueError("Splitter must have only one fold")
+            
         self.splitter = splitter
         self.sampler = sampler
         self.reranker = reranker
@@ -577,9 +580,9 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame, pd.DataFrame, dict(str -> any)
             Tuple containing the history dataset, train targets, and fold information.
         """
-        split_iterator = splitter.split(dataset.interactions, collect_fold_stats=True)
-
-        train_ids, test_ids, fold_info = next(iter(split_iterator))  # splitter has only one fold
+        split_iterator = iter(splitter.split(dataset.interactions, collect_fold_stats=True))
+        
+        train_ids, test_ids, fold_info = next(split_iterator)  # splitter must have only one fold
 
         history_dataset = dataset.filter_interactions(train_ids)
         interactions = dataset.get_raw_interactions()
