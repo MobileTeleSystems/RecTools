@@ -1,4 +1,5 @@
 import typing as tp
+import warnings
 from collections import defaultdict
 from functools import reduce
 
@@ -224,7 +225,7 @@ class Reranker:
         # Discussion here: https://github.com/MobileTeleSystems/RecTools/pull/209
         # Branch here: https://github.com/blondered/RecTools/tree/feature/polars
         reco = (
-            scored_pairs.groupby(Columns.User, sort=False)
+            scored_pairs.groupby(Columns.User, sort=False)[scored_pairs.columns]
             .apply(lambda x: x.sort_values([Columns.Score], ascending=False).head(k))
             .reset_index(drop=True)
         )
@@ -367,7 +368,7 @@ class PerUserNegativeSampler(NegativeSamplerBase):
         sampling_mask = train[Columns.User].isin(num_negatives[num_negatives > self.n_negatives].index)
 
         neg_for_sample = train[sampling_mask & negative_mask]
-        neg = neg_for_sample.groupby([Columns.User], sort=False).apply(
+        neg = neg_for_sample.groupby([Columns.User], sort=False)[neg_for_sample.columns].apply(
             pd.DataFrame.sample,
             n=self.n_negatives,
             replace=False,
@@ -530,7 +531,7 @@ class CandidateRankingModel(ModelBase):
         if hasattr(splitter, "n_splits"):
             if splitter.n_splits != 1:
                 raise ValueError("Splitter must have only one fold")
-            
+
         self.splitter = splitter
         self.sampler = sampler
         self.reranker = reranker
@@ -581,7 +582,7 @@ class CandidateRankingModel(ModelBase):
             Tuple containing the history dataset, train targets, and fold information.
         """
         split_iterator = iter(splitter.split(dataset.interactions, collect_fold_stats=True))
-        
+
         train_ids, test_ids, fold_info = next(split_iterator)  # splitter must have only one fold
 
         history_dataset = dataset.filter_interactions(train_ids)
@@ -792,6 +793,7 @@ class CandidateRankingModel(ModelBase):
         items_to_recommend: tp.Optional[ExternalIds] = None,
         add_rank_col: bool = True,
         on_unsupported_targets: ErrorBehaviour = "raise",
+        context: tp.Optional[pd.DataFrame] = None,
         force_fit_candidate_generators: bool = False,
     ) -> pd.DataFrame:
         """
@@ -826,6 +828,13 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame
             DataFrame with the recommended items for users.
         """
+        if context is not None:
+            context = None
+            warnings.warn(
+                "You are providing context to a model that does not require it. Context is set to 'None'",
+                UserWarning,
+            )
+
         self._check_is_fitted()
         self._check_k(k)
 
