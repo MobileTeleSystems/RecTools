@@ -177,7 +177,7 @@ class Reranker:
         fit_kwargs = self.prepare_fit_kwargs(candidates_with_target)
         self.model.fit(**fit_kwargs)
 
-    def predict_scores(self, candidates: pd.DataFrame) -> pd.Series:
+    def predict_scores(self, candidates: pd.DataFrame) -> np.ndarray:
         """
         Predict scores for the provided candidates using the fitted model.
 
@@ -219,7 +219,7 @@ class Reranker:
         -------
         pd.DataFrame
             A DataFrame containing the top-k recommended items for each user. If `add_rank_col` is True, the DataFrame
-            will include an additional column `Columns.Score` for the rank of each item.
+            will include an additional column `Columns.Rank` for the rank of each item.
         """
         # TODO: optimize computations
         # Discussion here: https://github.com/MobileTeleSystems/RecTools/pull/209

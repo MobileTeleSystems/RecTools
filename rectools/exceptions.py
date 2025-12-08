@@ -38,6 +38,4 @@ class NotFittedForStageError(Exception):
         self.stage_name = stage_name
 
     def __str__(self) -> str:
-        return f"""
-            {self.obj_name} isn't fitted for {self.stage_name} stage, call method `fit` for this stage first.
-            """
+        return f"{self.obj_name} isn't fitted for {self.stage_name} stage, call method `fit` for this stage first."
