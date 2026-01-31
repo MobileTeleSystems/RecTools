@@ -4088,35 +4088,35 @@ six = ">=1.5"
 
 [[package]]
 name = "pytorch-lightning"
-version = "2.5.4"
+version = "2.5.2"
 description = "PyTorch Lightning is the lightweight PyTorch wrapper for ML researchers. Scale your models. Write less boilerplate."
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "extra == \"torch\" or extra == \"all\""
 files = [
-    {file = "pytorch_lightning-2.5.4-py3-none-any.whl", hash = "sha256:cbdc45c1fbd6dbaf856990c618de994c3bcca7fea599b8471ac9fa59df598b38"},
-    {file = "pytorch_lightning-2.5.4.tar.gz", hash = "sha256:159b63f3dcd72da50566dc4b599adb4adcd07503193ade4fa518e51ccd0751ef"},
+    {file = "pytorch_lightning-2.5.2-py3-none-any.whl", hash = "sha256:17cfdf89bd98074e389101f097cdf34c486a1f5c6d3fdcefbaf4dea7f97ff0bf"},
+    {file = "pytorch_lightning-2.5.2.tar.gz", hash = "sha256:f817087d611be8d43b777dd4e543d72703e235510936677a13e6c29f7fd790e3"},
 ]
 
 [package.dependencies]
 fsspec = {version = ">=2022.5.0", extras = ["http"]}
 lightning-utilities = ">=0.10.0"
 packaging = ">=20.0"
-PyYAML = ">5.4"
+PyYAML = ">=5.4"
 torch = ">=2.1.0"
-torchmetrics = ">0.7.0"
+torchmetrics = ">=0.7.0"
 tqdm = ">=4.57.0"
-typing-extensions = ">4.5.0"
+typing-extensions = ">=4.4.0"
 
 [package.extras]
-all = ["bitsandbytes (>=0.45.2) ; platform_system != \"Darwin\"", "deepspeed (>=0.14.1,<=0.15.0) ; platform_system != \"Windows\" and platform_system != \"Darwin\"", "hydra-core (>=1.2.0)", "ipython[all] (<8.19.0)", "jsonargparse[jsonnet,signatures] (>=4.39.0)", "matplotlib (>3.1)", "omegaconf (>=2.2.3)", "requests (<2.33.0)", "rich (>=12.3.0)", "tensorboardX (>=2.2)", "torchmetrics (>=0.10.0)", "torchvision (>=0.16.0)"]
-deepspeed = ["deepspeed (>=0.14.1,<=0.15.0) ; platform_system != \"Windows\" and platform_system != \"Darwin\""]
-dev = ["bitsandbytes (>=0.45.2) ; platform_system != \"Darwin\"", "cloudpickle (>=1.3)", "coverage (==7.10.5)", "deepspeed (>=0.14.1,<=0.15.0) ; platform_system != \"Windows\" and platform_system != \"Darwin\"", "fastapi", "hydra-core (>=1.2.0)", "ipython[all] (<8.19.0)", "jsonargparse[jsonnet,signatures] (>=4.39.0)", "matplotlib (>3.1)", "numpy (>1.20.0)", "omegaconf (>=2.2.3)", "onnx (>1.12.0)", "onnxruntime (>=1.12.0)", "onnxscript (>=0.1.0)", "pandas (>2.0)", "psutil (<7.0.1)", "pytest (==8.4.1)", "pytest-cov (==6.2.1)", "pytest-random-order (==1.2.0)", "pytest-rerunfailures (==15.1)", "pytest-timeout (==2.4.0)", "requests (<2.33.0)", "rich (>=12.3.0)", "scikit-learn (>0.22.1)", "tensorboard (>=2.11)", "tensorboardX (>=2.2)", "torchmetrics (>=0.10.0)", "torchvision (>=0.16.0)", "uvicorn"]
-examples = ["ipython[all] (<8.19.0)", "requests (<2.33.0)", "torchmetrics (>=0.10.0)", "torchvision (>=0.16.0)"]
+all = ["bitsandbytes (>=0.45.2) ; platform_system != \"Darwin\"", "deepspeed (>=0.8.2,<=0.9.3) ; platform_system != \"Windows\" and platform_system != \"Darwin\"", "hydra-core (>=1.2.0)", "ipython[all] (<8.19.0)", "jsonargparse[jsonnet,signatures] (>=4.39.0)", "lightning-utilities (>=0.8.0)", "matplotlib (>3.1)", "omegaconf (>=2.2.3)", "requests (<2.33.0)", "rich (>=12.3.0)", "tensorboardX (>=2.2)", "torchmetrics (>=0.10.0)", "torchvision (>=0.16.0)"]
+deepspeed = ["deepspeed (>=0.8.2,<=0.9.3) ; platform_system != \"Windows\" and platform_system != \"Darwin\""]
+dev = ["bitsandbytes (>=0.45.2) ; platform_system != \"Darwin\"", "cloudpickle (>=1.3)", "coverage (==7.9.1)", "deepspeed (>=0.8.2,<=0.9.3) ; platform_system != \"Windows\" and platform_system != \"Darwin\"", "fastapi", "hydra-core (>=1.2.0)", "ipython[all] (<8.19.0)", "jsonargparse[jsonnet,signatures] (>=4.39.0)", "lightning-utilities (>=0.8.0)", "matplotlib (>3.1)", "numpy (>=1.17.2)", "omegaconf (>=2.2.3)", "onnx (>=1.12.0)", "onnxruntime (>=1.12.0)", "pandas (>2.0)", "psutil (<7.0.1)", "pytest (==8.4.0)", "pytest-cov (==6.2.1)", "pytest-random-order (==1.1.1)", "pytest-rerunfailures (==15.1)", "pytest-timeout (==2.4.0)", "requests (<2.33.0)", "rich (>=12.3.0)", "scikit-learn (>0.22.1)", "tensorboard (>=2.9.1)", "tensorboardX (>=2.2)", "torchmetrics (>=0.10.0)", "torchvision (>=0.16.0)", "uvicorn"]
+examples = ["ipython[all] (<8.19.0)", "lightning-utilities (>=0.8.0)", "requests (<2.33.0)", "torchmetrics (>=0.10.0)", "torchvision (>=0.16.0)"]
 extra = ["bitsandbytes (>=0.45.2) ; platform_system != \"Darwin\"", "hydra-core (>=1.2.0)", "jsonargparse[jsonnet,signatures] (>=4.39.0)", "matplotlib (>3.1)", "omegaconf (>=2.2.3)", "rich (>=12.3.0)", "tensorboardX (>=2.2)"]
-strategies = ["deepspeed (>=0.14.1,<=0.15.0) ; platform_system != \"Windows\" and platform_system != \"Darwin\""]
-test = ["cloudpickle (>=1.3)", "coverage (==7.10.5)", "fastapi", "numpy (>1.20.0)", "onnx (>1.12.0)", "onnxruntime (>=1.12.0)", "onnxscript (>=0.1.0)", "pandas (>2.0)", "psutil (<7.0.1)", "pytest (==8.4.1)", "pytest-cov (==6.2.1)", "pytest-random-order (==1.2.0)", "pytest-rerunfailures (==15.1)", "pytest-timeout (==2.4.0)", "scikit-learn (>0.22.1)", "tensorboard (>=2.11)", "uvicorn"]
+strategies = ["deepspeed (>=0.8.2,<=0.9.3) ; platform_system != \"Windows\" and platform_system != \"Darwin\""]
+test = ["cloudpickle (>=1.3)", "coverage (==7.9.1)", "fastapi", "numpy (>=1.17.2)", "onnx (>=1.12.0)", "onnxruntime (>=1.12.0)", "pandas (>2.0)", "psutil (<7.0.1)", "pytest (==8.4.0)", "pytest-cov (==6.2.1)", "pytest-random-order (==1.1.1)", "pytest-rerunfailures (==15.1)", "pytest-timeout (==2.4.0)", "scikit-learn (>0.22.1)", "tensorboard (>=2.9.1)", "uvicorn"]
 
 [[package]]
 name = "pytz"
@@ -5672,4 +5672,4 @@ visuals = ["ipywidgets", "nbformat", "plotly"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9, <3.14"
-content-hash = "5eb71f2375ad6aa96e826ebcb6cca80bdcd63204c46d9c7ddb304153061a1950"
+content-hash = "8eb96da6135d7289239b582f38199741cbcd89c5f429a1e009814e8bd02c7ba0"
