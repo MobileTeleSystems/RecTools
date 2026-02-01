@@ -821,7 +821,7 @@ class CandidateRankingModel(ModelBase):
             If "raise", a ValueError is raised. If "warn", it outputs a warning,
             and if "ignore", it silently continues.
         context : pd.DataFrame, optional, default ``None``
-            DataFrame containing additional user context information (e.g., session features, demographics).
+            Is not supported for this model. If provided, it will be ignored.
         force_fit_candidate_generators : bool, default ``False``
             If true, the candidate generators are fitted even if they are already fitted.
 
@@ -832,7 +832,7 @@ class CandidateRankingModel(ModelBase):
         """
         if context is not None:
             warnings.warn(
-                "You are providing context to a model that does not require it. Context will be ignored.",
+                "This model does not support context. It will be ignored.",
                 UserWarning,
             )
 

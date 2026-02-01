@@ -220,6 +220,15 @@ class TestCandidateRankingModel:
     def model(self) -> PopularModel:
         return PopularModel()
 
+    def test_fail_if_splitter_has_more_than_one_fold(self, dataset: Dataset) -> None:
+        splitter = TimeRangeSplitter("1D", n_splits=2)
+        with pytest.raises(ValueError, match="Splitter must have only one fold"):
+            CandidateRankingModel(
+                candidate_generators=[],
+                splitter=splitter,
+                reranker=Reranker(GradientBoostingClassifier(random_state=123)),
+            )
+
     def test_get_train_with_targets_for_reranker(self, model: PopularModel, dataset: Dataset) -> None:
         candidate_generators = [CandidateGenerator(model, 2, False, False)]
         splitter = TimeRangeSplitter("1D", n_splits=1)
@@ -280,6 +289,21 @@ class TestCandidateRankingModel:
             }
         )
         pd.testing.assert_frame_equal(actual_reco, expected_reco, atol=0.001)
+
+    def test_raises_warning_on_context(self, model: PopularModel, dataset: Dataset) -> None:
+        two_stage_model = CandidateRankingModel(
+            candidate_generators=[CandidateGenerator(model, 2, True, True)],
+            splitter=TimeRangeSplitter("1D", n_splits=1),
+            sampler=PerUserNegativeSampler(1, 32),
+            reranker=Reranker(GradientBoostingClassifier(random_state=123)),
+        )
+        two_stage_model.fit(dataset)
+        context = pd.DataFrame({Columns.User: [10], Columns.Datetime: ["2025-11-30"]})
+        with pytest.warns(
+            UserWarning,
+            match="This model does not support context. It will be ignored."
+        ):
+            two_stage_model.recommend([10], dataset, k=3, filter_viewed=True, context=context)
 
 
 class TestReranker:
