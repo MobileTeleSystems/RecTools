@@ -578,7 +578,7 @@ class CandidateRankingModel(ModelBase):
 
         Returns
         -------
-        pd.DataFrame, pd.DataFrame, dict(str -> any)
+        Dataset, pd.DataFrame, dict(str -> any)
             Tuple containing the history dataset, train targets, and fold information.
         """
         split_iterator = iter(splitter.split(dataset.interactions, collect_fold_stats=True))
@@ -820,6 +820,8 @@ class CandidateRankingModel(ModelBase):
             for which the Model makes no prediction.
             If "raise", a ValueError is raised. If "warn", it outputs a warning,
             and if "ignore", it silently continues.
+        context : pd.DataFrame, optional, default ``None``
+            DataFrame containing additional user context information (e.g., session features, demographics).
         force_fit_candidate_generators : bool, default ``False``
             If true, the candidate generators are fitted even if they are already fitted.
 
@@ -829,9 +831,8 @@ class CandidateRankingModel(ModelBase):
             DataFrame with the recommended items for users.
         """
         if context is not None:
-            context = None
             warnings.warn(
-                "You are providing context to a model that does not require it. Context is set to 'None'",
+                "You are providing context to a model that does not require it. Context will be ignored.",
                 UserWarning,
             )
 
