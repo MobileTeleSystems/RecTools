@@ -93,3 +93,6 @@ benchmark_results/
 *.zip
 *.csv
 *.dat
+
+# CatBoost
+catboost_info/
