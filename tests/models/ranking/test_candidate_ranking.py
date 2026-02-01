@@ -299,10 +299,7 @@ class TestCandidateRankingModel:
         )
         two_stage_model.fit(dataset)
         context = pd.DataFrame({Columns.User: [10], Columns.Datetime: ["2025-11-30"]})
-        with pytest.warns(
-            UserWarning,
-            match="This model does not support context. It will be ignored."
-        ):
+        with pytest.warns(UserWarning, match="This model does not support context. It will be ignored."):
             two_stage_model.recommend([10], dataset, k=3, filter_viewed=True, context=context)
 
 
