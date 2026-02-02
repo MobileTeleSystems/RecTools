@@ -188,8 +188,8 @@ class Reranker:
 
         Returns
         -------
-        pd.Series
-            A series containing the predicted scores for each candidate. If the model is a classifier, the scores
+        np.ndarray
+            An array containing the predicted scores for each candidate. If the model is a classifier, the scores
             represent probabilities for the positive class.
         """
         x_full = candidates.drop(columns=Columns.UserItem)
@@ -674,17 +674,17 @@ class CandidateRankingModel(ModelBase):
         pd.DataFrame
             DataFrame with target values set.
         """
-        train_targets[Columns.Target] = 1
-
         # Remember that this way we exclude positives that weren't present in candidates
         train = pd.merge(
             candidates,
             train_targets[[Columns.User, Columns.Item, Columns.Target]],
             how="left",
             on=Columns.UserItem,
+            indicator=True,
         )
 
-        train[Columns.Target] = train[Columns.Target].fillna(0).astype("int32")
+        train[Columns.Target] = (train["_merge"] == "both").astype("int32")
+        train.drop(columns=["_merge"], inplace=True)
         return train
 
     def _fit_candidate_generators(self, dataset: Dataset, for_train: bool) -> None:
