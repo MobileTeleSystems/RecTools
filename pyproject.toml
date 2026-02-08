@@ -68,7 +68,9 @@ scipy = [
     {version = ">=1.14.1, <2.0.0", python = ">=3.10"}  # scipy >=1.14.1 fails to install on Python 3.9
 ]
 tqdm = "^4.27.0"
-implicit = "^0.7.1"
+implicit = {version = "^0.7.1", python = "<3.10"}
+# implicit 0.7.2 wheel is built with Cuda 11, while other packages (like cupy-cuda12x) use Cuda 12.
+pm-implicit = {version = "^0.7.3", python = ">=3.10"}
 attrs = ">=19.1.0,<24.0.0"
 typeguard = "^4.1.0"
 pydantic = "^2.8.2"

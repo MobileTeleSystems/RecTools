@@ -98,9 +98,9 @@ class TestImplicitBPRWrapperModel:
                 ),
                 pd.DataFrame(
                     {
-                        Columns.User: [10, 10, 20, 20],
-                        Columns.Item: [17, 15, 17, 15],
-                        Columns.Rank: [1, 2, 1, 2],
+                        Columns.User: [20, 20],
+                        Columns.Item: [17, 15],
+                        Columns.Rank: [1, 2],
                     }
                 ),
             ),
