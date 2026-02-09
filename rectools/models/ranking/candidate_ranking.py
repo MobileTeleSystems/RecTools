@@ -502,8 +502,8 @@ class CandidateRankingModel(ModelBase):
         candidate_generators: tp.List[CandidateGenerator],
         splitter: Splitter,
         reranker: Reranker,
-        sampler: Optional[NegativeSamplerBase] = None,
-        feature_collector: Optional[CandidateFeatureCollector] = None,
+        sampler: tp.Optional[NegativeSamplerBase] = None,
+        feature_collector: tp.Optional[CandidateFeatureCollector] = None,
         verbose: int = 0,
     ) -> None:
         """
@@ -684,7 +684,7 @@ class CandidateRankingModel(ModelBase):
         # Remember that this way we exclude positives that weren't present in candidates
         train = pd.merge(
             candidates,
-            train_targets[[Columns.User, Columns.Item, Columns.Target]],
+            train_targets[[Columns.User, Columns.Item]],
             how="left",
             on=Columns.UserItem,
             indicator=True,
