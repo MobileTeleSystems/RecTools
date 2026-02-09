@@ -521,7 +521,7 @@ class CandidateRankingModel(ModelBase):
             Reranker for reranking candidates.
         sampler : NegativeSamplerBase, optional, default ``None``
             Sampler for negative sampling.
-            If set as ``None``, ``PerUserNegativeSampler()`` will be used. 
+            If set as ``None``, ``PerUserNegativeSampler()`` will be used.
         feature_collector : CandidateFeatureCollector, optional, default ``None``
             Collector for user-item features.
             If set as ``None``, ``CandidateFeatureCollector()`` will be used.
@@ -538,7 +538,7 @@ class CandidateRankingModel(ModelBase):
             sampler = PerUserNegativeSampler()
         if feature_collector is None:
             feature_collector = CandidateFeatureCollector()
-        
+
         self.splitter = splitter
         self.sampler = sampler
         self.reranker = reranker
