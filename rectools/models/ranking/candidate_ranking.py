@@ -502,8 +502,8 @@ class CandidateRankingModel(ModelBase):
         candidate_generators: tp.List[CandidateGenerator],
         splitter: Splitter,
         reranker: Reranker,
-        sampler: NegativeSamplerBase = PerUserNegativeSampler(),
-        feature_collector: CandidateFeatureCollector = CandidateFeatureCollector(),
+        sampler: Optional[NegativeSamplerBase] = None,
+        feature_collector: Optional[CandidateFeatureCollector] = None,
         verbose: int = 0,
     ) -> None:
         """
@@ -519,10 +519,12 @@ class CandidateRankingModel(ModelBase):
             Must have only one fold.
         reranker : Reranker
             Reranker for reranking candidates.
-        sampler : NegativeSamplerBase, default ``PerUserNegativeSampler()``
+        sampler : NegativeSamplerBase, optional, default ``None``
             Sampler for negative sampling.
-        feature_collector : CandidateFeatureCollector, default ``CandidateFeatureCollector()``
+            If set as ``None``, ``PerUserNegativeSampler()`` will be used. 
+        feature_collector : CandidateFeatureCollector, optional, default ``None``
             Collector for user-item features.
+            If set as ``None``, ``CandidateFeatureCollector()`` will be used.
         verbose : int, default ``0``
             Verbosity level.
         """
@@ -532,6 +534,11 @@ class CandidateRankingModel(ModelBase):
             if splitter.n_splits != 1:
                 raise ValueError("Splitter must have only one fold")
 
+        if sampler is None:
+            sampler = PerUserNegativeSampler()
+        if feature_collector is None:
+            feature_collector = CandidateFeatureCollector()
+        
         self.splitter = splitter
         self.sampler = sampler
         self.reranker = reranker
