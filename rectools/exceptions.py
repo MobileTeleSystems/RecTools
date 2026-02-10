@@ -24,3 +24,18 @@ class NotFittedError(Exception):
 
     def __str__(self) -> str:
         return f"{self.obj_name} isn't fitted, call method `fit` first."
+
+
+class NotFittedForStageError(Exception):
+    """
+    The error is raised when some fittable object is attempted to be used without fitting first.
+    Only specific stage in pipeline is taken into account.
+    """
+
+    def __init__(self, obj_name: str, stage_name: str) -> None:
+        super().__init__()
+        self.obj_name = obj_name
+        self.stage_name = stage_name
+
+    def __str__(self) -> str:
+        return f"{self.obj_name} isn't fitted for {self.stage_name} stage, call method `fit` for this stage first."

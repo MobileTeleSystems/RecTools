@@ -427,7 +427,7 @@ class ModelBase(tp.Generic[ModelConfig_T]):
             Specify "raise" to raise ValueError in case unsupported targets are passed (default).
             Specify "ignore" to filter unsupported targets.
             Specify "warn" to filter with warning.
-        context : optional(pd.DataFrame), default  ``None``
+        context : pd.DataFrame, optional, default ``None``
             Optional DataFrame containing additional user context information (e.g., session features,
             demographics).
 

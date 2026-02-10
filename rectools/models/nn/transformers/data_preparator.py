@@ -369,7 +369,7 @@ class TransformerDataPreparatorBase:  # pylint: disable=too-many-instance-attrib
             RecTools dataset.
         users : ExternalIds
             Array of external user ids to recommend for.
-        context : optional(pd.DataFrame), default  ``None``
+        context : pd.DataFrame, optional, default ``None``
             Optional DataFrame containing additional user context information (e.g., session features,
         demographics).
 

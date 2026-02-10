@@ -29,10 +29,10 @@ jobs:
         with:
           path: .venv
           key: venv-lint-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
-  
+
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: make install 
+        run: make install
 
       - name: Static analysis
         run: make lint
@@ -62,10 +62,10 @@ jobs:
         with:
           path: .venv
           key: venv-test-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-  
+
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: make install 
+        run: make install
 
       - name: Run tests
         run: make test
