@@ -413,7 +413,7 @@ class TestSASRecModel:
             pd.DataFrame(
                 {
                     Columns.User: [30, 30, 30, 40, 40, 40],
-                    Columns.Item: [11, 13, 17, 17, 13, 11],
+                    Columns.Item: [11, 13, 15, 17, 13, 11],
                     Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
@@ -454,7 +454,7 @@ class TestSASRecModel:
             pd.DataFrame(
                 {
                     Columns.User: [30, 30, 30, 40, 40, 40],
-                    Columns.Item: [11, 13, 12, 13, 14, 12],
+                    Columns.Item: [11, 12, 13, 13, 14, 12],
                     Columns.Rank: [1, 2, 3, 1, 2, 3],
                 }
             ),
