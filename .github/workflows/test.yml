@@ -68,6 +68,9 @@ jobs:
         run: make install
 
       - name: Run tests
+        env:
+          OPENBLAS_CORETYPE: Haswell
+          OMP_NUM_THREADS: 1
         run: make test
 
       - name: Upload coverage
