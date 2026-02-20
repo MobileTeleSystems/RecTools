@@ -6,10 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Unreleased
+## [0.18.0] - 20.02.2025
 
 ### Added
 - Two-stage candidate ranking system with `CandidateRankingModel` and supporting classes (`CandidateGenerator`, `CandidateFeatureCollector`, `Reranker`, `CatBoostReranker`, `PerUserNegativeSampler`) ([#296](https://github.com/MobileTeleSystems/RecTools/pull/296))
+
+### Changed
+- Used `pm-implicit` instead of `implicit` for Python>=3.10 to support Cuda 12.x ([#298](https://github.com/MobileTeleSystems/RecTools/pull/298))
 
 
 ## [0.17.0] - 03.09.2025
