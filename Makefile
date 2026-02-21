@@ -59,7 +59,7 @@ install: .venv .reports
 # Tests
 
 .pytest:
-	poetry run pytest -n 0 ${TESTS} --cov=${SOURCES} --cov-report=xml
+	poetry run pytest ${TESTS} --cov=${SOURCES} --cov-report=xml
 
 .doctest:
 	poetry run pytest --doctest-modules ${SOURCES} --ignore=rectools/tools/ann.py
