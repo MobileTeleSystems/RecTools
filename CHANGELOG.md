@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `rectools.semantic` package with TIGER generative recommender components, including model, Lightning integration, loss, tokenizer modules, semantic metrics, and data handling utilities
+- Semantic building blocks for neural recommender workflows, including transformer blocks, MLP modules, residual k-means, and RQ-VAE tokenizer implementations
+- TIGER tutorial notebook, SASRec vs TIGER benchmark script, and semantic test coverage across data handling, modules, tokenizer, metrics, and TIGER components
+
 
 ## [0.19.0] - 11.06.2026
 

@@ -16,6 +16,7 @@ import json
 import os
 import typing as tp
 import warnings
+from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -329,3 +330,61 @@ def get_results(path_to_load_res: str, metrics_to_show: tp.List[str], show_loss:
     )
     pivot_results.columns = pivot_results.columns.droplevel(1)
     return pivot_results[metrics_to_show]
+
+
+def find_conflicts(id2sid: dict) -> dict[tuple[int, ...], list[int]]:
+    """Return a mapping from SID -> list of item IDs for every SID shared by 2+ items.
+
+    Parameters
+    ----------
+    id2sid : dict
+        Mapping from item ID to SID tuple, e.g. from ``SIDTokenizer.id2sid``.
+
+    Returns
+    -------
+    dict[tuple[int, ...], list[int]]
+        Conflicting SIDs mapped to the item IDs that share them.
+    """
+    sid2ids: dict[tuple[int, ...], list[int]] = defaultdict(list)
+    for item_id, sid in id2sid.items():
+        sid2ids[sid].append(item_id)
+    return {sid: ids for sid, ids in sid2ids.items() if len(ids) > 1}
+
+
+def find_conflicts_df(
+    id2sid: dict,
+    metadata: pd.DataFrame,
+    item_col: str = "item_id",
+    text_col: str = "text",
+) -> pd.DataFrame:
+    """Find conflicting SIDs and return a DataFrame enriched with item metadata.
+
+    Parameters
+    ----------
+    id2sid : dict
+        Mapping from item ID to SID tuple, e.g. from ``SIDTokenizer.id2sid``.
+    metadata : pd.DataFrame
+        Item metadata with at least ``item_col`` and ``text_col`` columns.
+    item_col : str
+        Name of the item ID column in ``metadata``.
+    text_col : str
+        Name of the text column in ``metadata``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``SID``, ``item_id``, ``text``. One row per conflicting item,
+        sorted by cluster size descending. Empty if no conflicts.
+    """
+    conflicts = find_conflicts(id2sid)
+    if not conflicts:
+        return pd.DataFrame(columns=["SID", "item_id", "text"])
+
+    id2text = dict(zip(metadata[item_col], metadata[text_col]))
+
+    rows = []
+    for sid, ids in sorted(conflicts.items(), key=lambda kv: -len(kv[1])):
+        for item_id in ids:
+            rows.append({"SID": sid, "item_id": item_id, "text": id2text.get(item_id, "")})
+
+    return pd.DataFrame(rows, columns=["SID", "item_id", "text"])
