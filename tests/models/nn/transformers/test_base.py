@@ -184,6 +184,41 @@ class TestTransformerModelBase:
         model.fit(dataset_item_features)
         assert_save_load_do_not_change_model(model, dataset_item_features)
 
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_setstate_falls_back_to_cpu_when_cuda_unavailable(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset_item_features: Dataset,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Regression test for https://github.com/MobileTeleSystems/RecTools/issues/286.
+
+        A model whose checkpoint was tagged as CUDA-originated (e.g. trained on a GPU box)
+        must still unpickle on a machine without CUDA, via the standard `pickle`/`joblib`
+        path (`__setstate__`), instead of raising
+        `RuntimeError: Attempting to deserialize object on a CUDA device...`.
+
+        Real GPU hardware isn't required to test this: `torch.save` tags each storage's
+        origin device by calling `torch.serialization.location_tag(storage)`. Forcing that
+        to report "cuda:0" regardless of the tensor's real (CPU) device reproduces the exact
+        on-disk shape of a GPU-trained checkpoint without needing a GPU to create one.
+        """
+        model = model_cls.from_config({"deterministic": True})
+        model.fit(dataset_item_features)
+
+        real_location_tag = torch.serialization.location_tag
+        monkeypatch.setattr(torch.serialization, "location_tag", lambda storage: "cuda:0")
+        try:
+            state = model.__getstate__()
+        finally:
+            monkeypatch.setattr(torch.serialization, "location_tag", real_location_tag)
+
+        assert not torch.cuda.is_available(), "this test only proves the CPU-fallback branch"
+        recovered_model = model_cls.from_config({"deterministic": True})
+        recovered_model.__setstate__(state)  # must not raise
+
+        self._assert_same_reco(model, recovered_model, dataset_item_features)
+
     @pytest.mark.parametrize("test_dataset", ("dataset", "dataset_item_features"))
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize(

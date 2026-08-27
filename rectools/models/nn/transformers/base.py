@@ -668,7 +668,15 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
         if "fitted_checkpoint" in state:
-            checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
+            # `__setstate__` is invoked by the pickle protocol with a fixed signature, so there is no
+            # way for a caller to pass `map_location` through a plain `pickle.load`/`joblib.load` call.
+            # Always resolving to the current default device (rather than leaving `map_location` unset)
+            # avoids deserialization crashes both when CUDA is unavailable entirely and when a checkpoint
+            # was saved on a specific device index (e.g. `cuda:5`) that isn't present on this machine.
+            map_location = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            checkpoint = torch.load(
+                io.BytesIO(state["fitted_checkpoint"]), map_location=map_location, weights_only=False
+            )
             loaded = self._model_from_checkpoint(checkpoint)
         else:
             loaded = self.from_config(state["model_config"])
@@ -709,7 +717,11 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         loaded = cls._model_from_checkpoint(checkpoint, ckpt_path=checkpoint_path)
         return loaded
 
-    def load_weights_from_checkpoint(self, checkpoint_path: tp.Union[str, Path]) -> None:
+    def load_weights_from_checkpoint(
+        self,
+        checkpoint_path: tp.Union[str, Path],
+        map_location: tp.Optional[tp.Union[str, torch.device]] = None,
+    ) -> None:
         """
         Load model weights from Lightning checkpoint path.
 
@@ -717,8 +729,14 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
         ----------
         checkpoint_path: Union[str, Path]
             Path to checkpoint location.
+        map_location: Union[str, torch.device], optional
+            Target device to load the checkpoint (e.g., 'cpu', 'cuda:0').
+            If None, resolves to the current default device: CPU if CUDA is unavailable,
+            otherwise CUDA (regardless of which device index the checkpoint was saved on).
         """
         if self.fit_trainer is None:
             raise RuntimeError("Model weights cannot be loaded from checkpoint into unfitted model")
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        if map_location is None:
+            map_location = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
         self.lightning_model.load_state_dict(checkpoint["state_dict"])
