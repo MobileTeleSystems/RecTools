@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Transformer models (`SASRecModel`, `BERT4RecModel`, etc.) failing to unpickle a fitted checkpoint via `__setstate__`, `load_weights_from_checkpoint` on a machine without CUDA, or where the checkpoint's original CUDA device index isn't present — `torch.load` now always resolves an explicit `map_location` instead of leaving it unset ([#286](https://github.com/MobileTeleSystems/RecTools/issues/286), [#PR_NUMBER](https://github.com/MobileTeleSystems/RecTools/pull/PR_NUMBER))
+- Transformer models (`SASRecModel`, `BERT4RecModel`, etc.) failing to unpickle a fitted checkpoint via `__setstate__`, `load_weights_from_checkpoint` on a machine without CUDA, or where the checkpoint's original CUDA device index isn't present — `torch.load` now always resolves an explicit `map_location` instead of leaving it unset ([#286](https://github.com/MobileTeleSystems/RecTools/issues/286), [#321](https://github.com/MobileTeleSystems/RecTools/pull/321))
 
 
 ## [0.19.0] - 11.06.2026
