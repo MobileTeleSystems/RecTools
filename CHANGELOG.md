@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## Unreleased
+
+### Fixed
+- Loading fitted transformer models (`SASRecModel`, `BERT4RecModel`) that were saved on GPU with `load_model`, `load` and `loads` on a machine without GPU ([#327](https://github.com/MTSWebServices/RecTools/pull/327))
+
 ## [0.19.0] - 11.06.2026
 
 ### Added
