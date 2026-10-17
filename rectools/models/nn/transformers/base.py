@@ -668,7 +668,9 @@ class TransformerModelBase(ModelBase[TransformerModelConfig_T]):  # pylint: disa
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
         if "fitted_checkpoint" in state:
-            checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), weights_only=False)
+            # Load to CPU so that a model fitted on GPU can be loaded on a machine without one.
+            # Weights are moved to the right device before inference and by the trainer when fitting.
+            checkpoint = torch.load(io.BytesIO(state["fitted_checkpoint"]), map_location="cpu", weights_only=False)
             loaded = self._model_from_checkpoint(checkpoint)
         else:
             loaded = self.from_config(state["model_config"])

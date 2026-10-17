@@ -184,6 +184,26 @@ class TestTransformerModelBase:
         model.fit(dataset_item_features)
         assert_save_load_do_not_change_model(model, dataset_item_features)
 
+    @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
+    def test_load_fitted_model_saved_on_gpu_without_gpu(
+        self,
+        model_cls: tp.Type[TransformerModelBase],
+        dataset: Dataset,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        model = model_cls.from_config({"deterministic": True})
+        model.fit(dataset)
+
+        # Save the model as if its tensors were on a GPU
+        with monkeypatch.context() as m:
+            m.setattr(torch.serialization, "location_tag", lambda storage: "cuda:0")
+            data = model.dumps()
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+        recovered_model = model_cls.loads(data)
+
+        self._assert_same_reco(model, recovered_model, dataset)
+
     @pytest.mark.parametrize("test_dataset", ("dataset", "dataset_item_features"))
     @pytest.mark.parametrize("model_cls", (SASRecModel, BERT4RecModel))
     @pytest.mark.parametrize(
